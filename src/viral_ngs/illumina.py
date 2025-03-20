@@ -31,7 +31,7 @@ import pandas as pd
 
 import tools.picard
 import tools.samtools
-from tools.splitcode import SplitCodeTool
+import tools.splitcode
 import read_utils
 import util.cmd
 import util.file
@@ -248,10 +248,6 @@ def main_illumina_demux(args):
             barcode_columns_to_revcomp = args.rev_comp_barcodes_before_demux
         )
 
-    # === debugging ===
-    # print sample rows BEFORE collapsing duplicates
-    #samples.print_rows()
-    # =================
     collapse_requested = (args.collapse_duplicated_barcodes is not False)
     if not samples.can_be_collapsed:
         if collapse_requested:
@@ -267,21 +263,6 @@ def main_illumina_demux(args):
                 "a distinct barcode (or barcode pair)..."
             )
             samples.collapse_sample_index_duplicates(output_tsv=args.collapse_duplicated_barcodes)
-
-    # === debugging ===
-    # print sample rows AFTER collapsing duplicates
-    # samples.print_rows()
-    #
-    # write library params file earlier than it would normally be
-    # so we can inspect it for debugging purposes
-    #
-    # basecalls_input = util.file.mkstempfname(
-    #         ".txt", prefix=".".join(["library_params", flowcell, str(args.lane)])
-    #     )
-    # samples.make_params_file(args.outDir, basecalls_input)
-    # log.error("library params file written")
-    # exit(0)
-    # =================
 
     link_locs = False
     # For HiSeq-4000/X runs, If Picard's CheckIlluminaDirectory is
@@ -2410,15 +2391,17 @@ def read_json(filepath):
     return data
 
 
-def create_lut(sample_sheet, outDir, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
+def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
     pool_ids = pool_ids or []
 
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
 
+    outDir=os.path.dirname(csv_out)
+
     # Load sample_sheet
     barcodes_df = pd.read_csv(sample_sheet, sep="\t")
     
-    df_out = f"{outDir}/bc2sample_lut.csv"
+    df_csv_out = f"{csv_out}"
 
     i7_barcodes = list(set(barcodes_df["barcode_1"].values))
     barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
@@ -2528,9 +2511,9 @@ def create_lut(sample_sheet, outDir, unmatched_name, pool_ids=None, append_run_i
                                                         dup_condition.get("error_message", None) )
         problem_found = False
         if len(problems):
-            print(problem_header)
+            log.warning(problem_header)
             for problem in problems:
-                print(f"\t{problem}")
+                log.warning(f"\t{problem}")
             problem_found = True
         if problem_found:
             raise ValueError("Problem(s) found in sample sheet; see above for details.")
@@ -2601,12 +2584,12 @@ def create_lut(sample_sheet, outDir, unmatched_name, pool_ids=None, append_run_i
 
     # TO-DO: Adjust the table outputted by this function to match Picard output
 
-    df_lut.to_csv(df_out, index=False)
+    df_lut.to_csv(df_csv_out, index=False)
 
-    return df_out
+    return df_csv_out
 
-def plot_read_counts(df_lut_path, outDir):
-    df_lut = pd.read_csv(df_lut_path)
+def plot_read_counts(df_csv_path, outDir):
+    df_lut = pd.read_csv(df_csv_path)
     fig, axs = plt.subplots(figsize=(10, 10), nrows=3, sharex=True)
     fontsize = 14
 
@@ -2669,8 +2652,8 @@ def plot_read_counts(df_lut_path, outDir):
     fig.savefig(f"{outDir}/reads_per_pool.png", bbox_inches="tight", dpi=300)
 
 
-def plot_sorted_curve(df_lut_path, outDir, unmatched_name):
-    df_lut = pd.read_csv(df_lut_path)
+def plot_sorted_curve(df_csv_path, outDir, unmatched_name):
+    df_lut = pd.read_csv(df_csv_path)
 
     fig, axs = plt.subplots(figsize=(10, 10), nrows=4, sharex=True)
     fontsize = 14
@@ -2737,6 +2720,74 @@ def plot_sorted_curve(df_lut_path, outDir, unmatched_name):
         f"{outDir}/reads_per_pool_sorted_curve.png", bbox_inches="tight", dpi=300
     )
 
+# this function is called in new processes
+# and must remain at the top level (global scope) of this file
+# to be picklable and thus compatible
+# with concurrent.futures.ProcessPoolExecutor()
+# see: https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor
+#      https://stackoverflow.com/a/72776044
+def run_splitcode_on_pool(  pool_id, 
+                            pool_bam_file, 
+                            splitcode_config, 
+                            splitcode_keepfile, 
+                            out_demux_dir_path, 
+                            unmatched_name="unmatched", 
+                            threads_per_worker=None,
+                            out_dir_path=None,
+                            out_demux_dir_path_tmp=None,
+                            string_to_log=None
+                            ):
+    with tools.samtools.SamtoolsTool().bam2fq_tmp(pool_bam_file) as (fqin1, fqin2):
+        n_fastqs = 2
+        splitcode_tool = tools.splitcode.SplitCodeTool()
+
+        # output args
+        unmapped_r1   = f"{out_demux_dir_path_tmp}/{unmatched_name}.{pool_id}_R1.fastq"
+        unmapped_r2   = f"{out_demux_dir_path_tmp}/{unmatched_name}.{pool_id}_R2.fastq"
+        # write the stats to the output directory rather than tmp
+        summary_stats = f"{out_dir_path}/{pool_id}_summary.json"
+
+        # Optional: Pass 'predemux_r2_trim_3prime_num_bp':8 for '--trim-3 0,8' 
+        # to remove 8 bases from end of R2 read 
+        # (note: trimming happens before demuxing) 
+        splitcode_kwargs={
+            "n_fastqs": n_fastqs,
+            "threads": threads_per_worker,
+            "config_file": splitcode_config,
+            "keep_file": splitcode_keepfile,
+            "unassigned_r1": unmapped_r1,
+            "unassigned_r2": unmapped_r2,
+            "summary_stats": summary_stats,
+            "r1": fqin1,
+            "r2": fqin2,
+            "splitcode_opts": ["--no-output", "--no-outb"] # "Don't output any sequences", "Don't output final barcode sequences"
+        }
+        if string_to_log:
+            log.info(string_to_log)
+        return (splitcode_tool.execute(**splitcode_kwargs), pool_id)
+
+# this function is called in new processes
+# and must remain at the top level (global scope) of this file
+# to be picklable and thus compatible
+# with concurrent.futures.ProcessPoolExecutor()
+# see: https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor
+#      https://stackoverflow.com/a/72776044
+def run_picard_fastq_to_ubam(fq1, fq2, library_name, sample_name, out_demux_dir_path, picardOptions, jvm_memory, string_to_log=None):
+    # out_bam = f"{out_demux_dir_path}/{sample}.l{library_name}.{flowcell}.{lane}.bam"
+    # sample in this case is the library ID, so the
+    # output bam file named in the form: <sample_name>.l<library_id>.<run_id>.<lane>.bam
+    out_bam = f"{out_demux_dir_path}/{library_name}.bam"
+
+    if string_to_log:
+        log.info(string_to_log)
+    tools.picard.FastqToSamTool().execute(  fq1,
+                                            fq2,
+                                            sample_name,
+                                            out_bam,
+                                            picardOptions=picardOptions,
+                                            JVMmemory=jvm_memory)
+    return (sample_name, out_bam)
+
 def splitcode_demux(
     inDir,
     lane,
@@ -2788,6 +2839,7 @@ def splitcode_demux(
     
     rev_comp_barcodes_before_demux (list(str)) List of barcode columns to reverse complement before demux.
     """
+    splitcode_out_tmp_dir = tempfile.mkdtemp(prefix="splitcode_demux_output_tmp-")
 
     threads = threads or util.misc.available_cpu_count()
     unmatched_name = unmatched_name or "Unmatched"
@@ -2803,9 +2855,11 @@ def splitcode_demux(
     #       as potential locations for the fastq files (maybe recursive find them)
 
     if runinfo:
+        log.info(f"Loading RunInfo from supplied file {runinfo}")
         runinfo = RunInfo(runinfo)
     else:
         assert illumina_dir, "No Illumina Run Directory provided, and runinfo not provided."
+        log.info(f"Loading RunInfo from Illumina Run Directory: {illumina_dir.path}")
         runinfo = illumina_dir.get_RunInfo()
     # data from RunInfo.xml is used in the absense of user input
     # so assert that we have runinfo available
@@ -2824,11 +2878,19 @@ def splitcode_demux(
     platform_model    = sequencer_model or runinfo.get_machine_model()
     platform_model    = util.file.string_to_file_name(platform_model)
 
+    log.info(f"{'flowcell:':<19}{flowcell:<20}")
+    log.info(f"{'run_date:':<19}{run_date:<20}")
+    log.info(f"{'read_structure:':<19}{read_structure:<20}")
+    log.info(f"{'run_id:':<19}{run_id:<20}")
+    log.info(f"{'sequencing_center:':<19}{sequencing_center:<20}")
+    log.info(f"{'platform_model:':<19}{platform_model:<20}")
+
     if not platform_name:
-        log.warning("No platform name provided. Defaulting to 'ILLUMINA'.")
-    platform_name     = platform_name or "ILLUMINA"
+        log.warning("No platform name provided. Defaulting to 'ILLUMINA'")
+        platform_name = "ILLUMINA"
 
     if sampleSheet:
+        log.info(f"Loading SampleSheet from supplied file {sampleSheet}")
         samples = SampleSheet(
             sampleSheet,
             only_lane=lane,
@@ -2842,6 +2904,7 @@ def splitcode_demux(
             barcode_columns_to_revcomp = rev_comp_barcodes_before_demux
         )
     else:
+        log.info(f"Loading SampleSheet from Illumina Run Directory: {illumina_dir.path}")
         samples = illumina_dir.get_SampleSheet(
             only_lane=lane,
             append_run_id=run_id,
@@ -2901,7 +2964,6 @@ def splitcode_demux(
     inline_barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
 
     # Instantiate the splitcode and samtools tools
-    splitcode_tool = SplitCodeTool()
     samtools = tools.samtools.SamtoolsTool()
 
     demux_bams_to_sample_library_id_map         = defaultdict(list)
@@ -2915,6 +2977,7 @@ def splitcode_demux(
 
     # Iterate over rows
     for sample_name, sample_row in inner_demux_barcode_map_df.iterrows():
+        log.debug(f"Looking for input pool bam files for '{sample_name}'")
         #b1 = sample_row["barcode_1"]
         #b3 = sample_row["barcode_3"]
         #inline_index_id = sample_row["Inline_Index_ID"]
@@ -2924,9 +2987,11 @@ def splitcode_demux(
         bam_to_glob_for = f"{sample_row['muxed_run']}*.bam"
         found_bam_files = glob.glob(f"{inDir}/{bam_to_glob_for}".replace("//","/"))
         found_bam_file = found_bam_files[0] if found_bam_files else None
+        
         if found_bam_file:
             if muxed_pool_str not in pool_id_to_pool_bam:
                 pool_id_to_pool_bam[muxed_pool_str] = found_bam_file
+                log.info(f"Found input pool bam file for {muxed_pool_str}: {found_bam_file}")
 
             demux_bams_to_sample_library_id_map[found_bam_file].append(sample_row["run"])
             sample_to_demux_bam_map[sample_name] = found_bam_file
@@ -2935,11 +3000,26 @@ def splitcode_demux(
             raise FileNotFoundError(f"No bam file found: for {bam_to_glob_for}")
 
     demux_bams_to_sample_library_id_map = dict(demux_bams_to_sample_library_id_map)
-    pool_id_to_sample_library_id_map = dict(pool_id_to_sample_library_id_map)
+    pool_id_to_sample_library_id_map    = dict(pool_id_to_sample_library_id_map)
+
+
+    # ToDo: alternative code path to glob the input files for either fastq or bam patterns
+    # if the input is a bam file, convert to fastq files
+    # 
+    #with tools.samtools.SamtoolsTool().bam2fq_tmp(inBam) as (fqin1, fqin2), \
+    #     util.file.tmp_dir('_splitcode') as t_dir:
+    #     pass
+
+    # Unzip fastq files using pigz
+    #fastq_files = " ".join(f"'{f}'" for f in glob.glob(fastqs))
+    #subprocess.run(["pigz", "-d", *fastq_files], check=True)    
 
     for pool_id, sample_libraries in pool_id_to_sample_library_id_map.items():
+        log.info(f"pool to demux with splitcode: {pool_id} containing {len(sample_libraries)} libraries")
+        log.debug(f"creating splitcode config file for {pool_id}")
         # ======== create splitcode config file ========
         splitcode_config = util.file.mkstempfname(f'splitcode_{pool_id}_config.txt')
+
         with open(splitcode_config, "w") as config_fh:
             config_tsv_writer = csv.writer(config_fh, delimiter="\t")
 
@@ -2988,7 +3068,10 @@ def splitcode_demux(
                     # #config_f.write("\t".join(config_line_r2)+"\n")
                     # config_tsv_writer.writerow(config_line_r2)
                     # =======================
+
         pool_id_to_splitcode_configfile[pool_id] = splitcode_config
+        log.debug(f"splitcode config file created for {pool_id}")
+
 
 
         # ======== create splitcode keep file ==========
@@ -2999,13 +3082,14 @@ def splitcode_demux(
         #       to allow for increased parallelization of the splitcode demuxing,
         #       one job per library (at the expense of more I/O)
 
+        log.debug(f"creating splitcode keep file for {pool_id}")
         splitcode_sample_keep_file = util.file.mkstempfname(f"splitcode_{pool_id}_keepfile.txt")
         with open(splitcode_sample_keep_file, "w") as splitcode_sample_keep_fh:
             splitcode_sample_keepfile_tsv_writer = csv.writer(splitcode_sample_keep_fh, delimiter="\t")
 
             for sample_library_id in sample_libraries:
                 # ToDo: write fastq intermediate files to tmp dir once conversion to bam is in place downstream
-                sample_output_prefix = f"{out_demux_dir_path}/{sample_library_id}"
+                sample_output_prefix = f"{splitcode_out_tmp_dir}/{sample_library_id}"
                 splitcode_sample_keep_row = [
                                                 f"{sample_library_id}_R1",
                                                 sample_output_prefix,
@@ -3016,165 +3100,179 @@ def splitcode_demux(
                 splitcode_sample_keepfile_tsv_writer.writerow(splitcode_sample_keep_row)
 
                 assert (sample_library_id not in sample_library_id_to_fastqs), "%s detected twice when it should be present only once" % sample_library_id
+                
+                # maps sample_library_id to fastqs
+                # ex.
+                #   'VGG_19883.lPool_3.HHJYWDRX5.1' -> ["VGG_19883.lPool_3.HHJYWDRX5.1_R1.fastq","VGG_19883.lPool_3.HHJYWDRX5.1_R2.fastq"]
                 sample_library_id_to_fastqs[sample_library_id] = [f"{sample_output_prefix}_R1.fastq",f"{sample_output_prefix}_R2.fastq"]
                   
-        pool_id_to_splitcode_keepfile[pool_id] = splitcode_sample_keep_file
-        unmatched_sample_name = f"{unmatched_name}.{pool_id}"
-        unmatched_output_prefix = f"{out_demux_dir_path}/{unmatched_sample_name}"
-        sample_library_id_to_fastqs[unmatched_sample_name] = [f"{unmatched_output_prefix}_R1.fastq",f"{unmatched_output_prefix}_R2.fastq"]
+            pool_id_to_splitcode_keepfile[pool_id] = splitcode_sample_keep_file
+            
+            unmatched_sample_name = f"{unmatched_name}.{pool_id}"
+            unmatched_output_prefix = f"{splitcode_out_tmp_dir}/{unmatched_sample_name}"
+            sample_library_id_to_fastqs[unmatched_sample_name] = [f"{unmatched_output_prefix}_R1.fastq",f"{unmatched_output_prefix}_R2.fastq"]
 
-            # ToDo: glob the input files for either fastq or bam patterns
-            # if the input is a bam file, convert to fastq files
-            # 
-            #with tools.samtools.SamtoolsTool().bam2fq_tmp(inBam) as (fqin1, fqin2), \
-            #     util.file.tmp_dir('_splitcode') as t_dir:
-            #     pass
-
-            # Unzip fastq files using pigz
-            #fastq_files = " ".join(f"'{f}'" for f in glob.glob(fastqs))
-            #subprocess.run(["pigz", "-d", *fastq_files], check=True)            
-
-
-
-    # TO-DO: Enable parallel processing of pools/samples
-    # scatter tile-specific barcode files among workers to store barcode counts in SQLite
-    
-    # workers = util.misc.sanitize_thread_count(threads)
-    # with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-    #     futures = [
-    #         executor.submit(
-    #             util.file.count_occurrences_in_tsv_sqlite_backed,
-    #             tf,
-    #             bf,
-    #             include_noise=includeNoise,
-    #         )
-    #         for bf, tf in barcodefile_tempfile_tuples
-    #     ]
-    #     for future in concurrent.futures.as_completed(futures):
-    #         tmp_db, barcode_file = future.result()
-    #         log.debug(
-    #             "done reading barcodes from %s; adding to total...", barcode_file
-    #         )
-    #         # gather and reduce counts from separate SQLite databases into one
-    #         reduce_db.add_counts_from_other_db(tmp_db)
-    #         os.unlink(tmp_db)
-
-    #tmp dir to store intermediate fastq files from splitcode
-    #with util.file.tmp_dir('_splitcode') as t_dir:
+        log.debug(f"splitcode config keep created for {pool_id}")
+        
 
     # ======== run splitcode ==========
+    workers = threads or util.misc.available_cpu_count()
+    workers = min(workers, len(pool_id_to_sample_library_id_map)) # ensure we cannot have more workers than pools
+    workers = max(workers,1) # ensure at least 1 worker
 
-    for pool_id in sorted(pool_id_to_sample_library_id_map.keys()):
-        #break # TODO: remove this
-        splitcode_config   = pool_id_to_splitcode_configfile[pool_id]
-        splitcode_keepfile = pool_id_to_splitcode_keepfile[pool_id]
+    threads_per_worker = 1
+    if threads:
+        threads_per_worker = threads // workers
+    else:
+        threads_per_worker = util.misc.available_cpu_count() // workers
+    threads_per_worker = max(threads_per_worker,1) # ensure at least 1 thread per worker
 
-        pool_bam_file = pool_id_to_pool_bam[pool_id]
+    log.info(f"Running splitcode using {workers} worker{'s'[:workers^1]} to process {len(pool_id_to_sample_library_id_map)} pools, with {threads_per_worker} thread{'s'[:threads_per_worker^1]} per worker")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        futures = []
+        for pool_idx,pool_id in enumerate(sorted(pool_id_to_sample_library_id_map.keys())):
+            #break # TODO: remove this
+            splitcode_config   = pool_id_to_splitcode_configfile[pool_id]
+            splitcode_keepfile = pool_id_to_splitcode_keepfile[pool_id]
 
-        with tools.samtools.SamtoolsTool().bam2fq_tmp(pool_bam_file) as (fqin1, fqin2):
-            n_fastqs = 2
+            pool_bam_file = pool_id_to_pool_bam[pool_id]
 
-            # output args
-            unmapped_r1   = f"{out_demux_dir_path}/{unmatched_name}.{pool_id}_R1.fastq"
-            unmapped_r2   = f"{out_demux_dir_path}/{unmatched_name}.{pool_id}_R2.fastq"
-            summary_stats = f"{out_demux_dir_path}/{pool_id}_summary.json"
+            string_to_log = f"creating splitcode process {pool_idx+1} for: {pool_id}"
+            future = executor.submit(
+                                        run_splitcode_on_pool,
+                                        pool_id,
+                                        pool_bam_file,
+                                        splitcode_config,
+                                        splitcode_keepfile,
+                                        out_demux_dir_path,
+                                        threads_per_worker     = threads_per_worker,
+                                        out_dir_path           = out_demux_dir_path,
+                                        out_demux_dir_path_tmp = splitcode_out_tmp_dir,
+                                        string_to_log          = string_to_log
+                                    )
+            futures.append(future)
 
-            # Optional: Pass 'predemux_r2_trim_3prime_num_bp':8 for '--trim-3 0,8' 
-            # to remove 8 bases from end of R2 read 
-            # (note: trimming happens before demuxing) 
-            splitcode_kwargs={
-                "n_fastqs": n_fastqs,
-                "threads": threads,
-                "config_file": splitcode_config,
-                "keep_file": splitcode_keepfile,
-                "unassigned_r1": unmapped_r1,
-                "unassigned_r2": unmapped_r2,
-                "summary_stats": summary_stats,
-                "r1": fqin1,
-                "r2": fqin2,
-                "splitcode_opts": ["--no-output", "--no-outb"]
-            }
-            splitcode_tool.execute(**splitcode_kwargs)
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                return_code, pool_id = future.result()
+                log.info("worker done processing with splitcode: %s ", pool_id)
+                pool_ids_successfully_demuxed_via_splitcode.append(pool_id)
+            except subprocess.CalledProcessError as e:
+                log.error("Error running splitcode on pool; return code %s: %s", e.returncode, e.output)
+                #raise e
 
+    splitcode_demux_failures = list(set(pool_id_to_sample_library_id_map.keys()) - set(pool_ids_successfully_demuxed_via_splitcode))
+    if len(splitcode_demux_failures)>0:
+        log.warning("splitcode demux failed for: %s", )
 
-            # maps sample_library_id to fastqs
-            # ex.
-            #   'VGG_19883.lPool_3.HHJYWDRX5.1' -> ["VGG_19883.lPool_3.HHJYWDRX5.1_R1.fastq","VGG_19883.lPool_3.HHJYWDRX5.1_R2.fastq"]
-            #print(f"sample_library_id_to_fastqs {sample_library_id_to_fastqs}")
-            pool_ids_successfully_demuxed_via_splitcode.append(pool_id)
-
-            # ToDo: convert the splitcode output file fastqs to bams
-            #       and reheader them with the appropriate readgroups and other attributes
-
-    
+    # gather metrics and create output plots
+    log.info("gathering splitcode demux metrics...")
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
-    df_out = create_lut(sampleSheet, outDir, unmatched_name, pool_ids_successfully_demuxed_via_splitcode, append_run_id=run_id)
+    splitcode_csv_metrics_out = f"{outDir}/bc2sample_lut.csv"
+    df_csv_out_path = create_lut(sampleSheet, splitcode_csv_metrics_out, unmatched_name, pool_ids_successfully_demuxed_via_splitcode, append_run_id=run_id)
+    log.info("splitcode demux metrics written to %s", splitcode_csv_metrics_out)
 
-    picard_style_splitcode_metrics_path = os.path.splitext(df_out)[0] + "_picard-style.txt"
-    convert_splitcode_demux_metrics_to_picard_style(df_out, picard_style_splitcode_metrics_path)
+    picard_style_splitcode_metrics_path = os.path.splitext(df_csv_out_path)[0] + "_picard-style.txt"
+    convert_splitcode_demux_metrics_to_picard_style(df_csv_out_path, picard_style_splitcode_metrics_path)
+    log.info("picard-style splitcode demux metrics written to %s", picard_style_splitcode_metrics_path)
 
+    log.info("plotting splitcode demux metrics...")
     # Plot number and fraction of reads per inline barcode per pool
-    plot_read_counts(df_out, outDir)
+    plot_read_counts(df_csv_out_path, outDir)
 
     # Plot a sorted curve per pool and save csv file with sorted read numbers and fractions for QC
-    plot_sorted_curve(df_out, outDir, unmatched_name)
+    plot_sorted_curve(df_csv_out_path, outDir, unmatched_name)
 
     
-    df = pd.read_csv(df_out)
+    df = pd.read_csv(df_csv_out_path)
     df = df.rename(columns={"inline_barcode": "barcode_3"})
 
     # change index of df to 'run' column
     df = df.set_index('run')
 
-    # Generate bam files
-    for sample,(fq1,fq2) in sample_library_id_to_fastqs.items():
-        # print the row of df with index matching sample
-        if sample not in df.index:
-            log.warning("Sample %s not found in the samplesheet data.", sample)
-            continue
+    workers = threads or util.misc.available_cpu_count()
+    workers = min(workers, len(sample_library_id_to_fastqs))
+    workers = max(workers,1) # ensure at least 1 worker
+    threads_per_worker = 1
 
-        samplesheet_row_for_sample = df.loc[sample]
-        samplesheet_row_idx = df.index.get_loc(sample)
-        samplesheet_row_idx = samplesheet_row_idx if type(samplesheet_row_idx)==int else None
+    bams_successfully_created_for_samples = []
+    bam_conversion_attempted_for_samples = []
 
-        barcodes_for_sample_joined = "-".join([
-                                        samplesheet_row_for_sample["barcode_1"], 
-                                        samplesheet_row_for_sample["barcode_2"], 
-                                        samplesheet_row_for_sample["barcode_3"]])
-        platform_unit = ".".join([
-                                    flowcell,
-                                    str(lane), 
-                                    barcodes_for_sample_joined
-                                ])
+    log.info(f"Converting splitcode output to ubam using {workers} worker{'s'[:workers^1]} for {len(sample_library_id_to_fastqs)} samples, with {threads_per_worker} thread{'s'[:threads_per_worker^1]} per worker")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        futures = []
+        # Generate bam files
+        for sample_idx,(sample,(fq1,fq2)) in enumerate(sample_library_id_to_fastqs.items()):
+            if sample not in df.index:
+                log.warning("Sample %s not found in the samplesheet data.", sample)
+                continue
 
-        sample = samplesheet_row_for_sample.name #long-form name in the form {sample}.l{library_name}.{flowcell}.{lane}
-        sample_name = samplesheet_row_for_sample["sample"]
-        library_name = samplesheet_row_for_sample["library_id"]
-        readgroup_name = ".".join([
-                                    flowcell[:4],
-                                    str(lane),
-                                    str(samplesheet_row_idx+1) if samplesheet_row_idx is not None else util.misc.md5_digest(barcodes_for_sample_joined,last_n_chr=4)
+            samplesheet_row_for_sample = df.loc[sample]
+            samplesheet_row_idx = df.index.get_loc(sample)
+            samplesheet_row_idx = samplesheet_row_idx if type(samplesheet_row_idx)==int else None
+
+            barcodes_for_sample_joined = "-".join([
+                                            samplesheet_row_for_sample["barcode_1"], 
+                                            samplesheet_row_for_sample["barcode_2"], 
+                                            samplesheet_row_for_sample["barcode_3"]])
+            platform_unit = ".".join([
+                                        flowcell,
+                                        str(lane), 
+                                        barcodes_for_sample_joined
                                     ])
-        picardOptions = [
-            f"LIBRARY_NAME={sample}",
-            f"PLATFORM={platform_name}",
-            f"PLATFORM_UNIT={platform_unit}",
-            f"PLATFORM_MODEL={platform_model}",
-            f"SEQUENCING_CENTER={sequencing_center}",
-            f"RUN_DATE={run_date}",
-            f"READ_GROUP_NAME={readgroup_name}",
-        ]
 
-        # output bam file named in the form <sample_name>.l<library_id>.<run_id>.<lane>.bam
-        #out_bam = f"{out_demux_dir_path}/{sample}.l{library_name}.{flowcell}.{lane}.bam"
-        out_bam = f"{out_demux_dir_path}/{sample}.bam"
+            sample = samplesheet_row_for_sample.name #long-form name in the form {sample}.l{library_name}.{flowcell}.{lane}
+            sample_name = samplesheet_row_for_sample["sample"]
+            library_name = samplesheet_row_for_sample["library_id"]
+            readgroup_name = ".".join([
+                                        flowcell[:4],
+                                        str(lane),
+                                        str(samplesheet_row_idx+1) if samplesheet_row_idx is not None else util.misc.md5_digest(barcodes_for_sample_joined,last_n_chr=4)
+                                        ])
+            picardOptions = [
+                f"LIBRARY_NAME={sample}",
+                f"PLATFORM={platform_name}",
+                f"PLATFORM_UNIT={platform_unit}",
+                f"PLATFORM_MODEL={platform_model}",
+                f"SEQUENCING_CENTER={sequencing_center}",
+                f"RUN_DATE={run_date}",
+                f"READ_GROUP_NAME={readgroup_name}",
+            ]
 
-        tools.picard.FastqToSamTool().execute(  fq1,
-                                                fq2,
-                                                sample_name,
-                                                out_bam,
-                                                picardOptions=picardOptions,
-                                                JVMmemory=jvm_memory)
+            string_to_log = f"creating picard FastqToSamTool process {sample_idx+1} for: {sample_name}"
+            future = executor.submit(
+                run_picard_fastq_to_ubam,
+                fq1,
+                fq2,
+                sample, # library name
+                sample_name, 
+                out_demux_dir_path,
+                picardOptions,
+                jvm_memory,
+                string_to_log
+            )
+            bam_conversion_attempted_for_samples.append(sample_name)
+            futures.append(future)
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                sample_name, out_bam = future.result()
+                log.info("worker done processing splitcode output to ubam: %s --> %s", sample_name, out_bam)
+                bams_successfully_created_for_samples.append(sample_name)
+            except subprocess.CalledProcessError as e:
+                log.error("Error running picard FastqToSamTool; return code %s: %s", e.returncode, e.output)
+                #raise e
+    bam_conversion_failures = list(set(bam_conversion_attempted_for_samples) - set(bams_successfully_created_for_samples))
+    if len(bam_conversion_failures)>0:
+        log.warning("picard FastqToSamTool failed for: %s", bam_conversion_failures)
+
+    # now that we have ubam output, 
+    # the fastq files and tabular splitcode inputs are no longer needed
+    # so we can delete the splitcode_out_tmp_dir directory
+    shutil.rmtree(splitcode_out_tmp_dir)
+
+    #os.unlink(splitcode_out_tmp_dir)
+
     # organize samplesheet metadata as json
     sample_meta = list(samples.get_rows())
     for row in sample_meta:

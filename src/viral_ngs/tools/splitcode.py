@@ -81,7 +81,7 @@ class SplitCodeTool(tools.Tool):
         tool_cmd.extend([r1,r2])
 
         log.debug('Running splitcode with command: %s', ' '.join(tool_cmd))
-        subprocess.check_call(tool_cmd)
+        return subprocess.check_call(tool_cmd)
 
     def check_installation(self):
         """Ensure the tool is properly installed."""
