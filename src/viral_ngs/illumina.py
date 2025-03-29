@@ -225,9 +225,9 @@ def main_illumina_demux(args):
     if args.sampleSheet:
         samples = SampleSheet(
             args.sampleSheet,
-            only_lane=args.lane,
-            append_run_id=run_id,
-            allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False,
+            only_lane        = args.lane,
+            append_run_id    = run_id,
+            allow_non_unique = True if args.collapse_duplicated_barcodes! = False else False,
             # barcode_columns_to_revcomp:
             #   For --rev_comp_barcodes_before_demux: 
             #    1) None if not passed
@@ -237,9 +237,9 @@ def main_illumina_demux(args):
         )
     else:
         samples = illumina.get_SampleSheet(
-            only_lane=args.lane,
-            append_run_id=run_id,
-            allow_non_unique=True if args.collapse_duplicated_barcodes!=False else False,
+            only_lane        = args.lane,
+            append_run_id    = run_id,
+            allow_non_unique = True if args.collapse_duplicated_barcodes! = False else False,
             # barcode_columns_to_revcomp:
             #   For --rev_comp_barcodes_before_demux: 
             #    1) None if not passed
@@ -401,19 +401,19 @@ def main_illumina_demux(args):
         with open(args.out_runinfo, "wt") as outf:
             json.dump(
                 {
-                    "sequencing_center": picardOpts["sequencing_center"],
-                    "run_start_date": runinfo.get_rundate_iso(),
-                    "read_structure": picardOpts["read_structure"],
-                    "indexes": str(samples.indexes),
-                    "run_id": runinfo.get_run_id(),
-                    "lane": str(args.lane),
-                    "flowcell": str(runinfo.get_flowcell()),
-                    "lane_count": str(runinfo.get_lane_count()),
-                    "surface_count": str(runinfo.get_surface_count()),
-                    "swath_count": str(runinfo.get_swath_count()),
-                    "tile_count": str(runinfo.get_tile_count()),
-                    "total_tile_count": str(runinfo.tile_count()),
-                    "sequencer_model": runinfo.get_machine_model(),
+                    "sequencing_center" : picardOpts["sequencing_center"],
+                    "run_start_date"    : runinfo.get_rundate_iso(),
+                    "read_structure"    : picardOpts["read_structure"],
+                    "indexes"           : str(samples.indexes),
+                    "run_id"            : runinfo.get_run_id(),
+                    "lane"              : str(args.lane),
+                    "flowcell"          : str(runinfo.get_flowcell()),
+                    "lane_count"        : str(runinfo.get_lane_count()),
+                    "surface_count"     : str(runinfo.get_surface_count()),
+                    "swath_count"       : str(runinfo.get_swath_count()),
+                    "tile_count"        : str(runinfo.get_tile_count()),
+                    "total_tile_count"  : str(runinfo.tile_count()),
+                    "sequencer_model"   : runinfo.get_machine_model(),
                 },
                 outf,
                 indent=2,
@@ -777,12 +777,12 @@ __commands__.append(("common_barcodes", parser_common_barcodes))
 def count_and_sort_barcodes(
     barcodes_dir,
     outSummary,
-    barcode1_len=8,
-    barcode2_len=8,
-    truncateToLength=None,
-    includeNoise=False,
-    omitHeader=False,
-    threads=None,
+    barcode1_len     = 8,
+    barcode2_len     = 8,
+    truncateToLength = None,
+    includeNoise     = False,
+    omitHeader       = False,
+    threads          = None,
 ):
     # collect the barcode file paths for all tiles
     tile_barcode_files = [
@@ -995,12 +995,12 @@ def main_guess_barcodes(
         in_barcodes, in_picard_metrics, rows_limit
     )
     guessed_barcodes = bh.find_uncertain_barcodes(
-        sample_names=sample_names,
-        outlier_threshold=outlier_threshold,
-        expected_assigned_fraction=expected_assigned_fraction,
-        number_of_negative_controls=number_of_negative_controls,
-        readcount_threshold=readcount_threshold,
-        neg_control_prefixes=neg_control_prefixes,
+        sample_names                = sample_names,
+        outlier_threshold           = outlier_threshold,
+        expected_assigned_fraction  = expected_assigned_fraction,
+        number_of_negative_controls = number_of_negative_controls,
+        readcount_threshold         = readcount_threshold,
+        neg_control_prefixes        = neg_control_prefixes,
     )
     bh.write_guessed_barcodes(out_summary_tsv, guessed_barcodes)
 
@@ -1224,10 +1224,10 @@ class RunInfo(object):
         return int(layout.attrib.get("SectionPerLane", 1))
 
     def tile_count(self):
-        lane_count = self.get_lane_count()
+        lane_count    = self.get_lane_count()
         surface_count = self.get_surface_count()
-        swath_count = self.get_swath_count()
-        tile_count = self.get_tile_count()
+        swath_count   = self.get_swath_count()
+        tile_count    = self.get_tile_count()
         section_count = self.get_section_count()
 
         total_tile_count = (
@@ -1382,70 +1382,70 @@ class RunInfo(object):
     #   https://www.ncbi.nlm.nih.gov/viewvc/v1/trunk/sra/doc/SRA_1-5/SRA.common.xsd?view=co&content-type=text%2Fplain
     flowcell_to_machine_model_and_chemistry = {
         r"[A-Z,0-9]{5}AAXX": {
-            "machine": "Illumina Genome Analyzer IIx",
-            "chemistry": "All",
-            "lane_count": 8,
-            "note": "",
+            "machine"    : "Illumina Genome Analyzer IIx",
+            "chemistry"  : "All",
+            "lane_count" : 8,
+            "note"       : "",
         },
         r"[A-Z,0-9]{5}ABXX": {
-            "machine": "Illumina HiSeq 2000",
-            "chemistry": "V2 Chemistry",
-            "lane_count": 8,
-            "note": "",
+            "machine"    : "Illumina HiSeq 2000",
+            "chemistry"  : "V2 Chemistry",
+            "lane_count" : 8,
+            "note"       : "",
         },
         r"[A-Z,0-9]{5}ACXX": {
-            "machine": "Illumina HiSeq 2000",
-            "chemistry": "V3 Chemistry",
-            "lane_count": 8,
-            "note": "Also used on transient 2000E",
+            "machine"    : "Illumina HiSeq 2000",
+            "chemistry"  : "V3 Chemistry",
+            "lane_count" : 8,
+            "note"       : "Also used on transient 2000E",
         },
         r"[A-Z,0-9]{5}(?:ANXX|AN\w\w)": {
-            "machine": "Illumina HiSeq 2500",
-            "chemistry": "V4 Chemistry",
-            "lane_count": 8,
-            "note": "High output",
+            "machine"    : "Illumina HiSeq 2500",
+            "chemistry"  : "V4 Chemistry",
+            "lane_count" : 8,
+            "note"       : "High output",
         },
         r"[A-Z,0-9]{5}(?:ADXX|AD\w\w)": {
-            "machine": "Illumina HiSeq 2500",
-            "chemistry": "V1 Chemistry",
-            "lane_count": 2,
-            "note": "Rapid run",
+            "machine"    : "Illumina HiSeq 2500",
+            "chemistry"  : "V1 Chemistry",
+            "lane_count" : 2,
+            "note"       : "Rapid run",
         },
         r"[A-Z,0-9]{5}AMXX": {
-            "machine": "Illumina HiSeq 2500",
-            "chemistry": "V2 Chemistry (beta)",
-            "lane_count": 2,
-            "note": "Rapid run",
+            "machine"    : "Illumina HiSeq 2500",
+            "chemistry"  : "V2 Chemistry (beta)",
+            "lane_count" : 2,
+            "note"       : "Rapid run",
         },
         r"[A-Z,0-9]{5}(?:BCXX|BC\w\w)": {
-            "machine": "Illumina HiSeq 2500",
-            "chemistry": "V2 Chemistry",
-            "lane_count": 2,
-            "note": "Rapid run",
+            "machine"    : "Illumina HiSeq 2500",
+            "chemistry"  : "V2 Chemistry",
+            "lane_count" : 2,
+            "note"       : "Rapid run",
         },
         # NextSeq 550 is a NextSeq 500 that can also read arrays.
         # Since we cannot tell them apart based on tile count, we call it the 550
         r"[A-Z,0-9]{5}AFX\w": {
-            "machine": "NextSeq 550",
-            "chemistry": "Mid-Output NextSeq",
-            "lane_count": 4,
-            "note": "",
+            "machine"    : "NextSeq 550",
+            "chemistry"  : "Mid-Output NextSeq",
+            "lane_count" : 4,
+            "note"       : "",
         },
         # NextSeq 550 is a NextSeq 500 that can also read arrays.
         # Since we cannot tell them apart based on tile count, we call it the 550
         r"[A-Z,0-9]{5}AGXX": {
-            "machine": "NextSeq 550",
-            "chemistry": "V1 Chemistry",
-            "lane_count": 4,
-            "note": "High-output",
+            "machine"    : "NextSeq 550",
+            "chemistry"  : "V1 Chemistry",
+            "lane_count" : 4,
+            "note"       : "High-output",
         },
         # NextSeq 550 is a NextSeq 500 that can also read arrays.
         # Since we cannot tell them apart based on tile count, we call it the 550
         r"[A-Z,0-9]{5}(?:BGXX|BG\w\w)": {
-            "machine": "NextSeq 550",
-            "chemistry": "V2/V2.5 Chemistry",
-            "lane_count": 4,
-            "note": "High-output",
+            "machine"    : "NextSeq 550",
+            "chemistry"  : "V2/V2.5 Chemistry",
+            "lane_count" : 4,
+            "note"       : "High-output",
         },
         # r'[A-Z,0-9]{5}(?:AAAC|AAA\w)':{ # suffix not confirmed
         #     "machine":    "NextSeq 1000/2000",
@@ -1460,52 +1460,52 @@ class RunInfo(object):
         #     "note":       "High-output"
         # },
         r"[A-Z,0-9]{5}(?:BBXX|BB\w\w)": {
-            "machine": "Illumina HiSeq 4000",
-            "chemistry": "Illumina HiSeq 4000",
-            "lane_count": 8,
-            "note": "",
+            "machine"    : "Illumina HiSeq 4000",
+            "chemistry"  : "Illumina HiSeq 4000",
+            "lane_count" : 8,
+            "note"       : "",
         },
         r"[A-Z,0-9]{5}(?:ALXX:AL\w\w)": {
-            "machine": "HiSeq X Ten",
-            "chemistry": "V1/V2.5 Chemistry",
-            "lane_count": 8,
-            "note": "",
+            "machine"    : "HiSeq X Ten",
+            "chemistry"  : "V1/V2.5 Chemistry",
+            "lane_count" : 8,
+            "note"       : "",
         },
         r"[A-Z,0-9]{5}(?:CCXX:CC\w\w)": {
-            "machine": "HiSeq X Ten",
-            "chemistry": "V2/V2.5 Chemistry",
-            "lane_count": 8,
-            "note": "",
+            "machine"    : "HiSeq X Ten",
+            "chemistry"  : "V2/V2.5 Chemistry",
+            "lane_count" : 8,
+            "note"       : "",
         },
         r"[A-Z,0-9]{5}DR\w\w": {
-            "machine": "Illumina NovaSeq 6000",
-            "chemistry": "V1 Chemistry",
-            "lane_count": 2,
-            "note": "S1/SP",
+            "machine"    : "Illumina NovaSeq 6000",
+            "chemistry"  : "V1 Chemistry",
+            "lane_count" : 2,
+            "note"       : "S1/SP",
         },
         r"[A-Z,0-9]{5}DM\w\w": {
-            "machine": "Illumina NovaSeq 6000",
-            "chemistry": "V1 Chemistry",
-            "lane_count": 2,
-            "note": "S2",
+            "machine"    : "Illumina NovaSeq 6000",
+            "chemistry"  : "V1 Chemistry",
+            "lane_count" : 2,
+            "note"       : "S2",
         },
         r"[A-Z,0-9]{5}DS\w\w": {
-            "machine": "Illumina NovaSeq 6000",
-            "chemistry": "V1 Chemistry",
-            "lane_count": 4,
-            "note": "S4",
+            "machine"    : "Illumina NovaSeq 6000",
+            "chemistry"  : "V1 Chemistry",
+            "lane_count" : 4,
+            "note"       : "S4",
         },
         r"BNS417.*": {
-            "machine": "Illumina iSeq 100",
-            "chemistry": "V1",
-            "lane_count": 1,
-            "note": "AKA Firefly",
+            "machine"    : "Illumina iSeq 100",
+            "chemistry"  : "V1",
+            "lane_count" : 1,
+            "note"       : "AKA Firefly",
         },
         r"[0-9]{9}-\w{5}": {
-            "machine": "Illumina MiSeq",
-            "chemistry": "V1/V2/V3 Chemistry",
-            "lane_count": 1,
-            "note": "",
+            "machine"    : "Illumina MiSeq",
+            "chemistry"  : "V1/V2/V3 Chemistry",
+            "lane_count" : 1,
+            "note"       : "",
         },
     }
 
@@ -1530,12 +1530,12 @@ class SampleSheet(object):
     def __init__(
         self,
         infile,
-        use_sample_name  = True,
-        only_lane        = None,
-        allow_non_unique = False,
-        append_run_id    = None,
-        collapse_duplicates = False,
-        rev_comp_barcode_2        = False,
+        use_sample_name            = True,
+        only_lane                  = None,
+        allow_non_unique           = False,
+        append_run_id              = None,
+        collapse_duplicates        = False,
+        rev_comp_barcode_2         = False,
         barcode_columns_to_revcomp = None # list of (additional) column names to reverse complement
     ):
         self.fname            = infile
@@ -1558,7 +1558,7 @@ class SampleSheet(object):
 
         # see rev_comp_barcode_2 is set, or barcode_columns_to_revcomp is: present, iterable, and not empty
         if rev_comp_barcode_2 or (barcode_columns_to_revcomp and isinstance(barcode_columns_to_revcomp, (list, tuple, set, str))):
-            columns_to_revcomp = ['barcode_2'] if rev_comp_barcode_2 else []
+            columns_to_revcomp  = ['barcode_2'] if rev_comp_barcode_2 else []
             columns_to_revcomp += barcode_columns_to_revcomp
 
             self.rev_comp_barcode_values( barcode_columns_to_revcomp=columns_to_revcomp, inplace=True)
@@ -1609,30 +1609,30 @@ class SampleSheet(object):
                         if all(x in header for x in ["Sample_ID", "Index"]):
                             # this is a Broad Platform MiSeq-generated SampleSheet.csv
                             keymapper = {
-                                "Sample_ID": "sample",
-                                "Index": "barcode_1",
-                                "Index2": "barcode_2",
-                                "Sample_Name": "sample_name",
+                                "Sample_ID"   : "sample",
+                                "Index"       : "barcode_1",
+                                "Index2"      : "barcode_2",
+                                "Sample_Name" : "sample_name",
                             }
                             header = list(map(keymapper.get, header))
                         elif "Sample_ID" in header:
                             # this is a MiSeq-generated SampleSheet.csv
                             keymapper = {
-                                "Sample_ID": "sample",
-                                "index": "barcode_1",
-                                "index2": "barcode_2",
-                                "Sample_Name": "sample_name",
+                                "Sample_ID"   : "sample",
+                                "index"       : "barcode_1",
+                                "index2"      : "barcode_2",
+                                "Sample_Name" : "sample_name",
                             }
                             header = list(map(keymapper.get, header))
                         elif "SampleID" in header:
                             # this is a Broad Platform HiSeq-generated SampleSheet.csv
                             keymapper = {
-                                "SampleID": "sample",
-                                "Index": "barcode_1",
-                                "Index2": "barcode_2",
-                                "libraryName": "library_id_per_sample",
-                                "FCID": "flowcell",
-                                "Lane": "lane",
+                                "SampleID"    : "sample",
+                                "Index"       : "barcode_1",
+                                "Index2"      : "barcode_2",
+                                "libraryName" : "library_id_per_sample",
+                                "FCID"        : "flowcell",
+                                "Lane"        : "lane",
                             }
                             header = list(map(keymapper.get, header))
                         elif len(row) == 3:
@@ -1643,10 +1643,10 @@ class SampleSheet(object):
                                 row_num += 1
                                 self.rows.append(
                                     {
-                                        "sample": row[0],
-                                        "barcode_1": row[1],
-                                        "barcode_2": row[2],
-                                        "row_num": str(row_num),
+                                        "sample"    : row[0],
+                                        "barcode_1" : row[1],
+                                        "barcode_2" : row[2],
+                                        "row_num"   : str(row_num),
                                     }
                                 )
                         else:
@@ -2086,10 +2086,10 @@ class SampleSheet(object):
             outf.write("\t".join(header) + "\n")
             for row in self.rows:
                 out = {
-                    "barcode_sequence_1": row["barcode_1"],
-                    "barcode_sequence_2": row.get("barcode_2", ""),
-                    "barcode_name": row["sample"],
-                    "library_name": row["library"],
+                    "barcode_sequence_1" : row["barcode_1"],
+                    "barcode_sequence_2" : row.get("barcode_2", ""),
+                    "barcode_name"       : row["sample"],
+                    "library_name"       : row["library"],
                 }
                 outf.write("\t".join(out[h] for h in header) + "\n")
 
@@ -2165,19 +2165,19 @@ class SampleSheet(object):
             # add one catchall entry at the end called Unmatched
             rows = self.rows + [
                 {
-                    "barcode_1": "N",
-                    "barcode_2": "N",
-                    "sample": "Unmatched",
-                    "library": "Unmatched",
-                    "run": "Unmatched",
+                    "barcode_1" : "N",
+                    "barcode_2" : "N",
+                    "sample"    : "Unmatched",
+                    "library"   : "Unmatched",
+                    "run"       : "Unmatched",
                 }
             ]
             for row in rows:
                 out = {
-                    "BARCODE_1": row["barcode_1"],
-                    "BARCODE_2": row.get("barcode_2", ""),
-                    "SAMPLE_ALIAS": row["sample"],
-                    "LIBRARY_NAME": row["library"],
+                    "BARCODE_1"    : row["barcode_1"],
+                    "BARCODE_2"    : row.get("barcode_2", ""),
+                    "SAMPLE_ALIAS" : row["sample"],
+                    "LIBRARY_NAME" : row["library"],
                 }
                 out["OUTPUT"] = os.path.join(bamDir, row["run"] + ".bam")
                 outf.write("\t".join(out[h] for h in header) + "\n")
@@ -2442,9 +2442,9 @@ def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_
         err_header_has_dup_check_col         = '{column_to_check_for_duplicates}' in error_message_header
         err_header_has_affected_column_names = '{affected_column_names}' in error_message_header
 
-        err_msg_has_affected_values       = '{affected_values}' in error_message
-        err_msg_has_dup_val               = '{duplicated_values}' in error_message
-        err_msg_has_count                 = '{duplicate_count}' in error_message
+        err_msg_has_affected_values          = '{affected_values}' in error_message
+        err_msg_has_dup_val                  = '{duplicated_values}' in error_message
+        err_msg_has_count                    = '{duplicate_count}' in error_message
         
 
         # To store all generated error messages
@@ -2533,10 +2533,10 @@ def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_
         splitcode_summary_df['run'] = splitcode_summary_df['tag'].copy()
         splitcode_summary_df['run'] = splitcode_summary_df['run'].str.removesuffix('_R1')
         
-        splitcode_summary_df_h0_df = splitcode_summary_df[splitcode_summary_df["distance"] == 0]
-        splitcode_summary_df_h1_df = splitcode_summary_df[splitcode_summary_df["distance"] == 1].copy()
+        splitcode_summary_df_h0_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 0]
+        splitcode_summary_df_h1_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 1].copy()
 
-        splitcode_summary_df_h1_df = splitcode_summary_df_h1_df.rename(columns={"count": "count_h1"})
+        splitcode_summary_df_h1_df  = splitcode_summary_df_h1_df.rename(columns={"count": "count_h1"})
 
         samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_df.join(
                                             splitcode_summary_df_h0_df.set_index('run'), 
@@ -2544,9 +2544,9 @@ def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_
 
         samplesheet_rows_for_pool_hx_df = pd.merge(samplesheet_rows_for_pool_hx_df,
                                             splitcode_summary_df_h1_df[['run','count_h1']].rename(columns={'run':'run_h1'}),
-                                             left_on='run',
-                                             right_on='run_h1',
-                                             how='left')
+                                             left_on  = 'run',
+                                             right_on = 'run_h1',
+                                             how      = 'left')
         samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_hx_df.drop(columns=['run_h1','distance','tag']) # dropping distance since we've added a col with different distance (as indicated by _h1 suffix)
         # fil NA values in 'count_h1' and cast to int
         samplesheet_rows_for_pool_hx_df["count_h1"] = samplesheet_rows_for_pool_hx_df["count_h1"].fillna(0).astype(int)
@@ -2554,15 +2554,15 @@ def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_
         pool_dfs.append(samplesheet_rows_for_pool_hx_df)
 
         unmatched_dict = {
-            "sample": f"{unmatched_name}.{pool}",
-            "library_id_per_sample": list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
-            "run": f"{unmatched_name}.{pool}",
-            "muxed_pool": pool,
-            "count": splitcode_summary["n_processed"] - splitcode_summary["n_assigned"],
-            "count_h1": 0,
-            "barcode_1": list(samplesheet_rows_for_pool_hx_df["barcode_1"])[0],
-            "barcode_2": list(samplesheet_rows_for_pool_hx_df["barcode_2"])[0],
-            "barcode_3": "N" * len(list(samplesheet_rows_for_pool_hx_df["barcode_3"])[0]),
+            "sample"                : f"{unmatched_name}.{pool}",
+            "library_id_per_sample" : list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
+            "run"                   : f"{unmatched_name}.{pool}",
+            "muxed_pool"            : pool,
+            "count"                 : splitcode_summary["n_processed"] - splitcode_summary["n_assigned"],
+            "count_h1"              : 0,
+            "barcode_1"             : list(samplesheet_rows_for_pool_hx_df["barcode_1"])[0],
+            "barcode_2"             : list(samplesheet_rows_for_pool_hx_df["barcode_2"])[0],
+            "barcode_3"             : "N" * len(list(samplesheet_rows_for_pool_hx_df["barcode_3"])[0]),
         }
         unmatched_df = pd.DataFrame.from_dict([unmatched_dict])
         unmatched_dfs.append(unmatched_df)
@@ -2731,11 +2731,11 @@ def run_splitcode_on_pool(  pool_id,
                             splitcode_config, 
                             splitcode_keepfile, 
                             out_demux_dir_path, 
-                            unmatched_name="unmatched", 
-                            threads_per_worker=None,
-                            out_dir_path=None,
-                            out_demux_dir_path_tmp=None,
-                            string_to_log=None
+                            unmatched_name         = "unmatched",
+                            threads_per_worker     = None,
+                            out_dir_path           = None,
+                            out_demux_dir_path_tmp = None,
+                            string_to_log          = None
                             ):
     with tools.samtools.SamtoolsTool().bam2fq_tmp(pool_bam_file) as (fqin1, fqin2):
         n_fastqs = 2
@@ -2751,16 +2751,16 @@ def run_splitcode_on_pool(  pool_id,
         # to remove 8 bases from end of R2 read 
         # (note: trimming happens before demuxing) 
         splitcode_kwargs={
-            "n_fastqs": n_fastqs,
-            "threads": threads_per_worker,
-            "config_file": splitcode_config,
-            "keep_file": splitcode_keepfile,
-            "unassigned_r1": unmapped_r1,
-            "unassigned_r2": unmapped_r2,
-            "summary_stats": summary_stats,
-            "r1": fqin1,
-            "r2": fqin2,
-            "splitcode_opts": ["--no-output", "--no-outb"] # "Don't output any sequences", "Don't output final barcode sequences"
+            "n_fastqs"       : n_fastqs,
+            "threads"        : threads_per_worker,
+            "config_file"    : splitcode_config,
+            "keep_file"      : splitcode_keepfile,
+            "unassigned_r1"  : unmapped_r1,
+            "unassigned_r2"  : unmapped_r2,
+            "summary_stats"  : summary_stats,
+            "r1"             : fqin1,
+            "r2"             : fqin2,
+            "splitcode_opts" : ["--no-output", "--no-outb"] # "Don't output any sequences", "Don't output final barcode sequences"
         }
         if string_to_log:
             log.info(string_to_log)
@@ -2793,29 +2793,29 @@ def splitcode_demux(
     lane,
     outDir,
 
-    max_hamming_dist=1,
-    unmatched_name=None,
+    max_hamming_dist = 1,
+    unmatched_name   = None,
 
-    illumina_run_directory=None,
-    sampleSheet=None,
-    runinfo=None,
+    illumina_run_directory = None,
+    sampleSheet            = None,
+    runinfo                = None,
     
-    read_structure=None,
-    platform_name=None,
-    flowcell=None,
-    run_id=None,
-    run_date=None,
-    #readgroup_name=None,
-    sequencing_center=None,
-    sequencer_model=None,
+    read_structure    = None,
+    platform_name     = None,
+    flowcell          = None,
+    run_id            = None,
+    run_date          = None,
+    #readgroup_name   = None,
+    sequencing_center = None,
+    sequencer_model   = None,
 
-    rev_comp_barcodes_before_demux=None,
-    out_runinfo=None,
-    out_meta_by_filename=None,
-    out_meta_by_sample=None,
+    rev_comp_barcodes_before_demux = None,
+    out_runinfo                    = None,
+    out_meta_by_filename           = None,
+    out_meta_by_sample             = None,
 
-    threads=None,
-    jvm_memory=None
+    threads    = None,
+    jvm_memory = None
 ):
     """
     Args:
@@ -2875,7 +2875,7 @@ def splitcode_demux(
     run_id            = run_id            or f"{runinfo.get_flowcell()}.{lane}" # runinfo.get_run_id()
     sequencing_center = sequencing_center or runinfo.get_machine() #f"{runinfo.get_machine_model()}.{runinfo.get_machine()}"
     sequencing_center = util.file.string_to_file_name(sequencing_center)
-    platform_model    = sequencer_model or runinfo.get_machine_model()
+    platform_model    = sequencer_model   or runinfo.get_machine_model()
     platform_model    = util.file.string_to_file_name(platform_model)
 
     log.info(f"{'flowcell:':<19}{flowcell:<20}")
@@ -2893,9 +2893,9 @@ def splitcode_demux(
         log.info(f"Loading SampleSheet from supplied file {sampleSheet}")
         samples = SampleSheet(
             sampleSheet,
-            only_lane=lane,
-            append_run_id=run_id,
-            allow_non_unique=True,
+            only_lane        = lane,
+            append_run_id    = run_id,
+            allow_non_unique = True,
             # barcode_columns_to_revcomp:
             #   For --rev_comp_barcodes_before_demux: 
             #    1) None if not passed
@@ -2906,9 +2906,9 @@ def splitcode_demux(
     else:
         log.info(f"Loading SampleSheet from Illumina Run Directory: {illumina_dir.path}")
         samples = illumina_dir.get_SampleSheet(
-            only_lane=lane,
-            append_run_id=run_id,
-            allow_non_unique=True,
+            only_lane        = lane,
+            append_run_id    = run_id,
+            allow_non_unique = True,
             # barcode_columns_to_revcomp:
             #   For --rev_comp_barcodes_before_demux: 
             #    1) None if not passed
@@ -2929,19 +2929,19 @@ def splitcode_demux(
         with open(out_runinfo, "wt") as outf:
             json.dump(
                 {
-                    "sequencing_center": sequencing_center,
-                    "run_start_date": runinfo.get_rundate_iso(),
-                    "read_structure": read_structure, # ToDo: how to represent nested demux?
-                    "indexes": str(samples.indexes),
-                    "run_id": runinfo.get_run_id(),
-                    "lane": str(lane),
-                    "flowcell": str(runinfo.get_flowcell()),
-                    "lane_count": str(runinfo.get_lane_count()),
-                    "surface_count": str(runinfo.get_surface_count()),
-                    "swath_count": str(runinfo.get_swath_count()),
-                    "tile_count": str(runinfo.get_tile_count()),
-                    "total_tile_count": str(runinfo.tile_count()),
-                    "sequencer_model": runinfo.get_machine_model(),
+                    "sequencing_center" : sequencing_center,
+                    "run_start_date"    : runinfo.get_rundate_iso(),
+                    "read_structure"    : read_structure, # ToDo            : how to represent nested demux?
+                    "indexes"           : str(samples.indexes),
+                    "run_id"            : runinfo.get_run_id(),
+                    "lane"              : str(lane),
+                    "flowcell"          : str(runinfo.get_flowcell()),
+                    "lane_count"        : str(runinfo.get_lane_count()),
+                    "surface_count"     : str(runinfo.get_surface_count()),
+                    "swath_count"       : str(runinfo.get_swath_count()),
+                    "tile_count"        : str(runinfo.get_tile_count()),
+                    "total_tile_count"  : str(runinfo.tile_count()),
+                    "sequencer_model"   : runinfo.get_machine_model(),
                 },
                 outf,
                 indent=2,
@@ -3237,6 +3237,11 @@ def splitcode_demux(
                 f"SEQUENCING_CENTER={sequencing_center}",
                 f"RUN_DATE={run_date}",
                 f"READ_GROUP_NAME={readgroup_name}",
+                # note in the read group (@RG) description (DS) tag 
+                # that this was a two-stage demux (since we don't necessarily know from a RG:PU value whether three barcodes means splitcode demux or atypical picard demux with three barcodes)
+                #   see:
+                #     https://samtools.github.io/hts-specs/SAMv1.pdf#page=4
+                f"DESCRIPTION=Two-stage-demux_picard-on-illumina-indices_then_splitcode-on-inner-barcodes"
             ]
 
             string_to_log = f"creating picard FastqToSamTool process {sample_idx+1} for: {sample_name}"
@@ -3290,25 +3295,24 @@ def main_splitcode_demux(args):
     Main function to call splitcode_demux from the command line.
     """
     splitcode_demux(
-        inDir=args.inDir,
-        lane=args.lane,
-        outDir=args.outDir,
-        sampleSheet=args.sampleSheet,
-        illumina_run_directory=args.illumina_run_directory,
-        unmatched_name=args.unmatched_name,
-        max_hamming_dist=args.max_hamming_dist,
-        threads=args.threads,
-        runinfo=args.runinfo,
-        platform_name=args.platform_name,
-        flowcell=args.flowcell,
-        run_date=args.run_date,
-        #readgroup_name=args.readgroup_name,
-        sequencing_center=args.sequencing_center,
-        rev_comp_barcodes_before_demux=args.rev_comp_barcodes_before_demux,
-        out_runinfo=args.out_runinfo,
-        out_meta_by_filename=args.out_meta_by_filename,
-        out_meta_by_sample=args.out_meta_by_sample,
-        jvm_memory=args.jvm_memory
+        inDir                          = args.inDir,
+        lane                           = args.lane,
+        outDir                         = args.outDir,
+        sampleSheet                    = args.sampleSheet,
+        illumina_run_directory         = args.illumina_run_directory,
+        unmatched_name                 = args.unmatched_name,
+        max_hamming_dist               = args.max_hamming_dist,
+        threads                        = args.threads,
+        runinfo                        = args.runinfo,
+        platform_name                  = args.platform_name,
+        flowcell                       = args.flowcell,
+        run_date                       = args.run_date,
+        sequencing_center              = args.sequencing_center,
+        rev_comp_barcodes_before_demux = args.rev_comp_barcodes_before_demux,
+        out_runinfo                    = args.out_runinfo,
+        out_meta_by_filename           = args.out_meta_by_filename,
+        out_meta_by_sample             = args.out_meta_by_sample,
+        jvm_memory                     = args.jvm_memory
     )
 
 
@@ -3439,10 +3443,10 @@ __commands__.append(("splitcode_demux", parser_splitcode_demux))
 def convert_splitcode_demux_metrics_to_picard_style(
     in_splitcode_csv_path,
     out_splitcode_tsv_metrics_path,
-    demux_function="viral-core.SplitcodeMetrics",
-    catchall_name="unmatched",
-    combine_innerbarcode_unmatched=False,
-    report_within_pools=True
+    demux_function                 = "viral-core.SplitcodeMetrics",
+    catchall_name                  = "unmatched",
+    combine_innerbarcode_unmatched = False,
+    report_within_pools            = True
 ):
     """
     Convert a custom Splitcode demux CSV file into a Picard-style
@@ -3465,7 +3469,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
     # Required columns for the first set of metrics
     #
     required_cols = [
-        "sample",                     # -> BARCODE_NAME
+        "sample",                    # -> BARCODE_NAME
         "barcode_1",                 # -> part of BARCODE
         "barcode_2",                 # -> part of BARCODE
         "num_reads_hdistance0",      # -> PERFECT_MATCHES, PF_PERFECT_MATCHES
@@ -3521,11 +3525,11 @@ def convert_splitcode_demux_metrics_to_picard_style(
     #
     # Fill the first set of columns (READS, PF_READS, etc.)
     #
-    df["READS"] = df["num_reads_total"]
-    df["PF_READS"] = df["num_reads_total"]
-    df["PERFECT_MATCHES"] = df["num_reads_hdistance0"]
-    df["PF_PERFECT_MATCHES"] = df["num_reads_hdistance0"]
-    df["ONE_MISMATCH_MATCHES"] = df["num_reads_hdistance1"]
+    df["READS"]                   = df["num_reads_total"]
+    df["PF_READS"]                = df["num_reads_total"]
+    df["PERFECT_MATCHES"]         = df["num_reads_hdistance0"]
+    df["PF_PERFECT_MATCHES"]      = df["num_reads_hdistance0"]
+    df["ONE_MISMATCH_MATCHES"]    = df["num_reads_hdistance1"]
     df["PF_ONE_MISMATCH_MATCHES"] = df["num_reads_hdistance1"]
 
     #
@@ -3575,16 +3579,16 @@ def convert_splitcode_demux_metrics_to_picard_style(
             sum_pf_one_mismatch     = df_all_n["PF_ONE_MISMATCH_MATCHES"].sum()
 
             collapsed = df_all_n.iloc[0].copy()
-            collapsed["BARCODE"] = "N"
+            collapsed["BARCODE"]                   = "N"
             collapsed["BARCODE_WITHOUT_DELIMITER"] = "N"
-            collapsed["BARCODE_NAME"] = ""
-            collapsed["LIBRARY_NAME"] = ""
-            collapsed["READS"] = sum_reads
-            collapsed["PF_READS"] = sum_pf_reads
-            collapsed["PERFECT_MATCHES"] = sum_perfect_matches
-            collapsed["PF_PERFECT_MATCHES"] = sum_pf_perfect_matches
-            collapsed["ONE_MISMATCH_MATCHES"] = sum_one_mismatch
-            collapsed["PF_ONE_MISMATCH_MATCHES"] = sum_pf_one_mismatch
+            collapsed["BARCODE_NAME"]              = ""
+            collapsed["LIBRARY_NAME"]              = ""
+            collapsed["READS"]                     = sum_reads
+            collapsed["PF_READS"]                  = sum_pf_reads
+            collapsed["PERFECT_MATCHES"]           = sum_perfect_matches
+            collapsed["PF_PERFECT_MATCHES"]        = sum_pf_perfect_matches
+            collapsed["ONE_MISMATCH_MATCHES"]      = sum_one_mismatch
+            collapsed["PF_ONE_MISMATCH_MATCHES"]   = sum_pf_one_mismatch
 
             # Recombine the "not all-N" rows plus this one collapsed row
             df = pd.concat([df_not_all_n, pd.DataFrame([collapsed])], ignore_index=True)
@@ -3603,8 +3607,8 @@ def convert_splitcode_demux_metrics_to_picard_style(
 
     def compute_stats_per_group(group: pd.DataFrame) -> pd.DataFrame:
         """Compute sums, maxima, etc. *within* the group, fill ratio/percentage columns."""
-        sum_of_reads = group["READS"].sum()
-        max_of_reads = group["READS"].max() if len(group) > 0 else 1
+        sum_of_reads    = group["READS"].sum()
+        max_of_reads    = group["READS"].max() if len(group) > 0 else 1
         sum_of_pf_reads = group["PF_READS"].sum()
         max_of_pf_reads = group["PF_READS"].max() if len(group) > 0 else 1
 
