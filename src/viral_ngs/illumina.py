@@ -100,20 +100,20 @@ def parser_illumina_demux(parser=argparse.ArgumentParser()):
         help="If specified, output filenames will include the flowcell ID and lane number.",
         action="store_true",
     )
-    parser.add_argument(
-        "--collapse_duplicated_barcodes",
-        help="""If specified, reads from samples with duplicated barcodes or barcode pairs 
-                will be collapsed into a single output for each distinct barcode (or distinct barcode pair). 
-                Intended for protocols allowing additional demultiplexing downstream by other means 
-                (ex. breaking out samples based on a third, inner barcode, added via swift-seq). 
-                If not specified, an error will be raised if duplicated barcodes (or barcode pairs) 
-                are present in the sample sheet. If a value is specified, it will be used as 
-                the path to store output sample sheet with barcodes collapsed""",
-        default=False,
-        const=None,
-        nargs='?',
-        #action="store_true"
-    )
+    # parser.add_argument(
+    #     "--collapse_duplicated_barcodes",
+    #     help="""If specified, reads from samples with duplicated barcodes or barcode pairs 
+    #             will be collapsed into a single output for each distinct barcode (or distinct barcode pair). 
+    #             Intended for protocols allowing additional demultiplexing downstream by other means 
+    #             (ex. breaking out samples based on a third, inner barcode, added via swift-seq). 
+    #             If not specified, an error will be raised if duplicated barcodes (or barcode pairs) 
+    #             are present in the sample sheet. If a value is specified, it will be used as 
+    #             the path to store output sample sheet with barcodes collapsed""",
+    #     default=False,
+    #     const=None,
+    #     nargs='?',
+    #     #action="store_true"
+    # )
     parser.add_argument(
         "--rev_comp_barcodes_before_demux",
         help="""Reverse complement barcodes before demultiplexing.
@@ -227,7 +227,7 @@ def main_illumina_demux(args):
             args.sampleSheet,
             only_lane        = args.lane,
             append_run_id    = run_id,
-            allow_non_unique = True if args.collapse_duplicated_barcodes! = False else False,
+            allow_non_unique = True if args.collapse_duplicated_barcodes != False else False,
             # barcode_columns_to_revcomp:
             #   For --rev_comp_barcodes_before_demux: 
             #    1) None if not passed
@@ -239,7 +239,7 @@ def main_illumina_demux(args):
         samples = illumina.get_SampleSheet(
             only_lane        = args.lane,
             append_run_id    = run_id,
-            allow_non_unique = True if args.collapse_duplicated_barcodes! = False else False,
+            allow_non_unique = True if args.collapse_duplicated_barcodes != False else False,
             # barcode_columns_to_revcomp:
             #   For --rev_comp_barcodes_before_demux: 
             #    1) None if not passed
