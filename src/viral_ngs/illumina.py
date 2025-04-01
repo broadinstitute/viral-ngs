@@ -2613,7 +2613,7 @@ def plot_read_counts(df_csv_path, outDir):
             bar_positions + i * bar_width,
             df_grouped[pool],
             width=bar_width,
-            label=f'{pool.split("_")[-1]}',
+            label=f'{str(pool).split("_")[-1]}',
             color=pool_colors[i],
         )
         axs[1].bar(
@@ -2666,7 +2666,7 @@ def plot_sorted_curve(df_csv_path, outDir, unmatched_name):
     reads_per_bc = pd.DataFrame()
     for i, pool in enumerate(sorted(df_lut["library_id"].unique())):
         num_reads = df_lut[
-            (df_lut["library_id"] == pool)
+            (df_lut["library_id"] == str(pool))
             & (df_lut["inline_barcode"] != unmatched_name)
         ]["num_reads_total"]
         num_reads = sorted(num_reads, reverse=True)
@@ -2674,7 +2674,7 @@ def plot_sorted_curve(df_csv_path, outDir, unmatched_name):
             ax.scatter(
                 np.arange(len(num_reads)),
                 num_reads,
-                label=f'{pool.split("_")[-1]}',
+                label=f'{str(pool).split("_")[-1]}',
                 color=pool_colors[i],
             )
             ax.plot(np.arange(len(num_reads)), num_reads, color=pool_colors[i])
