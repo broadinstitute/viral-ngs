@@ -2772,7 +2772,14 @@ def run_splitcode_on_pool(  pool_id,
 # with concurrent.futures.ProcessPoolExecutor()
 # see: https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor
 #      https://stackoverflow.com/a/72776044
-def run_picard_fastq_to_ubam(fq1, fq2, library_name, sample_name, out_demux_dir_path, picardOptions, jvm_memory, string_to_log=None):
+def run_picard_fastq_to_ubam(fq1,
+                             fq2,
+                             library_name,
+                             sample_name,
+                             out_demux_dir_path,
+                             picardOptions,
+                             jvm_memory,
+                             string_to_log=None):
     # out_bam = f"{out_demux_dir_path}/{sample}.l{library_name}.{flowcell}.{lane}.bam"
     # sample in this case is the library ID, so the
     # output bam file named in the form: <sample_name>.l<library_id>.<run_id>.<lane>.bam
@@ -2784,8 +2791,8 @@ def run_picard_fastq_to_ubam(fq1, fq2, library_name, sample_name, out_demux_dir_
                                             fq2,
                                             sample_name,
                                             out_bam,
-                                            picardOptions=picardOptions,
-                                            JVMmemory=jvm_memory)
+                                            picardOptions = picardOptions,
+                                            JVMmemory     = jvm_memory)
     return (sample_name, out_bam)
 
 def splitcode_demux(
@@ -2852,7 +2859,7 @@ def splitcode_demux(
     # ToDo: if illumina_run_directory is not provided, but we lack provided runinfo, 
     #       inspect the inDir to see if it looks like an illumina run directory
     #       and try to load it as such (then interpreting Analysis/, fastq/ and other sub-dirs)
-    #       as potential locations for the fastq files (maybe recursive find them)
+    #       as potential locations for the fastq files (maybe recursively find them)
 
     if runinfo:
         log.info(f"Loading RunInfo from supplied file {runinfo}")
@@ -2869,13 +2876,13 @@ def splitcode_demux(
     if not all([flowcell, run_date, read_structure, run_id, sequencing_center]):
         assert runinfo, "No RunInfo.xml provided, nor found in a specified Illumina Run Directory."
 
-    flowcell          = flowcell          or runinfo.get_flowcell()
-    run_date          = run_date          or runinfo.get_rundate_iso()
-    read_structure    = read_structure    or runinfo.get_read_structure()
+    flowcell          = flowcell          or    runinfo.get_flowcell()
+    run_date          = run_date          or    runinfo.get_rundate_iso()
+    read_structure    = read_structure    or    runinfo.get_read_structure()
     run_id            = run_id            or f"{runinfo.get_flowcell()}.{lane}" # runinfo.get_run_id()
-    sequencing_center = sequencing_center or runinfo.get_machine() #f"{runinfo.get_machine_model()}.{runinfo.get_machine()}"
+    sequencing_center = sequencing_center or    runinfo.get_machine() #f"{runinfo.get_machine_model()}.{runinfo.get_machine()}"
+    platform_model    = sequencer_model   or    runinfo.get_machine_model()
     sequencing_center = util.file.string_to_file_name(sequencing_center)
-    platform_model    = sequencer_model   or runinfo.get_machine_model()
     platform_model    = util.file.string_to_file_name(platform_model)
 
     log.info(f"{'flowcell:':<19}{flowcell:<20}")
@@ -2931,7 +2938,7 @@ def splitcode_demux(
                 {
                     "sequencing_center" : sequencing_center,
                     "run_start_date"    : runinfo.get_rundate_iso(),
-                    "read_structure"    : read_structure, # ToDo            : how to represent nested demux?
+                    "read_structure"    : read_structure,
                     "indexes"           : str(samples.indexes),
                     "run_id"            : runinfo.get_run_id(),
                     "lane"              : str(lane),
@@ -2978,10 +2985,10 @@ def splitcode_demux(
     # Iterate over rows
     for sample_name, sample_row in inner_demux_barcode_map_df.iterrows():
         log.debug(f"Looking for input pool bam files for '{sample_name}'")
-        #b1 = sample_row["barcode_1"]
-        #b3 = sample_row["barcode_3"]
+        #b1              = sample_row["barcode_1"]
+        #b3              = sample_row["barcode_3"]
         #inline_index_id = sample_row["Inline_Index_ID"]
-        #run_str = sample_row["run"]
+        #run_str         = sample_row["run"]
         muxed_pool_str = sample_row["muxed_run"]
 
         bam_to_glob_for = f"{sample_row['muxed_run']}*.bam"
@@ -3076,7 +3083,7 @@ def splitcode_demux(
 
         # ======== create splitcode keep file ==========
     
-        # ToDo: consider... rather than create a single splitcode keep file for each pool
+        # ToDo: consider... rather than creating a single splitcode keep file for each pool,
         #       provide the option to create 1..N splitcode keep files for each pool
         #       where N is the number of samples in each pool
         #       to allow for increased parallelization of the splitcode demuxing,
@@ -3088,7 +3095,6 @@ def splitcode_demux(
             splitcode_sample_keepfile_tsv_writer = csv.writer(splitcode_sample_keep_fh, delimiter="\t")
 
             for sample_library_id in sample_libraries:
-                # ToDo: write fastq intermediate files to tmp dir once conversion to bam is in place downstream
                 sample_output_prefix = f"{splitcode_out_tmp_dir}/{sample_library_id}"
                 splitcode_sample_keep_row = [
                                                 f"{sample_library_id}_R1",
@@ -3131,7 +3137,6 @@ def splitcode_demux(
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
         futures = []
         for pool_idx,pool_id in enumerate(sorted(pool_id_to_sample_library_id_map.keys())):
-            #break # TODO: remove this
             splitcode_config   = pool_id_to_splitcode_configfile[pool_id]
             splitcode_keepfile = pool_id_to_splitcode_keepfile[pool_id]
 
@@ -3176,27 +3181,27 @@ def splitcode_demux(
     convert_splitcode_demux_metrics_to_picard_style(df_csv_out_path, picard_style_splitcode_metrics_path)
     log.info("picard-style splitcode demux metrics written to %s", picard_style_splitcode_metrics_path)
 
+    # ----- splitcode metrics plotting -----
     log.info("plotting splitcode demux metrics...")
     # Plot number and fraction of reads per inline barcode per pool
     plot_read_counts(df_csv_out_path, outDir)
-
     # Plot a sorted curve per pool and save csv file with sorted read numbers and fractions for QC
     plot_sorted_curve(df_csv_out_path, outDir, unmatched_name)
+    # --- end splitcode metrics plotting ---
 
-    
     df = pd.read_csv(df_csv_out_path)
     df = df.rename(columns={"inline_barcode": "barcode_3"})
 
     # change index of df to 'run' column
     df = df.set_index('run')
 
-    workers = threads or util.misc.available_cpu_count()
-    workers = min(workers, len(sample_library_id_to_fastqs))
-    workers = max(workers,1) # ensure at least 1 worker
+    workers            = threads or util.misc.available_cpu_count()
+    workers            = min(workers, len(sample_library_id_to_fastqs))
+    workers            = max(workers,1) # ensure at least 1 worker
     threads_per_worker = 1
 
     bams_successfully_created_for_samples = []
-    bam_conversion_attempted_for_samples = []
+    bam_conversion_attempted_for_samples  = []
 
     log.info(f"Converting splitcode output to ubam using {workers} worker{'s'[:workers^1]} for {len(sample_library_id_to_fastqs)} samples, with {threads_per_worker} thread{'s'[:threads_per_worker^1]} per worker")
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
@@ -3221,7 +3226,8 @@ def splitcode_demux(
                                         barcodes_for_sample_joined
                                     ])
 
-            sample = samplesheet_row_for_sample.name #long-form name in the form {sample}.l{library_name}.{flowcell}.{lane}
+            # this is the long-form name, in the form "{sample}.l{library_name}.{flowcell}.{lane}""
+            sample = samplesheet_row_for_sample.name 
             sample_name = samplesheet_row_for_sample["sample"]
             library_name = samplesheet_row_for_sample["library_id"]
             readgroup_name = ".".join([
@@ -3241,7 +3247,7 @@ def splitcode_demux(
                 # that this was a two-stage demux (since we don't necessarily know from a RG:PU value whether three barcodes means splitcode demux or atypical picard demux with three barcodes)
                 #   see:
                 #     https://samtools.github.io/hts-specs/SAMv1.pdf#page=4
-                f"DESCRIPTION=Two-stage-demux_picard-on-illumina-indices_then_splitcode-on-inner-barcodes"
+                f"DESCRIPTION=two-stage-demux_with_picard-on-illumina-indices_then_splitcode-on-inner-barcodes"
             ]
 
             string_to_log = f"creating picard FastqToSamTool process {sample_idx+1} for: {sample_name}"
@@ -3465,9 +3471,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
                                 If False, we check the entire combined barcode for 'N's.
     """
 
-    #
     # Required columns for the first set of metrics
-    #
     required_cols = [
         "sample",                    # -> BARCODE_NAME
         "barcode_1",                 # -> part of BARCODE
@@ -3494,9 +3498,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
     # If 'inline_barcode' is present, treat it as a potential "third" barcode
     barcode_3_col = "inline_barcode" if "inline_barcode" in df.columns else None
 
-    #
     # Combine up to 3 barcodes into 'BARCODE' (with '-') and 'BARCODE_WITHOUT_DELIMITER' (concatenated)
-    #
     def combine_barcodes(row):
         bcs = []
         for bc_col in ["barcode_1", "barcode_2"]:
@@ -3511,9 +3513,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
 
     df[["BARCODE", "BARCODE_WITHOUT_DELIMITER"]] = df.apply(combine_barcodes, axis=1)
 
-    #
     # Assign 'BARCODE_NAME' and 'LIBRARY_NAME'
-    #
     df["BARCODE_NAME"] = df["sample"]
     if "run" in df.columns and not df["run"].dropna().empty:
         df["LIBRARY_NAME"] = df["run"]
@@ -3522,9 +3522,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
     else:
         df["LIBRARY_NAME"] = df["BARCODE_NAME"]
 
-    #
     # Fill the first set of columns (READS, PF_READS, etc.)
-    #
     df["READS"]                   = df["num_reads_total"]
     df["PF_READS"]                = df["num_reads_total"]
     df["PERFECT_MATCHES"]         = df["num_reads_hdistance0"]
@@ -3532,9 +3530,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
     df["ONE_MISMATCH_MATCHES"]    = df["num_reads_hdistance1"]
     df["PF_ONE_MISMATCH_MATCHES"] = df["num_reads_hdistance1"]
 
-    #
     # Define the "all N" checkers
-    #
     def is_all_N(barcode_str: str) -> bool:
         """Return True if the entire (combined) barcode is all 'N' and non-empty."""
         if not isinstance(barcode_str, str):
@@ -3553,9 +3549,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
             return False
         return is_all_N(parts[-1])
 
-    #
     # Row Collapsing for "all-N" if combine_innerbarcode_unmatched == True
-    #
     if combine_innerbarcode_unmatched:
         # The definition of "all-N" changes depending on report_within_pools:
         #  - If report_within_pools=True => check ONLY the last barcode piece
@@ -3645,9 +3639,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
 
         return out
 
-    #
     # Perform the group-based or global stats
-    #
     if report_within_pools:
         # Group by (barcode_1, barcode_2)
         grouped = df.groupby(["barcode_1", "barcode_2"], group_keys=False)
@@ -3656,9 +3648,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
         # Global
         df = compute_stats_per_group(df)
 
-    #
     # Prepare the output
-    #
     columns_out = [
         "BARCODE",
         "BARCODE_WITHOUT_DELIMITER",
