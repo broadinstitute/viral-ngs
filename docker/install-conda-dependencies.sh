@@ -20,6 +20,11 @@ echo "MINICONDA_PATH:    ${MINICONDA_PATH}"
 echo "CONDA_DEFAULT_ENV: ${CONDA_DEFAULT_ENV}"
 #CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda"
 
+echo "Conda version:  $(conda --version)"
+echo "Mamba version:  $(mamba --version)"
+echo "Python version: $(python --version)"
+echo "which python: $(which python)"
+
 # ToDo: if confirmed working, move to conda config section of viral-baseimage
 conda config --set repodata_threads $(nproc)
 
