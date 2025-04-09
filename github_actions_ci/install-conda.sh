@@ -41,7 +41,7 @@ else # if it does not exist, we need to install miniconda
     hash -r
     conda install -y conda==4.7.10 # specify "conda update -c conda-canary conda" for pre-release conda
     conda config --set always_yes yes --set changeps1 no --set remote_max_retries 6 #--set channel_priority strict
-    conda config --add channels defaults
+    #conda config --add channels defaults
     conda config --add channels bioconda
     conda config --add channels conda-forge
     conda config --add channels broad-viral

@@ -16,6 +16,7 @@ ENV \
 	INSTALL_PATH="/opt/viral-ngs" \
 	VIRAL_NGS_PATH="/opt/viral-ngs/source" \
 	MINICONDA_PATH="/opt/miniconda" \
+	MAMBA_ROOT_PREFIX="/opt/miniconda" \
 	CONDA_DEFAULT_ENV=viral-ngs-env \
 	CONDA_ENVS_PATH="$MINICONDA_PATH/envs"
 ENV \
