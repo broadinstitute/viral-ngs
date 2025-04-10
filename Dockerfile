@@ -30,7 +30,7 @@ ENV \
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
-RUN mamba create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.10
+RUN mamba create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.11
 RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
 RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
