@@ -12,12 +12,13 @@ set -e -o pipefail
 DEBUG=1 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
 
-echo "PATH:              ${PATH}"
-echo "INSTALL_PATH:      ${INSTALL_PATH}"
-echo "CONDA_PREFIX:      ${CONDA_PREFIX}"
-echo "VIRAL_NGS_PATH:    ${VIRAL_NGS_PATH}"
-echo "MINICONDA_PATH:    ${MINICONDA_PATH}"
-echo "CONDA_DEFAULT_ENV: ${CONDA_DEFAULT_ENV}"
+echo "PATH:                 ${PATH}"
+echo "INSTALL_PATH:         ${INSTALL_PATH}"
+echo "CONDA_PREFIX:         ${CONDA_PREFIX}"
+echo "VIRAL_NGS_PATH:       ${VIRAL_NGS_PATH}"
+echo "MINICONDA_PATH:       ${MINICONDA_PATH}"
+echo "CONDA_DEFAULT_ENV:    ${CONDA_DEFAULT_ENV}"
+echo "CONDA_CHANNEL_STRING: ${CONDA_CHANNEL_STRING}"
 #CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda"
 
 echo "Conda version:  $(conda --version)"
