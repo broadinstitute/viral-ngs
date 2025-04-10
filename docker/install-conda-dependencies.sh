@@ -23,7 +23,8 @@ echo "CONDA_DEFAULT_ENV: ${CONDA_DEFAULT_ENV}"
 echo "Conda version:  $(conda --version)"
 echo "Mamba version:  $(mamba --version)"
 echo "Python version: $(python --version)"
-echo "which python: $(which python)"
+echo "which python:   $(which python)"
+echo "conda list:     $(conda list)"
 
 # ToDo: if confirmed working, move to conda config section of viral-baseimage
 conda config --set repodata_threads $(nproc)
