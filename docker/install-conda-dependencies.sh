@@ -54,9 +54,14 @@ function start_keepalive {
     >&2 echo "Running..."
     # Start a process that runs as a keep-alive
     # to avoid having the CI running quit if there is no output
-    (while true; do
-        sleep 120
-        >&2 echo "Still running..."
+    # also keep track of start time and report human-readable duration as part of the heartbeat log lines
+    (local start_time=$(date +%s)
+        while true; do
+        sleep 120;
+        local current_time=$(date +%s);
+        local elapsed_time=$((current_time - start_time));
+        local elapsed_time_human=$(date -u -d @$elapsed_time +%H:%M:%S);
+        >&2 echo "Still running (${elapsed_time_human})..."
     done) &
     KEEPALIVE_PID=$!
     disown
