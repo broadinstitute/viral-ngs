@@ -9,7 +9,7 @@
 
 set -e -o pipefail
 
-#DEBUG=1 # set DEBUG=1 for more verbose output
+DEBUG=1 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
 
 echo "PATH:              ${PATH}"
@@ -60,7 +60,7 @@ function start_keepalive {
         sleep 120;
         local current_time=$(date +%s);
         local elapsed_time=$((current_time - start_time));
-        local elapsed_time_human=$(date -u -d @$elapsed_time +%H:%M:%S);
+        local elapsed_time_human=$(date -u -d @$elapsed_time +%Hh:%Mm:%Ss);
         >&2 echo "Still running (${elapsed_time_human})..."
     done) &
     KEEPALIVE_PID=$!
@@ -87,13 +87,13 @@ for condafile in $*; do
 	REQUIREMENTS="$REQUIREMENTS --file $condafile"
 
     # print dependency tree for all packages in file
-    [[ $DEBUG = 1 ]] && grep -vE '^#' "${condafile}" | xargs -I {} mamba repoquery depends $CONDA_CHANNEL_STRING --quiet --pretty --recursive --tree "{}";
+    [[ $DEBUG == 1 ]] && grep -vE '^#' "${condafile}" | xargs -I {} mamba repoquery depends $CONDA_CHANNEL_STRING --quiet --pretty --recursive --tree "{}";
 done
 
 # run conda install with keepalive subshell process running in background
 # to keep travis build going. Enforce a hard timeout via timeout GNU coreutil
 start_keepalive
-if [[ $DEBUG = 1 ]]; then 
+if [[ $DEBUG == 1 ]]; then 
     MAMBA_DEBUG_LEVEL="-vvv"
 fi
 mamba install -y $MAMBA_DEBUG_LEVEL -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
