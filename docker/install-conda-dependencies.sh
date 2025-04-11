@@ -7,7 +7,7 @@
 # A miniconda install must exist at $CONDA_DEFAULT_ENV
 # and $CONDA_DEFAULT_ENV/bin must be in the PATH
 
-set -e -x -o pipefail
+set -e -o pipefail # -x
 
 #DEBUG=1 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
@@ -51,7 +51,7 @@ echo "---------------"
 # ToDo: if confirmed working, move to conda config section of viral-baseimage
 conda config --set repodata_threads $(nproc)
 
-mamba init # --system
+source ${MINICONDA_PATH}/bin/activate ${CONDA_PREFIX}
 
 # solving the dependency graph for a conda environment can take a while.
 # so long, in fact, that the conda process can run for >10 minutes without
