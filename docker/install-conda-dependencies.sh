@@ -118,7 +118,7 @@ start_keepalive
 if [[ $DEBUG == 1 ]]; then 
     MAMBA_DEBUG_LEVEL="-vvv"
 fi
-mamba install -y $MAMBA_DEBUG_LEVEL -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
+mamba install --update-deps -y $MAMBA_DEBUG_LEVEL -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
 stop_keepalive
 
 # clean up
