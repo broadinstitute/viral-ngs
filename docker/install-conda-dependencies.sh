@@ -51,7 +51,7 @@ echo "---------------"
 # ToDo: if confirmed working, move to conda config section of viral-baseimage
 conda config --set repodata_threads $(nproc)
 
-mamba init --system
+mamba init # --system
 
 # solving the dependency graph for a conda environment can take a while.
 # so long, in fact, that the conda process can run for >10 minutes without
