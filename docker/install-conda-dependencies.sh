@@ -34,6 +34,20 @@ echo "conda config --describe channels:"
 conda config --describe channels
 echo "---------------"
 
+conda config --set channel_priority disabled
+conda config --remove-key channels
+conda config --prepend channels bioconda
+conda config --prepend channels conda-forge
+conda config --prepend channels broad-viral
+
+echo "---------------"
+echo "conda config --describe channel_priority:"
+conda config --describe channel_priority
+echo "---------------"
+echo "conda config --describe channels:"
+conda config --describe channels
+echo "---------------"
+
 # ToDo: if confirmed working, move to conda config section of viral-baseimage
 conda config --set repodata_threads $(nproc)
 
