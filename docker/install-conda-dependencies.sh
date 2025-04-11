@@ -9,7 +9,7 @@
 
 set -e -o pipefail
 
-DEBUG=1 # set DEBUG=1 for more verbose output
+#DEBUG=1 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
 
 echo "PATH:                 ${PATH}"
