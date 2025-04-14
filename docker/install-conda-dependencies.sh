@@ -32,6 +32,9 @@ echo "which python:   $(which python)"
 echo "which conda:    $(which conda)"
 echo "which mamba:    $(which mamba)"
 echo "conda list:     $(conda list)"
+
+touch ~/.condarc
+
 echo "---------------"
 echo "conda config --describe channel_priority:"
 conda config --describe channel_priority

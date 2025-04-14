@@ -16,10 +16,11 @@ ENV \
 	INSTALL_PATH="/opt/viral-ngs" \
 	VIRAL_NGS_PATH="/opt/viral-ngs/source" \
 	MINICONDA_PATH="/opt/miniconda" \
+	CONDA_ROOT="/opt/miniconda" \
 	MAMBA_ROOT_PREFIX="/opt/miniconda" \
 	CONDA_DEFAULT_ENV=viral-ngs-env \
 	CONDA_ENVS_PATH="$MINICONDA_PATH/envs" \
-	CONDA_CHANNEL_STRING="--no-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
+	CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
 	#CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
 ENV \
 	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV/bin:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
