@@ -33,8 +33,8 @@ ENV \
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
 # conda config --set channel_priority disabled;
-RUN conda config --remove channels defaults && \
-	conda config --add channels bioconda && \
+# conda config --remove channels defaults &&
+RUN conda config --add channels bioconda && \
 	conda config --add channels conda-forge && \
 	conda config --add channels broad-viral
 
