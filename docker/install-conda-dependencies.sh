@@ -48,7 +48,7 @@ conda config --remove-key channels
 conda config --prepend channels bioconda
 conda config --prepend channels conda-forge
 conda config --prepend channels broad-viral
-conda config --remove channels defaults
+$conda config --remove channels defaults
 
 echo "---------------"
 echo "conda config --describe channel_priority:"
@@ -68,7 +68,7 @@ source ${MINICONDA_PATH}/bin/activate ${CONDA_PREFIX}
 conda config --env --add    channels bioconda
 conda config --env --add    channels conda-forge
 conda config --env --add    channels broad-viral
-conda config --env --remove channels defaults
+#conda config --env --remove channels defaults
 conda config --env --set    channel_priority strict
 conda config --env --set    extract_threads 1
 
