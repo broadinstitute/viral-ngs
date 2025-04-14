@@ -60,7 +60,7 @@ echo "---------------"
 
 # ToDo: if confirmed working, move to conda config section of viral-baseimage
 #conda config --set repodata_threads $(nproc)
-conda config --set extract_threads 1
+mamba config set extract_threads 1
 mamba config set use_lockfiles False
 
 source ${MINICONDA_PATH}/bin/activate ${CONDA_PREFIX}
