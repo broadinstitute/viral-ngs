@@ -20,8 +20,8 @@ ENV \
 	MAMBA_ROOT_PREFIX="/opt/miniconda" \
 	CONDA_DEFAULT_ENV=viral-ngs-env \
 	CONDA_ENVS_PATH="$MINICONDA_PATH/envs" \
-	CONDA_CHANNEL_STRING="--channel-priority flexible --override-channels -c broad-viral -c conda-forge -c bioconda"
-	#CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
+	CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
+	#CONDA_CHANNEL_STRING="--channel-priority flexible --override-channels -c broad-viral -c conda-forge -c bioconda"
 	#CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
 ENV \
 	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV/bin:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
@@ -41,7 +41,7 @@ RUN conda config --add channels bioconda && \
 
 	# conda config --remove-key channels; \
 
-RUN conda create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.11
+RUN conda create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.10
 RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
 #RUN source ${MINICONDA_PATH}/bin/activate base
 RUN hash -r
