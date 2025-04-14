@@ -31,18 +31,22 @@ ENV \
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
-RUN conda config --set channel_priority disabled; \
-	conda config --remove-key channels; \
-	conda config --prepend channels bioconda; \
-	conda config --prepend channels conda-forge; \
-	conda config --prepend channels broad-viral
+# conda config --set channel_priority disabled;
+RUN conda config --remove channels defaults && \
+	conda config --add channels bioconda && \
+	conda config --add channels conda-forge && \
+	conda config --add channels broad-viral
 
-RUN mamba create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.11
+	# conda config --remove-key channels; \
+
+RUN conda create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.11
 RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
+#RUN source ${MINICONDA_PATH}/bin/activate base
 RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
 COPY requirements-conda.txt requirements-conda-tests.txt $VIRAL_NGS_PATH/
-RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt $VIRAL_NGS_PATH/requirements-conda-tests.txt
+RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt && \
+	$VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda-tests.txt
 RUN $VIRAL_NGS_PATH/docker/install-gatk.sh
 
 # Copy all of the source code into the repo

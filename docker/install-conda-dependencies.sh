@@ -12,6 +12,8 @@ set -e -o pipefail # -x
 #DEBUG=1 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
 
+export MAMBA_ALWAYS_YES=true
+
 echo "PATH:                 ${PATH}"
 echo "INSTALL_PATH:         ${INSTALL_PATH}"
 echo "CONDA_PREFIX:         ${CONDA_PREFIX}"
@@ -25,6 +27,8 @@ echo "Conda version:  $(conda --version)"
 echo "Mamba version:  $(mamba --version)"
 echo "Python version: $(python --version)"
 echo "which python:   $(which python)"
+echo "which conda:    $(which conda)"
+echo "which mamba:    $(which mamba)"
 echo "conda list:     $(conda list)"
 echo "---------------"
 echo "conda config --describe channel_priority:"
@@ -39,6 +43,7 @@ conda config --remove-key channels
 conda config --prepend channels bioconda
 conda config --prepend channels conda-forge
 conda config --prepend channels broad-viral
+conda config --remove channels defaults
 
 echo "---------------"
 echo "conda config --describe channel_priority:"
@@ -49,9 +54,34 @@ conda config --describe channels
 echo "---------------"
 
 # ToDo: if confirmed working, move to conda config section of viral-baseimage
-conda config --set repodata_threads $(nproc)
+#conda config --set repodata_threads $(nproc)
+conda config --set extract_threads 1
 
 source ${MINICONDA_PATH}/bin/activate ${CONDA_PREFIX}
+
+conda config --env --add    channels bioconda
+conda config --env --add    channels conda-forge
+conda config --env --add    channels broad-viral
+conda config --env --remove channels defaults
+conda config --env --set    channel_priority strict
+conda config --env --set    extract_threads 1
+
+
+export G_SLICE=always-malloc
+
+echo "conda list --show-channel-urls"
+echo "$(conda list --show-channel-urls)"
+
+echo "conda config --show:"
+echo "$(conda config --show)"
+
+echo "---------------"
+echo "conda config --describe channel_priority:"
+conda config --describe channel_priority
+echo "---------------"
+echo "conda config --describe channels:"
+conda config --describe channels
+echo "---------------"
 
 # solving the dependency graph for a conda environment can take a while.
 # so long, in fact, that the conda process can run for >10 minutes without
