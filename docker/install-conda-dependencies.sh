@@ -48,7 +48,7 @@ conda config --remove-key channels
 conda config --prepend channels bioconda
 conda config --prepend channels conda-forge
 conda config --prepend channels broad-viral
-$conda config --remove channels defaults
+#conda config --remove channels defaults
 
 echo "---------------"
 echo "conda config --describe channel_priority:"
