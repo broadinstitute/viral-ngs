@@ -70,7 +70,7 @@ conda config --env --add    channels conda-forge
 conda config --env --add    channels broad-viral
 #conda config --env --remove channels defaults
 conda config --env --set    channel_priority strict
-conda config --env --set    extract_threads 1
+#conda config --env --set    extract_threads 1
 
 
 export G_SLICE=always-malloc
