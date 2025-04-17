@@ -17,6 +17,13 @@ export G_SLICE=always-malloc
 export MAMBA_ALWAYS_YES=true
 
 if [[ $DEBUG == 1 ]]; then 
+    # If DEBUG=1, set MAMBA_DEBUG_LEVEL
+    # '-v':    detailed output
+    # '-vv':   INFO logging
+    # '-vvv':  DEBUG logging
+    # '-vvvv': four times for TRACE logging.
+    # See:
+    #   https://docs.conda.io/projects/conda/en/stable/commands/install.html#conda.cli.conda_argparse-generate_parser-output,-prompt,-and-flow-control-options
     MAMBA_DEBUG_LEVEL="-vv"
 fi
 

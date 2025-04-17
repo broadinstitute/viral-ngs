@@ -20,7 +20,7 @@ ENV \
 	MAMBA_ROOT_PREFIX="/opt/miniconda" \
 	CONDA_DEFAULT_ENV=viral-ngs-env \
 	CONDA_ENVS_PATH="$MINICONDA_PATH/envs" \
-	CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
+	CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c conda-forge -c broad-viral -c bioconda"
 	#CONDA_CHANNEL_STRING="--channel-priority flexible --override-channels -c broad-viral -c conda-forge -c bioconda"
 	#CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
 ENV \
@@ -41,7 +41,7 @@ RUN conda config --add channels bioconda && \
 
 	# conda config --remove-key channels; \
 
-RUN conda create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.10 && echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
+RUN conda create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV 'python=3.10' && echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
 RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
 COPY requirements-conda.txt requirements-conda-tests.txt $VIRAL_NGS_PATH/
