@@ -30,10 +30,10 @@ class SplitCodeTool(tools.Tool):
                     splitcode_opts=None,
                     gzip_output=False,
                     keep_r1_r2_suffixes=True,
-                    predemux_r1_trim_3prime_num_bp=None,
-                    predemux_r2_trim_3prime_num_bp=None,
                     predemux_r1_trim_5prime_num_bp=None,
-                    predemux_r2_trim_5prime_num_bp=None
+                    predemux_r1_trim_3prime_num_bp=None,
+                    predemux_r2_trim_5prime_num_bp=None,
+                    predemux_r2_trim_3prime_num_bp=None
                 ):
         """
         Execute the splitcode command with the provided parameters.
@@ -50,6 +50,9 @@ class SplitCodeTool(tools.Tool):
         :param splitcode_opts: additional parameters to pass to splitcode
         """
         splitcode_opts = splitcode_opts or []
+
+        # documentation: 
+        #   https://splitcode.readthedocs.io/en/latest/reference_guide.html#command-line-config-optional
 
         tool_cmd = [
             self.install_and_get_path(),

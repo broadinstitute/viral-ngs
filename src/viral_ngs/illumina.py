@@ -2735,7 +2735,11 @@ def run_splitcode_on_pool(  pool_id,
                             threads_per_worker     = None,
                             out_dir_path           = None,
                             out_demux_dir_path_tmp = None,
-                            string_to_log          = None
+                            string_to_log          = None,
+                            predemux_r1_trim_5prime_num_bp=None,
+                            predemux_r1_trim_3prime_num_bp=None,
+                            predemux_r2_trim_5prime_num_bp=None,
+                            predemux_r2_trim_3prime_num_bp=None
                             ):
     with tools.samtools.SamtoolsTool().bam2fq_tmp(pool_bam_file) as (fqin1, fqin2):
         n_fastqs = 2
@@ -2749,18 +2753,29 @@ def run_splitcode_on_pool(  pool_id,
 
         # Optional: Pass 'predemux_r2_trim_3prime_num_bp':8 for '--trim-3 0,8' 
         # to remove 8 bases from end of R2 read 
-        # (note: trimming happens before demuxing) 
+        # (note: trimming happens before demuxing)
+        # valid options:
+        #   predemux_r1_trim_5prime_num_bp
+        #   predemux_r1_trim_3prime_num_bp
+        #   predemux_r2_trim_5prime_num_bp
+        #   predemux_r2_trim_3prime_num_bp
+        # see splitcode.py wrapper for more details, and also:
+        #   https://splitcode.readthedocs.io/en/latest/reference_guide.html#command-line-config-optional
         splitcode_kwargs={
-            "n_fastqs"       : n_fastqs,
-            "threads"        : threads_per_worker,
-            "config_file"    : splitcode_config,
-            "keep_file"      : splitcode_keepfile,
-            "unassigned_r1"  : unmapped_r1,
-            "unassigned_r2"  : unmapped_r2,
-            "summary_stats"  : summary_stats,
-            "r1"             : fqin1,
-            "r2"             : fqin2,
-            "splitcode_opts" : ["--no-output", "--no-outb"] # "Don't output any sequences", "Don't output final barcode sequences"
+            "n_fastqs"                       : n_fastqs,
+            "threads"                        : threads_per_worker,
+            "config_file"                    : splitcode_config,
+            "keep_file"                      : splitcode_keepfile,
+            "unassigned_r1"                  : unmapped_r1,
+            "unassigned_r2"                  : unmapped_r2,
+            "summary_stats"                  : summary_stats,
+            "r1"                             : fqin1,
+            "r2"                             : fqin2,
+            "predemux_r1_trim_5prime_num_bp" : predemux_r1_trim_5prime_num_bp,
+            "predemux_r1_trim_3prime_num_bp" : predemux_r1_trim_3prime_num_bp,
+            "predemux_r2_trim_5prime_num_bp" : predemux_r2_trim_5prime_num_bp,
+            "predemux_r2_trim_3prime_num_bp" : predemux_r2_trim_3prime_num_bp,
+            "splitcode_opts"                 : ["--no-output", "--no-outb"], # "Don't output any sequences", "Don't output final barcode sequences"
         }
         if string_to_log:
             log.info(string_to_log)
@@ -2821,6 +2836,14 @@ def splitcode_demux(
     out_meta_by_filename           = None,
     out_meta_by_sample             = None,
 
+    predemux_r1_trim_5prime_num_bp = None,
+    predemux_r1_trim_3prime_num_bp = None,
+    predemux_r2_trim_5prime_num_bp = None,
+    predemux_r2_trim_3prime_num_bp = None,
+
+    r1_trim_bp_right_of_barcode    = None,
+    r2_trim_bp_left_of_barcode     = None,
+
     threads    = None,
     jvm_memory = None
 ):
@@ -2844,6 +2867,11 @@ def splitcode_demux(
     sequencing_center    (str) Sequencing center (used to populate BAM header). Default: read from RunInfo.xml
     sequencer_model      (str) Sequencer model (used to populate BAM header). Default: inferred from RunInfo.xml
     
+    predemux_r1_trim_5prime_num_bp (int) number of bases to trim from the 5' end of read 1 (before demux)
+    predemux_r1_trim_3prime_num_bp (int) number of bases to trim from the 3' end of read 1 (before demux)
+    predemux_r2_trim_5prime_num_bp (int) number of bases to trim from the 5' end of read 2 (before demux)
+    predemux_r2_trim_3prime_num_bp (int) number of bases to trim from the 3' end of read 2 (before demux)
+
     rev_comp_barcodes_before_demux (list(str)) List of barcode columns to reverse complement before demux.
     """
     splitcode_out_tmp_dir = tempfile.mkdtemp(prefix="splitcode_demux_output_tmp-")
@@ -3012,6 +3040,9 @@ def splitcode_demux(
 
     # ToDo: alternative code path to glob the input files for either fastq or bam patterns
     # if the input is a bam file, convert to fastq files
+    """
+
+    #       
     # 
     #with tools.samtools.SamtoolsTool().bam2fq_tmp(inBam) as (fqin1, fqin2), \
     #     util.file.tmp_dir('_splitcode') as t_dir:
@@ -3025,6 +3056,11 @@ def splitcode_demux(
         log.info(f"pool to demux with splitcode: {pool_id} containing {len(sample_libraries)} libraries")
         log.debug(f"creating splitcode config file for {pool_id}")
         # ======== create splitcode config file ========
+        # for more information on config format and parameters see:
+        #   https://splitcode.readthedocs.io/en/latest/reference_guide.html#table-options
+        #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#locations
+        #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#left-and-right-trimming
+        #   https://github.com/pachterlab/splitcode/blob/d309cfcbb2fb586816241d2444577847ff9108c8/src/SplitCode.h#L1681
         splitcode_config = util.file.mkstempfname(f'splitcode_{pool_id}_config.txt')
 
         with open(splitcode_config, "w") as config_fh:
@@ -3034,7 +3070,7 @@ def splitcode_demux(
             config_header = [
                                 "tag",
                                 "id",
-                                "location",
+                                "locations",
                                 "distance",
                                 "left",
                                 "right"
@@ -3052,13 +3088,26 @@ def splitcode_demux(
                 if sample_row["muxed_run"] == pool_id:
                     # Columns: Barcode, tag_name, location, max allowed Hamming distance, trim from left on/off, trim from right on/off
                     # R1 barcode (using the "left" (-> remove from the left) column to remove the inline barcodes from R1 reads)
+                    
+                    """
+                    ToDo: potential optimization: we may want to specify initiator or terminator symbols in the barcode sequence 
+                    to avoid searching for other tags in each read. 
+                    
+                    ex. 
+                      f"{barcode_sequence}*": once we’ve found this sequence, stop our search for others
+                      f"*{barcode_sequence}": no other sequences will be found until this sequence is
+                    
+                    see:
+                      https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#initiator-and-terminator-sequences
+                    """
+
                     config_line_r1 = [
                                         barcode_sequence, 
                                         f"{sample_library_id}_R1", 
-                                        f"0:0:{barcode_len}", 
+                                        f"0:0:{barcode_len}", # where to look for the barcode/tag sequence ($FILE_NUMBER:$START_BP:$END_BP)
                                         str(max_hamming_dist), 
-                                        "1", 
-                                        "0"
+                                        "1" if r1_trim_bp_right_of_barcode is None else f"1:{r1_trim_bp_right_of_barcode}", # left; $ENABLE_TRIM_FROM_BARCODE_LEFTWARD[:$ADDITIONAL_BP_TO_TRIM_RIGHT_OF_BARCODE]
+                                        "0"  # right
                                      ]
                     config_tsv_writer.writerow(config_line_r1)
 
@@ -3070,7 +3119,7 @@ def splitcode_demux(
                     #                     f"1:-{barcode_len}:0", 
                     #                     str(max_hamming_dist), 
                     #                     "0", 
-                    #                     "1"
+                    #                     "1" if r2_trim_bp_left_of_barcode is None else f"1:{r2_trim_bp_left_of_barcode}"
                     #                  ]
                     # #config_f.write("\t".join(config_line_r2)+"\n")
                     # config_tsv_writer.writerow(config_line_r2)
@@ -3150,10 +3199,14 @@ def splitcode_demux(
                                         splitcode_config,
                                         splitcode_keepfile,
                                         out_demux_dir_path,
-                                        threads_per_worker     = threads_per_worker,
-                                        out_dir_path           = out_demux_dir_path,
-                                        out_demux_dir_path_tmp = splitcode_out_tmp_dir,
-                                        string_to_log          = string_to_log
+                                        threads_per_worker             = threads_per_worker,
+                                        out_dir_path                   = out_demux_dir_path,
+                                        out_demux_dir_path_tmp         = splitcode_out_tmp_dir,
+                                        string_to_log                  = string_to_log,
+                                        predemux_r1_trim_5prime_num_bp = predemux_r1_trim_5prime_num_bp,
+                                        predemux_r1_trim_3prime_num_bp = predemux_r1_trim_3prime_num_bp,
+                                        predemux_r2_trim_5prime_num_bp = predemux_r2_trim_5prime_num_bp,
+                                        predemux_r2_trim_3prime_num_bp = predemux_r2_trim_3prime_num_bp,
                                     )
             futures.append(future)
 
@@ -3318,6 +3371,12 @@ def main_splitcode_demux(args):
         out_runinfo                    = args.out_runinfo,
         out_meta_by_filename           = args.out_meta_by_filename,
         out_meta_by_sample             = args.out_meta_by_sample,
+        predemux_r1_trim_5prime_num_bp = args.predemux_r1_trim_5prime_num_bp,
+        predemux_r1_trim_3prime_num_bp = args.predemux_r1_trim_3prime_num_bp,
+        predemux_r2_trim_5prime_num_bp = args.predemux_r2_trim_5prime_num_bp,
+        predemux_r2_trim_3prime_num_bp = args.predemux_r2_trim_3prime_num_bp,
+        r1_trim_bp_right_of_barcode    = args.r1_trim_bp_right_of_barcode, 
+        r2_trim_bp_left_of_barcode     = args.r2_trim_bp_left_of_barcode,
         jvm_memory                     = args.jvm_memory
     )
 
@@ -3415,6 +3474,56 @@ def parser_splitcode_demux(parser=None):
         type=str,
         const=["barcode_2"],
     )
+    # ----- pre-demux trimming -----
+    # typical invocation usage: 
+    #   '--trim_r1_right_of_barcode --predemux_trim_r1_3prime --predemux_trim_r2_5prime --predemux_trim_r2_3prime'
+    parser.add_argument(
+        "--predemux_trim_r1_5prime",
+        dest="predemux_r1_trim_5prime_num_bp",
+        const=18,
+        help="number of bases to trim from the 5' end of read 1 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r1_3prime",
+        dest="predemux_r1_trim_3prime_num_bp",
+        const=18,
+        help="number of bases to trim from the 3' end of read 1 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r2_5prime",
+        dest="predemux_r2_trim_5prime_num_bp",
+        const=18,
+        help="number of bases to trim from the 5' end of read 2 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r2_3prime",
+        dest="predemux_r2_trim_3prime_num_bp",
+        const=18,
+        help="number of bases to trim from the 3' end of read 2 (before demux)",
+        type=int,
+    )
+    # -------------------------------
+
+    # ----- post-demux trimming (relative to barcode position) -----
+    parser.add_argument(
+        "--trim_r1_right_of_barcode",
+        dest="r1_trim_bp_right_of_barcode",
+        const=10,
+        help="number of bases to trim after the barcode on the right (3') side of read 1 (after demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--trim_r2_left_of_barcode",
+        dest="r2_trim_bp_left_of_barcode",
+        const=10,
+        help="number of bases to trim after the barcode on the left (5') side of read 2 (after demux)",
+        type=int,
+    )
+    # -------------------------------
+
     parser.add_argument(
         "--out_meta_by_sample", help="Output json metadata by sample", default=None
     )
