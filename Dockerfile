@@ -41,9 +41,7 @@ RUN conda config --add channels bioconda && \
 
 	# conda config --remove-key channels; \
 
-RUN conda create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.10
-RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
-#RUN source ${MINICONDA_PATH}/bin/activate base
+RUN conda create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV python=3.10 && echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
 RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
 COPY requirements-conda.txt requirements-conda-tests.txt $VIRAL_NGS_PATH/

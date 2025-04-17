@@ -9,12 +9,16 @@
 
 set -e -o pipefail # -x
 
-#DEBUG=1 # set DEBUG=1 for more verbose output
+DEBUG=1 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
 LANG=C
 
-
+export G_SLICE=always-malloc
 export MAMBA_ALWAYS_YES=true
+
+if [[ $DEBUG == 1 ]]; then 
+    MAMBA_DEBUG_LEVEL="-vv"
+fi
 
 echo "PATH:                 ${PATH}"
 echo "INSTALL_PATH:         ${INSTALL_PATH}"
@@ -73,8 +77,6 @@ conda config --env --add    channels broad-viral
 conda config --env --set    channel_priority strict
 #conda config --env --set    extract_threads 1
 
-
-export G_SLICE=always-malloc
 
 echo "conda list --show-channel-urls"
 echo "$(conda list --show-channel-urls)"
@@ -154,9 +156,6 @@ done
 # run conda install with keepalive subshell process running in background
 # to keep travis build going. Enforce a hard timeout via timeout GNU coreutil
 start_keepalive
-if [[ $DEBUG == 1 ]]; then 
-    MAMBA_DEBUG_LEVEL="-vvv"
-fi
 mamba install -y $MAMBA_DEBUG_LEVEL -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
 stop_keepalive
 
