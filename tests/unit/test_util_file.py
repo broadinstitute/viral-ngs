@@ -2,7 +2,7 @@
 
 __author__ = "ilya@broadinstitute.org"
 
-import os, os.path
+import os, sys, os.path
 import builtins
 import shutil
 import filecmp
@@ -13,6 +13,18 @@ import util.file
 from test import TestCaseWithTmp
 import pytest
 from mock import patch
+
+if sys.version_info >= (3, 10, 12):
+    '''
+    Set the default extraction filter at class instance level for the tarfile
+    module, to avoid needing to specify it every time we extract a tarball.
+    The extraction filter avoids extracting "unsafe" items from tarballs, and
+    is available in Python 3.10.12+. This sets the default to "tar_filter".
+    For other filter types and general info on the tarfile module, see:
+      https://docs.python.org/3.12/library/tarfile.html#tarfile.tar_filter
+      https://docs.python.org/3.12/library/tarfile.html#extraction-filters
+    '''
+    tarfile.TarFile.extraction_filter = staticmethod(tarfile.tar_filter) if hasattr(tarfile, 'data_filter') else (lambda member, path: member)
 
 def testTempFiles():
     '''Test creation of tempfiles using context managers, as well as dump_file/slurp_file routines'''
