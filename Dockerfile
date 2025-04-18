@@ -1,6 +1,8 @@
-FROM quay.io/broadinstitute/viral-baseimage@sha256:bf789e868069855f376c0f53f0621935772e505c3a012af78c9d4fcd04b71ec5
+FROM viral-baseimage-miniforge1
+#FROM quay.io/broadinstitute/viral-baseimage@sha256:bf789e868069855f376c0f53f0621935772e505c3a012af78c9d4fcd04b71ec5
+#ARG BUILDPLATFORM=linux/amd64
 
-LABEL maintainer "viral-ngs@broadinstitute.org"
+LABEL maintainer="viral-ngs@broadinstitute.org"
 
 # to build:
 #   git describe --tags --always --dirty > VERSION
@@ -20,9 +22,8 @@ ENV \
 	MAMBA_ROOT_PREFIX="/opt/miniconda" \
 	CONDA_DEFAULT_ENV=viral-ngs-env \
 	CONDA_ENVS_PATH="$MINICONDA_PATH/envs" \
-	CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c conda-forge -c broad-viral -c bioconda"
-	#CONDA_CHANNEL_STRING="--channel-priority flexible --override-channels -c broad-viral -c conda-forge -c bioconda"
-	#CONDA_CHANNEL_STRING="--strict-channel-priority --override-channels -c broad-viral -c conda-forge -c bioconda"
+	CONDA_PACKAGE_INSTALL_OPTS="--strict-channel-priority" \
+	CONDA_CHANNEL_STRING="--override-channels -c conda-forge -c broad-viral -c bioconda"
 ENV \
 	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV/bin:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
 	CONDA_PREFIX=$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV \
@@ -33,21 +34,15 @@ ENV \
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
-# conda config --set channel_priority disabled;
-# conda config --remove channels defaults &&
-RUN conda config --add channels bioconda && \
-	conda config --add channels conda-forge && \
-	conda config --add channels broad-viral
 
-	# conda config --remove-key channels; \
-
-RUN conda create $CONDA_CHANNEL_STRING -n $CONDA_DEFAULT_ENV 'python=3.10' && echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
-RUN hash -r
+#RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
 COPY requirements-conda.txt requirements-conda-tests.txt $VIRAL_NGS_PATH/
-RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt && \
-	$VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda-tests.txt
+RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt $VIRAL_NGS_PATH/requirements-conda-tests.txt && \
+	echo "source activate $CONDA_PREFIX" >> ~/.bashrc
 RUN $VIRAL_NGS_PATH/docker/install-gatk.sh
+
+RUN hash -r
 
 # Copy all of the source code into the repo
 # This probably changes all the time, so all downstream build
@@ -66,4 +61,5 @@ RUN	ln -s /lib/x86_64-linux-gnu/libreadline.so.7 /lib/x86_64-linux-gnu/libreadli
 # verifies that conda-installed python libraries are working.
 RUN /bin/bash -c "set -e; echo -n 'viral-ngs version: '; read_utils.py --version"
 
+#CMD ["/bin/bash","-l"] # for a login shell (loads bash profile)
 CMD ["/bin/bash"]

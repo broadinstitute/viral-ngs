@@ -7,9 +7,9 @@
 # A miniconda install must exist at $CONDA_DEFAULT_ENV
 # and $CONDA_DEFAULT_ENV/bin must be in the PATH
 
-set -e -o pipefail # -x
+set -e -o pipefail -x
 
-DEBUG=1 # set DEBUG=1 for more verbose output
+DEBUG=0 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
 LANG=C
 
@@ -27,14 +27,14 @@ if [[ $DEBUG == 1 ]]; then
     MAMBA_DEBUG_LEVEL="-vv"
 fi
 
-echo "PATH:                 ${PATH}"
-echo "INSTALL_PATH:         ${INSTALL_PATH}"
-echo "CONDA_PREFIX:         ${CONDA_PREFIX}"
-echo "VIRAL_NGS_PATH:       ${VIRAL_NGS_PATH}"
-echo "MINICONDA_PATH:       ${MINICONDA_PATH}"
-echo "CONDA_DEFAULT_ENV:    ${CONDA_DEFAULT_ENV}"
-echo "CONDA_CHANNEL_STRING: ${CONDA_CHANNEL_STRING}"
-#CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda"
+echo "PATH:                       ${PATH}"
+echo "INSTALL_PATH:               ${INSTALL_PATH}"
+echo "CONDA_PREFIX:               ${CONDA_PREFIX}"
+echo "VIRAL_NGS_PATH:             ${VIRAL_NGS_PATH}"
+echo "MINICONDA_PATH:             ${MINICONDA_PATH}"
+echo "CONDA_DEFAULT_ENV:          ${CONDA_DEFAULT_ENV}"
+echo "CONDA_PACKAGE_INSTALL_OPTS: ${CONDA_PACKAGE_INSTALL_OPTS}"
+echo "CONDA_CHANNEL_STRING:       ${CONDA_CHANNEL_STRING}"
 
 echo "Conda version:  $(conda --version)"
 echo "Mamba version:  $(mamba --version)"
@@ -43,61 +43,11 @@ echo "which python:   $(which python)"
 echo "which conda:    $(which conda)"
 echo "which mamba:    $(which mamba)"
 echo "conda list:     $(conda list)"
-
-touch ~/.condarc
-
-echo "---------------"
-echo "conda config --describe channel_priority:"
-conda config --describe channel_priority
-echo "---------------"
-echo "conda config --describe channels:"
-conda config --describe channels
-echo "---------------"
-
-conda config --set channel_priority disabled
-conda config --remove-key channels
-conda config --prepend channels bioconda
-conda config --prepend channels conda-forge
-conda config --prepend channels broad-viral
-#conda config --remove channels defaults
-
-echo "---------------"
-echo "conda config --describe channel_priority:"
-conda config --describe channel_priority
-echo "---------------"
-echo "conda config --describe channels:"
-conda config --describe channels
-echo "---------------"
-
-# ToDo: if confirmed working, move to conda config section of viral-baseimage
-#conda config --set repodata_threads $(nproc)
-mamba config set extract_threads 1
-mamba config set experimental_sat_error_message true
-mamba config set use_lockfiles False
-
-source ${MINICONDA_PATH}/bin/activate ${CONDA_PREFIX}
-
-conda config --env --add    channels bioconda
-conda config --env --add    channels conda-forge
-conda config --env --add    channels broad-viral
-#conda config --env --remove channels defaults
-conda config --env --set    channel_priority strict
-#conda config --env --set    extract_threads 1
-
-
-echo "conda list --show-channel-urls"
-echo "$(conda list --show-channel-urls)"
-
 echo "conda config --show:"
 echo "$(conda config --show)"
 
-echo "---------------"
-echo "conda config --describe channel_priority:"
-conda config --describe channel_priority
-echo "---------------"
-echo "conda config --describe channels:"
-conda config --describe channels
-echo "---------------"
+#conda config --set experimental_sat_error_message true
+#conda config --set use_lockfiles False
 
 # solving the dependency graph for a conda environment can take a while.
 # so long, in fact, that the conda process can run for >10 minutes without
@@ -152,9 +102,9 @@ trap stop_keepalive EXIT SIGINT SIGQUIT SIGTERM
 # setup/install viral-ngs directory tree and conda dependencies
 sync
 
-REQUIREMENTS=""
+REQUIREMENT_FILE_PATHS_STR=""
 for condafile in $*; do
-	REQUIREMENTS="$REQUIREMENTS --file $condafile"
+	REQUIREMENT_FILE_PATHS_STR="$REQUIREMENT_FILE_PATHS_STR --file $condafile"
 
     # print dependency tree for all packages in file
     [[ $DEBUG == 1 ]] && grep -vE '^#' "${condafile}" | xargs -I {} mamba repoquery depends $CONDA_CHANNEL_STRING --quiet --pretty --recursive --tree "{}";
@@ -163,8 +113,17 @@ done
 # run conda install with keepalive subshell process running in background
 # to keep travis build going. Enforce a hard timeout via timeout GNU coreutil
 start_keepalive
-mamba install -y $MAMBA_DEBUG_LEVEL -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
+mamba create -y -q $MAMBA_DEBUG_LEVEL $CONDA_PACKAGE_INSTALL_OPTS $CONDA_CHANNEL_STRING --prefix ${CONDA_PREFIX} $REQUIREMENT_FILE_PATHS_STR
 stop_keepalive
+
+source "${MINICONDA_PATH}/etc/profile.d/conda.sh"
+source "${MINICONDA_PATH}/etc/profile.d/mamba.sh"
+hash -r
+conda init --quiet --all --system
+
+source ${MINICONDA_PATH}/bin/activate ${CONDA_PREFIX}
+
+mamba list
 
 # clean up
 conda clean -y --all
