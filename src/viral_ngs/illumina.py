@@ -3089,17 +3089,17 @@ def splitcode_demux(
                     # Columns: Barcode, tag_name, location, max allowed Hamming distance, trim from left on/off, trim from right on/off
                     # R1 barcode (using the "left" (-> remove from the left) column to remove the inline barcodes from R1 reads)
                     
-                    """
-                    ToDo: potential optimization: we may want to specify initiator or terminator symbols in the barcode sequence 
-                    to avoid searching for other tags in each read. 
                     
-                    ex. 
-                      f"{barcode_sequence}*": once we’ve found this sequence, stop our search for others
-                      f"*{barcode_sequence}": no other sequences will be found until this sequence is
+                    # ToDo: potential optimization: we may want to specify initiator or terminator symbols in the barcode sequence 
+                    # to avoid searching for other tags in each read. 
+                    #
+                    # ex. 
+                    #   f"{barcode_sequence}*": once we’ve found this sequence, stop our search for others
+                    #   f"*{barcode_sequence}": no other sequences will be found until this sequence is
+                    #
+                    # see:
+                    #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#initiator-and-terminator-sequences
                     
-                    see:
-                      https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#initiator-and-terminator-sequences
-                    """
 
                     config_line_r1 = [
                                         barcode_sequence, 
