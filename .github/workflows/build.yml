@@ -138,7 +138,7 @@ jobs:
     needs: build_docker
     runs-on: ubuntu-24.04
     env:
-      GITHUB_ACTIONS_PYTHON_VERSION: "3.11"
+      GITHUB_ACTIONS_PYTHON_VERSION: "3.12"
       PYTEST_ADDOPTS: "-rsxX --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-config=.coveragerc --cov-report xml:coverage.xml --cov-report= --cov broad_utils --cov illumina --cov read_utils --cov reports --cov tools --cov util --cov file_utils"
     steps:
       - name: checkout repository

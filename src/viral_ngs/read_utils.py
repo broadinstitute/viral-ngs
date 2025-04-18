@@ -381,10 +381,10 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
     opts = list(picardOptions) + []
 
     def get_read_counts(bams):
-        samtools = tools.samtools.SamtoolsTool()
         # get read counts for bam files provided
         read_counts = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=util.misc.sanitize_thread_count(threads)) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.sanitize_thread_count(threads)) as executor:
+            samtools = tools.samtools.SamtoolsTool()
             for x, result in zip(bams, executor.map(samtools.count, bams)):
                 read_counts[x] = int(result)
 
@@ -402,12 +402,11 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
         return downsample_target
 
     def downsample_bams(data_pairs, downsample_target, threads=None, JVMmemory=None):
-        downsamplesam = tools.picard.DownsampleSamTool()
         workers = util.misc.sanitize_thread_count(threads)
         JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
-        
         jvm_worker_memory_mb = str(int(util.misc.convert_size_str(JVMmemory,"m")[:-1])//workers)+"m"
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            downsamplesam = tools.picard.DownsampleSamTool()
             future_to_file = {executor.submit(downsamplesam.downsample_to_approx_count, *(list(fp)+[downsample_target]), JVMmemory=jvm_worker_memory_mb): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
@@ -420,7 +419,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
         workers = util.misc.sanitize_thread_count(threads)
         JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
         jvm_worker_memory_mb = str(int(util.misc.convert_size_str(JVMmemory,"m")[:-1])//workers)+"m"
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
             future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=jvm_worker_memory_mb): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
