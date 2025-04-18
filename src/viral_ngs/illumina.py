@@ -3481,6 +3481,7 @@ def parser_splitcode_demux(parser=None):
         "--predemux_trim_r1_5prime",
         dest="predemux_r1_trim_5prime_num_bp",
         const=18,
+        nargs="?",
         help="number of bases to trim from the 5' end of read 1 (before demux)",
         type=int,
     )
@@ -3488,6 +3489,7 @@ def parser_splitcode_demux(parser=None):
         "--predemux_trim_r1_3prime",
         dest="predemux_r1_trim_3prime_num_bp",
         const=18,
+        nargs="?",
         help="number of bases to trim from the 3' end of read 1 (before demux)",
         type=int,
     )
@@ -3495,6 +3497,7 @@ def parser_splitcode_demux(parser=None):
         "--predemux_trim_r2_5prime",
         dest="predemux_r2_trim_5prime_num_bp",
         const=18,
+        nargs="?",
         help="number of bases to trim from the 5' end of read 2 (before demux)",
         type=int,
     )
@@ -3502,6 +3505,7 @@ def parser_splitcode_demux(parser=None):
         "--predemux_trim_r2_3prime",
         dest="predemux_r2_trim_3prime_num_bp",
         const=18,
+        nargs="?",
         help="number of bases to trim from the 3' end of read 2 (before demux)",
         type=int,
     )
@@ -3512,6 +3516,7 @@ def parser_splitcode_demux(parser=None):
         "--trim_r1_right_of_barcode",
         dest="r1_trim_bp_right_of_barcode",
         const=10,
+        nargs="?",
         help="number of bases to trim after the barcode on the right (3') side of read 1 (after demux)",
         type=int,
     )
@@ -3519,6 +3524,7 @@ def parser_splitcode_demux(parser=None):
         "--trim_r2_left_of_barcode",
         dest="r2_trim_bp_left_of_barcode",
         const=10,
+        nargs="?",
         help="number of bases to trim after the barcode on the left (5') side of read 2 (after demux)",
         type=int,
     )
@@ -3641,7 +3647,9 @@ def convert_splitcode_demux_metrics_to_picard_style(
 
     # Define the "all N" checkers
     def is_all_N(barcode_str: str) -> bool:
-        """Return True if the entire (combined) barcode is all 'N' and non-empty."""
+        """
+        Return True if the entire (combined) barcode is all 'N' and non-empty.
+        """
         if not isinstance(barcode_str, str):
             return False
         return len(barcode_str) > 0 and all(ch == 'N' for ch in barcode_str)
@@ -3669,7 +3677,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
         df["IS_ALL_N"] = df["BARCODE"].apply(check_all_n_func)
 
         # Separate them out
-        df_all_n = df[df["IS_ALL_N"]]
+        df_all_n     = df[df["IS_ALL_N"]]
         df_not_all_n = df[~df["IS_ALL_N"]]
 
         if not df_all_n.empty:
@@ -3709,7 +3717,9 @@ def convert_splitcode_demux_metrics_to_picard_style(
     exclude_for_mean_func = last_barcode_is_all_N if report_within_pools else is_all_N
 
     def compute_stats_per_group(group: pd.DataFrame) -> pd.DataFrame:
-        """Compute sums, maxima, etc. *within* the group, fill ratio/percentage columns."""
+        """
+        Compute sums, maxima, etc. *within* the group, fill ratio/percentage columns.
+        """
         sum_of_reads    = group["READS"].sum()
         max_of_reads    = group["READS"].max() if len(group) > 0 else 1
         sum_of_pf_reads = group["PF_READS"].sum()
