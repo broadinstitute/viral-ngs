@@ -3572,7 +3572,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
     :param demux_function: The string to insert after 'ExtractIlluminaBarcodes$' in
                            the '## METRICS CLASS' comment line
     :param catchall_name: A placeholder name for collapsed 'N' rows (not strictly used here)
-    :param combine_innerbarcode_unmatched: If True, we collapse “all-N” rows into one single row.
+    :param combine_innerbarcode_unmatched: If True, we collapse "all-N" rows into one single row.
                                            If False, we leave them as-is (no collapsing).
     :param report_within_pools: If True, the ratio/percentage columns are computed for each unique
                                 (barcode_1, barcode_2) group. If False, they are computed globally.
