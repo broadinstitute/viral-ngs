@@ -3038,8 +3038,43 @@ def splitcode_demux(
     pool_id_to_sample_library_id_map    = dict(pool_id_to_sample_library_id_map)
 
 
-    # ToDo: alternative code path to glob the input files for either fastq or bam patterns
-    # if the input is a bam file, convert to fastq files
+    """
+    ToDo: alternative code path to glob the input files for either fastq or bam patterns
+    if the input is a bam file, convert to fastq files
+    
+    In an Illumina directory, a file manifest of fastq files (may, or may not—mush check) exists within:
+        fastq/Reports/fastq_list.csv
+    
+        The manifest is formatted like this:
+        RGID,RGSM,RGLB,Lane,Read1File,Read2File
+        AGCGTGTTAT.CTTCGCAAGT.6,22J5GLLT4_6_0420593812_B13Pool1a,UnknownLibrary,6,/seq/dragen/fastqs/prod/SL-EXC/241217_SL-EXC_0433_B22J5GLLT4/dragen/2024-12-17--18-30-31/fastq/22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz,/seq/dragen/fastqs/prod/SL-EXC/241217_SL-EXC_0433_B22J5GLLT4/dragen/2024-12-17--18-30-31/fastq/22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R2_001.fastq.gz
+        ATCGCCATAT.TGCGTAACGT.6,22J5GLLT4_6_0420593812_B13Pool2a,UnknownLibrary,6,/seq/dragen/fastqs/prod/SL-EXC/241217_SL-EXC_0433_B22J5GLLT4/dragen/2024-12-17--18-30-31/fastq/22J5GLLT4_6_0420593812_B13Pool2a_S2_L006_R1_001.fastq.gz,/seq/dragen/fastqs/prod/SL-EXC/241217_SL-EXC_0433_B22J5GLLT4/dragen/2024-12-17--18-30-31/fastq/22J5GLLT4_6_0420593812_B13Pool2a_S2_L006_R2_001.fastq.gz
+        ...
+    
+        The long paths to the fastq files are local to the dragen server, whether dragen is running
+        on the instrument (ex. NextSeq 2000) or on an external server (ex. NovaSeq X). 
+    
+        It is unlikely that the splitcode demultiplexing performed by this function will be
+        performed on the same machine as dragen, so we need to match samples we know from the input
+        sample sheet tsv given to this function to a line in the manifest using the
+        `RGID`,`RGSM`,`RGLB`, and `Lane` columns, and then find the fastq files based on their
+        basenames, somewhere within the `inDir` directory provided to this function or its
+        subdirectories.
+    
+        We cannot assume data will be being delivered in the same way by all sequencers or
+        facilities, so the fastq files may be at varying subdirectory depths within `inDir`.
+    
+        We should be able to find them using a glob pattern looking for the fastq basenames given in
+        the manifest.
+
+        That said, the common case is that `inDir` will be an Illumina run directory, so after first
+        checking within `inDir` itself, we should check `f"{os.path.realpath(inDir)}/fastq/"` for
+        files matching the basenames, and if not found look elsewhere within `inDir`. We should
+        check a list of subdirs of inDir for the fastq files, starting with `./fastq/`(iff present)
+        before proceeding to (recursively) check the other subdirs within inDir. Once we find the
+        first matching fastq files, the `os.path.realpath(os.path.dirname())` of that path should
+        then be the first location checked for the other files listed in the file manifest, before
+        checking the other subdirs of `inDir`(since they're probably all in the same subdir).
     """
 
     #       
