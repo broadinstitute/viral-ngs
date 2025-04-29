@@ -3751,8 +3751,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
     #
     exclude_for_mean_func = last_barcode_is_all_N if report_within_pools else is_all_N
 
-    #def compute_stats_per_group(group: pd.DataFrame) -> pd.DataFrame:
-    def compute_stats_per_group(group: pd.DataFrame):
+    def compute_stats_per_group(group: pd.DataFrame) -> pd.DataFrame:
         # Compute sums, maxima, etc. *within* the group, fill ratio/percentage columns.
         sum_of_reads    = group["READS"].sum()
         max_of_reads    = group["READS"].max() if len(group) > 0 else 1
