@@ -320,6 +320,9 @@ def main_illumina_demux(args):
             )
             util.file.touch(args.commonBarcodes)
 
+    executor = concurrent.futures.ProcessPoolExecutor()
+    async_execution_futures = []
+
     # B in read structure indicates barcoded multiplexed samples
     if multiplexed_samples:
         # Picard ExtractIlluminaBarcodes
@@ -363,15 +366,16 @@ def main_illumina_demux(args):
             # this step can take > 2 hours on a large high-output flowcell
             # so kick it to the background while we demux
             # count_and_sort_barcodes(barcodes_tmpdir, args.commonBarcodes)
-            executor = concurrent.futures.ProcessPoolExecutor()
-            executor.submit(
-                count_and_sort_barcodes,
-                barcodes_tmpdir,
-                args.commonBarcodes,
-                barcode1_len,
-                barcode2_len,
-                truncateToLength=args.max_barcodes,
-                threads=util.misc.sanitize_thread_count(args.threads),
+            async_execution_futures.append(
+                executor.submit(
+                    count_and_sort_barcodes,
+                    barcodes_tmpdir,
+                    args.commonBarcodes,
+                    barcode1_len,
+                    barcode2_len,
+                    truncateToLength=args.max_barcodes,
+                    threads=util.misc.sanitize_thread_count(args.threads),
+                )
             )
 
         # Picard IlluminaBasecallsToSam
@@ -454,11 +458,26 @@ def main_illumina_demux(args):
             JVMmemory=args.JVMmemory,
         )
 
+    async_execution_results = []
+
+    for future in concurrent.futures.as_completed(async_execution_results):
+        try:
+            result = future.result()
+            async_execution_results.append(result)
+        except Exception as e:
+            log.error(f"Exception in future: {e}")
+            async_execution_results.append({"success": False, "error": str(e)})
+    log.debug(f"async_execution_results: {async_execution_results}")
+
+    log.info("waiting for backgrounded async operations to finish...")
+    executor.shutdown(wait=True)
+    log.info("backgrounded async operations finished")
+
     # clean up
     if multiplexed_samples:
-        if args.commonBarcodes:
-            log.info("waiting for commonBarcodes output to finish...")
-            executor.shutdown(wait=True)
+        #if args.commonBarcodes:
+        #    log.info("waiting for commonBarcodes output to finish...")
+        #    executor.shutdown(wait=True)
         os.unlink(extract_input)
         os.unlink(basecalls_input)
         shutil.rmtree(barcodes_tmpdir)
@@ -826,13 +845,19 @@ def count_and_sort_barcodes(
             #     for bf, tf in barcodefile_tempfile_tuples
             # ]
             for future in concurrent.futures.as_completed(futures):
-                tmp_db, barcode_file = future.result()
-                log.debug(
-                    "done reading barcodes from %s; adding to total...", barcode_file
-                )
-                # gather and reduce counts from separate SQLite databases into one
-                reduce_db.add_counts_from_other_db(tmp_db)
-                os.unlink(tmp_db)
+                try:
+                    tmp_db, barcode_file = future.result()
+                    log.debug(
+                        "done reading barcodes from %s; adding to total...", barcode_file
+                    )
+                    # gather and reduce counts from separate SQLite databases into one
+                    reduce_db.add_counts_from_other_db(tmp_db)
+                    os.unlink(tmp_db)
+                except Exception as e:
+                    log.error(
+                        "Error reading barcodes from tile file %s: %s", barcode_file, e
+                    )
+                    raise
 
         illumina_reference = IlluminaIndexReference()
 

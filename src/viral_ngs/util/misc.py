@@ -443,9 +443,10 @@ def available_cpu_count():
     except IOError:
         pass
 
-    log.debug('cgroup_cpus %d, proc_cpus %d, multiprocessing cpus %d',
-              cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
-    return min(cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
+    min_cpu_count_reported = min(cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
+    log.debug('min(cgroup_cpus %d, proc_cpus %d, multiprocessing cpus %d) = %d',
+              cgroup_cpus, proc_cpus, multiprocessing.cpu_count(), min_cpu_count_reported)
+    return min_cpu_count_reported
 
 def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count):
     ''' Given a user specified thread count, this function will:
