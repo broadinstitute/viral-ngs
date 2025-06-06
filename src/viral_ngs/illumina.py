@@ -801,15 +801,30 @@ def count_and_sort_barcodes(
         # scatter tile-specific barcode files among workers to store barcode counts in SQLite
         workers = util.misc.sanitize_thread_count(threads)
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = [
-                executor.submit(
-                    util.file.count_occurrences_in_tsv_sqlite_backed,
-                    tf,
-                    bf,
-                    include_noise=includeNoise,
+
+            log.info("using %s workers to read barcodes from tile files", workers)
+
+            futures = []
+            for bf, tf in barcodefile_tempfile_tuples:
+                log.debug("creating separate process to read barcodes from %s and store the count of each distinct barcode in %s", tf, bf)
+                futures.append(
+                    executor.submit(
+                        util.file.count_occurrences_in_tsv_sqlite_backed,
+                        tf,
+                        bf,
+                        include_noise=includeNoise,
+                    )
                 )
-                for bf, tf in barcodefile_tempfile_tuples
-            ]
+
+            # futures = [
+            #     executor.submit(
+            #         util.file.count_occurrences_in_tsv_sqlite_backed,
+            #         tf,
+            #         bf,
+            #         include_noise=includeNoise,
+            #     )
+            #     for bf, tf in barcodefile_tempfile_tuples
+            # ]
             for future in concurrent.futures.as_completed(futures):
                 tmp_db, barcode_file = future.result()
                 log.debug(

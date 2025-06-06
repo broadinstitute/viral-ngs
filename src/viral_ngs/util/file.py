@@ -854,7 +854,11 @@ def grep_count(file_path, to_match, additional_flags=None, fixed_mode=True, star
     return int(number_of_seqs.decode("utf-8").rstrip(os.linesep))
 
 # used by count_and_sort_barcodes
-def count_occurrences_in_tsv(filePath, col=0, noise_chr='.', delimiter='\t', include_noise=False):
+def count_occurrences_in_tsv(filePath, 
+                                col=0, 
+                                noise_chr='.',
+                                delimiter='\t',
+                                include_noise=False):
     file_occurrence_counts = {}
     with open(filePath) as infile:
         for row in csv.reader(infile, delimiter=delimiter):
@@ -863,7 +867,12 @@ def count_occurrences_in_tsv(filePath, col=0, noise_chr='.', delimiter='\t', inc
     return file_occurrence_counts
 
 # used by count_and_sort_barcodes
-def count_occurrences_in_tsv_sqlite_backed(db_file_path, file_path, col=0, noise_chr='.', delimiter='\t', include_noise=False):
+def count_occurrences_in_tsv_sqlite_backed(db_file_path, 
+                                            file_path, 
+                                            col=0, 
+                                            noise_chr='.', 
+                                            delimiter='\t', 
+                                            include_noise=False):
     db = CountDB(db_file_path)
     db.start()
     with open(file_path) as infile:
