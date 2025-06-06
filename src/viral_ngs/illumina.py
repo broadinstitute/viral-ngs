@@ -1780,7 +1780,7 @@ class SampleSheet(object):
           - If barcode_2 exists:
               * If it is non-empty for that group, sample => <barcode_1>-<barcode_2>
               * If it is empty for that group, sample => <barcode_1>
-          - Other columns => collapsed with an MD5-based logic if multiple distinct values exist.
+          - Other columns => collapsed to an MD5 hash if multiple values exist and, when concatenated, exceed a set length
         """
         assert len(self.rows) > 0, "No sample sheet rows to collapse"
 
