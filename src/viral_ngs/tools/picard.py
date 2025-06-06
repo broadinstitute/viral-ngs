@@ -477,9 +477,12 @@ class ExtractIlluminaBarcodesTool(PicardTools):
     )
 
     def execute(
-        self, basecalls_dir,
-        lane, barcode_file,
-        output_dir, metrics,
+        self, 
+        basecalls_dir,
+        lane, 
+        barcode_file,
+        output_dir, 
+        metrics,
         picardOptions=None,
         JVMmemory=None
     ):    # pylint: disable=W0221
