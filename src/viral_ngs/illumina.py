@@ -790,7 +790,7 @@ def count_and_sort_barcodes(
     ]
 
     # count all of the barcodes present in the tile files
-    log.info("reading barcodes in for extracted barcode files from all tiles present (%s tiles)", len(tile_barcode_files))
+    log.info("counting barcode occurrences in files containing all barcodes extracted from tiles present (%s tiles)", len(tile_barcode_files))
 
     with util.file.CountDB() as reduce_db:
         barcodefile_tempfile_tuples = [
