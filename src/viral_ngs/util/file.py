@@ -1139,7 +1139,7 @@ class DBConnection:
         return self
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-        return 0
+        return False # ensure exceptions are propagated
     def close(self):
         if not self.conn:
             return
