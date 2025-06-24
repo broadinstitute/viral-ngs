@@ -1125,7 +1125,7 @@ class DBConnection:
              self.db_file=db_file
         self.conn = sqlite3.connect(self.db_file, isolation_level='DEFERRED')
         assert self.conn.isolation_level
-        self.conn.text_factory = sqlite3.OptimizedUnicode
+        self.conn.text_factory = str
         self.cur = self.conn.cursor()
         self.cur.execute("PRAGMA foreign_keys=ON")
         self.cur.execute("PRAGMA foreign_keys")
