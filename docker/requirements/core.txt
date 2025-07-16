@@ -8,6 +8,7 @@ csvkit>=1.0.4
 fastqc>=0.11.7
 fgbio>=2.2.1
 gatk=3.8
+illumina-interop=1.5.0
 jq>=1.6
 lbzip2>=2.5
 lz4-c>=1.8.3
