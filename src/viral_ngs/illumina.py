@@ -2692,23 +2692,129 @@ def plot_read_counts(df_csv_path, outDir):
     fig.savefig(f"{outDir}/reads_per_pool.png", bbox_inches="tight", dpi=300)
 
 
-def plot_sorted_curve(df_csv_path, outDir, unmatched_name):
+def write_barcode_metrics_for_pools(input_csv_path, 
+                                    out_dir, 
+                                    out_basename=None, 
+                                    out_format=None):
+    """
+    Process sequencing data to calculate read metrics for each inline barcode across library pools
+    and write results to a file.
+    
+    For each (library_id, inline_barcode) pair, calculates:
+    - {library_id}_reads: Total reads for the pair
+    - {library_id}_reads_pool_pct: Reads as fraction of total reads in that library
+    - {library_id}_reads_all_pct: Reads as fraction of total reads across all libraries
+    - {library_id}_barcode_reads_vs_all_reads_for_barcode_pct: Reads as fraction of total reads for that barcode across all libraries
+    
+    Parameters:
+    -----------
+    input_csv_path : str
+        Path to the input CSV file
+    out_dir : str
+        Output directory for the results file
+    out_basename : str, optional
+        Base name for the output file (default: "reads_per_bc")
+    out_format : str, optional
+        Output file format (default: "csv")
+    
+    Returns:
+    --------
+    pd.DataFrame
+        Processed dataframe with metrics for each inline barcode
+    """
+    
+    out_basename    = out_basename or "reads_per_bc"
+    out_format      = out_format or "csv"
+    output_csv_path = f"{out_dir}/{out_basename}.{out_format}"
+    
+        # Read the CSV file
+    df = pd.read_csv(input_csv_path)
+    
+    # Filter out unmatched entries (those with inline_barcode containing only N characters)
+    # This handles variable numbers of N's (e.g., "N", "NN", "NNNNNNNNN", etc.)
+    df_filtered = df[~df['inline_barcode'].str.match(r'^N+$', na=False)].copy()
+    
+    # Get unique inline barcodes and library IDs
+    unique_barcodes  = df_filtered['inline_barcode'].unique()
+    unique_libraries = df_filtered['library_id'].unique()
+    
+    # Calculate total reads across all libraries for percentage calculations
+    total_reads_all = df_filtered['num_reads_total'].sum()
+    
+    # Calculate total reads per library for pool percentage calculations
+    library_totals = df_filtered.groupby('library_id')['num_reads_total'].sum()
+    
+    # Calculate total reads per barcode across all libraries for barcode-specific percentages
+    barcode_totals = df_filtered.groupby('inline_barcode')['num_reads_total'].sum()
+    
+    # Initialize result dataframe with inline_barcode as index
+    result_df = pd.DataFrame(index=unique_barcodes)
+    result_df.index.name = 'inline_barcode'
+    
+    # For each library, calculate metrics
+    for library_id in unique_libraries:
+        library_data = df_filtered[df_filtered['library_id'] == library_id]
+        
+        # Group by inline_barcode and sum reads for this library
+        barcode_reads = library_data.groupby('inline_barcode')['num_reads_total'].sum()
+        
+        # Add columns for this library
+        reads_col       = f"{library_id}_reads"
+        pool_pct_col    = f"{library_id}_reads_pool_pct"
+        all_pct_col     = f"{library_id}_reads_all_pct"
+        barcode_pct_col = f"{library_id}_barcode_reads_vs_all_reads_for_barcode_pct"
+        
+        # Initialize columns with 0
+        result_df[reads_col]       = 0
+        result_df[pool_pct_col]    = 0.0
+        result_df[all_pct_col]     = 0.0
+        result_df[barcode_pct_col] = 0.0
+        
+        # Fill in values for barcodes that exist in this library
+        for barcode in barcode_reads.index:
+            reads = barcode_reads[barcode]
+            result_df.loc[barcode, reads_col]       = reads
+            result_df.loc[barcode, pool_pct_col]    = reads / library_totals[library_id]
+            result_df.loc[barcode, all_pct_col]     = reads / total_reads_all
+            result_df.loc[barcode, barcode_pct_col] = reads / barcode_totals[barcode]
+    
+    # Sort by inline_barcode for consistent output
+    result_df = result_df.sort_index()
+    
+    # Save to CSV
+    result_df.to_csv(output_csv_path)
+    
+    return result_df
+
+def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
+    out_basename = out_basename or "reads_per_pool_sorted_curve"
+
     df_lut = pd.read_csv(df_csv_path)
+    log.debug(f"Reading in metrics file for plotting barcode read counts per pool: {df_csv_path}")
+    log.debug(f"unmatched_name: {unmatched_name}")
 
     fig, axs = plt.subplots(figsize=(10, 10), nrows=4, sharex=True)
     fontsize = 14
 
     # Define colors
     unique_library_ids = df_lut["library_id"].nunique()
-    tab20_colors = plt.cm.tab20.colors
-    pool_colors = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
+    log.debug(f"Number of distinct library_id values (pools) present: {unique_library_ids}")
+    log.debug(f"library_id values (pools): {", ".join(sorted(list(set(df_lut['library_id'].astype(str)))))}")
 
-    reads_per_bc = pd.DataFrame()
+    tab20_colors = plt.cm.tab20.colors
+    pool_colors  = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
+
     for i, pool in enumerate(sorted(df_lut["library_id"].unique())):
-        num_reads = df_lut[
+        log.debug(f"Processing read counts to plot for library_id (pool): {pool}")
+        # pool_metrics = df_lut[
+        #     (df_lut["library_id"] == str(pool))
+        #     & (df_lut["inline_barcode"] != unmatched_name)
+        # ]
+        pool_metrics = df_lut[
             (df_lut["library_id"] == str(pool))
-            & (df_lut["inline_barcode"] != unmatched_name)
-        ]["num_reads_total"]
+            & (~df_lut['inline_barcode'].str.match(r'^N+$', na=False))
+        ]
+        num_reads = pool_metrics["num_reads_total"]
         num_reads = sorted(num_reads, reverse=True)
         for ax in axs[:2]:
             ax.scatter(
@@ -2721,14 +2827,11 @@ def plot_sorted_curve(df_csv_path, outDir, unmatched_name):
 
         # Calculate total and fractions
         total_reads = sum(num_reads)
-        fractions = np.array([read / total_reads for read in num_reads])
+        fractions   = np.array([read / total_reads for read in num_reads])
 
         for ax in axs[2:]:
             ax.scatter(np.arange(len(fractions)), fractions * 100, color=pool_colors[i])
             ax.plot(np.arange(len(fractions)), fractions * 100, color=pool_colors[i])
-        show_bottom_values = 5
-        reads_per_bc[f"{pool}_reads"] = num_reads
-        reads_per_bc[f"{pool}_reads_%"] = fractions * 100
 
     axs[1].set_yscale("symlog")
     axs[1].set_ylim(bottom=0)
@@ -2748,16 +2851,13 @@ def plot_sorted_curve(df_csv_path, outDir, unmatched_name):
         ax.grid(True, axis="y", linestyle="--", alpha=0.7)
         ax.margins(x=0.01)
 
-    # Save data frame that contains the number of reads and fraction for each barcode in a sorted table
-    reads_per_bc.to_csv(f"{outDir}/reads_per_bc.csv", index=False)
-
     plt.tight_layout()
 
     fig.savefig(
-        f"{outDir}/reads_per_pool_sorted_curve.pdf", bbox_inches="tight", dpi=300
+        f"{out_dir}/{out_basename}.pdf", bbox_inches="tight", dpi=300
     )
     fig.savefig(
-        f"{outDir}/reads_per_pool_sorted_curve.png", bbox_inches="tight", dpi=300
+        f"{out_dir}/{out_basename}.png", bbox_inches="tight", dpi=300
     )
 
 # this function is called in new processes
@@ -3315,6 +3415,8 @@ def splitcode_demux(
     plot_read_counts(df_csv_out_path, outDir)
     # Plot a sorted curve per pool and save csv file with sorted read numbers and fractions for QC
     plot_sorted_curve(df_csv_out_path, outDir, unmatched_name)
+    # Write metrics for barcode-pool pairs
+    write_barcode_metrics_for_pools(df_csv_out_path, outDir)
     # --- end splitcode metrics plotting ---
 
     df = pd.read_csv(df_csv_out_path)
