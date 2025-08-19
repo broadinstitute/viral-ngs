@@ -402,11 +402,11 @@ def parser_cluster_references_ani(parser=argparse.ArgumentParser(description='Cl
 __commands__.append(('cluster_references_ani', parser_cluster_references_ani))
 
 
-def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, m=15, s=50, c=10, min_af=15, threads=None):
+def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, m=15, s=50, c=10, min_af=15, n=None, threads=None):
 
     skani = assemble.skani.SkaniTool()
     clusters = skani.find_reference_clusters(inRefs, m=m, s=s, c=c, min_af=min_af, threads=threads)
-    skani.find_closest_reference(inContigs, inRefs, out_skani_dist, m=m, s=s, c=c, min_af=min_af, threads=threads)
+    skani.find_closest_reference(inContigs, inRefs, out_skani_dist, m=m, s=s, c=c, n=n, min_af=min_af, threads=threads)
     refs_hit = set()
     refs_hit_by_cluster = set()
 
@@ -439,6 +439,7 @@ def parser_skani_contigs_to_refs(parser=argparse.ArgumentParser(description='Fin
     parser.add_argument('-m', type=int, default=15, help='marker k-mer compression factor (default: %(default)s)')
     parser.add_argument('-s', type=int, default=50, help='screen out pairs with < percent identity using k-mer sketching (default: %(default)s)')
     parser.add_argument('-c', type=int, default=10, help='compression factor (k-mer subsampling ratio) (default: %(default)s)')
+    parser.add_argument('-n', type=int, default=None, help='maximum number of hits to report (default: unlimited)')
     parser.add_argument('--min_af', dest='min_af', type=int, default=15, help='minimum alignment fraction (default: %(default)s)')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, skani_contigs_to_refs, split_args=True)

@@ -142,16 +142,17 @@ class SkaniTool(tools.Tool):
         return g.get_clusters()
 
     def find_closest_reference(self, contigs_fasta, ref_fastas, out_file,
-                                m=50, s=50, c=20, min_af=15,
-                                other_args = ('--no-learned-ani', '--robust', '--detailed', '--ci', '-n', 10, '--no-marker-index'),
+                                m=50, s=50, c=20, min_af=15, n=None,
+                                other_args = ('--no-learned-ani', '--robust', '--detailed', '--ci', '--no-marker-index'),
                                 threads=None):
         ''' use skani dist to find the closest reference genome for each contig
             (default settings here are for viral genomes)
         '''
 
+        max_hits_args = [] if n is None else ['-n', n]
         with util.file.tempfname('.skani_dist.tsv') as tmp_tsv:
             self.dist(contigs_fasta, ref_fastas, tmp_tsv,
-                    ['-m', m, '-c', c, '-s', s, '--min-af', min_af] + list(other_args), threads=threads)
+                    ['-m', m, '-c', c, '-s', s, '--min-af', min_af] + max_hits_args + list(other_args), threads=threads)
             self._sort_skani_table_by_product(tmp_tsv, out_file)
 
         with open(out_file, 'r') as inf:
