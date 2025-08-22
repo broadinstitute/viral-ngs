@@ -1,4 +1,4 @@
-FROM quay.io/broadinstitute/viral-baseimage:0.2.4
+FROM quay.io/broadinstitute/viral-baseimage:0.3.0
 
 LABEL maintainer "viral-ngs@broadinstitute.org"
 
@@ -28,7 +28,7 @@ ENV \
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
-RUN mamba create -n $CONDA_DEFAULT_ENV python=3.10
+RUN mamba create -n $CONDA_DEFAULT_ENV python=3.12
 RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
 RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
