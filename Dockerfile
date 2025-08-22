@@ -60,5 +60,11 @@ RUN	ln -s /lib/x86_64-linux-gnu/libreadline.so.7 /lib/x86_64-linux-gnu/libreadli
 # verifies that conda-installed python libraries are working.
 RUN /bin/bash -c "set -e; echo -n 'viral-ngs version: '; read_utils.py --version"
 
+# import matplotlib to force a (re)build of its font cache
+# See:
+#   https://stackoverflow.com/questions/72060002/how-does-one-trigger-matplotlib-to-initialize-the-cache-on-install-in-an-image
+#   https://stackoverflow.com/questions/37920935/matplotlib-cant-find-font-installed-in-my-linux-machine/70647041#70647041
+RUN python -c "import matplotlib.font_manager; matplotlib.font_manager._load_fontmanager(try_read_cache=False); import matplotlib.pyplot"
+
 #CMD ["/bin/bash","-l"] # for a login shell (loads bash profile)
 CMD ["/bin/bash"]
