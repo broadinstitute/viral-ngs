@@ -805,6 +805,58 @@ def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, conf
 __commands__.append(('kraken2', parser_kraken2))
 
 
+def parser_kallisto(parser=argparse.ArgumentParser()):
+    """Argument parser for the kb_python kallisto wrapper.
+
+    Args:
+        parser (_type_, optional): _description_. Defaults to argparse.ArgumentParser().
+
+    Returns:
+        argparse.ArgumentParser: The parser with arguments added.
+    """
+    parser.add_argument('inBam', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--index', help='kallisto index file.')
+    parser.add_argument('--t2g', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--kmerSize', type=int, help='k-mer size (default: 31bp)', default=31)
+    parser.add_argument('--technology', choices=['10xv2', '10xv3', '10xv3-3prime', '10xv3-5prime', 'dropseq', 
+                                                 'indrop', 'celseq', 'celseq2', 'smartseq2', 'bulk'], 
+                        help='Technology used to generate the data (default: bulk)', default='bulk')
+    parser.add_argument('--h5ad', action='store_true', help='Output HDF5 file (default: False)', default=False)
+    parser.add_argument('--loom', action='store_true', help='Output Loom file (default: False)', default=False)
+    parser.add_argument('--outDir', help='Output directory (default: kallisto_out)', default='kallisto_out')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken2, split_args=True)
+    return parser
+def kallisto(inBams, index_file, t2g_file, kmer_size=31, technology='bulk', h5ad=False, loom=False, outDir=None, threads=None):
+    """Runs kallisto quantification, via kb_python count, on the input BAM files.
+
+    Args:
+        inBams (list): List of input BAM files.
+        outDir (str): Output directory. Defaults to None.
+        index_file (str): Path to the kallisto index file.
+        t2g_file (str): Path to the transcript-to-gene mapping file.
+        kmer_size (int, optional): K-mer size for the alignment. Defaults to 31.
+        technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
+        h5ad (bool, optional): Whether to output HDF5 file. Defaults to False.
+        loom (bool, optional): Whether to output Loom file. Defaults to False.
+        threads (int, optional): Number of threads to use. Defaults to None.
+    """
+
+    assert outDir, ('Output directory must be specified.')
+    kallisto_tool = classify.kallisto.Kallisto()
+    kallisto_tool.pipeline(
+        inBams=inBams,
+        outDir=outDir,
+        index_file=index_file,
+        t2g_file=t2g_file,
+        kmer_size=kmer_size,
+        technology=technology,
+        h5ad=h5ad,
+        loom=loom,
+        threads=threads
+    )
+__commands__.append(('kallisto', parser_kallisto))
+
 def parser_krakenuniq(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
     parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
@@ -1611,6 +1663,40 @@ def kraken2_build(db,
 __commands__.append(('kraken2_build', parser_kraken2_build))
 
 
+def parser_kallisto_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('ref_fasta', help='Reference sequence fasta file.')
+    parser.add_argument('--index', help='Kallisto index output file.')
+    parser.add_argument('--workflow', choices=['standard', 'nac', 'kite', 'custom'],
+                        default='standard', help='Type of index to create (default: %(default)s).')
+    parser.add_argument('--kmer_len', type=int, help='k-mer length (default: 31).')
+    parser.add_argument('-aa', action='store_true', help='True if sequence contains amino acids(default: False).')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kallisto_build, split_args=True)
+    return parser
+def kallisto_build(ref_fasta, index, workflow='standard', kmer_len=31, aa_seq=False, threads=None):
+    '''
+    Builds a kallisto index from a reference fasta file.
+    
+    Args:
+        ref_fasta (str): Path to the reference sequence fasta file.
+        index (str): Path to the output kallisto index file.
+        workflow (str): Type of index to create. Options are 'standard', 'nac', 'kite', 'custom'.
+        kmer_len (int): k-mer length (default: 31).
+        aa_seq (bool): True if sequence contains amino acids (default: False).
+        threads (int): Number of threads to use (default: None).
+    '''
+
+    kallisto_tool = classify.kallisto.Kallisto()
+    kallisto_tool.build(ref_fasta,
+                        index=index,
+                        workflow=workflow,
+                        kmer_len=kmer_len,
+                        aa_seq=aa_seq,
+                        threads=threads)
+    
+__commands__.append(('kallisto_build', parser_kallisto_build))
+
+
 def parser_krakenuniq_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Krakenuniq database output directory.')
     parser.add_argument('--library', help='Input library directory of fasta files. If not specified, it will be read from the "library" subdirectory of "db".')
@@ -1697,8 +1783,6 @@ def krakenuniq_build(db, library, taxonomy=None, subsetTaxonomy=None,
         krakenuniq_tool.execute('krakenuniq-build', db, '', options={'--clean': None})
 # KrakenUniq disabled from future versions for now, pending conda rebuild of @yesimon's custom fork & dependencies
 #__commands__.append(('krakenuniq_build', parser_krakenuniq_build))
-
-
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
