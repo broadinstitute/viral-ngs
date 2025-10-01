@@ -37,6 +37,7 @@ import classify.kaiju
 import classify.kraken
 import classify.kraken2
 import classify.krona
+import classify.kallisto
 
 __commands__ = []
 
@@ -1598,6 +1599,53 @@ def taxlevel_plurality(summary_file, tax_heading, out_report, min_reads):
 __commands__.append(('taxlevel_plurality', parser_kraken_taxlevel_plurality))
 
 
+def parser_kallisto_extract(parser=argparse.ArgumentParser()):
+    """Argument parser for the kb_python kallisto wrapper's extract command.
+
+    Args:
+        parser (argparse.ArgumentParser): Argument parser instance. Defaults to argparse.ArgumentParser().
+
+    Returns:
+        argparse.ArgumentParser: The parser with arguments added.
+    """
+    parser.add_argument('inBam', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--index', help='kallisto index file.')
+    parser.add_argument('--t2g', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--outDir', help='Output directory (default: kallisto_out)', default='kallisto_out')
+    parser.add_argument('--aa', action='store_true', help='True if sequence contains amino acids(default: False).')
+    parser.add_argument('--targets', nargs='+', help='List of target sequences to extract from input sequences.')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kraken2, split_args=True)
+    return parser
+def kallisto_extract(inBams, index_file, t2g_file, target_ids, aa=False, outDir=None, threads=None):
+    """Runs kallisto quantification, via kb_python count, on the input BAM files.
+
+    Args:
+        inBams (list): List of input BAM files.
+        outDir (str): Output directory. Defaults to None.
+        index_file (str): Path to the kallisto index file.
+        t2g_file (str): Path to the transcript-to-gene mapping file.
+        kmer_size (int, optional): K-mer size for the alignment. Defaults to 31.
+        technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
+        h5ad (bool, optional): Whether to output HDF5 file. Defaults to False.
+        loom (bool, optional): Whether to output Loom file. Defaults to False.
+        threads (int, optional): Number of threads to use. Defaults to None.
+    """
+
+    assert outDir, ('Output directory must be specified.')
+    kallisto_tool = classify.kallisto.Kallisto()
+    kallisto_tool.extract(
+        inBams=inBams,
+        outDir=outDir,
+        index_file=index_file,
+        t2g_file=t2g_file,
+        target_ids=target_ids,
+        aa=aa,
+        threads=threads
+    )
+__commands__.append(('kallisto_extract', parser_kallisto))
+
+
 def parser_krona_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Krona taxonomy database output directory.')
     parser.add_argument('--taxdump_tar_gz', help='NCBI taxdump.tar.gz file', default=None)
@@ -1669,7 +1717,7 @@ def parser_kallisto_build(parser=argparse.ArgumentParser()):
     parser.add_argument('--workflow', choices=['standard', 'nac', 'kite', 'custom'],
                         default='standard', help='Type of index to create (default: %(default)s).')
     parser.add_argument('--kmer_len', type=int, help='k-mer length (default: 31).')
-    parser.add_argument('-aa', action='store_true', help='True if sequence contains amino acids(default: False).')
+    parser.add_argument('--aa', action='store_true', help='True if sequence contains amino acids(default: False).')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kallisto_build, split_args=True)
     return parser
