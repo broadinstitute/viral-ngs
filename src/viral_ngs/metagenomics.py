@@ -9,6 +9,7 @@ __author__ = "yesimon@broadinstitute.org"
 import argparse
 import collections
 import csv
+import glob
 import gzip
 import io
 import itertools
@@ -25,6 +26,10 @@ import json
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+
+import anndata
+import numpy as np
+import pandas as pd
 import pysam
 
 import util.cmd
@@ -37,7 +42,7 @@ import classify.kaiju
 import classify.kraken
 import classify.kraken2
 import classify.krona
-import classify.kallisto
+import classify.kb
 
 __commands__ = []
 
@@ -806,8 +811,8 @@ def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, conf
 __commands__.append(('kraken2', parser_kraken2))
 
 
-def parser_kallisto(parser=argparse.ArgumentParser()):
-    """Argument parser for the kb_python kallisto wrapper.
+def parser_kb(parser=argparse.ArgumentParser()):
+    """Argument parser for the kb_python wrapper.
 
     Args:
         parser (_type_, optional): _description_. Defaults to argparse.ArgumentParser().
@@ -816,7 +821,7 @@ def parser_kallisto(parser=argparse.ArgumentParser()):
         argparse.ArgumentParser: The parser with arguments added.
     """
     parser.add_argument('inBam', nargs='+', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--index', help='kallisto index file.')
+    parser.add_argument('--index', help='kb index file.')
     parser.add_argument('--t2g', nargs='+', help='Input unaligned reads, BAM format.')
     parser.add_argument('--kmerSize', type=int, help='k-mer size (default: 31bp)', default=31)
     parser.add_argument('--technology', choices=['10xv2', '10xv3', '10xv3-3prime', '10xv3-5prime', 'dropseq', 
@@ -824,17 +829,17 @@ def parser_kallisto(parser=argparse.ArgumentParser()):
                         help='Technology used to generate the data (default: bulk)', default='bulk')
     parser.add_argument('--h5ad', action='store_true', help='Output HDF5 file (default: False)', default=False)
     parser.add_argument('--loom', action='store_true', help='Output Loom file (default: False)', default=False)
-    parser.add_argument('--outDir', help='Output directory (default: kallisto_out)', default='kallisto_out')
+    parser.add_argument('--outDir', help='Output directory (default: kb_out)', default='kb_out')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken2, split_args=True)
     return parser
-def kallisto(inBams, index_file, t2g_file, kmer_size=31, technology='bulk', h5ad=False, loom=False, outDir=None, threads=None):
-    """Runs kallisto quantification, via kb_python count, on the input BAM files.
+def kb_python(inBams, index_file, t2g_file, kmer_size=31, technology='bulk', h5ad=False, loom=False, outDir=None, threads=None):
+    """Runs kb count on the input BAM files.
 
     Args:
         inBams (list): List of input BAM files.
         outDir (str): Output directory. Defaults to None.
-        index_file (str): Path to the kallisto index file.
+        index_file (str): Path to the kb index file.
         t2g_file (str): Path to the transcript-to-gene mapping file.
         kmer_size (int, optional): K-mer size for the alignment. Defaults to 31.
         technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
@@ -844,8 +849,8 @@ def kallisto(inBams, index_file, t2g_file, kmer_size=31, technology='bulk', h5ad
     """
 
     assert outDir, ('Output directory must be specified.')
-    kallisto_tool = classify.kallisto.Kallisto()
-    kallisto_tool.pipeline(
+    kb_tool = classify.kb.kb()
+    kb_tool.pipeline(
         inBams=inBams,
         outDir=outDir,
         index_file=index_file,
@@ -856,7 +861,7 @@ def kallisto(inBams, index_file, t2g_file, kmer_size=31, technology='bulk', h5ad
         loom=loom,
         threads=threads
     )
-__commands__.append(('kallisto', parser_kallisto))
+__commands__.append(('kb', parser_kb))
 
 def parser_krakenuniq(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
@@ -1491,7 +1496,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 __commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
 
 
-def parser_kraken_taxlevel_plurality(parser=argparse.ArgumentParser()):
+def parser_taxlevel_plurality(parser=argparse.ArgumentParser()):
     parser.add_argument('summary_file', help='input Kraken-format summary text file with tab-delimited taxonomic levels.')
     parser.add_argument('tax_heading', help='The taxonomic heading to analyze.')
     parser.add_argument('out_report', help='tab-delimited output file.')
@@ -1598,9 +1603,8 @@ def taxlevel_plurality(summary_file, tax_heading, out_report, min_reads):
 
 __commands__.append(('taxlevel_plurality', parser_kraken_taxlevel_plurality))
 
-
-def parser_kallisto_extract(parser=argparse.ArgumentParser()):
-    """Argument parser for the kb_python kallisto wrapper's extract command.
+def parser_kb_extract(parser=argparse.ArgumentParser()):
+    """Argument parser for the kb_python extract command.
 
     Args:
         parser (argparse.ArgumentParser): Argument parser instance. Defaults to argparse.ArgumentParser().
@@ -1609,21 +1613,21 @@ def parser_kallisto_extract(parser=argparse.ArgumentParser()):
         argparse.ArgumentParser: The parser with arguments added.
     """
     parser.add_argument('inBam', nargs='+', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--index', help='kallisto index file.')
+    parser.add_argument('--index', help='kb index file.')
     parser.add_argument('--t2g', nargs='+', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--outDir', help='Output directory (default: kallisto_out)', default='kallisto_out')
+    parser.add_argument('--outDir', help='Output directory (default: kb_out)', default='kb_out')
     parser.add_argument('--aa', action='store_true', help='True if sequence contains amino acids(default: False).')
     parser.add_argument('--targets', nargs='+', help='List of target sequences to extract from input sequences.')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kraken2, split_args=True)
     return parser
-def kallisto_extract(inBams, index_file, t2g_file, target_ids, aa=False, outDir=None, threads=None):
-    """Runs kallisto quantification, via kb_python count, on the input BAM files.
+def kb_extract(inBams, index_file, t2g_file, target_ids, aa=False, outDir=None, threads=None):
+    """Runs kb count on the input BAM files.
 
     Args:
         inBams (list): List of input BAM files.
         outDir (str): Output directory. Defaults to None.
-        index_file (str): Path to the kallisto index file.
+        index_file (str): Path to the kb index file.
         t2g_file (str): Path to the transcript-to-gene mapping file.
         kmer_size (int, optional): K-mer size for the alignment. Defaults to 31.
         technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
@@ -1633,8 +1637,8 @@ def kallisto_extract(inBams, index_file, t2g_file, target_ids, aa=False, outDir=
     """
 
     assert outDir, ('Output directory must be specified.')
-    kallisto_tool = classify.kallisto.Kallisto()
-    kallisto_tool.extract(
+    kb_tool = classify.kb.kb()
+    kb_tool.extract(
         inBams=inBams,
         outDir=outDir,
         index_file=index_file,
@@ -1643,7 +1647,107 @@ def kallisto_extract(inBams, index_file, t2g_file, target_ids, aa=False, outDir=
         aa=aa,
         threads=threads
     )
-__commands__.append(('kallisto_extract', parser_kallisto))
+__commands__.append(('kb_extract', parser_kb_extract))
+
+def parser_kb_top_taxa(parser=argparse.ArgumentParser()):
+    parser.add_argument('counts_tar', help='input Kraken-format summary text file with tab-delimited taxonomic levels.')
+    parser.add_argument('out_report', help='tab-delimited output file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kb_top_taxa, split_args=True)
+    return parser
+
+def kb_top_taxa(counts_tar, id_to_tax_map, target_taxon, out_report):
+    """Identifies the most abundant taxon (of any rank) contributing to a taxa node of interest in kb count output. This function
+    is currently only set to parse h5ad files and further functionality will be added in the future.
+        
+    It is intended to highlight the primary contributor of taxonomic signal within a taxonomic category of interest,
+    for example, the most abundant virus among all viruses.
+        
+    Args:
+        counts_tar (str): Path to the input counts file (HDF5 format).
+        id_to_tax_map (str): Path to the ID to taxonomy mapping file.
+        target_taxon (str): The taxonomic heading to analyze.
+        out_report (str): Path to the output report file.
+    """
+    sotu_counts = pd.DataFrame(columns=['sotu_id', 'count', 'tax_name', 'tax_id', 'tax_category'])
+    
+    tax_map_df = pd.read_csv(id_to_tax_map)
+    tax_map_df = tax_map_df.replace('.', np.nan)
+    
+    tax_map_df = tax_map_df.apply(lambda row: row[row.first_valid_index():].dropna().iloc[-2], axis=1)
+    tax_map_df['farthest_taxa'] = tax_map_df.apply(lambda r: r.dropna().iloc[-2] if r.notna().any() else pd.NA, axis=1)
+    tax_map_df['farthest_taxa'] = tax_map_df['farthest_taxa'].fillna('root')
+    
+    pattern = r'^(?:\d+|[A-Za-z]{1,3}\d{2,}|[A-Za-z]_?\d{3,})$'
+    mask = (
+        tax_map_df['farthest_taxa']
+        .astype(str)
+        .str.fullmatch(pattern, na=False)
+    )
+    tax_map_df.loc[mask, 'farthest_taxa'] = "Unknown"
+    
+    ## Start by extracting our the contents of our tarball
+    with util.file.tmp_dir() as tmp_dir:
+        util.file.untar(counts_tar, tmp_dir)
+        h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", '*.h5ad'))
+        
+        assert len(h5ad_files) == 1, "Expected exactly one .h5ad file in the counts tarball, found {}".format(len(h5ad_files))
+        h5ad_file = h5ad_files[0]
+        
+        adata = anndata.read_h5ad(h5ad_file)
+        
+        counts_mtx = adata.X.to_array()
+        sotu_labels = adata.var.index
+        sotu_totals = list(zip(sotu_labels, counts_mtx.sum(axis=0)))
+        
+        tax_mapping = [(tax_map_df.loc[tax_map_df['id'] == sotu_id, 'root'].values[0], 
+                        tax_map_df.loc[tax_map_df['id'] == sotu_id, 'furthest_taxa'].values[0])
+                       for (sotu_id, _count) in sotu_totals]
+        
+        sotu_counts = pd.concat([sotu_counts, list(zip(*sotu_totals, *zip(*tax_mapping)))])
+        sotu_counts.query('tax_category == @target_taxon', inplace=True)
+        
+        if sotu_counts.empty:
+            out = [{'order_within_focal':0, 'focal_taxon_name':target_taxon, 'focal_taxon_count':0, 'pct_of_focal':0.0, 'pct_of_total':0.0, 'reads_cumulative':0, 'reads_excl_children':0, 'taxon_rank':'', 'taxon_id':'', 'taxon_sci_name':''}]
+        else:
+            target_taxon_count = sotu_counts.groupby('tax_category')['count'].sum().values[0]
+            
+            sotu_counts = sotu_counts.sort_values(by='count', ascending=False).reset_index(drop=True)
+            out = []
+            for i, row in sotu_counts.iterrows():
+                outrow = {  'order_within_focal': i+1,
+                            'focal_taxon_name': target_taxon,
+                            'focal_taxon_count': target_taxon_count,
+                            'pct_of_focal': 100.0 * float(row['num_reads']) / float(target_taxon_count),
+                }
+    
+    # find the top hits within the focal taxon (if any)
+    out = []
+    if not keeper_rows:
+        # we didn't find anything under the tax_heading of interest
+        out.append({'order_within_focal':0, 'focal_taxon_name':tax_heading, 'focal_taxon_count':0, 'pct_of_focal':0.0, 'pct_of_total':0.0, 'reads_cumulative':0, 'reads_excl_children':0, 'taxon_rank':'', 'taxon_id':'', 'taxon_sci_name':''})
+    else:
+        # find the most abundant taxon classified underneath (but not including) the tax_heading 
+        assert keeper_rows[0]["taxon_sci_name"].lower() == tax_heading.lower()
+        keepers_sorted = enumerate(sorted(keeper_rows[1:], key=lambda row:int(row["reads_excl_children"]), reverse=True))
+        for i, hit in keepers_sorted:
+            outrow = {  'order_within_focal': i+1,
+                        'focal_taxon_name':keeper_rows[0]["taxon_sci_name"],
+                        'focal_taxon_count':keeper_rows[0]["reads_cumulative"],
+                        'pct_of_focal': 100.0 * float(hit["reads_excl_children"]) / float(keeper_rows[0]["reads_cumulative"])}
+            for k in ("pct_of_total", "reads_cumulative", "reads_excl_children", "taxon_rank", "taxon_id", "taxon_sci_name"):
+                outrow[k] = hit[k]
+            if int(outrow['reads_excl_children']) >= min_reads:
+                out.append(outrow)
+
+    # write outputs
+    with util.file.open_or_gzopen(out_report, 'wt') as outf:
+        header = ('focal_taxon_name', 'focal_taxon_count', 'order_within_focal', 'pct_of_focal', 'pct_of_total', 'reads_cumulative', 'reads_excl_children', 'taxon_rank', 'taxon_id', 'taxon_sci_name')
+        writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
+        writer.writeheader()
+        writer.writerows(out)
+
+__commands__.append(('taxlevel_plurality', parser_kraken_taxlevel_plurality))
 
 
 def parser_krona_build(parser=argparse.ArgumentParser()):
@@ -1711,38 +1815,38 @@ def kraken2_build(db,
 __commands__.append(('kraken2_build', parser_kraken2_build))
 
 
-def parser_kallisto_build(parser=argparse.ArgumentParser()):
+def parser_kb_build(parser=argparse.ArgumentParser()):
     parser.add_argument('ref_fasta', help='Reference sequence fasta file.')
-    parser.add_argument('--index', help='Kallisto index output file.')
+    parser.add_argument('--index', help='kb index output file.')
     parser.add_argument('--workflow', choices=['standard', 'nac', 'kite', 'custom'],
                         default='standard', help='Type of index to create (default: %(default)s).')
     parser.add_argument('--kmer_len', type=int, help='k-mer length (default: 31).')
     parser.add_argument('--aa', action='store_true', help='True if sequence contains amino acids(default: False).')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kallisto_build, split_args=True)
+    util.cmd.attach_main(parser, kb_build, split_args=True)
     return parser
-def kallisto_build(ref_fasta, index, workflow='standard', kmer_len=31, aa_seq=False, threads=None):
+def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, aa_seq=False, threads=None):
     '''
-    Builds a kallisto index from a reference fasta file.
+    Builds a kb index from a reference fasta file.
     
     Args:
         ref_fasta (str): Path to the reference sequence fasta file.
-        index (str): Path to the output kallisto index file.
+        index (str): Path to the output kb index file.
         workflow (str): Type of index to create. Options are 'standard', 'nac', 'kite', 'custom'.
         kmer_len (int): k-mer length (default: 31).
         aa_seq (bool): True if sequence contains amino acids (default: False).
         threads (int): Number of threads to use (default: None).
     '''
 
-    kallisto_tool = classify.kallisto.Kallisto()
-    kallisto_tool.build(ref_fasta,
+    kb_tool = classify.kb.kb()
+    kb_tool.build(ref_fasta,
                         index=index,
                         workflow=workflow,
                         kmer_len=kmer_len,
                         aa_seq=aa_seq,
                         threads=threads)
     
-__commands__.append(('kallisto_build', parser_kallisto_build))
+__commands__.append(('kb_build', parser_kb_build))
 
 
 def parser_krakenuniq_build(parser=argparse.ArgumentParser()):
