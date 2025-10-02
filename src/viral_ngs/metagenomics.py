@@ -1708,46 +1708,30 @@ def kb_top_taxa(counts_tar, id_to_tax_map, target_taxon, out_report):
         sotu_counts.query('tax_category == @target_taxon', inplace=True)
         
         if sotu_counts.empty:
-            out = [{'order_within_focal':0, 'focal_taxon_name':target_taxon, 'focal_taxon_count':0, 'pct_of_focal':0.0, 'pct_of_total':0.0, 'reads_cumulative':0, 'reads_excl_children':0, 'taxon_rank':'', 'taxon_id':'', 'taxon_sci_name':''}]
+            out = [{'focal_taxon_name':target_taxon, 'focal_taxon_count':0, 'pct_of_focal':0.0, 'hit_id':'', 'hit_lowest_taxa_name':'', 'hit_reads': 0}]
         else:
             target_taxon_count = sotu_counts.groupby('tax_category')['count'].sum().values[0]
             
             sotu_counts = sotu_counts.sort_values(by='count', ascending=False).reset_index(drop=True)
             out = []
             for i, row in sotu_counts.iterrows():
-                outrow = {  'order_within_focal': i+1,
-                            'focal_taxon_name': target_taxon,
+                outrow = {  'focal_taxon_name': target_taxon,
                             'focal_taxon_count': target_taxon_count,
-                            'pct_of_focal': 100.0 * float(row['num_reads']) / float(target_taxon_count),
+                            'hit_id': row['sotu_id'],
+                            'hit_lowest_taxa_name': row['furthest_taxa'],
+                            'hit_reads': row['count'],
+                            'pct_of_focal': 100.0 * float(row['count']) / float(target_taxon_count),
                 }
-    
-    # find the top hits within the focal taxon (if any)
-    out = []
-    if not keeper_rows:
-        # we didn't find anything under the tax_heading of interest
-        out.append({'order_within_focal':0, 'focal_taxon_name':tax_heading, 'focal_taxon_count':0, 'pct_of_focal':0.0, 'pct_of_total':0.0, 'reads_cumulative':0, 'reads_excl_children':0, 'taxon_rank':'', 'taxon_id':'', 'taxon_sci_name':''})
-    else:
-        # find the most abundant taxon classified underneath (but not including) the tax_heading 
-        assert keeper_rows[0]["taxon_sci_name"].lower() == tax_heading.lower()
-        keepers_sorted = enumerate(sorted(keeper_rows[1:], key=lambda row:int(row["reads_excl_children"]), reverse=True))
-        for i, hit in keepers_sorted:
-            outrow = {  'order_within_focal': i+1,
-                        'focal_taxon_name':keeper_rows[0]["taxon_sci_name"],
-                        'focal_taxon_count':keeper_rows[0]["reads_cumulative"],
-                        'pct_of_focal': 100.0 * float(hit["reads_excl_children"]) / float(keeper_rows[0]["reads_cumulative"])}
-            for k in ("pct_of_total", "reads_cumulative", "reads_excl_children", "taxon_rank", "taxon_id", "taxon_sci_name"):
-                outrow[k] = hit[k]
-            if int(outrow['reads_excl_children']) >= min_reads:
                 out.append(outrow)
-
+    
     # write outputs
     with util.file.open_or_gzopen(out_report, 'wt') as outf:
-        header = ('focal_taxon_name', 'focal_taxon_count', 'order_within_focal', 'pct_of_focal', 'pct_of_total', 'reads_cumulative', 'reads_excl_children', 'taxon_rank', 'taxon_id', 'taxon_sci_name')
+        header = ('focal_taxon_name', 'focal_taxon_count', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal')
         writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
         writer.writeheader()
         writer.writerows(out)
 
-__commands__.append(('taxlevel_plurality', parser_kraken_taxlevel_plurality))
+__commands__.append(('kb_top_taxa', parser_kb_top_taxa))
 
 
 def parser_krona_build(parser=argparse.ArgumentParser()):
