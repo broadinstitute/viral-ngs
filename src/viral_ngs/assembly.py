@@ -42,6 +42,7 @@ import assemble.mummer
 import assemble.muscle
 import assemble.gap2seq
 import assemble.skani
+import assemble.wgsim
 
 # third-party
 import numpy
@@ -1813,6 +1814,163 @@ def parser_alignment_summary(parser=argparse.ArgumentParser()):
 __commands__.append(('alignment_summary', parser_alignment_summary))
 
 
+def simulate_illumina_reads(
+    in_fasta, out_bam, coverage,
+    read_length=150, outer_distance=500, error_rate=0.02,
+    mutation_rate=0.001, indel_fraction=0.15, indel_extended_prob=0.3,
+    random_seed=None, sample_name='sample', library_name='lib1'
+):
+    ''' Simulate Illumina paired-end reads using wgsim.
+
+    Args:
+        in_fasta: Input reference fasta file
+        out_bam: Output unaligned BAM file
+        coverage: Coverage specification in one of three formats:
+            1. Single float value (e.g., 20.0) for uniform coverage across all sequences
+            2. Space-separated string with per-sequence depths (e.g., "chr1:20x chr2:2x")
+            3. Path to BED file with 5th column containing depth values
+        read_length: Length of each simulated read (default: 150)
+        outer_distance: Outer distance between read pairs (default: 500)
+        error_rate: Base error rate (default: 0.02)
+        mutation_rate: Mutation rate (default: 0.001)
+        indel_fraction: Fraction of errors that are indels (default: 0.15)
+        indel_extended_prob: Probability an indel is extended (default: 0.3)
+        random_seed: Random seed for reproducibility
+        sample_name: Sample name for read group
+        library_name: Library name for read group
+    '''
+    wgsim = assemble.wgsim.WgsimTool()
+    samtools = tools.samtools.SamtoolsTool()
+
+    # Parse coverage specification into normalized format:
+    # coverage_map[seq_id] = [(start, end, depth), ...]
+    # where start/end are None to indicate whole sequence
+    coverage_map = {}
+
+    # Check if coverage is a path to a BED file
+    if os.path.exists(str(coverage)):
+        # Parse BED file (5th column is depth)
+        with open(coverage, 'r') as f:
+            for line in f:
+                if line.startswith('#') or not line.strip():
+                    continue
+                fields = line.strip().split('\t')
+                if len(fields) < 5:
+                    raise ValueError(f"BED file must have at least 5 columns, found {len(fields)}")
+                seq_id = fields[0]
+                start = int(fields[1]) + 1  # BED is 0-based, convert to 1-based
+                end = int(fields[2])  # BED end is exclusive, so this is correct for 1-based inclusive
+                depth = float(fields[4].rstrip('xX'))
+                if seq_id not in coverage_map:
+                    coverage_map[seq_id] = []
+                coverage_map[seq_id].append((start, end, depth))
+    elif isinstance(coverage, str) and (':' in coverage or ' ' in coverage):
+        # Parse per-sequence string format (e.g., "chr1:20x chr2:2x")
+        for spec in coverage.split():
+            if ':' in spec:
+                seq_id, depth_str = spec.split(':', 1)
+                depth = float(depth_str.rstrip('xX'))
+                # Use None to indicate whole sequence
+                coverage_map[seq_id] = [(None, None, depth)]
+    else:
+        # Single coverage value for all sequences
+        try:
+            uniform_depth = float(str(coverage).rstrip('xX'))
+            # Read all sequence IDs from input fasta
+            for record in Bio.SeqIO.parse(in_fasta, 'fasta'):
+                # Use None to indicate whole sequence
+                coverage_map[record.id] = [(None, None, uniform_depth)]
+        except ValueError:
+            raise ValueError(f"Invalid coverage specification: {coverage}")
+
+    # Generate reads for each sequence/region
+    temp_fastqs = []
+    for record in Bio.SeqIO.parse(in_fasta, 'fasta'):
+        seq_id = record.id
+        seq_len = len(record.seq)
+
+        if seq_id not in coverage_map:
+            continue
+
+        # Process all regions for this sequence
+        for start, end, depth in coverage_map[seq_id]:
+            if depth == 0:
+                continue
+
+            # Use whole sequence if start/end are None
+            region_start = start if start is not None else 1
+            region_end = end if end is not None else seq_len
+            region_len = region_end - region_start + 1
+
+            num_pairs = wgsim.coverage_to_read_pairs(depth, region_len, read_length)
+
+            # Slice fasta to region (will be no-op if region is whole sequence)
+            region_fasta = util.file.mkstempfname('.region.fasta')
+            wgsim.slice_fasta(in_fasta, region_fasta, seq_id, start, end)
+
+            # Generate reads for this region
+            fq1 = util.file.mkstempfname('.1.fastq')
+            fq2 = util.file.mkstempfname('.2.fastq')
+            wgsim.execute(
+                region_fasta, fq1, fq2,
+                read_length=read_length,
+                outer_distance=outer_distance,
+                error_rate=error_rate,
+                mutation_rate=mutation_rate,
+                indel_fraction=indel_fraction,
+                indel_extended_prob=indel_extended_prob,
+                num_read_pairs=num_pairs,
+                random_seed=random_seed
+            )
+            temp_fastqs.append((fq1, fq2))
+
+    # Merge all fastq files
+    if not temp_fastqs:
+        raise ValueError("No reads generated - check coverage specification matches sequences in fasta")
+
+    merged_fq1 = util.file.mkstempfname('.merged.1.fastq')
+    merged_fq2 = util.file.mkstempfname('.merged.2.fastq')
+
+    with open(merged_fq1, 'wb') as outf:
+        for fq1, _ in temp_fastqs:
+            with open(fq1, 'rb') as inf:
+                shutil.copyfileobj(inf, outf)
+
+    with open(merged_fq2, 'wb') as outf:
+        for _, fq2 in temp_fastqs:
+            with open(fq2, 'rb') as inf:
+                shutil.copyfileobj(inf, outf)
+
+    # Convert to BAM with proper read group headers
+    wgsim.fastqs_to_bam(
+        merged_fq1, merged_fq2, out_bam,
+        sample_name=sample_name,
+        library_name=library_name
+    )
+
+def parser_simulate_illumina_reads(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_fasta', help='Input reference genome (fasta format)')
+    parser.add_argument('out_bam', help='Output unaligned BAM file')
+    parser.add_argument(
+        'coverage',
+        help='''Coverage specification in one of three formats:
+                1) Single value (e.g., "20" for 20X across all sequences)
+                2) Per-sequence string (e.g., "chr1:20x chr2:2x chr3:0.48x")
+                3) Path to BED file where 5th column contains depth values'''
+    )
+    parser.add_argument('--read_length', type=int, default=150, help='Length of each read (default: %(default)s)')
+    parser.add_argument('--outer_distance', type=int, default=500, help='Outer distance between read pairs (default: %(default)s)')
+    parser.add_argument('--error_rate', type=float, default=0.02, help='Base error rate (default: %(default)s)')
+    parser.add_argument('--mutation_rate', type=float, default=0.001, help='Mutation rate (default: %(default)s)')
+    parser.add_argument('--indel_fraction', type=float, default=0.15, help='Fraction of errors that are indels (default: %(default)s)')
+    parser.add_argument('--indel_extended_prob', type=float, default=0.3, help='Probability an indel is extended (default: %(default)s)')
+    parser.add_argument('--random_seed', type=int, default=None, help='Random seed for reproducibility (default: current time)')
+    parser.add_argument('--sample_name', default='sample', help='Sample name for read group (default: %(default)s)')
+    parser.add_argument('--library_name', default='lib1', help='Library name for read group (default: %(default)s)')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, simulate_illumina_reads, split_args=True)
+    return parser
+__commands__.append(('simulate_illumina_reads', parser_simulate_illumina_reads))
 
 
 def full_parser():

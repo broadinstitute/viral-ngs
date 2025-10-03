@@ -979,3 +979,216 @@ class TestContigChooser(unittest.TestCase):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
         actual = assemble.mummer.contig_chooser(alt_seqs, 1)
         self.assertEqual(actual[0], 'T')
+
+
+class TestWgsimTool(TestCaseWithTmp):
+    ''' Test wgsim tool wrapper helper methods '''
+
+    def test_slice_fasta_whole_sequence(self):
+        ''' Test slicing a fasta to a specific sequence ID without coordinate range '''
+        wgsim = assemble.wgsim.WgsimTool()
+
+        # Create test fasta with multiple sequences
+        in_fasta = util.file.mkstempfname('.fasta')
+        seqs = [('seq1', 'ACGTACGTACGT'), ('seq2', 'GGGGCCCCAAAA'), ('seq3', 'TTTTTTTTTTTT')]
+        makeFasta(seqs, in_fasta)
+
+        # Slice to seq2
+        out_fasta = util.file.mkstempfname('.sliced.fasta')
+        wgsim.slice_fasta(in_fasta, out_fasta, seq_id='seq2')
+
+        # Verify only seq2 is in output
+        records = list(Bio.SeqIO.parse(out_fasta, 'fasta'))
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].id, 'seq2')
+        self.assertEqual(str(records[0].seq), 'GGGGCCCCAAAA')
+
+    def test_slice_fasta_with_coordinates(self):
+        ''' Test slicing a fasta to a specific coordinate range '''
+        wgsim = assemble.wgsim.WgsimTool()
+
+        # Create test fasta
+        in_fasta = util.file.mkstempfname('.fasta')
+        seqs = [('seq1', 'ACGTACGTACGTACGT')]
+        makeFasta(seqs, in_fasta)
+
+        # Slice to positions 5-10 (1-based inclusive)
+        out_fasta = util.file.mkstempfname('.sliced.fasta')
+        wgsim.slice_fasta(in_fasta, out_fasta, seq_id='seq1', start=5, end=10)
+
+        # Verify sliced sequence
+        records = list(Bio.SeqIO.parse(out_fasta, 'fasta'))
+        self.assertEqual(len(records), 1)
+        self.assertEqual(str(records[0].seq), 'ACGTAC')
+
+    def test_slice_fasta_no_params(self):
+        ''' Test that slice_fasta with no optional params is a no-op '''
+        wgsim = assemble.wgsim.WgsimTool()
+
+        # Create test fasta
+        in_fasta = util.file.mkstempfname('.fasta')
+        seqs = [('seq1', 'ACGTACGT'), ('seq2', 'GGGGCCCC')]
+        makeFasta(seqs, in_fasta)
+
+        # Slice with no params
+        out_fasta = util.file.mkstempfname('.sliced.fasta')
+        wgsim.slice_fasta(in_fasta, out_fasta)
+
+        # Verify all sequences are in output (no-op)
+        records = list(Bio.SeqIO.parse(out_fasta, 'fasta'))
+        self.assertEqual(len(records), 2)
+        self.assertEqual(str(records[0].seq), 'ACGTACGT')
+        self.assertEqual(str(records[1].seq), 'GGGGCCCC')
+
+    def test_coverage_to_read_pairs(self):
+        ''' Test coverage to read pairs calculation '''
+        wgsim = assemble.wgsim.WgsimTool()
+
+        # Test case 1: 20X coverage, 1000bp sequence, 150bp reads
+        # Expected: (20 * 1000) / (2 * 150) = 66.67 -> 67 pairs
+        pairs = wgsim.coverage_to_read_pairs(20, 1000, 150)
+        self.assertEqual(pairs, 67)
+
+        # Test case 2: 10X coverage, 5000bp sequence, 100bp reads
+        # Expected: (10 * 5000) / (2 * 100) = 250 pairs
+        pairs = wgsim.coverage_to_read_pairs(10, 5000, 100)
+        self.assertEqual(pairs, 250)
+
+        # Test case 3: Fractional coverage (0.5X)
+        # Expected: (0.5 * 1000) / (2 * 150) = 1.67 -> 2 pairs
+        pairs = wgsim.coverage_to_read_pairs(0.5, 1000, 150)
+        self.assertEqual(pairs, 2)
+
+        # Test case 4: High coverage
+        # Expected: (100 * 3000) / (2 * 150) = 1000 pairs
+        pairs = wgsim.coverage_to_read_pairs(100, 3000, 150)
+        self.assertEqual(pairs, 1000)
+
+
+class TestSimulateIlluminaReads(TestCaseWithTmp):
+    ''' Test simulate_illumina_reads command for generating synthetic reads '''
+
+    def setUp(self):
+        super(TestSimulateIlluminaReads, self).setUp()
+        self.in_fasta = os.path.join(util.file.get_test_input_path(self), 'ref.lasv.fasta')
+        # Calculate expected sequence lengths
+        self.seq_lengths = {}
+        for record in Bio.SeqIO.parse(self.in_fasta, 'fasta'):
+            self.seq_lengths[record.id] = len(record.seq)
+
+    def count_bam_reads(self, bam_file):
+        ''' Count the number of reads in a BAM file '''
+        samtools = tools.samtools.SamtoolsTool()
+        read_count = int(subprocess.check_output(
+            [samtools.install_and_get_path(), 'view', '-c', bam_file]
+        ).decode('UTF-8').strip())
+        return read_count
+
+    def expected_read_count(self, coverage, seq_length, read_length=150):
+        ''' Calculate expected number of individual reads (not pairs) '''
+        # Each read pair contributes 2 reads
+        pairs = assemble.wgsim.WgsimTool().coverage_to_read_pairs(
+            coverage, seq_length, read_length
+        )
+        return pairs * 2
+
+    def test_simulate_uniform_coverage(self):
+        ''' Test simulating reads with uniform coverage across all sequences '''
+        out_bam = util.file.mkstempfname('.bam')
+        coverage = 20.0
+        read_length = 150
+
+        # Run simulate_illumina_reads with uniform coverage
+        args = [self.in_fasta, out_bam, str(coverage), '--read_length', str(read_length), '--random_seed', '12345']
+        args = assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        # Verify BAM was created
+        self.assertTrue(os.path.isfile(out_bam))
+        self.assertGreater(os.path.getsize(out_bam), 0)
+
+        # Count reads in output
+        actual_reads = self.count_bam_reads(out_bam)
+
+        # Calculate expected reads (sum across all sequences)
+        expected_reads = sum(
+            self.expected_read_count(coverage, seq_len, read_length)
+            for seq_len in self.seq_lengths.values()
+        )
+
+        # Verify within 10% tolerance
+        tolerance = 0.10
+        self.assertGreater(actual_reads, expected_reads * (1 - tolerance))
+        self.assertLess(actual_reads, expected_reads * (1 + tolerance))
+
+    def test_simulate_per_sequence_coverage(self):
+        ''' Test simulating reads with per-sequence coverage specification '''
+        out_bam = util.file.mkstempfname('.bam')
+        read_length = 150
+
+        # Get sequence IDs
+        seq_ids = list(self.seq_lengths.keys())
+        # Specify different coverage for each sequence
+        coverage_spec = f"{seq_ids[0]}:20x {seq_ids[1]}:5x"
+
+        # Run simulate_illumina_reads with per-sequence coverage
+        args = [self.in_fasta, out_bam, coverage_spec, '--read_length', str(read_length), '--random_seed', '12345']
+        args = assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        # Verify BAM was created
+        self.assertTrue(os.path.isfile(out_bam))
+        self.assertGreater(os.path.getsize(out_bam), 0)
+
+        # Count reads in output
+        actual_reads = self.count_bam_reads(out_bam)
+
+        # Calculate expected reads
+        expected_reads = (
+            self.expected_read_count(20, self.seq_lengths[seq_ids[0]], read_length) +
+            self.expected_read_count(5, self.seq_lengths[seq_ids[1]], read_length)
+        )
+
+        # Verify within 10% tolerance
+        tolerance = 0.10
+        self.assertGreater(actual_reads, expected_reads * (1 - tolerance))
+        self.assertLess(actual_reads, expected_reads * (1 + tolerance))
+
+    def test_simulate_bed_coverage(self):
+        ''' Test simulating reads with BED file coverage specification '''
+        out_bam = util.file.mkstempfname('.bam')
+        bed_file = util.file.mkstempfname('.bed')
+        read_length = 150
+
+        # Get sequence IDs
+        seq_ids = list(self.seq_lengths.keys())
+
+        # Create BED file with different coverage for different regions
+        with open(bed_file, 'w') as f:
+            # First sequence: 10x coverage for positions 1-1000
+            f.write(f"{seq_ids[0]}\t0\t1000\t.\t10\n")
+            # Second sequence: 25x coverage for positions 1-500
+            f.write(f"{seq_ids[1]}\t0\t500\t.\t25\n")
+
+        # Run simulate_illumina_reads with BED file
+        args = [self.in_fasta, out_bam, bed_file, '--read_length', str(read_length), '--random_seed', '12345']
+        args = assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        # Verify BAM was created
+        self.assertTrue(os.path.isfile(out_bam))
+        self.assertGreater(os.path.getsize(out_bam), 0)
+
+        # Count reads in output
+        actual_reads = self.count_bam_reads(out_bam)
+
+        # Calculate expected reads
+        expected_reads = (
+            self.expected_read_count(10, 1000, read_length) +
+            self.expected_read_count(25, 500, read_length)
+        )
+
+        # Verify within 10% tolerance
+        tolerance = 0.10
+        self.assertGreater(actual_reads, expected_reads * (1 - tolerance))
+        self.assertLess(actual_reads, expected_reads * (1 + tolerance))
