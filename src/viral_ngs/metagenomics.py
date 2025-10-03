@@ -1647,6 +1647,7 @@ def kb_extract(inBams, index_file, t2g_file, target_ids, aa=False, outDir=None, 
         aa=aa,
         threads=threads
     )
+    
 __commands__.append(('kb_extract', parser_kb_extract))
 
 def parser_kb_top_taxa(parser=argparse.ArgumentParser()):
@@ -1733,6 +1734,28 @@ def kb_top_taxa(counts_tar, id_to_tax_map, target_taxon, out_report):
 
 __commands__.append(('kb_top_taxa', parser_kb_top_taxa))
 
+def parser_kb_merge_h5ads(parser=argparse.ArgumentParser()):
+    parser.add_argument('--in_h5ads', nargs='+', help='input h5ad files to merge.')
+    parser.add_argument('--out_h5ad', help='tab-delimited output file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kb_merge_h5ads, split_args=True)
+    return parser
+def kb_merge_h5ads(in_h5ads, out_h5ad):
+    '''
+    Merge multiple h5ad files into a single h5ad file. Expects that h5ad files contain the same dimensions (i.e. same ids).
+    
+    Args:
+        in_h5ads (list): List of input h5ad files to merge.
+        out_h5ad (str): Path to the output h5ad file.
+    '''
+    assert out_h5ad, ('Output h5ad file must be specified.')
+    kb_tool = classify.kb.kb()
+    kb_tool.merge_h5ads(
+        in_h5ads=in_h5ads,
+        out_h5ad=out_h5ad
+    )
+    
+__commands__.append(('kb_merge_h5ads', parser_kb))
 
 def parser_krona_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Krona taxonomy database output directory.')

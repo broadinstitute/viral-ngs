@@ -8,6 +8,8 @@ import os.path
 import shutil
 import subprocess
 
+import anndata
+
 import tools
 import tools.picard
 import tools.samtools
@@ -197,3 +199,31 @@ class kb(tools.Tool):
         os.unlink(tmp_fastq1)
         os.unlink(tmp_fastq2)
         os.unlink(tmp_fastq3)
+        
+    def merge_h5ads(self, in_h5ads, out_h5ad):
+        """Merge multiple h5ad files into a single h5ad file
+        
+        Args:
+          in_h5ads: list of input h5ad files
+          out_h5ad: output h5ad file
+        """
+        assert len(in_h5ads) > 0, "no input h5ad files provided"
+        if len(in_h5ads) == 1:
+            shutil.copyfile(in_h5ads[0], out_h5ad)
+            return
+        
+        adatas = [anndata.read_h5ad(f) for f in in_h5ads]
+    
+        # Check that all h5ad files have the same number of variables (genes)
+        if len(adatas) > 1:
+            n_vars_ref = adatas[0].n_vars
+            var_names_ref = adatas[0].var_names
+            for i, adata in enumerate(adatas[1:], 1):
+                if adata.n_vars != n_vars_ref:
+                    raise ValueError(f"Dimension mismatch: file {in_h5ads[0]} has {n_vars_ref} variables, "
+                                f"but file {in_h5ads[i]} has {adata.n_vars} variables")
+                if not adata.var_names.equals(var_names_ref):
+                    raise ValueError(f"Variable names mismatch: file {in_h5ads[0]} and file {in_h5ads[i]} have different variable names")
+                
+        combined = anndata.concat(adatas, join='outer', axis=0, label='batch', fill_value=0)
+        combined.write_h5ad(out_h5ad)
