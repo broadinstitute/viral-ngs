@@ -301,7 +301,7 @@ class TestOrderAndOrient(TestCaseWithTmp):
         expected = os.path.join(inDir, 'expected.lasv.fasta')
         assembly.order_and_orient(
             os.path.join(inDir, 'contigs.lasv.fasta'),
-            os.path.join(inDir, 'ref.lasv.fasta'),
+            os.path.join(util.file.get_test_input_path(), 'ref.lasv.fasta'),
             outFasta)
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
@@ -390,7 +390,7 @@ class TestOrderAndOrient(TestCaseWithTmp):
         expected = os.path.join(inDir, 'expected.lasv.promer.fasta')
         assembly.order_and_orient(
             os.path.join(inDir, 'contigs.lasv.fasta'),
-            os.path.join(inDir, 'ref.lasv.fasta'),
+            os.path.join(util.file.get_test_input_path(), 'ref.lasv.fasta'),
             outFasta,
             aligner='promer')
         self.assertEqualContents(outFasta, expected)
@@ -1070,7 +1070,7 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
     def setUp(self):
         super(TestSimulateIlluminaReads, self).setUp()
-        self.in_fasta = os.path.join(util.file.get_test_input_path(self), 'ref.lasv.fasta')
+        self.in_fasta = os.path.join(util.file.get_test_input_path(), 'ref.lasv.fasta')
         # Calculate expected sequence lengths
         self.seq_lengths = {}
         for record in Bio.SeqIO.parse(self.in_fasta, 'fasta'):
