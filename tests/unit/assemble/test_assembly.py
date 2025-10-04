@@ -1166,10 +1166,10 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
         # Create BED file with different coverage for different regions
         with open(bed_file, 'w') as f:
-            # First sequence: 10x coverage for positions 1-1000
-            f.write(f"{seq_ids[0]}\t0\t1000\t.\t10\n")
-            # Second sequence: 25x coverage for positions 1-500
-            f.write(f"{seq_ids[1]}\t0\t500\t.\t25\n")
+            # First sequence: 10x coverage for positions 1-2000
+            f.write(f"{seq_ids[0]}\t0\t2000\t.\t10\n")
+            # Second sequence: 25x coverage for positions 1-3000
+            f.write(f"{seq_ids[1]}\t0\t3000\t.\t25\n")
 
         # Run simulate_illumina_reads with BED file
         args = [self.in_fasta, out_bam, bed_file, '--read_length', str(read_length), '--random_seed', '12345']
@@ -1185,8 +1185,8 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
         # Calculate expected reads
         expected_reads = (
-            self.expected_read_count(10, 1000, read_length) +
-            self.expected_read_count(25, 500, read_length)
+            self.expected_read_count(10, 2000, read_length) +
+            self.expected_read_count(25, 3000, read_length)
         )
 
         # Verify within 10% tolerance
