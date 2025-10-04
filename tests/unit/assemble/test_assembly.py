@@ -1193,3 +1193,60 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
         tolerance = 0.10
         self.assertGreater(actual_reads, expected_reads * (1 - tolerance))
         self.assertLess(actual_reads, expected_reads * (1 + tolerance))
+
+
+class TestFastaTrimTerminalAmbigs(TestCaseWithTmp):
+    ''' Test fasta-trim-terminal-ambigs.pl script functionality '''
+
+    def test_script_runs_successfully(self):
+        ''' Test that fasta-trim-terminal-ambigs.pl can run without errors '''
+        # Create a test FASTA with terminal ambiguous bases
+        in_fasta = util.file.mkstempfname('.fasta')
+        out_fasta = util.file.mkstempfname('.trimmed.fasta')
+
+        # Create sequences with terminal Ns and ambiguous bases
+        test_seqs = [
+            ('seq1', 'NNNNNATCGATCGATCGNNNN'),
+            ('seq2', 'WWWWATCGATCGATCGYYYYY'),
+            ('seq3', 'RRRRATCGATCGATCGSSS'),
+        ]
+        makeFasta(test_seqs, in_fasta)
+
+        # Run fasta-trim-terminal-ambigs.pl
+        script_path = os.path.join(os.path.dirname(__file__), '..', '..', 'fasta-trim-terminal-ambigs.pl')
+        cmd = [script_path, in_fasta]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
+
+        # Check that script runs successfully
+        self.assertEqual(result.returncode, 0,
+                        f"Script failed with stderr: {result.stderr}\nstdout: {result.stdout}")
+
+        # Verify output contains trimmed sequences
+        self.assertIn('ATCGATCGATCG', result.stdout)
+
+    def test_script_with_3rules_option(self):
+        ''' Test fasta-trim-terminal-ambigs.pl with --3rules option '''
+        # Use the ebov-makona.fasta from test inputs
+        in_fasta = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
+
+        # Run with --3rules and standard parameters
+        script_path = os.path.join(os.path.dirname(__file__), '..', '..', 'fasta-trim-terminal-ambigs.pl')
+        cmd = [
+            script_path,
+            '--3rules',
+            '--ten', '4',
+            '--fifty', '15',
+            '--maxfrac', '0.9',
+            in_fasta
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
+
+        # Check that script runs successfully
+        self.assertEqual(result.returncode, 0,
+                        f"Script failed with stderr: {result.stderr}\nstdout: {result.stdout}")
+
+        # Verify output was produced
+        self.assertGreater(len(result.stdout), 0, "No output produced")
+        self.assertIn('>', result.stdout, "No FASTA header in output")
