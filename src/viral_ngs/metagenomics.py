@@ -1839,7 +1839,6 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, 
         aa_seq (bool): True if sequence contains amino acids (default: False).
         threads (int): Number of threads to use (default: None).
     '''
-
     kb_tool = classify.kb.kb()
     kb_tool.build(ref_fasta,
                         index=index,
@@ -1847,7 +1846,6 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, 
                         kmer_len=kmer_len,
                         protein=protein,
                         threads=threads)
-    
 __commands__.append(('kb_build', parser_kb_build))
 
 

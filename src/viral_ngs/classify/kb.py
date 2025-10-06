@@ -65,13 +65,13 @@ class kb(tools.Tool):
 
         subprocess.check_call(cmd)
         
-    def build(self, out_index, ref_fasta, aa=False, k=31, workflow_type='standard', num_threads=None):
+    def build(self, out_index, ref_fasta, protein=False, k=31, workflow_type='standard', num_threads=None):
         '''Create a kb_python index.
         Args:
           out_index: output index file
           ref_fasta: reference fasta file
           k: kmer size (default 31)
-          aa: ref_fasta file contains amino acid sequences
+          protein: ref_fasta file contains amino acid sequences
           workflow_type: one of 'standard', 'nac', 'kite', 'custom'
         '''
         # build db
@@ -82,10 +82,10 @@ class kb(tools.Tool):
             build_opts['-k'] = k
         if out_index:
             build_opts['-i'] = out_index
-        if aa:
+        if protein:
             build_opts['--aa'] = None
         if workflow_type:
-            build_opts['--workflow-type'] = workflow_type
+            build_opts['--workflow'] = workflow_type
         self.execute('kb ref', None, None, args=[ref_fasta], options=build_opts)
         
     def classify(self, in_bam, index_file, out_dir, t2g_file, k=31, technology='bulk', h5ad=False, loom=False, num_threads=None):
