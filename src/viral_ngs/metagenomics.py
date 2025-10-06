@@ -820,42 +820,42 @@ def parser_kb(parser=argparse.ArgumentParser()):
     Returns:
         argparse.ArgumentParser: The parser with arguments added.
     """
-    parser.add_argument('inBam', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('in_bam', nargs='+', help='Input unaligned reads, BAM format.')
     parser.add_argument('--index', help='kb index file.')
     parser.add_argument('--t2g', nargs='+', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--kmerSize', type=int, help='k-mer size (default: 31bp)', default=31)
+    parser.add_argument('--kmer_len', type=int, help='k-mer size (default: 31bp)', default=31)
     parser.add_argument('--technology', choices=['10xv2', '10xv3', '10xv3-3prime', '10xv3-5prime', 'dropseq', 
                                                  'indrop', 'celseq', 'celseq2', 'smartseq2', 'bulk'], 
                         help='Technology used to generate the data (default: bulk)', default='bulk')
     parser.add_argument('--h5ad', action='store_true', help='Output HDF5 file (default: False)', default=False)
     parser.add_argument('--loom', action='store_true', help='Output Loom file (default: False)', default=False)
-    parser.add_argument('--outDir', help='Output directory (default: kb_out)', default='kb_out')
+    parser.add_argument('--out_dir', help='Output directory (default: kb_out)', default='kb_out')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken2, split_args=True)
+    util.cmd.attach_main(parser, kb_python, split_args=True)
     return parser
-def kb_python(inBams, index_file, t2g_file, kmer_size=31, technology='bulk', h5ad=False, loom=False, outDir=None, threads=None):
+def kb_python(in_bam, index_file, t2g_file, kmer_len=31, technology='bulk', h5ad=False, loom=False, out_dir=None, threads=None):
     """Runs kb count on the input BAM files.
 
     Args:
-        inBams (list): List of input BAM files.
-        outDir (str): Output directory. Defaults to None.
+        in_bam (list): List of input BAM files.
+        out_dir (str): Output directory. Defaults to None.
         index_file (str): Path to the kb index file.
         t2g_file (str): Path to the transcript-to-gene mapping file.
-        kmer_size (int, optional): K-mer size for the alignment. Defaults to 31.
+        kmer_len (int, optional): K-mer size for the alignment. Defaults to 31.
         technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
         h5ad (bool, optional): Whether to output HDF5 file. Defaults to False.
         loom (bool, optional): Whether to output Loom file. Defaults to False.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
 
-    assert outDir, ('Output directory must be specified.')
+    assert out_dir, ('Output directory must be specified.')
     kb_tool = classify.kb.kb()
     kb_tool.pipeline(
-        inBams=inBams,
-        outDir=outDir,
+        in_bam=in_bam,
+        out_dir=out_dir,
         index_file=index_file,
         t2g_file=t2g_file,
-        kmer_size=kmer_size,
+        kmer_len=kmer_len,
         technology=technology,
         h5ad=h5ad,
         loom=loom,
@@ -1612,42 +1612,37 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
     Returns:
         argparse.ArgumentParser: The parser with arguments added.
     """
-    parser.add_argument('inBam', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('in_bam', nargs='+', help='Input unaligned reads, BAM format.')
     parser.add_argument('--index', help='kb index file.')
     parser.add_argument('--t2g', nargs='+', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--outDir', help='Output directory (default: kb_out)', default='kb_out')
-    parser.add_argument('--aa', action='store_true', help='True if sequence contains amino acids(default: False).')
+    parser.add_argument('--out_dir', help='Output directory (default: kb_out)', default='kb_out')
+    parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
     parser.add_argument('--targets', nargs='+', help='List of target sequences to extract from input sequences.')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_extract, split_args=True)
     return parser
-def kb_extract(inBams, index_file, t2g_file, target_ids, aa=False, outDir=None, threads=None):
+def kb_extract(in_bam, index_file, t2g_file, target_ids, protein=False, out_dir=None, threads=None):
     """Runs kb count on the input BAM files.
 
     Args:
-        inBams (list): List of input BAM files.
-        outDir (str): Output directory. Defaults to None.
+        in_bams (list): List of input BAM files.
+        out_dir (str): Output directory. Defaults to None.
         index_file (str): Path to the kb index file.
         t2g_file (str): Path to the transcript-to-gene mapping file.
-        kmer_size (int, optional): K-mer size for the alignment. Defaults to 31.
-        technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
-        h5ad (bool, optional): Whether to output HDF5 file. Defaults to False.
-        loom (bool, optional): Whether to output Loom file. Defaults to False.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
 
-    assert outDir, ('Output directory must be specified.')
+    assert out_dir, ('Output directory must be specified.')
     kb_tool = classify.kb.kb()
     kb_tool.extract(
-        inBams=inBams,
-        outDir=outDir,
+        inBams=in_bam,
+        outDir=out_dir,
         index_file=index_file,
         t2g_file=t2g_file,
         target_ids=target_ids,
-        aa=aa,
+        protein=protein,
         threads=threads
     )
-    
 __commands__.append(('kb_extract', parser_kb_extract))
 
 def parser_kb_top_taxa(parser=argparse.ArgumentParser()):
@@ -1824,15 +1819,15 @@ __commands__.append(('kraken2_build', parser_kraken2_build))
 
 def parser_kb_build(parser=argparse.ArgumentParser()):
     parser.add_argument('ref_fasta', help='Reference sequence fasta file.')
-    parser.add_argument('--index', help='kb index output file.')
+    parser.add_argument('--index-basename', help='kb index output file basename.')
     parser.add_argument('--workflow', choices=['standard', 'nac', 'kite', 'custom'],
                         default='standard', help='Type of index to create (default: %(default)s).')
     parser.add_argument('--kmer_len', type=int, help='k-mer length (default: 31).')
-    parser.add_argument('--aa', action='store_true', help='True if sequence contains amino acids(default: False).')
+    parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_build, split_args=True)
     return parser
-def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, aa_seq=False, threads=None):
+def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, threads=None):
     '''
     Builds a kb index from a reference fasta file.
     
@@ -1850,7 +1845,7 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, aa_seq=False, t
                         index=index,
                         workflow=workflow,
                         kmer_len=kmer_len,
-                        aa_seq=aa_seq,
+                        protein=protein,
                         threads=threads)
     
 __commands__.append(('kb_build', parser_kb_build))
