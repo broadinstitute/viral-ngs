@@ -3,3 +3,5 @@ bmtagger>=3.101
 kmc>=3.2.1
 last>=1541
 perl>=5.22.0,<5.23.0
+kallisto>=0.51.1
+kb_python>=0.29.5
