@@ -1619,7 +1619,7 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
     parser.add_argument('--aa', action='store_true', help='True if sequence contains amino acids(default: False).')
     parser.add_argument('--targets', nargs='+', help='List of target sequences to extract from input sequences.')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken2, split_args=True)
+    util.cmd.attach_main(parser, kb_extract, split_args=True)
     return parser
 def kb_extract(inBams, index_file, t2g_file, target_ids, aa=False, outDir=None, threads=None):
     """Runs kb count on the input BAM files.
