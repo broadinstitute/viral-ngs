@@ -54,7 +54,7 @@ class kb(tools.Tool):
             options['-o'] = output
         args = args or []
 
-        cmd = [command]
+        cmd = command.split()
 
         # We need some way to allow empty options args like --build, hence
         # we filter out on 'x is None'.
@@ -65,28 +65,28 @@ class kb(tools.Tool):
 
         subprocess.check_call(cmd)
         
-    def build(self, out_index, ref_fasta, protein=False, k=31, workflow_type='standard', num_threads=None):
+    def build(self, ref_fasta, index, workflow='standard', kmer_len=31,  protein=False, num_threads=None):
         '''Create a kb_python index.
         Args:
-          out_index: output index file
           ref_fasta: reference fasta file
-          k: kmer size (default 31)
+          index: output index file
+          workflow: one of 'standard', 'nac', 'kite', 'custom'
+          kmer_len: kmer size (default 31)
           protein: ref_fasta file contains amino acid sequences
-          workflow_type: one of 'standard', 'nac', 'kite', 'custom'
         '''
         # build db
         build_opts = {
-            '--threads': util.misc.sanitize_thread_count(num_threads)
+            '-t': util.misc.sanitize_thread_count(num_threads)
         }
-        if k:
-            build_opts['-k'] = k
-        if out_index:
-            build_opts['-i'] = out_index
+        if kmer_len:
+            build_opts['-k'] = kmer_len
+        if index:
+            build_opts['-i'] = index
         if protein:
             build_opts['--aa'] = None
-        if workflow_type:
-            build_opts['--workflow'] = workflow_type
-        self.execute('kb ref', None, None, args=[ref_fasta], options=build_opts)
+        if workflow:
+            build_opts['--workflow'] = workflow
+        self.execute('kb ref', None, args=[ref_fasta], options=build_opts)
         
     def classify(self, in_bam, index_file, out_dir, t2g_file, k=31, technology='bulk', h5ad=False, loom=False, num_threads=None):
         """Classify input reads (bam)

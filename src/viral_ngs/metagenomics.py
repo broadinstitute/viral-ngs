@@ -1819,7 +1819,7 @@ __commands__.append(('kraken2_build', parser_kraken2_build))
 
 def parser_kb_build(parser=argparse.ArgumentParser()):
     parser.add_argument('ref_fasta', help='Reference sequence fasta file.')
-    parser.add_argument('--index-basename', help='kb index output file basename.')
+    parser.add_argument('--index', help='kb output index file.')
     parser.add_argument('--workflow', choices=['standard', 'nac', 'kite', 'custom'],
                         default='standard', help='Type of index to create (default: %(default)s).')
     parser.add_argument('--kmer_len', type=int, help='k-mer length (default: 31).')
@@ -1830,13 +1830,13 @@ def parser_kb_build(parser=argparse.ArgumentParser()):
 def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, threads=None):
     '''
     Builds a kb index from a reference fasta file.
-    
+
     Args:
         ref_fasta (str): Path to the reference sequence fasta file.
         index (str): Path to the output kb index file.
         workflow (str): Type of index to create. Options are 'standard', 'nac', 'kite', 'custom'.
         kmer_len (int): k-mer length (default: 31).
-        aa_seq (bool): True if sequence contains amino acids (default: False).
+        protein (bool): True if sequence contains amino acids (default: False).
         threads (int): Number of threads to use (default: None).
     '''
     kb_tool = classify.kb.kb()
@@ -1845,7 +1845,7 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, 
                         workflow=workflow,
                         kmer_len=kmer_len,
                         protein=protein,
-                        threads=threads)
+                        num_threads=threads)
 __commands__.append(('kb_build', parser_kb_build))
 
 
