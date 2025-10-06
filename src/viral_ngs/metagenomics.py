@@ -1496,7 +1496,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
 __commands__.append(('taxlevel_summary', parser_kraken_taxlevel_summary))
 
 
-def parser_taxlevel_plurality(parser=argparse.ArgumentParser()):
+def parser_kraken_taxlevel_plurality(parser=argparse.ArgumentParser()):
     parser.add_argument('summary_file', help='input Kraken-format summary text file with tab-delimited taxonomic levels.')
     parser.add_argument('tax_heading', help='The taxonomic heading to analyze.')
     parser.add_argument('out_report', help='tab-delimited output file.')
