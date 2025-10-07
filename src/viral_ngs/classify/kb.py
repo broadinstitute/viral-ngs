@@ -147,15 +147,15 @@ class kb(tools.Tool):
         os.unlink(tmp_fastq2)
         os.unlink(tmp_fastq3)
 
-    def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, aa=False, num_threads=None):
+    def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, protein=False, num_threads=None):
         """Extracts reads mapping to target ids from input reads (bam)
         
         Args:
-          in_bam: unaligned read to extract reads from
+          in_bam: unaligned read to extract reads from (FASTQ or BAM)
           index_file: kb_python index file
           out_dir: output directory
           t2g_file: transcript to gene mapping file
-          aa: ref_fasta file contains amino acid sequences
+          protein: ref_fasta file contains amino acid sequences
           target_ids: list of target ids to extract
           num_threads: number of threads to use
         """
@@ -166,10 +166,10 @@ class kb(tools.Tool):
             '-i': index_file,
             '-g': t2g_file,
             '--kallisto': self.executable_path(),
-            '--target-ids': ','.join(target_ids),
-            '--threads': util.misc.sanitize_thread_count(num_threads)
+            '-ts': ','.join(target_ids),
+            '-t': util.misc.sanitize_thread_count(num_threads)
         }
-        if aa:
+        if protein:
             opts['--aa'] = True
             
             
@@ -200,6 +200,7 @@ class kb(tools.Tool):
         os.unlink(tmp_fastq2)
         os.unlink(tmp_fastq3)
         
+        
     def merge_h5ads(self, in_h5ads, out_h5ad):
         """Merge multiple h5ad files into a single h5ad file
         
@@ -209,6 +210,7 @@ class kb(tools.Tool):
         """
         assert len(in_h5ads) > 0, "no input h5ad files provided"
         if len(in_h5ads) == 1:
+            log.warning("Only one h5ad file provided - copying file instead of merging: %s", in_h5ads[0])
             shutil.copyfile(in_h5ads[0], out_h5ad)
             return
         
@@ -227,3 +229,27 @@ class kb(tools.Tool):
                 
         combined = anndata.concat(adatas, join='outer', axis=0, label='batch', fill_value=0)
         combined.write_h5ad(out_h5ad)
+
+    def parse_h5ad_counts(self, h5ad_file):
+        """Parse h5ad file and return gene IDs with their total counts.
+
+        Args:
+          h5ad_file: path to h5ad file
+
+        Returns:
+          List of tuples (gene_id, count) sorted by gene ID
+        """
+        adata = anndata.read_h5ad(h5ad_file)
+
+        # Handle both sparse and dense matrices
+        counts_mtx = adata.X.toarray() if hasattr(adata.X, 'toarray') else adata.X
+
+        # Get gene IDs and sum counts across all samples
+        gene_ids = adata.var.index.tolist()
+        gene_totals = counts_mtx.sum(axis=0)
+
+        # Convert to list of tuples
+        if hasattr(gene_totals, 'A1'):  # numpy matrix
+            gene_totals = gene_totals.A1
+
+        return list(zip(gene_ids, gene_totals))

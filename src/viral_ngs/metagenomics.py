@@ -1612,115 +1612,142 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
     Returns:
         argparse.ArgumentParser: The parser with arguments added.
     """
-    parser.add_argument('in_bam', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
     parser.add_argument('--index', help='kb index file.')
-    parser.add_argument('--t2g', nargs='+', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--out_dir', help='Output directory (default: kb_out)', default='kb_out')
+    parser.add_argument('--t2g', help='Transcript to gene mapping file.')
+    parser.add_argument('--outDir', help='Output directory (default: kb_out)', default='kb_out')
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
-    parser.add_argument('--targets', nargs='+', help='List of target sequences to extract from input sequences.')
+    parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_extract, split_args=True)
     return parser
-def kb_extract(in_bam, index_file, t2g_file, target_ids, protein=False, out_dir=None, threads=None):
-    """Runs kb count on the input BAM files.
+def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, threads=None):
+    """Runs kb extract on the input BAM file.
 
     Args:
-        in_bams (list): List of input BAM files.
+        in_bam (str): Input BAM file.
+        index (str): Path to the kb index file.
+        t2g (str): Path to the transcript-to-gene mapping file.
+        targets (str): Comma-separated list of target sequences to extract.
+        protein (bool): True if sequence contains amino acids. Defaults to False.
         out_dir (str): Output directory. Defaults to None.
-        index_file (str): Path to the kb index file.
-        t2g_file (str): Path to the transcript-to-gene mapping file.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
-
     assert out_dir, ('Output directory must be specified.')
+
+    # Split comma-separated targets into a list
+    target_list = targets.split(',') if targets else []
+
     kb_tool = classify.kb.kb()
     kb_tool.extract(
-        inBams=in_bam,
-        outDir=out_dir,
-        index_file=index_file,
-        t2g_file=t2g_file,
-        target_ids=target_ids,
+        in_bam=in_bam,
+        index_file=index,
+        target_ids=target_list,
+        out_dir=out_dir,
+        t2g_file=t2g,
         protein=protein,
-        threads=threads
+        num_threads=threads
     )
 __commands__.append(('kb_extract', parser_kb_extract))
 
 def parser_kb_top_taxa(parser=argparse.ArgumentParser()):
-    parser.add_argument('counts_tar', help='input Kraken-format summary text file with tab-delimited taxonomic levels.')
-    parser.add_argument('out_report', help='tab-delimited output file.')
+    parser.add_argument('counts_tar', help='Input kb count tarball (tar.zst format).')
+    parser.add_argument('--id-to-tax-map', dest='id_to_tax_map', help='ID to taxonomy mapping file (CSV format).')
+    parser.add_argument('--target-taxon', dest='target_taxon', default='Viruses', help='Target taxonomic category to analyze (default: Viruses).')
+    parser.add_argument('out_report', help='Tab-delimited output file.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_top_taxa, split_args=True)
     return parser
 
-def kb_top_taxa(counts_tar, id_to_tax_map, target_taxon, out_report):
-    """Identifies the most abundant taxon (of any rank) contributing to a taxa node of interest in kb count output. This function
-    is currently only set to parse h5ad files and further functionality will be added in the future.
-        
+def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruses'):
+    """Identifies the most abundant taxon (of any rank) contributing to a taxa node of interest in kb count output.
+
     It is intended to highlight the primary contributor of taxonomic signal within a taxonomic category of interest,
     for example, the most abundant virus among all viruses.
-        
+
     Args:
-        counts_tar (str): Path to the input counts file (HDF5 format).
-        id_to_tax_map (str): Path to the ID to taxonomy mapping file.
-        target_taxon (str): The taxonomic heading to analyze.
+        counts_tar (str): Path to the input kb count tarball (tar.zst format).
         out_report (str): Path to the output report file.
+        id_to_tax_map (str, optional): Path to the ID to taxonomy mapping file (CSV format).
+        target_taxon (str): The taxonomic category to analyze (default: 'Viruses').
     """
-    sotu_counts = pd.DataFrame(columns=['sotu_id', 'count', 'tax_name', 'tax_id', 'tax_category'])
-    
-    tax_map_df = pd.read_csv(id_to_tax_map)
-    tax_map_df = tax_map_df.replace('.', np.nan)
-    
-    tax_map_df = tax_map_df.apply(lambda row: row[row.first_valid_index():].dropna().iloc[-2], axis=1)
-    tax_map_df['farthest_taxa'] = tax_map_df.apply(lambda r: r.dropna().iloc[-2] if r.notna().any() else pd.NA, axis=1)
-    tax_map_df['farthest_taxa'] = tax_map_df['farthest_taxa'].fillna('root')
-    
-    pattern = r'^(?:\d+|[A-Za-z]{1,3}\d{2,}|[A-Za-z]_?\d{3,})$'
-    mask = (
-        tax_map_df['farthest_taxa']
-        .astype(str)
-        .str.fullmatch(pattern, na=False)
-    )
-    tax_map_df.loc[mask, 'farthest_taxa'] = "Unknown"
-    
-    ## Start by extracting our the contents of our tarball
+    kb_tool = classify.kb.kb()
+
+    # Extract and read h5ad file from tarball
     with util.file.tmp_dir() as tmp_dir:
         util.file.untar(counts_tar, tmp_dir)
         h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", '*.h5ad'))
-        
+
         assert len(h5ad_files) == 1, "Expected exactly one .h5ad file in the counts tarball, found {}".format(len(h5ad_files))
         h5ad_file = h5ad_files[0]
-        
-        adata = anndata.read_h5ad(h5ad_file)
-        
-        counts_mtx = adata.X.to_array()
-        sotu_labels = adata.var.index
-        sotu_totals = list(zip(sotu_labels, counts_mtx.sum(axis=0)))
-        
-        tax_mapping = [(tax_map_df.loc[tax_map_df['id'] == sotu_id, 'root'].values[0], 
-                        tax_map_df.loc[tax_map_df['id'] == sotu_id, 'furthest_taxa'].values[0])
-                       for (sotu_id, _count) in sotu_totals]
-        
-        sotu_counts = pd.concat([sotu_counts, list(zip(*sotu_totals, *zip(*tax_mapping)))])
-        sotu_counts.query('tax_category == @target_taxon', inplace=True)
-        
-        if sotu_counts.empty:
-            out = [{'focal_taxon_name':target_taxon, 'focal_taxon_count':0, 'pct_of_focal':0.0, 'hit_id':'', 'hit_lowest_taxa_name':'', 'hit_reads': 0}]
+
+        # Use kb helper to parse h5ad file
+        gene_counts = kb_tool.parse_h5ad_counts(h5ad_file)
+
+        # Build results data with taxonomy information
+        results_data = []
+
+        if id_to_tax_map:
+            # Load taxonomy mapping
+            tax_map_df = pd.read_csv(id_to_tax_map)
+            tax_map_df = tax_map_df.replace('.', np.nan)
+
+            # Get the farthest (most specific) non-empty taxonomy for each gene
+            tax_map_df['farthest_taxa'] = tax_map_df.apply(
+                lambda row: row.dropna().iloc[-1] if row.notna().any() else 'Unknown',
+                axis=1
+            )
+
+            # Get the root taxonomy category
+            if 'root' in tax_map_df.columns:
+                tax_map_df['tax_category'] = tax_map_df['root']
+            else:
+                # Assume first column after 'id' is the root category
+                tax_map_df['tax_category'] = tax_map_df.iloc[:, 1]
+
+            # Filter by target taxon
+            for gene_id, count in gene_counts:
+                tax_info = tax_map_df[tax_map_df['id'] == gene_id]
+                if not tax_info.empty:
+                    tax_category = tax_info['tax_category'].values[0]
+                    if tax_category == target_taxon:
+                        results_data.append({
+                            'sotu_id': gene_id,
+                            'count': int(count),
+                            'tax_category': tax_category,
+                            'farthest_taxa': tax_info['farthest_taxa'].values[0]
+                        })
         else:
-            target_taxon_count = sotu_counts.groupby('tax_category')['count'].sum().values[0]
-            
-            sotu_counts = sotu_counts.sort_values(by='count', ascending=False).reset_index(drop=True)
+            # No taxonomy mapping - report all genes
+            for gene_id, count in gene_counts:
+                results_data.append({
+                    'sotu_id': gene_id,
+                    'count': int(count),
+                    'tax_category': 'Unknown',
+                    'farthest_taxa': gene_id
+                })
+
+        # Create output
+        if not results_data:
+            out = [{'focal_taxon_name': target_taxon, 'focal_taxon_count': 0, 'pct_of_focal': 0.0,
+                    'hit_id': '', 'hit_lowest_taxa_name': '', 'hit_reads': 0}]
+        else:
+            results_df = pd.DataFrame(results_data)
+            total_focal_count = results_df['count'].sum()
+            results_df = results_df.sort_values(by='count', ascending=False).reset_index(drop=True)
+
             out = []
-            for i, row in sotu_counts.iterrows():
-                outrow = {  'focal_taxon_name': target_taxon,
-                            'focal_taxon_count': target_taxon_count,
-                            'hit_id': row['sotu_id'],
-                            'hit_lowest_taxa_name': row['furthest_taxa'],
-                            'hit_reads': row['count'],
-                            'pct_of_focal': 100.0 * float(row['count']) / float(target_taxon_count),
-                }
-                out.append(outrow)
-    
-    # write outputs
+            for _, row in results_df.iterrows():
+                out.append({
+                    'focal_taxon_name': target_taxon,
+                    'focal_taxon_count': total_focal_count,
+                    'hit_id': row['sotu_id'],
+                    'hit_lowest_taxa_name': row['farthest_taxa'],
+                    'hit_reads': row['count'],
+                    'pct_of_focal': 100.0 * float(row['count']) / float(total_focal_count)
+                })
+
+    # Write output
     with util.file.open_or_gzopen(out_report, 'wt') as outf:
         header = ('focal_taxon_name', 'focal_taxon_count', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal')
         writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
@@ -1730,15 +1757,15 @@ def kb_top_taxa(counts_tar, id_to_tax_map, target_taxon, out_report):
 __commands__.append(('kb_top_taxa', parser_kb_top_taxa))
 
 def parser_kb_merge_h5ads(parser=argparse.ArgumentParser()):
-    parser.add_argument('--in_h5ads', nargs='+', help='input h5ad files to merge.')
-    parser.add_argument('--out_h5ad', help='tab-delimited output file.')
+    parser.add_argument('in_h5ads', nargs='+', help='Input h5ad files to merge.')
+    parser.add_argument('--out-h5ad', dest='out_h5ad', help='Output merged h5ad file.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_merge_h5ads, split_args=True)
     return parser
 def kb_merge_h5ads(in_h5ads, out_h5ad):
     '''
     Merge multiple h5ad files into a single h5ad file. Expects that h5ad files contain the same dimensions (i.e. same ids).
-    
+
     Args:
         in_h5ads (list): List of input h5ad files to merge.
         out_h5ad (str): Path to the output h5ad file.
@@ -1749,8 +1776,8 @@ def kb_merge_h5ads(in_h5ads, out_h5ad):
         in_h5ads=in_h5ads,
         out_h5ad=out_h5ad
     )
-    
-__commands__.append(('kb_merge_h5ads', parser_kb))
+
+__commands__.append(('kb_merge_h5ads', parser_kb_merge_h5ads))
 
 def parser_krona_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Krona taxonomy database output directory.')
