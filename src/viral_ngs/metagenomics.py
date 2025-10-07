@@ -1615,7 +1615,7 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
     parser.add_argument('--index', help='kb index file.')
     parser.add_argument('--t2g', help='Transcript to gene mapping file.')
-    parser.add_argument('--outDir', help='Output directory (default: kb_out)', default='kb_out')
+    parser.add_argument('--out_dir', dest='out_dir', help='Output directory (default: kb_out)', default='kb_out')
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
     parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -1675,7 +1675,7 @@ def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruse
 
     # Extract and read h5ad file from tarball
     with util.file.tmp_dir() as tmp_dir:
-        util.file.untar(counts_tar, tmp_dir)
+        util.file.extract_tarball(counts_tar, tmp_dir)
         h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", '*.h5ad'))
 
         assert len(h5ad_files) == 1, "Expected exactly one .h5ad file in the counts tarball, found {}".format(len(h5ad_files))
@@ -1757,24 +1757,28 @@ def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruse
 __commands__.append(('kb_top_taxa', parser_kb_top_taxa))
 
 def parser_kb_merge_h5ads(parser=argparse.ArgumentParser()):
-    parser.add_argument('in_h5ads', nargs='+', help='Input h5ad files to merge.')
+    parser.add_argument('in_count_tars', nargs='+', help='Input kb count tarballs to merge (tar.zst format).')
     parser.add_argument('--out-h5ad', dest='out_h5ad', help='Output merged h5ad file.')
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_merge_h5ads, split_args=True)
     return parser
-def kb_merge_h5ads(in_h5ads, out_h5ad):
+def kb_merge_h5ads(in_count_tars, out_h5ad, tmp_dir=None):
     '''
-    Merge multiple h5ad files into a single h5ad file. Expects that h5ad files contain the same dimensions (i.e. same ids).
+    Merge multiple kb count output tarballs into a single h5ad file with sample metadata.
+
+    Extracts h5ad files from counts_unfiltered folder and adds sample names from matrix.cells.
 
     Args:
-        in_h5ads (list): List of input h5ad files to merge.
+        in_count_tars (list): List of input kb count tarballs (tar.zst format).
         out_h5ad (str): Path to the output h5ad file.
+        tmp_dir (str, optional): Temporary directory for extraction.
     '''
     assert out_h5ad, ('Output h5ad file must be specified.')
     kb_tool = classify.kb.kb()
     kb_tool.merge_h5ads(
-        in_h5ads=in_h5ads,
-        out_h5ad=out_h5ad
+        in_count_tars=in_count_tars,
+        out_h5ad=out_h5ad,
+        tmp_dir_parent=tmp_dir
     )
 
 __commands__.append(('kb_merge_h5ads', parser_kb_merge_h5ads))

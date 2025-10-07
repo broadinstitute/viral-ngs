@@ -2,6 +2,7 @@
 kb_python classification tool
 '''
 import itertools
+import glob
 import logging
 import os
 import os.path
@@ -9,6 +10,7 @@ import shutil
 import subprocess
 
 import anndata
+import pandas as pd
 
 import tools
 import tools.picard
@@ -201,32 +203,73 @@ class kb(tools.Tool):
         os.unlink(tmp_fastq3)
         
         
-    def merge_h5ads(self, in_h5ads, out_h5ad):
-        """Merge multiple h5ad files into a single h5ad file
-        
+    def merge_h5ads(self, in_count_tars, out_h5ad, tmp_dir_parent=None):
+        """Merge multiple kb count output tarballs into a single h5ad file with sample metadata
+
         Args:
-          in_h5ads: list of input h5ad files
-          out_h5ad: output h5ad file
+          in_count_tars: list of input kb count tarball files (tar.zst format)
+          out_h5ad: output h5ad file path
+          tmp_dir_parent: parent directory for temporary files (optional)
         """
-        assert len(in_h5ads) > 0, "no input h5ad files provided"
-        if len(in_h5ads) == 1:
-            log.warning("Only one h5ad file provided - copying file instead of merging: %s", in_h5ads[0])
-            shutil.copyfile(in_h5ads[0], out_h5ad)
+
+        assert len(in_count_tars) > 0, "no input count tarballs provided"
+
+        adatas = []
+
+        for count_tar in in_count_tars:
+            # Extract tarball to temporary directory
+            with util.file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
+                util.file.extract_tarball(count_tar, tmp_dir)
+
+                # Find h5ad file in counts_unfiltered folder
+                h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", "*.h5ad"))
+                assert len(h5ad_files) == 1, f"Expected exactly one .h5ad file in {count_tar}, found {len(h5ad_files)}"
+                h5ad_file = h5ad_files[0]
+
+                # Read sample name from matrix.cells file
+                cells_file = os.path.join(tmp_dir, "matrix.cells")
+                if os.path.exists(cells_file):
+                    with open(cells_file, 'r') as f:
+                        sample_name = f.read().strip()
+                else:
+                    # Fallback to tarball basename if matrix.cells doesn't exist
+                    sample_name = os.path.splitext(os.path.splitext(os.path.basename(count_tar))[0])[0]
+                    log.warning(f"matrix.cells not found in {count_tar}, using filename as sample name: {sample_name}")
+
+                # Load h5ad file
+                adata = anndata.read_h5ad(h5ad_file)
+
+                # Add sample metadata to observations
+                adata.obs['sample'] = sample_name
+                adata.obs['batch_name'] = sample_name
+
+                # Check if matrix.sample.barcodes exists and add barcode info
+                barcodes_file = os.path.join(tmp_dir, "matrix.sample.barcodes")
+                if os.path.exists(barcodes_file):
+                    with open(barcodes_file, 'r') as f:
+                        barcodes = [line.strip() for line in f]
+                    if len(barcodes) == adata.n_obs:
+                        adata.obs['batch_barcode'] = barcodes
+
+                adatas.append(adata)
+
+        # Handle single file case
+        if len(adatas) == 1:
+            log.warning("Only one count tarball provided - writing single file instead of merging")
+            adatas[0].write_h5ad(out_h5ad)
             return
-        
-        adatas = [anndata.read_h5ad(f) for f in in_h5ads]
-    
+
         # Check that all h5ad files have the same number of variables (genes)
-        if len(adatas) > 1:
-            n_vars_ref = adatas[0].n_vars
-            var_names_ref = adatas[0].var_names
-            for i, adata in enumerate(adatas[1:], 1):
-                if adata.n_vars != n_vars_ref:
-                    raise ValueError(f"Dimension mismatch: file {in_h5ads[0]} has {n_vars_ref} variables, "
-                                f"but file {in_h5ads[i]} has {adata.n_vars} variables")
-                if not adata.var_names.equals(var_names_ref):
-                    raise ValueError(f"Variable names mismatch: file {in_h5ads[0]} and file {in_h5ads[i]} have different variable names")
-                
+        n_vars_ref = adatas[0].n_vars
+        var_names_ref = adatas[0].var_names
+        for i, adata in enumerate(adatas[1:], 1):
+            if adata.n_vars != n_vars_ref:
+                raise ValueError(f"Dimension mismatch: file {in_count_tars[0]} has {n_vars_ref} variables, "
+                            f"but file {in_count_tars[i]} has {adata.n_vars} variables")
+            if not adata.var_names.equals(var_names_ref):
+                raise ValueError(f"Variable names mismatch: file {in_count_tars[0]} and file {in_count_tars[i]} have different variable names")
+
+        # Merge all anndata objects
         combined = anndata.concat(adatas, join='outer', axis=0, label='batch', fill_value=0)
         combined.write_h5ad(out_h5ad)
 
