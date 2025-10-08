@@ -1692,35 +1692,68 @@ def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruse
             tax_map_df = pd.read_csv(id_to_tax_map)
             tax_map_df = tax_map_df.replace('.', np.nan)
 
+            # Standardize column name: handle both 'ID' and 'id'
+            if 'ID' in tax_map_df.columns:
+                tax_map_df = tax_map_df.rename(columns={'ID': 'id'})
+            elif 'id' not in tax_map_df.columns:
+                # If neither exists, use the first column as 'id'
+                tax_map_df = tax_map_df.rename(columns={tax_map_df.columns[0]: 'id'})
+
             # Get the farthest (most specific) non-empty taxonomy for each gene
-            tax_map_df['farthest_taxa'] = tax_map_df.apply(
-                lambda row: row.dropna().iloc[-1] if row.notna().any() else 'Unknown',
-                axis=1
-            )
+            # Define taxonomy rank columns in order from broad to specific
+            taxonomy_columns = [col for col in ['phylum', 'class', 'order', 'family', 'genus', 'species']
+                              if col in tax_map_df.columns]
+
+            def get_farthest_taxa(row):
+                # Only consider taxonomy columns, in reverse order (most specific first)
+                for col in reversed(taxonomy_columns):
+                    if pd.notna(row[col]) and row[col] != '':
+                        return row[col]
+                return 'Unknown'
+
+            tax_map_df['farthest_taxa'] = tax_map_df.apply(get_farthest_taxa, axis=1)
 
             # Get the root taxonomy category
             if 'root' in tax_map_df.columns:
                 tax_map_df['tax_category'] = tax_map_df['root']
+            elif 'phylum' in tax_map_df.columns:
+                tax_map_df['tax_category'] = tax_map_df['phylum']
             else:
                 # Assume first column after 'id' is the root category
                 tax_map_df['tax_category'] = tax_map_df.iloc[:, 1]
 
-            # Filter by target taxon
+            # OPTIMIZATION: Set 'id' as index for O(1) lookups instead of O(n) filtering
+            tax_map_df = tax_map_df.set_index('id')
+
+            # Filter by target taxon - optimized with index-based lookup
             for gene_id, count in gene_counts:
-                tax_info = tax_map_df[tax_map_df['id'] == gene_id]
-                if not tax_info.empty:
-                    tax_category = tax_info['tax_category'].values[0]
+                # Skip genes with 0 counts
+                if count == 0:
+                    continue
+                if gene_id in tax_map_df.index:
+                    tax_info = tax_map_df.loc[gene_id]
+                    tax_category = tax_info['tax_category']
                     if tax_category == target_taxon:
+                        # Use species name if available, otherwise use farthest_taxa
+                        species_name = tax_info.get('species', tax_info['farthest_taxa']) if 'species' in tax_info.index else tax_info['farthest_taxa']
+                        if pd.isna(species_name) or species_name == '':
+                            species_name = tax_info['farthest_taxa']
+
                         results_data.append({
-                            'sotu_id': gene_id,
+                            'palmdb_id': gene_id,
+                            'sotu_id': species_name,
                             'count': int(count),
                             'tax_category': tax_category,
-                            'farthest_taxa': tax_info['farthest_taxa'].values[0]
+                            'farthest_taxa': tax_info['farthest_taxa']
                         })
         else:
             # No taxonomy mapping - report all genes
             for gene_id, count in gene_counts:
+                # Skip genes with 0 counts
+                if count == 0:
+                    continue
                 results_data.append({
+                    'palmdb_id': gene_id,
                     'sotu_id': gene_id,
                     'count': int(count),
                     'tax_category': 'Unknown',
@@ -1730,26 +1763,27 @@ def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruse
         # Create output
         if not results_data:
             out = [{'focal_taxon_name': target_taxon, 'focal_taxon_count': 0, 'pct_of_focal': 0.0,
-                    'hit_id': '', 'hit_lowest_taxa_name': '', 'hit_reads': 0}]
+                    'palmdb_id': '', 'hit_id': '', 'hit_lowest_taxa_name': '', 'hit_reads': 0}]
         else:
             results_df = pd.DataFrame(results_data)
             total_focal_count = results_df['count'].sum()
             results_df = results_df.sort_values(by='count', ascending=False).reset_index(drop=True)
 
-            out = []
-            for _, row in results_df.iterrows():
-                out.append({
-                    'focal_taxon_name': target_taxon,
-                    'focal_taxon_count': total_focal_count,
-                    'hit_id': row['sotu_id'],
-                    'hit_lowest_taxa_name': row['farthest_taxa'],
-                    'hit_reads': row['count'],
-                    'pct_of_focal': 100.0 * float(row['count']) / float(total_focal_count)
-                })
+            # OPTIMIZATION: Use vectorized operations instead of iterrows()
+            results_df['focal_taxon_name'] = target_taxon
+            results_df['focal_taxon_count'] = total_focal_count
+            results_df['pct_of_focal'] = 100.0 * results_df['count'] / total_focal_count
+
+            # Create output dict
+            out = results_df.rename(columns={
+                'sotu_id': 'hit_id',
+                'farthest_taxa': 'hit_lowest_taxa_name',
+                'count': 'hit_reads'
+            })[['focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal']].to_dict('records')
 
     # Write output
     with util.file.open_or_gzopen(out_report, 'wt') as outf:
-        header = ('focal_taxon_name', 'focal_taxon_count', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal')
+        header = ('focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal')
         writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
         writer.writeheader()
         writer.writerows(out)
