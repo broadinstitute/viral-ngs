@@ -2678,7 +2678,11 @@ def plot_read_counts(df_csv_path, outDir):
             color=pool_colors[i],
         )
 
-    axs[1].set_yscale("log")
+    # Only set log scale if there are positive values
+    if df_grouped.values.max() > 0:
+        axs[1].set_yscale("log")
+    else:
+        log.warning("All read counts are zero; skipping log scale for plot")
 
     for ax in axs[:2]:
         ax.set_ylabel("# Reads", fontsize=fontsize)
@@ -2783,9 +2787,9 @@ def write_barcode_metrics_for_pools(input_csv_path,
         for barcode in barcode_reads.index:
             reads = barcode_reads[barcode]
             result_df.loc[barcode, reads_col]       = reads
-            result_df.loc[barcode, pool_pct_col]    = reads / library_totals[library_id]
-            result_df.loc[barcode, all_pct_col]     = reads / total_reads_all
-            result_df.loc[barcode, barcode_pct_col] = reads / barcode_totals[barcode]
+            result_df.loc[barcode, pool_pct_col]    = reads / library_totals[library_id] if library_totals[library_id] > 0 else 0.0
+            result_df.loc[barcode, all_pct_col]     = reads / total_reads_all if total_reads_all > 0 else 0.0
+            result_df.loc[barcode, barcode_pct_col] = reads / barcode_totals[barcode] if barcode_totals[barcode] > 0 else 0.0
     
     # Sort by inline_barcode for consistent output
     result_df = result_df.sort_index()
@@ -2834,9 +2838,13 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
             )
             ax.plot(np.arange(len(num_reads)), num_reads, color=pool_colors[i])
 
-        # Calculate total and fractions
+        # Calculate total and fractions (handle division by zero)
         total_reads = sum(num_reads)
-        fractions   = np.array([read / total_reads for read in num_reads])
+        if total_reads > 0:
+            fractions = np.array([read / total_reads for read in num_reads])
+        else:
+            fractions = np.zeros(len(num_reads))
+            log.warning(f"Pool {pool} has 0 total reads; setting all fractions to 0")
 
         for ax in axs[2:]:
             ax.scatter(np.arange(len(fractions)), fractions * 100, color=pool_colors[i])
