@@ -2565,31 +2565,40 @@ def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_
         # Get and load splitcode stats report json
         splitcode_summary_file = glob.glob(f"{outDir}/{pool}_summary.json")[0]
         splitcode_summary = read_json(splitcode_summary_file)
-        
+
         samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["muxed_pool"] == pool]
 
-        splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"])
+        # Handle case where splitcode processed 0 reads (tag_qc will be empty)
+        if len(splitcode_summary.get("tag_qc", [])) > 0:
+            splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"])
 
-        splitcode_summary_df['run'] = splitcode_summary_df['tag'].copy()
-        splitcode_summary_df['run'] = splitcode_summary_df['run'].str.removesuffix('_R1')
-        
-        splitcode_summary_df_h0_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 0]
-        splitcode_summary_df_h1_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 1].copy()
+            splitcode_summary_df['run'] = splitcode_summary_df['tag'].copy()
+            splitcode_summary_df['run'] = splitcode_summary_df['run'].str.removesuffix('_R1')
 
-        splitcode_summary_df_h1_df  = splitcode_summary_df_h1_df.rename(columns={"count": "count_h1"})
+            splitcode_summary_df_h0_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 0]
+            splitcode_summary_df_h1_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 1].copy()
 
-        samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_df.join(
-                                            splitcode_summary_df_h0_df.set_index('run'), 
-                                            on='run')
+            splitcode_summary_df_h1_df  = splitcode_summary_df_h1_df.rename(columns={"count": "count_h1"})
 
-        samplesheet_rows_for_pool_hx_df = pd.merge(samplesheet_rows_for_pool_hx_df,
-                                            splitcode_summary_df_h1_df[['run','count_h1']].rename(columns={'run':'run_h1'}),
-                                             left_on  = 'run',
-                                             right_on = 'run_h1',
-                                             how      = 'left')
-        samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_hx_df.drop(columns=['run_h1','distance','tag']) # dropping distance since we've added a col with different distance (as indicated by _h1 suffix)
-        # fil NA values in 'count_h1' and cast to int
-        samplesheet_rows_for_pool_hx_df["count_h1"] = samplesheet_rows_for_pool_hx_df["count_h1"].fillna(0).astype(int)
+            samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_df.join(
+                                                splitcode_summary_df_h0_df.set_index('run'),
+                                                on='run')
+
+            samplesheet_rows_for_pool_hx_df = pd.merge(samplesheet_rows_for_pool_hx_df,
+                                                splitcode_summary_df_h1_df[['run','count_h1']].rename(columns={'run':'run_h1'}),
+                                                 left_on  = 'run',
+                                                 right_on = 'run_h1',
+                                                 how      = 'left')
+            samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_hx_df.drop(columns=['run_h1','distance','tag']) # dropping distance since we've added a col with different distance (as indicated by _h1 suffix)
+            # fil NA values in 'count_h1' and cast to int
+            samplesheet_rows_for_pool_hx_df["count_h1"] = samplesheet_rows_for_pool_hx_df["count_h1"].fillna(0).astype(int)
+        else:
+            # No reads were processed by splitcode for this pool
+            # Create a dataframe with the expected schema but all counts set to 0
+            log.warning(f"Pool {pool} has 0 reads processed by splitcode. Creating empty metrics.")
+            samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_df.copy()
+            samplesheet_rows_for_pool_hx_df['count'] = 0
+            samplesheet_rows_for_pool_hx_df['count_h1'] = 0
 
         pool_dfs.append(samplesheet_rows_for_pool_hx_df)
 
