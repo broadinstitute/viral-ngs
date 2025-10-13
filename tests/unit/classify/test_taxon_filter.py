@@ -52,7 +52,7 @@ class TestFilterLastal(TestCaseWithTmp):
         args = taxon_filter.parser_filter_lastal_bam(argparse.ArgumentParser()).parse_args([
             inBam, self.lastdb_path, outBam])
         args.func_main(args)
-        expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.taxfilt.imperfect.bam')
+        expectedOut = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'expected', 'test-reads.taxfilt.imperfect-2.bam')
         assert_equal_bam_reads(self, outBam, expectedOut)
 
     def test_lastal_empty_input(self):
