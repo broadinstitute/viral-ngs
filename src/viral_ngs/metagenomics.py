@@ -820,9 +820,9 @@ def parser_kb(parser=argparse.ArgumentParser()):
     Returns:
         argparse.ArgumentParser: The parser with arguments added.
     """
-    parser.add_argument('in_bam', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
     parser.add_argument('--index', help='kb index file.')
-    parser.add_argument('--t2g', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--t2g', help='Input unaligned reads, BAM format.')
     parser.add_argument('--kmer_len', type=int, help='k-mer size (default: 31bp)', default=31)
     parser.add_argument('--technology', choices=['10xv2', '10xv3', '10xv3-3prime', '10xv3-5prime', 'dropseq', 
                                                  'indrop', 'celseq', 'celseq2', 'smartseq2', 'bulk'], 
@@ -833,14 +833,14 @@ def parser_kb(parser=argparse.ArgumentParser()):
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_python, split_args=True)
     return parser
-def kb_python(in_bam, index_file, t2g_file, kmer_len=31, technology='bulk', h5ad=False, loom=False, out_dir=None, threads=None):
+def kb_python(in_bam, index=None, t2g=None, kmer_len=31, technology='bulk', h5ad=False, loom=False, out_dir=None, threads=None):
     """Runs kb count on the input BAM files.
 
     Args:
         in_bam (list): List of input BAM files.
         out_dir (str): Output directory. Defaults to None.
-        index_file (str): Path to the kb index file.
-        t2g_file (str): Path to the transcript-to-gene mapping file.
+        index (str): Path to the kb index file.
+        t2g (list|str): Transcript-to-gene mapping file(s).
         kmer_len (int, optional): K-mer size for the alignment. Defaults to 31.
         technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
         h5ad (bool, optional): Whether to output HDF5 file. Defaults to False.
@@ -850,16 +850,16 @@ def kb_python(in_bam, index_file, t2g_file, kmer_len=31, technology='bulk', h5ad
 
     assert out_dir, ('Output directory must be specified.')
     kb_tool = classify.kb.kb()
-    kb_tool.pipeline(
+    kb_tool.classify(
         in_bam=in_bam,
         out_dir=out_dir,
-        index_file=index_file,
-        t2g_file=t2g_file,
-        kmer_len=kmer_len,
+        index_file=index,
+        t2g_file=t2g,
+        k=kmer_len,
         technology=technology,
         h5ad=h5ad,
         loom=loom,
-        threads=threads
+        num_threads=threads
     )
 __commands__.append(('kb', parser_kb))
 

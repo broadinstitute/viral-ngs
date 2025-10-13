@@ -110,7 +110,7 @@ class kb(tools.Tool):
         opts = {
             '-i': index_file,
             '-g': t2g_file,
-            '--threads': util.misc.sanitize_thread_count(num_threads)
+            '-t': util.misc.sanitize_thread_count(num_threads)
         }
         if k:
             opts['-k'] = k
@@ -167,40 +167,54 @@ class kb(tools.Tool):
         opts = {
             '-i': index_file,
             '-g': t2g_file,
-            '--kallisto': self.executable_path(),
             '-ts': ','.join(target_ids),
             '-t': util.misc.sanitize_thread_count(num_threads)
         }
         if protein:
-            opts['--aa'] = True
+            opts['--aa'] = None
             
             
         tmp_fastq1 = util.file.mkstempfname('.1.fastq')
         tmp_fastq2 = util.file.mkstempfname('.2.fastq')
         tmp_fastq3 = util.file.mkstempfname('.s.fastq')
-        # Do not convert this to samtools bam2fq unless we can figure out how to replicate
-        # the clipping functionality of Picard SamToFastq
-        picard = tools.picard.SamToFastqTool()
-        picard_opts = {
-            'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-            'CLIPPING_ACTION': 'X'
-        }
-        picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
-                       picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
-                       JVMmemory=picard.jvmMemDefault)
+        tmp_fastq_interleaved = None
+        try:
+            # Do not convert this to samtools bam2fq unless we can figure out how to replicate
+            # the clipping functionality of Picard SamToFastq
+            picard = tools.picard.SamToFastqTool()
+            picard_opts = {
+                'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                'CLIPPING_ACTION': 'X'
+            }
+            picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
+                           picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                           JVMmemory=picard.jvmMemDefault)
 
-        # Detect if input bam was paired by checking fastq 2
-        if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
-            opts['--parity'] = "single"
-            self.execute('kb extract', out_dir, args=[tmp_fastq3], options=opts)
-        else:
-            ## TODO: Interleave the paired-end reads and pass through through 'kb extract'
-            log.warning("kb extract does not support paired-end reads")
-            self.execute('kb extract', out_dir, args=[tmp_fastq1], options=opts)
-            
-        os.unlink(tmp_fastq1)
-        os.unlink(tmp_fastq2)
-        os.unlink(tmp_fastq3)
+            # Detect if input bam was paired by checking fastq 2
+            if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
+                self.execute('kb extract', out_dir, args=[tmp_fastq3], options=opts)
+            else:
+                tmp_fastq_interleaved = util.file.mkstempfname('.interleaved.fastq')
+                with open(tmp_fastq1, 'rb') as fastq1, open(tmp_fastq2, 'rb') as fastq2, open(tmp_fastq_interleaved, 'wb') as interleaved:
+                    while True:
+                        read1 = [fastq1.readline() for _ in range(4)]
+                        if not read1[0]:
+                            break
+                        if any(line == b'' for line in read1[1:]):
+                            raise ValueError("Unexpected end of read 1 FASTQ while interleaving paired data")
+                        read2 = [fastq2.readline() for _ in range(4)]
+                        if any(line == b'' for line in read2):
+                            raise ValueError("Unexpected end of read 2 FASTQ while interleaving paired data")
+                        interleaved.writelines(read1)
+                        interleaved.writelines(read2)
+                    if fastq2.readline():
+                        raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
+
+                self.execute('kb extract', out_dir, args=[tmp_fastq_interleaved], options=opts)
+        finally:
+            for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_fastq_interleaved):
+                if path and os.path.exists(path):
+                    os.unlink(path)
         
         
     def merge_h5ads(self, in_count_tars, out_h5ad, tmp_dir_parent=None):
