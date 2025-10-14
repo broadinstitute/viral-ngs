@@ -338,45 +338,28 @@ class kb(tools.Tool):
 
         return list(zip(gene_ids, gene_totals))
 
-    def extract_hit_ids_from_h5ad(self, h5ad_file, sample_name=None):
-        """Parse h5ad file and extract all hit IDs (column IDs) with 1 or more hits.
+    def extract_hit_ids_from_h5ad(self, h5ad_file):
+        """Parse h5ad file and extract all target IDs with 1 or more hits.
+        
+        Assumes h5ad contains a single sample (single row).
 
         Args:
           h5ad_file: path to h5ad file
-          sample_name: name of the sample to filter for (optional). If None, returns hits for all samples.
 
         Returns:
-          List of tuples [(sample_name, [hit_ids]), ...] for the specified sample(s)
+          List of target IDs (strings) with counts > 0
         """
         adata = anndata.read_h5ad(h5ad_file)
 
-        #if 'sample' not in adata.obs.columns:
-        #    raise ValueError(f"'sample' column not found in h5ad file observations")
+        # Get count matrix and sum across all observations (rows)
+        counts_mtx = adata.X.toarray() if hasattr(adata.X, 'toarray') else adata.X
+        gene_totals = counts_mtx.sum(axis=0)
 
-        # Determine which samples to process
-        if sample_name is not None:
-            sample_mask = adata.obs['sample'] == sample_name
-            if not sample_mask.any():
-                raise ValueError(f"Sample '{sample_name}' not found in h5ad file")
-            samples_to_process = [sample_name]
-        else:
-            samples_to_process = adata.obs['sample'].unique()
+        if hasattr(gene_totals, 'A1'):  # numpy matrix
+            gene_totals = gene_totals.A1
 
-        results = []
+        # Extract gene IDs and filter to those with counts > 0
+        gene_ids = adata.var.index.tolist()
+        hit_ids = [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count > 0]
 
-        for sample in samples_to_process:
-            sample_mask = adata.obs['sample'] == sample
-            sample_data = adata[sample_mask]
-
-            counts_mtx = sample_data.X.toarray() if hasattr(sample_data.X, 'toarray') else sample_data.X
-            gene_totals = counts_mtx.sum(axis=0)
-
-            if hasattr(gene_totals, 'A1'):  # numpy matrix
-                gene_totals = gene_totals.A1
-
-            gene_ids = sample_data.var.index.tolist()
-            hit_ids = [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count >= 1]
-
-            results.append((sample, hit_ids))
-
-        return results
+        return hit_ids

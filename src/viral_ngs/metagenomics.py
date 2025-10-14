@@ -1639,14 +1639,13 @@ def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=No
 
     kb_tool = classify.kb.kb()
     
-    # Split comma-separated targets into a list
     target_ids = targets.split(',') if targets else []
     if not target_ids or len(target_ids) == 0:
+        # TODO: This extraction method expects only to have a single row h5ad (i.e. 1 sample). This should be handled more robustly.
         log.warning('No targets specified for extraction. Trying to extract IDs from h5ad.')
-        target_list = kb_tool.extract_hit_ids_from_h5ad(h5ad)
-        target_ids = target_list[0][1] if target_list else []
+        target_ids = kb_tool.extract_hit_ids_from_h5ad(h5ad)
         log.info("Target IDs extracted from h5ad: {}".format(target_ids))
-        if len(target_list) == 0:
+        if len(target_ids) == 0:
             raise ValueError('No targets specified for extraction and no IDs found in h5ad.')
 
     kb_tool.extract(
