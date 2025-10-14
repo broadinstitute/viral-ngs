@@ -65,7 +65,27 @@ class kb(tools.Tool):
         cmd.extend(args)
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
-        subprocess.check_call(cmd)
+        # Use Popen to capture both stdout and stderr for better error reporting
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = process.communicate()
+        
+        # Log output
+        if stdout:
+            log.info("kb output: %s", stdout)
+        if stderr:
+            log.info("kb stderr: %s", stderr)
+            
+        # Check for errors: kb_python sometimes catches exceptions without proper exit codes
+        # Look for Python tracebacks or subprocess errors in stderr
+        has_error = stderr and ('Traceback (most recent call last)' in stderr or 'CalledProcessError' in stderr)
+        
+        # Raise exception if command failed or error detected
+        if process.returncode != 0 or has_error:
+            error_msg = f"Command failed with return code {process.returncode}: {' '.join(cmd)}"
+            if stderr:
+                error_msg += f"\nStderr: {stderr}"
+            log.error(error_msg)
+            raise subprocess.CalledProcessError(process.returncode if process.returncode != 0 else 1, cmd, output=stdout, stderr=stderr)
         
     def build(self, ref_fasta, index, workflow='standard', kmer_len=31,  protein=False, num_threads=None):
         '''Create a kb_python index.
@@ -177,44 +197,54 @@ class kb(tools.Tool):
         tmp_fastq1 = util.file.mkstempfname('.1.fastq')
         tmp_fastq2 = util.file.mkstempfname('.2.fastq')
         tmp_fastq3 = util.file.mkstempfname('.s.fastq')
-        tmp_fastq_interleaved = None
+        tmp_interleaved = None
         try:
-            # Do not convert this to samtools bam2fq unless we can figure out how to replicate
-            # the clipping functionality of Picard SamToFastq
-            picard = tools.picard.SamToFastqTool()
-            picard_opts = {
-                'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-                'CLIPPING_ACTION': 'X'
-            }
-            picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
-                           picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
-                           JVMmemory=picard.jvmMemDefault)
-
-            # Detect if input bam was paired by checking fastq 2
-            if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
-                self.execute('kb extract', out_dir, args=[tmp_fastq3], options=opts)
+            if in_bam.lower().endswith('.fastq') or in_bam.lower().endswith('.fq') or in_bam.lower().endswith('.fastq.gz') or in_bam.lower().endswith('.fq.gz'):
+                # Input is already FASTQ, use it directly (don't delete it later)
+                self.execute('kb extract', out_dir, args=[in_bam], options=opts)
             else:
-                tmp_fastq_interleaved = util.file.mkstempfname('.interleaved.fastq')
-                with open(tmp_fastq1, 'rb') as fastq1, open(tmp_fastq2, 'rb') as fastq2, open(tmp_fastq_interleaved, 'wb') as interleaved:
-                    while True:
-                        read1 = [fastq1.readline() for _ in range(4)]
-                        if not read1[0]:
-                            break
-                        if any(line == b'' for line in read1[1:]):
-                            raise ValueError("Unexpected end of read 1 FASTQ while interleaving paired data")
-                        read2 = [fastq2.readline() for _ in range(4)]
-                        if any(line == b'' for line in read2):
-                            raise ValueError("Unexpected end of read 2 FASTQ while interleaving paired data")
-                        interleaved.writelines(read1)
-                        interleaved.writelines(read2)
-                    if fastq2.readline():
-                        raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
+                # Do not convert this to samtools bam2fq unless we can figure out how to replicate
+                # the clipping functionality of Picard SamToFastq
+                picard = tools.picard.SamToFastqTool()
+                picard_opts = {
+                    'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                    'CLIPPING_ACTION': 'X'
+                }
+                picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
+                            picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                            JVMmemory=picard.jvmMemDefault)
 
-                self.execute('kb extract', out_dir, args=[tmp_fastq_interleaved], options=opts)
+                # Detect if input bam was paired by checking fastq 2
+                if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
+                    self.execute('kb extract', out_dir, args=[tmp_fastq3], options=opts)
+                else:
+                    tmp_interleaved = util.file.mkstempfname('.interleaved.fastq')
+                    with open(tmp_fastq1, 'rb') as fastq1, open(tmp_fastq2, 'rb') as fastq2, open(tmp_interleaved, 'wb') as interleaved:
+                        while True:
+                            read1 = [fastq1.readline() for _ in range(4)]
+                            if not read1[0]:
+                                break
+                            if any(line == b'' for line in read1[1:]):
+                                raise ValueError("Unexpected end of read 1 FASTQ while interleaving paired data")
+                            read2 = [fastq2.readline() for _ in range(4)]
+                            if any(line == b'' for line in read2):
+                                raise ValueError("Unexpected end of read 2 FASTQ while interleaving paired data")
+                            interleaved.writelines(read1)
+                            interleaved.writelines(read2)
+                        if fastq2.readline():
+                            raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
+
+                    self.execute('kb extract', out_dir, args=[tmp_interleaved], options=opts)
+        except Exception as e:
+            log.error("Error during kb extract: %s", e)
+            raise
         finally:
-            for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_fastq_interleaved):
+            for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_interleaved):
                 if path and os.path.exists(path):
-                    os.unlink(path)
+                    try:
+                        os.unlink(path)
+                    except OSError as e:
+                        log.warning("Failed to delete temporary file %s: %s", path, e)
         
         
     def merge_h5ads(self, in_count_tars, out_h5ad, tmp_dir_parent=None):
@@ -298,15 +328,55 @@ class kb(tools.Tool):
         """
         adata = anndata.read_h5ad(h5ad_file)
 
-        # Handle both sparse and dense matrices
         counts_mtx = adata.X.toarray() if hasattr(adata.X, 'toarray') else adata.X
 
-        # Get gene IDs and sum counts across all samples
         gene_ids = adata.var.index.tolist()
         gene_totals = counts_mtx.sum(axis=0)
 
-        # Convert to list of tuples
         if hasattr(gene_totals, 'A1'):  # numpy matrix
             gene_totals = gene_totals.A1
 
         return list(zip(gene_ids, gene_totals))
+
+    def extract_hit_ids_from_h5ad(self, h5ad_file, sample_name=None):
+        """Parse h5ad file and extract all hit IDs (column IDs) with 1 or more hits.
+
+        Args:
+          h5ad_file: path to h5ad file
+          sample_name: name of the sample to filter for (optional). If None, returns hits for all samples.
+
+        Returns:
+          List of tuples [(sample_name, [hit_ids]), ...] for the specified sample(s)
+        """
+        adata = anndata.read_h5ad(h5ad_file)
+
+        #if 'sample' not in adata.obs.columns:
+        #    raise ValueError(f"'sample' column not found in h5ad file observations")
+
+        # Determine which samples to process
+        if sample_name is not None:
+            sample_mask = adata.obs['sample'] == sample_name
+            if not sample_mask.any():
+                raise ValueError(f"Sample '{sample_name}' not found in h5ad file")
+            samples_to_process = [sample_name]
+        else:
+            samples_to_process = adata.obs['sample'].unique()
+
+        results = []
+
+        for sample in samples_to_process:
+            sample_mask = adata.obs['sample'] == sample
+            sample_data = adata[sample_mask]
+
+            counts_mtx = sample_data.X.toarray() if hasattr(sample_data.X, 'toarray') else sample_data.X
+            gene_totals = counts_mtx.sum(axis=0)
+
+            if hasattr(gene_totals, 'A1'):  # numpy matrix
+                gene_totals = gene_totals.A1
+
+            gene_ids = sample_data.var.index.tolist()
+            hit_ids = [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count >= 1]
+
+            results.append((sample, hit_ids))
+
+        return results

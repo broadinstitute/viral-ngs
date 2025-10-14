@@ -1617,11 +1617,12 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
     parser.add_argument('--t2g', help='Transcript to gene mapping file.')
     parser.add_argument('--out_dir', dest='out_dir', help='Output directory (default: kb_out)', default='kb_out')
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
-    parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.')
+    parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.', default=None)
+    parser.add_argument('--h5ad', help='Path to the output h5ad file. Can pull IDs to extract from this file.', default=None)
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_extract, split_args=True)
     return parser
-def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, threads=None):
+def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None):
     """Runs kb extract on the input BAM file.
 
     Args:
@@ -1631,18 +1632,27 @@ def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, threads
         targets (str): Comma-separated list of target sequences to extract.
         protein (bool): True if sequence contains amino acids. Defaults to False.
         out_dir (str): Output directory. Defaults to None.
+        h5ad (str): Path to the output h5ad file. Can pull IDs to extract from this file. Defaults to None.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
     assert out_dir, ('Output directory must be specified.')
 
-    # Split comma-separated targets into a list
-    target_list = targets.split(',') if targets else []
-
     kb_tool = classify.kb.kb()
+    
+    # Split comma-separated targets into a list
+    target_ids = targets.split(',') if targets else []
+    if not target_ids or len(target_ids) == 0:
+        log.warning('No targets specified for extraction. Trying to extract IDs from h5ad.')
+        target_list = kb_tool.extract_hit_ids_from_h5ad(h5ad)
+        target_ids = target_list[0][1] if target_list else []
+        log.info("Target IDs extracted from h5ad: {}".format(target_ids))
+        if len(target_list) == 0:
+            raise ValueError('No targets specified for extraction and no IDs found in h5ad.')
+
     kb_tool.extract(
         in_bam=in_bam,
         index_file=index,
-        target_ids=target_list,
+        target_ids=target_ids,
         out_dir=out_dir,
         t2g_file=t2g,
         protein=protein,
