@@ -184,7 +184,7 @@ class kb(tools.Tool):
         opts = {
             '-i': index_file,
             '-g': t2g_file,
-            '-ts': ' '.join(target_ids),
+            '-ts': '"{}"'.format(' '.join(target_ids)),
             '-t': util.misc.sanitize_thread_count(num_threads)
         }
         if protein:
