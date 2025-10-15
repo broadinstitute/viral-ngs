@@ -48,7 +48,7 @@ class kb(tools.Tool):
           input: Input file kb_python/kallisto operates on.
           output: Output file to send to command.
           args: List of positional args.
-          options: List of keyword options.
+          options: List of keyword options. Values can be single items or lists for multi-value options.
         '''
         options = options or {}
 
@@ -58,10 +58,19 @@ class kb(tools.Tool):
 
         cmd = command.split()
 
-        # We need some way to allow empty options args like --build, hence
-        # we filter out on 'x is None'.
-        cmd.extend([str(x) for x in itertools.chain(*options.items())
-                    if x is not None])
+        # Build options, handling both single values and lists
+        for key, value in options.items():
+            if value is None:
+                # Empty flag like --aa
+                cmd.append(key)
+            elif isinstance(value, list):
+                # Multi-value option like -ts target1 target2
+                cmd.append(key)
+                cmd.extend([str(v) for v in value])
+            else:
+                # Single value option
+                cmd.extend([key, str(value)])
+        
         cmd.extend(args)
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
@@ -184,17 +193,13 @@ class kb(tools.Tool):
         opts = {
             '-i': index_file,
             '-g': t2g_file,
+            '-ts': target_ids,  # Pass as list for multi-value option
             '-t': util.misc.sanitize_thread_count(num_threads)
         }
-        
         if protein:
             opts['--aa'] = None
             
-        # Build command manually to handle -ts with multiple values
-        # -ts expects: -ts target1 target2 target3 ...
-        # We'll pass this as additional args after options
-        ts_args = ['-ts'] + target_ids
-        
+            
         tmp_fastq1 = util.file.mkstempfname('.1.fastq')
         tmp_fastq2 = util.file.mkstempfname('.2.fastq')
         tmp_fastq3 = util.file.mkstempfname('.s.fastq')
@@ -205,7 +210,7 @@ class kb(tools.Tool):
                     return
                 
                 # Input is already FASTQ, use it directly (don't delete it later)
-                self.execute('kb extract', out_dir, args=ts_args + [in_bam], options=opts)
+                self.execute('kb extract', out_dir, args=[in_bam], options=opts)
             else:
                 if tools.samtools.SamtoolsTool().isEmpty(in_bam):
                     return
@@ -223,7 +228,7 @@ class kb(tools.Tool):
 
                 # Detect if input bam was paired by checking fastq 2
                 if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
-                    self.execute('kb extract', out_dir, args=ts_args + [tmp_fastq3], options=opts)
+                    self.execute('kb extract', out_dir, args=[tmp_fastq3], options=opts)
                 else:
                     tmp_interleaved = util.file.mkstempfname('.interleaved.fastq')
                     with open(tmp_fastq1, 'rb') as fastq1, open(tmp_fastq2, 'rb') as fastq2, open(tmp_interleaved, 'wb') as interleaved:
@@ -241,7 +246,7 @@ class kb(tools.Tool):
                         if fastq2.readline():
                             raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
 
-                    self.execute('kb extract', out_dir, args=ts_args + [tmp_interleaved], options=opts)
+                    self.execute('kb extract', out_dir, args=[tmp_interleaved], options=opts)
         except Exception as e:
             log.error("Error during kb extract: %s", e)
             raise
