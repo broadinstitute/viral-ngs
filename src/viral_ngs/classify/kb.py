@@ -184,13 +184,17 @@ class kb(tools.Tool):
         opts = {
             '-i': index_file,
             '-g': t2g_file,
-            '-ts': '"{}"'.format(' '.join(target_ids)),
             '-t': util.misc.sanitize_thread_count(num_threads)
         }
+        
         if protein:
             opts['--aa'] = None
             
-            
+        # Build command manually to handle -ts with multiple values
+        # -ts expects: -ts target1 target2 target3 ...
+        # We'll pass this as additional args after options
+        ts_args = ['-ts'] + target_ids
+        
         tmp_fastq1 = util.file.mkstempfname('.1.fastq')
         tmp_fastq2 = util.file.mkstempfname('.2.fastq')
         tmp_fastq3 = util.file.mkstempfname('.s.fastq')
@@ -201,7 +205,7 @@ class kb(tools.Tool):
                     return
                 
                 # Input is already FASTQ, use it directly (don't delete it later)
-                self.execute('kb extract', out_dir, args=[in_bam], options=opts)
+                self.execute('kb extract', out_dir, args=ts_args + [in_bam], options=opts)
             else:
                 if tools.samtools.SamtoolsTool().isEmpty(in_bam):
                     return
@@ -219,7 +223,7 @@ class kb(tools.Tool):
 
                 # Detect if input bam was paired by checking fastq 2
                 if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
-                    self.execute('kb extract', out_dir, args=[tmp_fastq3], options=opts)
+                    self.execute('kb extract', out_dir, args=ts_args + [tmp_fastq3], options=opts)
                 else:
                     tmp_interleaved = util.file.mkstempfname('.interleaved.fastq')
                     with open(tmp_fastq1, 'rb') as fastq1, open(tmp_fastq2, 'rb') as fastq2, open(tmp_interleaved, 'wb') as interleaved:
@@ -237,7 +241,7 @@ class kb(tools.Tool):
                         if fastq2.readline():
                             raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
 
-                    self.execute('kb extract', out_dir, args=[tmp_interleaved], options=opts)
+                    self.execute('kb extract', out_dir, args=ts_args + [tmp_interleaved], options=opts)
         except Exception as e:
             log.error("Error during kb extract: %s", e)
             raise
