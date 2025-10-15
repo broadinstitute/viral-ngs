@@ -1619,10 +1619,11 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
     parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.', default=None)
     parser.add_argument('--h5ad', help='Path to the output h5ad file. Can pull IDs to extract from this file.', default=None)
+    parser.add_argument('--threshold', type=int, help='Minimum read count threshold for a target to be extracted (only used when extractin IDs from h5ad; default: %(default)s)', default=1)
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_extract, split_args=True)
     return parser
-def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None):
+def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None, threshold=None):
     """Runs kb extract on the input BAM file.
 
     Args:
@@ -1633,6 +1634,7 @@ def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=No
         protein (bool): True if sequence contains amino acids. Defaults to False.
         out_dir (str): Output directory. Defaults to None.
         h5ad (str): Path to the output h5ad file. Can pull IDs to extract from this file. Defaults to None.
+        threshold (int, optional): Minimum read count threshold for a target to be extracted. Defaults to 1.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
     assert out_dir, ('Output directory must be specified.')
@@ -1643,7 +1645,7 @@ def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=No
     if not target_ids or len(target_ids) == 0:
         # TODO: This extraction method expects only to have a single row h5ad (i.e. 1 sample). This should be handled more robustly.
         log.warning('No targets specified for extraction. Trying to extract IDs from h5ad.')
-        target_ids = kb_tool.extract_hit_ids_from_h5ad(h5ad)
+        target_ids = kb_tool.extract_hit_ids_from_h5ad(h5ad, threshold=threshold)
         log.info("Target IDs extracted from h5ad: {}".format(target_ids))
         if len(target_ids) == 0:
             raise ValueError('No targets specified for extraction and no IDs found in h5ad.')

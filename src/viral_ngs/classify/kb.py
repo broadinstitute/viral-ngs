@@ -181,9 +181,6 @@ class kb(tools.Tool):
           target_ids: list of target ids to extract
           num_threads: number of threads to use
         """
-        if tools.samtools.SamtoolsTool().isEmpty(in_bam):
-            return
-
         opts = {
             '-i': index_file,
             '-g': t2g_file,
@@ -200,9 +197,15 @@ class kb(tools.Tool):
         tmp_interleaved = None
         try:
             if in_bam.lower().endswith('.fastq') or in_bam.lower().endswith('.fq') or in_bam.lower().endswith('.fastq.gz') or in_bam.lower().endswith('.fq.gz'):
+                if not os.path.exists(in_bam):
+                    return
+                
                 # Input is already FASTQ, use it directly (don't delete it later)
                 self.execute('kb extract', out_dir, args=[in_bam], options=opts)
             else:
+                if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+                    return
+
                 # Do not convert this to samtools bam2fq unless we can figure out how to replicate
                 # the clipping functionality of Picard SamToFastq
                 picard = tools.picard.SamToFastqTool()
@@ -338,13 +341,14 @@ class kb(tools.Tool):
 
         return list(zip(gene_ids, gene_totals))
 
-    def extract_hit_ids_from_h5ad(self, h5ad_file):
+    def extract_hit_ids_from_h5ad(self, h5ad_file, threshold=1):
         """Parse h5ad file and extract all target IDs with 1 or more hits.
         
         Assumes h5ad contains a single sample (single row).
 
         Args:
           h5ad_file: path to h5ad file
+          threshold: minimum count threshold to consider a target ID to return (default 1)
 
         Returns:
           List of target IDs (strings) with counts > 0
@@ -361,5 +365,7 @@ class kb(tools.Tool):
         # Extract gene IDs and filter to those with counts > 0
         gene_ids = adata.var.index.tolist()
         hit_ids = [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count > 0]
+        if threshold is not None:
+            hit_ids = [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count >= threshold]
 
         return hit_ids
