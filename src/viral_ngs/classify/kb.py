@@ -123,7 +123,7 @@ class kb(tools.Tool):
         """Classify input reads (bam)
 
         Args:
-          in_bam: unaligned reads
+          in_bam: unaligned reads (single or paired-end) in BAM or FASTQ format.
           index_file: kb_python index file
           out_dir: output directory
           t2g_file: transcript to gene mapping file
@@ -139,7 +139,8 @@ class kb(tools.Tool):
         opts = {
             '-i': index_file,
             '-g': t2g_file,
-            '-t': util.misc.sanitize_thread_count(num_threads)
+            '-t': util.misc.sanitize_thread_count(num_threads),
+            'parity': 'single'
         }
         if k:
             opts['-k'] = k
@@ -150,33 +151,22 @@ class kb(tools.Tool):
         if loom:
             opts['--loom'] = None   
             
-            
-        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
-        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
-        tmp_fastq3 = util.file.mkstempfname('.s.fastq')
+        tmp_fastq = util.file.mkstempfname('.1.fastq')
         # Do not convert this to samtools bam2fq unless we can figure out how to replicate
         # the clipping functionality of Picard SamToFastq
         picard = tools.picard.SamToFastqTool()
         picard_opts = {
             'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-            'CLIPPING_ACTION': 'X'
+            'CLIPPING_ACTION': 'X',
+            'INTERLEAVE': True
         }
-        picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
+        picard.execute(in_bam, tmp_fastq,
                        picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
                        JVMmemory=picard.jvmMemDefault)
 
-        # Detect if input bam was paired by checking fastq 2
-        if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
-            log.warning("running in single-end read mode!")
-            opts['--parity'] = "single"
-            self.execute('kb count', out_dir, args=[tmp_fastq3], options=opts)
-        else:
-            opts['--parity'] = "paired"
-            self.execute('kb count', out_dir, args=[tmp_fastq1, tmp_fastq2], options=opts)
+        self.execute('kb count', out_dir, args=[tmp_fastq], options=opts)
             
-        os.unlink(tmp_fastq1)
-        os.unlink(tmp_fastq2)
-        os.unlink(tmp_fastq3)
+        os.unlink(tmp_fastq)
 
     def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, protein=False, num_threads=None):
         """Extracts reads mapping to target ids from input reads (bam)
