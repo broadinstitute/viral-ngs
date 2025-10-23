@@ -824,16 +824,18 @@ def parser_kb(parser=argparse.ArgumentParser()):
     parser.add_argument('--index', help='kb index file.')
     parser.add_argument('--t2g', help='Input unaligned reads, BAM format.')
     parser.add_argument('--kmer_len', type=int, help='k-mer size (default: 31bp)', default=31)
+    parser.add_argument('--parity', choices=['single', 'paired'], help='Library parity (default: single)', default='single')
     parser.add_argument('--technology', choices=['10xv2', '10xv3', '10xv3-3prime', '10xv3-5prime', 'dropseq', 
                                                  'indrop', 'celseq', 'celseq2', 'smartseq2', 'bulk'], 
                         help='Technology used to generate the data (default: bulk)', default='bulk')
     parser.add_argument('--h5ad', action='store_true', help='Output HDF5 file (default: False)', default=False)
     parser.add_argument('--loom', action='store_true', help='Output Loom file (default: False)', default=False)
+    parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
     parser.add_argument('--out_dir', help='Output directory (default: kb_out)', default='kb_out')
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, kb_python, split_args=True)
     return parser
-def kb_python(in_bam, index=None, t2g=None, kmer_len=31, technology='bulk', h5ad=False, loom=False, out_dir=None, threads=None):
+def kb_python(in_bam, index=None, t2g=None, kmer_len=31, parity='single', technology='bulk', h5ad=False, loom=False, protein=False, out_dir=None, threads=None):
     """Runs kb count on the input BAM files.
 
     Args:
@@ -842,9 +844,11 @@ def kb_python(in_bam, index=None, t2g=None, kmer_len=31, technology='bulk', h5ad
         index (str): Path to the kb index file.
         t2g (list|str): Transcript-to-gene mapping file(s).
         kmer_len (int, optional): K-mer size for the alignment. Defaults to 31.
+        parity (str, optional): Library parity (default: single). Defaults to 'single'.
         technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
         h5ad (bool, optional): Whether to output HDF5 file. Defaults to False.
         loom (bool, optional): Whether to output Loom file. Defaults to False.
+        protein (bool, optional): Whether the sequence contains amino acids. Defaults to False.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
 
@@ -856,9 +860,11 @@ def kb_python(in_bam, index=None, t2g=None, kmer_len=31, technology='bulk', h5ad
         index_file=index,
         t2g_file=t2g,
         k=kmer_len,
+        parity=parity,
         technology=technology,
         h5ad=h5ad,
         loom=loom,
+        protein=protein,
         num_threads=threads
     )
 __commands__.append(('kb', parser_kb))
@@ -1616,7 +1622,7 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
     parser.add_argument('--index', help='kb index file.')
     parser.add_argument('--t2g', help='Transcript to gene mapping file.')
     parser.add_argument('--out_dir', dest='out_dir', help='Output directory (default: kb_out)', default='kb_out')
-    parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
+    parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
     parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.', default=None)
     parser.add_argument('--h5ad', help='Path to the output h5ad file. Can pull IDs to extract from this file.', default=None)
     parser.add_argument('--threshold', type=int, help='Minimum read count threshold for a target to be extracted (only used when extractin IDs from h5ad; default: %(default)s)', default=1)

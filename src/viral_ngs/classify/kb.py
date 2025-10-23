@@ -119,7 +119,7 @@ class kb(tools.Tool):
             build_opts['--workflow'] = workflow
         self.execute('kb ref', None, args=[ref_fasta], options=build_opts)
         
-    def classify(self, in_bam, index_file, out_dir, t2g_file, k=31, technology='bulk', h5ad=False, loom=False, num_threads=None):
+    def classify(self, in_bam, index_file, out_dir, t2g_file, k=31, parity='single', technology='bulk', h5ad=False, loom=False, protein=False, num_threads=None):
         """Classify input reads (bam)
 
         Args:
@@ -128,9 +128,11 @@ class kb(tools.Tool):
           out_dir: output directory
           t2g_file: transcript to gene mapping file
           k: kmer size (default 31)
+          parity: one of 'single', 'paired'
           technology: one of '10xv2', '10xv3', '10xv3cr', '10xv3multiome', '10xv1', 'dropseq', 'indrop', 'sci-rna-seq', 'bulk'
           h5ad: output h5ad file
           loom: output loom file
+          protein: ref_fasta file contains amino acid sequences
           num_threads: number of threads to use
         """
         if tools.samtools.SamtoolsTool().isEmpty(in_bam):
@@ -140,7 +142,7 @@ class kb(tools.Tool):
             '-i': index_file,
             '-g': t2g_file,
             '-t': util.misc.sanitize_thread_count(num_threads),
-            'parity': 'single'
+            '--parity': parity
         }
         if k:
             opts['-k'] = k
@@ -150,6 +152,8 @@ class kb(tools.Tool):
             opts['--h5ad'] = None
         if loom:
             opts['--loom'] = None   
+        if protein:
+            opts['--aa'] = None
             
         tmp_fastq = util.file.mkstempfname('.1.fastq')
         # Do not convert this to samtools bam2fq unless we can figure out how to replicate
