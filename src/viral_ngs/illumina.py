@@ -3268,7 +3268,7 @@ def generate_splitcode_config_and_keep_files(
     config_file = util.file.mkstempfname(f'splitcode_{pool_id}_config.txt')
 
     with open(config_file, "w") as config_fh:
-        config_tsv_writer = csv.writer(config_fh, delimiter="\t")
+        config_tsv_writer = csv.writer(config_fh, delimiter="\t", lineterminator='\n')
 
         # Write header columns
         config_header = [
@@ -3315,7 +3315,7 @@ def generate_splitcode_config_and_keep_files(
     sample_library_ids = []
 
     with open(keep_file, "w") as keep_fh:
-        keep_tsv_writer = csv.writer(keep_fh, delimiter="\t")
+        keep_tsv_writer = csv.writer(keep_fh, delimiter="\t", lineterminator='\n')
 
         for sample_name, sample_row in pool_samples_df.iterrows():
             sample_library_id = sample_row["run"]
