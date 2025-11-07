@@ -719,9 +719,10 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             csv_out = os.path.join(tmpdir, 'lut.csv')
 
             import shutil
+            # Copy JSON file with run suffix - this matches what splitcode actually creates
             shutil.copy(
                 os.path.join(inDir, 'ATCGATCG-GCTAGCTA.lB1_summary.json'),
-                os.path.join(tmpdir, 'ATCGATCG-GCTAGCTA.lB1_summary.json')
+                os.path.join(tmpdir, 'ATCGATCG-GCTAGCTA.lB1.FLOWCELL123_summary.json')
             )
 
             result_path = illumina.create_splitcode_lookup_table(

@@ -2614,10 +2614,8 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
 
     for pool in barcodes_df["muxed_pool"].unique():
         # Get and load splitcode stats report json
-        # Strip append_run_id suffix from pool name if present to match actual JSON filename
+        # Use the full pool name (including run suffix) to match the JSON filename created by splitcode
         pool_for_file_lookup = pool
-        if append_run_id and pool.endswith(f".{append_run_id}"):
-            pool_for_file_lookup = pool[:-len(f".{append_run_id}")]
 
         # Try to find and load the splitcode summary JSON file
         # Add robust error handling since missing/misplaced JSON files are a common issue
