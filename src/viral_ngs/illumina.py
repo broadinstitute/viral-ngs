@@ -1830,7 +1830,7 @@ class SampleSheet(object):
         #   pd.json_normalize() is used to allow for conversion of nested dicts
         #     see: https://stackoverflow.com/a/53831756
         #   for simple lists of dicts, pd.DataFrame() is sufficient
-        df = pd.json_normalize(self.rows).fillna("")
+        df = pd.json_normalize(self.rows).astype(str).fillna("")
 
         # Read data, preserve column order
         # df = pd.read_csv(input_tsv, sep="\t", dtype=str).fillna("")
@@ -1947,7 +1947,7 @@ class SampleSheet(object):
                 collapsed_rows.append(pd.Series(row_dict))
 
         # Create a DataFrame from collapsed rows
-        df_collapsed = pd.DataFrame(collapsed_rows) if collapsed_rows else pd.DataFrame(columns=original_cols)
+        df_collapsed = pd.DataFrame(collapsed_rows, dtype=str) if collapsed_rows else pd.DataFrame(columns=original_cols, dtype=str)
 
         # Combine the collapsed duplicates with the unchanged unique rows
         out_df = pd.concat([df_collapsed, df_unique], ignore_index=True)
@@ -1993,7 +1993,7 @@ class SampleSheet(object):
 
         # convert [dict()] -> dataframe
         #   pd.json_normalize() is used to allow for conversion of nested dicts
-        df = pd.json_normalize(self.rows).fillna("")
+        df = pd.json_normalize(self.rows).astype(str).fillna("")
 
         grouping_cols = ["barcode_1"]
         if "barcode_2" in df.columns:
@@ -2036,7 +2036,7 @@ class SampleSheet(object):
         """
 
         # Load into a DataFrame (flatten if nested)
-        df = pd.json_normalize(self.rows)
+        df = pd.json_normalize(self.rows).astype(str)
 
         # Detect presence of barcode_2
         has_barcode2 = ("barcode_2" in df.columns)
@@ -2425,21 +2425,72 @@ __commands__.append(("extract_fc_metadata", parser_extract_fc_metadata))
 # ==================
 
 
-def read_json(filepath):
-    with open(filepath, "r") as file:
-        data = json.load(file)
-    return data
+def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
+    """
+    Create a lookup table (LUT) consolidating splitcode demux results with sample metadata.
 
+    After splitcode demultiplexes pooled samples by inner barcodes (barcode_3), this function
+    reads the splitcode summary JSON files, joins them with the sample sheet, and creates a
+    unified CSV mapping samples to barcodes to read counts. This LUT is used by downstream
+    plotting and metrics functions.
 
-def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
+    The function performs 3-barcode demux integration by:
+    1. Loading sample sheet with all barcode mappings (barcode_1, barcode_2, barcode_3)
+    2. Building pool identifiers from outer barcode pairs (barcode_1 + barcode_2)
+    3. Loading splitcode summary JSONs for each pool
+    4. Extracting read counts at Hamming distance 0 (perfect match) and 1 (1-mismatch)
+    5. Joining splitcode counts with sample metadata based on run identifiers
+    6. Creating unmatched read entries for reads that didn't match any barcode
+    7. Outputting a CSV with unified sample-to-barcode-to-count mappings
+
+    Parameters
+    ----------
+    sample_sheet : str
+        Path to TSV file with barcode mappings. Must contain columns:
+        barcode_1, barcode_2, barcode_3, sample, library_id_per_sample
+    csv_out : str
+        Output path for the lookup table CSV file
+    unmatched_name : str
+        Name prefix for unmatched/unassigned reads (e.g., "Unmatched")
+    pool_ids : list, optional
+        List of pool IDs to process. If None/empty, processes all pools found.
+    append_run_id : str, optional
+        Suffix to append to run identifiers (typically flowcell ID)
+    check_sample_sheet_consistency : bool, optional
+        If True, validates sample sheet for duplicate barcode combinations
+
+    Returns
+    -------
+    str
+        Path to the output CSV file containing the lookup table
+
+    Output CSV Schema
+    -----------------
+    The output CSV contains columns:
+    - sample: Sample identifier
+    - library_id: Library/pool identifier
+    - barcode_1: Outer barcode (i7 index)
+    - barcode_2: Outer barcode (i5 index)
+    - inline_barcode: Inner barcode (barcode_3)
+    - run: Sample run identifier (sample.lLibrary[.FlowcellID])
+    - muxed_pool: Pool identifier (barcode_1-barcode_2.lLibrary)
+    - num_reads_hdistance0: Read count with perfect barcode match
+    - num_reads_hdistance1: Read count with 1-mismatch to barcode
+    - num_reads_total: Total reads (hdistance0 + hdistance1)
+
+    Notes
+    -----
+    - Expects splitcode summary JSON files named "{pool}_summary.json" in csv_out directory
+    - Validates that (barcode_1, barcode_2) pairs don't have duplicate barcode_3 values
+    - Handles pools with 0 reads gracefully by creating empty metrics
+    - Unmatched reads get barcode_3 set to all "N"s matching expected barcode length
+    """
     pool_ids = pool_ids or []
-
-    # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
 
     outDir=os.path.dirname(csv_out)
 
     # Load sample_sheet
-    barcodes_df = pd.read_csv(sample_sheet, sep="\t")
+    barcodes_df = pd.read_csv(sample_sheet, sep="\t", dtype=str)
     
     df_csv_out = f"{csv_out}"
 
@@ -2564,13 +2615,14 @@ def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_
     for pool in barcodes_df["muxed_pool"].unique():
         # Get and load splitcode stats report json
         splitcode_summary_file = glob.glob(f"{outDir}/{pool}_summary.json")[0]
-        splitcode_summary = read_json(splitcode_summary_file)
+        with open(splitcode_summary_file, "r") as f:
+            splitcode_summary = json.load(f)
 
         samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["muxed_pool"] == pool]
 
         # Handle case where splitcode processed 0 reads (tag_qc will be empty)
         if len(splitcode_summary.get("tag_qc", [])) > 0:
-            splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"])
+            splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"]).astype(str)
 
             splitcode_summary_df['run'] = splitcode_summary_df['tag'].copy()
             splitcode_summary_df['run'] = splitcode_summary_df['run'].str.removesuffix('_R1')
@@ -2613,7 +2665,7 @@ def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_
             "barcode_2"             : list(samplesheet_rows_for_pool_hx_df["barcode_2"])[0],
             "barcode_3"             : "N" * len(list(samplesheet_rows_for_pool_hx_df["barcode_3"])[0]),
         }
-        unmatched_df = pd.DataFrame.from_dict([unmatched_dict])
+        unmatched_df = pd.DataFrame.from_dict([unmatched_dict], dtype=str)
         unmatched_dfs.append(unmatched_df)
 
     all_pools_and_unmatched_df = pd.concat(pool_dfs + unmatched_dfs, ignore_index=True)
@@ -2638,7 +2690,7 @@ def create_lut(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_
     return df_csv_out
 
 def plot_read_counts(df_csv_path, outDir):
-    df_lut = pd.read_csv(df_csv_path)
+    df_lut = pd.read_csv(df_csv_path, dtype=str)
     fig, axs = plt.subplots(figsize=(10, 10), nrows=3, sharex=True)
     fontsize = 14
 
@@ -2662,7 +2714,7 @@ def plot_read_counts(df_csv_path, outDir):
             bar_positions + i * bar_width,
             df_grouped[pool],
             width=bar_width,
-            label=f'{str(pool).split("_")[-1]}',
+            label=f'{pool.split("_")[-1]}',
             color=pool_colors[i],
         )
         axs[1].bar(
@@ -2739,9 +2791,9 @@ def write_barcode_metrics_for_pools(input_csv_path,
     out_basename    = out_basename or "reads_per_bc"
     out_format      = out_format or "csv"
     output_csv_path = f"{out_dir}/{out_basename}.{out_format}"
-    
+
         # Read the CSV file
-    df = pd.read_csv(input_csv_path)
+    df = pd.read_csv(input_csv_path, dtype=str)
     
     # Filter out unmatched entries (those with inline_barcode containing only N characters)
     # This handles variable numbers of N's (e.g., "N", "NN", "NNNNNNNNN", etc.)
@@ -2761,7 +2813,7 @@ def write_barcode_metrics_for_pools(input_csv_path,
     barcode_totals = df_filtered.groupby('inline_barcode')['num_reads_total'].sum()
     
     # Initialize result dataframe with inline_barcode as index
-    result_df = pd.DataFrame(index=unique_barcodes)
+    result_df = pd.DataFrame(index=unique_barcodes, dtype=str)
     result_df.index.name = 'inline_barcode'
     
     # For each library, calculate metrics
@@ -2802,7 +2854,7 @@ def write_barcode_metrics_for_pools(input_csv_path,
 def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
     out_basename = out_basename or "reads_per_pool_sorted_curve"
 
-    df_lut = pd.read_csv(df_csv_path)
+    df_lut = pd.read_csv(df_csv_path, dtype=str)
     log.debug(f"Reading in metrics file for plotting barcode read counts per pool: {df_csv_path}")
     log.debug(f"unmatched_name: {unmatched_name}")
 
@@ -2824,7 +2876,7 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
         #     & (df_lut["inline_barcode"] != unmatched_name)
         # ]
         pool_metrics = df_lut[
-            (df_lut["library_id"] == str(pool))
+            (df_lut["library_id"] == pool)
             & (~df_lut['inline_barcode'].str.match(r'^N+$', na=False))
         ]
         num_reads = pool_metrics["num_reads_total"]
@@ -2833,7 +2885,7 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
             ax.scatter(
                 np.arange(len(num_reads)),
                 num_reads,
-                label=f'{str(pool).split("_")[-1]}',
+                label=f'{pool.split("_")[-1]}',
                 color=pool_colors[i],
             )
             ax.plot(np.arange(len(num_reads)), num_reads, color=pool_colors[i])
@@ -3140,7 +3192,7 @@ def splitcode_demux(
             )
 
     # Load samplesheet into dataframe
-    barcodes_df = pd.json_normalize(samples.get_rows()).fillna("")
+    barcodes_df = pd.json_normalize(samples.get_rows()).astype(str).fillna("")
 
     inner_demux_barcode_map_df = None
     if samples.can_be_collapsed:
@@ -3419,7 +3471,7 @@ def splitcode_demux(
     log.info("gathering splitcode demux metrics...")
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
     splitcode_csv_metrics_out = f"{outDir}/bc2sample_lut.csv"
-    df_csv_out_path = create_lut(sampleSheet, splitcode_csv_metrics_out, unmatched_name, pool_ids_successfully_demuxed_via_splitcode, append_run_id=run_id)
+    df_csv_out_path = create_splitcode_lookup_table(sampleSheet, splitcode_csv_metrics_out, unmatched_name, pool_ids_successfully_demuxed_via_splitcode, append_run_id=run_id)
     log.info("splitcode demux metrics written to %s", splitcode_csv_metrics_out)
 
     picard_style_splitcode_metrics_path = os.path.splitext(df_csv_out_path)[0] + "_picard-style.txt"
@@ -3436,7 +3488,7 @@ def splitcode_demux(
     write_barcode_metrics_for_pools(df_csv_out_path, outDir)
     # --- end splitcode metrics plotting ---
 
-    df = pd.read_csv(df_csv_out_path)
+    df = pd.read_csv(df_csv_out_path, dtype=str)
     df = df.rename(columns={"inline_barcode": "barcode_3"})
 
     # change index of df to 'run' column
@@ -3791,7 +3843,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
     ]
 
     # Read the CSV
-    df = pd.read_csv(in_splitcode_csv_path)
+    df = pd.read_csv(in_splitcode_csv_path, dtype=str)
 
     # Check for presence of required columns
     for col in required_cols:
@@ -3896,7 +3948,7 @@ def convert_splitcode_demux_metrics_to_picard_style(
             collapsed["PF_ONE_MISMATCH_MATCHES"]   = sum_pf_one_mismatch
 
             # Recombine the "not all-N" rows plus this one collapsed row
-            df = pd.concat([df_not_all_n, pd.DataFrame([collapsed])], ignore_index=True)
+            df = pd.concat([df_not_all_n, pd.DataFrame([collapsed], dtype=str)], ignore_index=True)
 
         # Drop helper column
         df.drop(columns=["IS_ALL_N"], inplace=True, errors="ignore")

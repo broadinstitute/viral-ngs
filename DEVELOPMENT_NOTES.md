@@ -9,7 +9,7 @@ not much else (other than git, and a text/code editor). The code base is also
 modularized and layered. In order to work on code changes, you will:
 
 1. check out the git code repository for this module on your local host machine (`git clone https://github.com/broadinstitute/viral-core.git`) and edit with your favorite code/text editor
-1. docker `pull` and `run` the image `FROM` which this is built, while mounting your local git checkout into the container (`docker run -it --rm -v `pwd`/viral-core:/opt/viral-ngs/source quay.io/broadinstitute/viral-core`)
+1. docker `pull` and `run` the image `FROM` which this is built, while mounting your local git checkout into the container (`docker run -it --rm -v $(pwd):/opt/viral-ngs/source quay.io/broadinstitute/viral-core`)
 1. if your dev branch has altered the conda dependencies in `requirements-conda.txt`, make sure to `conda install` them (more detailed instrucitons pending). You may (optionally) want to snapshot the new docker image locally if you want to continue using it and skip this step in the future (`docker commit <image hash> local/viral-core-dev`)
 1. test code and execution interactively within the container (`cd /opt/viral-ngs/source; pytest -rsxX -n auto test/unit`)
 1. push changes back to github (from your host machine) for automated CI testing & builds, using standard, collaborative github code review processes

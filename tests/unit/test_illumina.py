@@ -563,3 +563,175 @@ class TestMiseqToBam(TestCaseWithTmp):
         fastq = (os.path.join(inDir, 'mebv-48-5_17_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-48-5_17_L001_R2_001.fastq.gz'))
         self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
+
+
+class TestSplitcodeLookupTable(TestCaseWithTmp):
+    """Test cases for create_splitcode_lookup_table function."""
+
+    def test_basic_single_pool(self):
+        """Test basic functionality with a single pool."""
+        inDir = util.file.get_test_input_path(self)
+        sample_sheet = os.path.join(inDir, 'sample_sheet_basic.tsv')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_out = os.path.join(tmpdir, 'lut.csv')
+
+            # Copy summary JSON to tmpdir where function expects it
+            import shutil
+            shutil.copy(
+                os.path.join(inDir, 'ATCGATCG-GCTAGCTA.lB1_summary.json'),
+                os.path.join(tmpdir, 'ATCGATCG-GCTAGCTA.lB1_summary.json')
+            )
+
+            result_path = illumina.create_splitcode_lookup_table(
+                sample_sheet, csv_out, unmatched_name="Unmatched"
+            )
+
+            # Verify output file was created
+            self.assertTrue(os.path.exists(result_path))
+
+            # Read and validate output CSV
+            import pandas as pd
+            df = pd.read_csv(result_path, dtype=str)
+
+            # Check for expected columns
+            expected_cols = [
+                'sample', 'library_id', 'barcode_1', 'barcode_2',
+                'inline_barcode', 'run', 'muxed_pool',
+                'num_reads_hdistance0', 'num_reads_hdistance1', 'num_reads_total'
+            ]
+            for col in expected_cols:
+                self.assertIn(col, df.columns, f"Missing column: {col}")
+
+            # Check number of rows (3 samples + 1 unmatched)
+            self.assertEqual(len(df), 4)
+
+            # Verify sample names
+            sample_names = set(df['sample'].tolist())
+            self.assertIn('Sample1', sample_names)
+            self.assertIn('Sample2', sample_names)
+            self.assertIn('Sample3', sample_names)
+
+            # Verify unmatched row
+            unmatched_rows = df[df['sample'].str.contains('Unmatched')]
+            self.assertEqual(len(unmatched_rows), 1)
+            unmatched_row = unmatched_rows.iloc[0]
+            self.assertTrue(unmatched_row['inline_barcode'].replace('N', '') == '')
+            # Unmatched count should be n_processed - n_assigned = 100000 - 95000 = 5000
+            self.assertEqual(int(unmatched_row['num_reads_hdistance0']), 5000)
+
+            # Verify read counts for Sample2 (should have highest count)
+            sample2_row = df[df['sample'] == 'Sample2'].iloc[0]
+            self.assertEqual(int(sample2_row['num_reads_hdistance0']), 45000)
+            self.assertEqual(int(sample2_row['num_reads_hdistance1']), 2000)
+            self.assertEqual(int(sample2_row['num_reads_total']), 47000)
+
+            # Verify barcode values
+            self.assertEqual(sample2_row['barcode_1'], 'ATCGATCG')
+            self.assertEqual(sample2_row['barcode_2'], 'GCTAGCTA')
+            self.assertEqual(sample2_row['inline_barcode'], 'GGGGTTTT')
+
+    def test_zero_reads_pool(self):
+        """Test handling of pool with zero reads."""
+        inDir = util.file.get_test_input_path(self)
+        sample_sheet = os.path.join(inDir, 'sample_sheet_zero_reads.tsv')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_out = os.path.join(tmpdir, 'lut.csv')
+
+            # Copy summary JSON
+            import shutil
+            shutil.copy(
+                os.path.join(inDir, 'TTTTAAAA-CCCCGGGG.lB2_summary.json'),
+                os.path.join(tmpdir, 'TTTTAAAA-CCCCGGGG.lB2_summary.json')
+            )
+
+            result_path = illumina.create_splitcode_lookup_table(
+                sample_sheet, csv_out, unmatched_name="Unmatched"
+            )
+
+            # Read output
+            import pandas as pd
+            df = pd.read_csv(result_path, dtype=str)
+
+            # Should have 1 sample + 1 unmatched
+            self.assertEqual(len(df), 2)
+
+            # Verify sample has 0 reads
+            sample_row = df[df['sample'] == 'Sample4'].iloc[0]
+            self.assertEqual(int(sample_row['num_reads_hdistance0']), 0)
+            self.assertEqual(int(sample_row['num_reads_hdistance1']), 0)
+            self.assertEqual(int(sample_row['num_reads_total']), 0)
+
+    def test_multi_pool(self):
+        """Test with multiple pools."""
+        inDir = util.file.get_test_input_path(self)
+        sample_sheet = os.path.join(inDir, 'sample_sheet_multi_pool.tsv')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_out = os.path.join(tmpdir, 'lut.csv')
+
+            # Copy both summary JSONs
+            import shutil
+            shutil.copy(
+                os.path.join(inDir, 'AAAAAAAA-TTTTTTTT.lLibA_summary.json'),
+                os.path.join(tmpdir, 'AAAAAAAA-TTTTTTTT.lLibA_summary.json')
+            )
+            shutil.copy(
+                os.path.join(inDir, 'GGGGGGGG-CCCCCCCC.lLibB_summary.json'),
+                os.path.join(tmpdir, 'GGGGGGGG-CCCCCCCC.lLibB_summary.json')
+            )
+
+            result_path = illumina.create_splitcode_lookup_table(
+                sample_sheet, csv_out, unmatched_name="Unmatched"
+            )
+
+            # Read output
+            import pandas as pd
+            df = pd.read_csv(result_path, dtype=str)
+
+            # Should have 4 samples + 2 unmatched (one per pool)
+            self.assertEqual(len(df), 6)
+
+            # Verify both pools are present
+            pools = set(df['muxed_pool'].tolist())
+            self.assertIn('AAAAAAAA-TTTTTTTT.lLibA', pools)
+            self.assertIn('GGGGGGGG-CCCCCCCC.lLibB', pools)
+
+            # Check unmatched counts
+            unmatched_rows = df[df['sample'].str.contains('Unmatched')]
+            self.assertEqual(len(unmatched_rows), 2)
+
+            # Verify LibA unmatched count: 50000 - 48000 = 2000
+            liba_unmatched = df[df['muxed_pool'] == 'AAAAAAAA-TTTTTTTT.lLibA']
+            liba_unmatched = liba_unmatched[liba_unmatched['sample'].str.contains('Unmatched')].iloc[0]
+            self.assertEqual(int(liba_unmatched['num_reads_hdistance0']), 2000)
+
+    def test_append_run_id(self):
+        """Test append_run_id parameter."""
+        inDir = util.file.get_test_input_path(self)
+        sample_sheet = os.path.join(inDir, 'sample_sheet_basic.tsv')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_out = os.path.join(tmpdir, 'lut.csv')
+
+            import shutil
+            shutil.copy(
+                os.path.join(inDir, 'ATCGATCG-GCTAGCTA.lB1_summary.json'),
+                os.path.join(tmpdir, 'ATCGATCG-GCTAGCTA.lB1_summary.json')
+            )
+
+            result_path = illumina.create_splitcode_lookup_table(
+                sample_sheet, csv_out,
+                unmatched_name="Unmatched",
+                append_run_id="FLOWCELL123"
+            )
+
+            # Read output
+            import pandas as pd
+            df = pd.read_csv(result_path, dtype=str)
+
+            # Verify run IDs contain flowcell ID
+            sample_row = df[df['sample'] == 'Sample1'].iloc[0]
+            self.assertIn('FLOWCELL123', sample_row['run'])
+            self.assertIn('FLOWCELL123', sample_row['muxed_pool'])
