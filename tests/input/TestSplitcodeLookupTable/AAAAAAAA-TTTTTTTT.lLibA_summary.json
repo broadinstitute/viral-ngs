@@ -1,0 +1,26 @@
+{
+  "n_processed": 50000,
+  "n_assigned": 48000,
+  "tag_qc": [
+    {
+      "tag": "PoolA_S1.lLibA_R1",
+      "distance": 0,
+      "count": 25000
+    },
+    {
+      "tag": "PoolA_S1.lLibA_R1",
+      "distance": 1,
+      "count": 1000
+    },
+    {
+      "tag": "PoolA_S2.lLibA_R1",
+      "distance": 0,
+      "count": 20000
+    },
+    {
+      "tag": "PoolA_S2.lLibA_R1",
+      "distance": 1,
+      "count": 2000
+    }
+  ]
+}

@@ -2614,7 +2614,12 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
 
     for pool in barcodes_df["muxed_pool"].unique():
         # Get and load splitcode stats report json
-        splitcode_summary_file = glob.glob(f"{outDir}/{pool}_summary.json")[0]
+        # Strip append_run_id suffix from pool name if present to match actual JSON filename
+        pool_for_file_lookup = pool
+        if append_run_id and pool.endswith(f".{append_run_id}"):
+            pool_for_file_lookup = pool[:-len(f".{append_run_id}")]
+
+        splitcode_summary_file = glob.glob(f"{outDir}/{pool_for_file_lookup}_summary.json")[0]
         with open(splitcode_summary_file, "r") as f:
             splitcode_summary = json.load(f)
 
@@ -2622,7 +2627,9 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
 
         # Handle case where splitcode processed 0 reads (tag_qc will be empty)
         if len(splitcode_summary.get("tag_qc", [])) > 0:
-            splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"]).astype(str)
+            splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"])
+            # Convert only the tag column to string, keep count/distance as numeric
+            splitcode_summary_df['tag'] = splitcode_summary_df['tag'].astype(str)
 
             splitcode_summary_df['run'] = splitcode_summary_df['tag'].copy()
             splitcode_summary_df['run'] = splitcode_summary_df['run'].str.removesuffix('_R1')
