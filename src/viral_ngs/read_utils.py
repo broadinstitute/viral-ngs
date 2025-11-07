@@ -858,9 +858,11 @@ def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
             options['-i2'] = in_fastqs[1]
             options['-o2'] = out_fastqs[1]
 
-        log.info("executing cd-hit-est on library " + library_sam)
+        log.info("executing cd-hit-dup on library " + library_sam)
         # cd-hit-dup cannot operate on piped fastq input because it reads twice
-        cdhit.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0], options=options, background=True)
+        # Run cd-hit-dup synchronously (not in background) to ensure output files are complete
+        # before FastqToSamTool tries to read them
+        cdhit.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0], options=options, background=False)
 
         tools.picard.FastqToSamTool().execute(out_fastqs[0], out_fastqs[1], f, out_bam, JVMmemory=jvm_memory)
         for fn in in_fastqs:
