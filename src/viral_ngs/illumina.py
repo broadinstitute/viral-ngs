@@ -2787,6 +2787,12 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
 
 def plot_read_counts(df_csv_path, outDir):
     df_lut = pd.read_csv(df_csv_path, dtype=str)
+    # Convert numeric columns explicitly
+    numeric_cols = ['num_reads_total', 'num_reads_hdistance0', 'num_reads_hdistance1']
+    for col in numeric_cols:
+        if col in df_lut.columns:
+            df_lut[col] = pd.to_numeric(df_lut[col], errors='coerce').fillna(0)
+
     fig, axs = plt.subplots(figsize=(10, 10), nrows=3, sharex=True)
     fontsize = 14
 
@@ -2890,15 +2896,20 @@ def write_barcode_metrics_for_pools(input_csv_path,
 
         # Read the CSV file
     df = pd.read_csv(input_csv_path, dtype=str)
-    
+    # Convert numeric columns explicitly
+    numeric_cols = ['num_reads_total', 'num_reads_hdistance0', 'num_reads_hdistance1']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
     # Filter out unmatched entries (those with inline_barcode containing only N characters)
     # This handles variable numbers of N's (e.g., "N", "NN", "NNNNNNNNN", etc.)
     df_filtered = df[~df['inline_barcode'].str.match(r'^N+$', na=False)].copy()
-    
+
     # Get unique inline barcodes and library IDs
     unique_barcodes  = df_filtered['inline_barcode'].unique()
     unique_libraries = df_filtered['library_id'].unique()
-    
+
     # Calculate total reads across all libraries for percentage calculations
     total_reads_all = df_filtered['num_reads_total'].sum()
     
@@ -2951,6 +2962,12 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
     out_basename = out_basename or "reads_per_pool_sorted_curve"
 
     df_lut = pd.read_csv(df_csv_path, dtype=str)
+    # Convert numeric columns explicitly
+    numeric_cols = ['num_reads_total', 'num_reads_hdistance0', 'num_reads_hdistance1']
+    for col in numeric_cols:
+        if col in df_lut.columns:
+            df_lut[col] = pd.to_numeric(df_lut[col], errors='coerce').fillna(0)
+
     log.debug(f"Reading in metrics file for plotting barcode read counts per pool: {df_csv_path}")
     log.debug(f"unmatched_name: {unmatched_name}")
 
