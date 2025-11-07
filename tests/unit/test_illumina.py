@@ -1261,7 +1261,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
 
         # Check Sample1 config line
         self.assertEqual(rows[1][0], 'AAAAAAAA')  # barcode
-        self.assertEqual(rows[1][1], 'Sample1.lLib1_R1')  # ID
+        self.assertEqual(rows[1][1], 'Sample1.lLib1')  # ID (no _R1 suffix when using --keep-r1-r2)
         self.assertEqual(rows[1][2], '0:0:8')  # locations
         self.assertEqual(rows[1][3], '1')  # distance
         self.assertEqual(rows[1][4], '1')  # left trim
@@ -1269,7 +1269,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
 
         # Check Sample2 config line
         self.assertEqual(rows[2][0], 'CCCCCCCC')
-        self.assertEqual(rows[2][1], 'Sample2.lLib1_R1')
+        self.assertEqual(rows[2][1], 'Sample2.lLib1')  # ID (no _R1 suffix when using --keep-r1-r2)
         self.assertEqual(rows[2][2], '0:0:8')
 
         # Verify keep file format (NO header)
@@ -1280,12 +1280,12 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
         # Should have 2 rows, no header
         self.assertEqual(len(keep_rows), 2)
 
-        # Check Sample1 keep line
-        self.assertEqual(keep_rows[0][0], 'Sample1.lLib1_R1')
+        # Check Sample1 keep line (no _R1 suffix when using --keep-r1-r2)
+        self.assertEqual(keep_rows[0][0], 'Sample1.lLib1')
         self.assertEqual(keep_rows[0][1], f'{self.temp_dir}/Sample1.lLib1')
 
-        # Check Sample2 keep line
-        self.assertEqual(keep_rows[1][0], 'Sample2.lLib1_R1')
+        # Check Sample2 keep line (no _R1 suffix when using --keep-r1-r2)
+        self.assertEqual(keep_rows[1][0], 'Sample2.lLib1')
         self.assertEqual(keep_rows[1][1], f'{self.temp_dir}/Sample2.lLib1')
 
     def test_variable_barcode_lengths(self):
@@ -1464,7 +1464,8 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
 
         # They MUST match exactly
         self.assertEqual(config_ids, keep_ids)
-        self.assertEqual(config_ids, ['MySample.lMyLib.FC.1_R1', 'Other.lLib2.FC.1_R1'])
+        # No _R1 suffix when using --keep-r1-r2 mode (splitcode adds the suffixes automatically)
+        self.assertEqual(config_ids, ['MySample.lMyLib.FC.1', 'Other.lLib2.FC.1'])
 
     def test_output_prefix_path_construction(self):
         """Test that keep file constructs correct output paths."""
@@ -1533,19 +1534,19 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
         # Header + 2 samples
         self.assertEqual(len(config_rows), 3)
 
-        # Verify first sample
+        # Verify first sample (no _R1 suffix when using --keep-r1-r2)
         self.assertEqual(config_rows[1][0], 'AAAAAAAA')
-        self.assertEqual(config_rows[1][1], 'Sample1.lPool_1.HHJYWDRX5.6_R1')
+        self.assertEqual(config_rows[1][1], 'Sample1.lPool_1.HHJYWDRX5.6')
         self.assertEqual(config_rows[1][2], '0:0:8')
         self.assertEqual(config_rows[1][3], '1')
         self.assertEqual(config_rows[1][4], '1:3')  # Trim barcode + 3bp
 
-        # Verify keep file
+        # Verify keep file (no _R1 suffix when using --keep-r1-r2)
         with open(keep_file) as f:
             keep_rows = list(csv.reader(f, delimiter='\t'))
 
         self.assertEqual(len(keep_rows), 2)
-        self.assertEqual(keep_rows[0][0], 'Sample1.lPool_1.HHJYWDRX5.6_R1')
+        self.assertEqual(keep_rows[0][0], 'Sample1.lPool_1.HHJYWDRX5.6')
         self.assertEqual(keep_rows[0][1], '/output/Sample1.lPool_1.HHJYWDRX5.6')
 
 
