@@ -3082,6 +3082,158 @@ def run_picard_fastq_to_ubam(fq1,
                                             JVMmemory     = jvm_memory)
     return (sample_name, out_bam)
 
+def generate_splitcode_config_and_keep_files(
+    inner_demux_barcode_map_df,
+    pool_id,
+    output_dir,
+    max_hamming_dist=1,
+    r1_trim_bp_right_of_barcode=None,
+    r2_trim_bp_left_of_barcode=None
+):
+    """
+    Generate splitcode config and keep files for a single pool.
+
+    This function creates the TSV files needed by splitcode to demultiplex reads
+    based on inline barcodes (barcode_3). It takes sample metadata from a DataFrame
+    and generates both the config file (which specifies barcode sequences and matching
+    parameters) and the keep file (which maps barcodes to output file prefixes).
+
+    Args:
+        inner_demux_barcode_map_df (pd.DataFrame): DataFrame with sample metadata.
+            Required columns:
+            - 'barcode_3': Inline barcode sequence
+            - 'run': Sample library ID (e.g., "Sample1.lLib1.FLOWCELL.1")
+            - 'muxed_run': Pool ID for grouping samples
+            Index: sample names
+        pool_id (str): Pool identifier to filter samples and name output files
+        output_dir (str): Directory where demultiplexed FASTQs will be written
+        max_hamming_dist (int): Maximum Hamming distance for fuzzy barcode matching.
+            Default: 1 (allows 1 mismatch)
+        r1_trim_bp_right_of_barcode (int, optional): Additional bases to trim from R1
+            after removing the barcode. If None, only the barcode is trimmed.
+        r2_trim_bp_left_of_barcode (int, optional): Bases to trim from R2 left side
+            (currently unused - R2 barcodes not implemented)
+
+    Returns:
+        tuple: (config_file_path, keep_file_path, sample_library_ids)
+            - config_file_path (str): Path to generated splitcode config TSV
+            - keep_file_path (str): Path to generated splitcode keep TSV
+            - sample_library_ids (list): List of sample_library_id values for this pool
+
+    Config file format (TSV with header):
+        tag        - Barcode sequence (e.g., "AAAAAAAA")
+        id         - Barcode identifier (e.g., "Sample1_R1") - MUST match keep file
+        locations  - FILE_NUMBER:START_BP:END_BP (e.g., "0:0:8" for R1 positions 0-8)
+        distance   - Max hamming distance for fuzzy matching (0=exact, 1=1 mismatch, etc.)
+        left       - Trim from left: "1" removes barcode, "1:N" removes barcode + N more bp
+        right      - Trim from right (typically "0" for R1 barcodes)
+
+    Keep file format (TSV, NO header):
+        Column 1: barcode_id - MUST match "id" from config file
+        Column 2: output_prefix - Path prefix for output FASTQs (without _R1/_R2.fastq)
+
+    Example:
+        >>> df = pd.DataFrame({
+        ...     'barcode_3': ['AAAAAAAA', 'CCCCCCCC'],
+        ...     'run': ['Sample1.lLib1', 'Sample2.lLib1'],
+        ...     'muxed_run': ['Pool1', 'Pool1']
+        ... }, index=['Sample1', 'Sample2'])
+        >>> config, keep, ids = generate_splitcode_config_and_keep_files(
+        ...     df, 'Pool1', '/output', max_hamming_dist=1
+        ... )
+        >>> # config file contains:
+        >>> # tag  id  locations  distance  left  right
+        >>> # AAAAAAAA  Sample1.lLib1_R1  0:0:8  1  1  0
+        >>> # CCCCCCCC  Sample2.lLib1_R1  0:0:8  1  1  0
+        >>> # keep file contains:
+        >>> # Sample1.lLib1_R1  /output/Sample1.lLib1
+        >>> # Sample2.lLib1_R1  /output/Sample2.lLib1
+
+    See test/unit/test_illumina_splitcode.py for validation of splitcode's behavior
+    with these file formats.
+    """
+    import csv
+
+    # Filter DataFrame to only samples in this pool
+    pool_samples_df = inner_demux_barcode_map_df[
+        inner_demux_barcode_map_df['muxed_run'] == pool_id
+    ]
+
+    if len(pool_samples_df) == 0:
+        raise ValueError(f"No samples found for pool_id '{pool_id}'")
+
+    # ======== Create splitcode config file ========
+    # For more information on config format and parameters see:
+    #   https://splitcode.readthedocs.io/en/latest/reference_guide.html#table-options
+    #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#locations
+    #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#left-and-right-trimming
+
+    config_file = util.file.mkstempfname(f'splitcode_{pool_id}_config.txt')
+
+    with open(config_file, "w") as config_fh:
+        config_tsv_writer = csv.writer(config_fh, delimiter="\t")
+
+        # Write header columns
+        config_header = [
+            "tag",        # Barcode sequence
+            "id",         # Barcode identifier (must match keep file)
+            "locations",  # FILE:START:END format
+            "distance",   # Max hamming distance
+            "left",       # Trim from left
+            "right"       # Trim from right
+        ]
+        config_tsv_writer.writerow(config_header)
+
+        # Write config lines for each sample in this pool
+        for sample_name, sample_row in pool_samples_df.iterrows():
+            barcode_sequence = sample_row["barcode_3"]
+            barcode_len = len(barcode_sequence)
+            sample_library_id = sample_row["run"]
+
+            # R1 barcode configuration
+            # The "left" column controls trimming from the left side of R1
+            # Format: "1" (trim barcode only) or "1:N" (trim barcode + N more bp)
+            left_trim = "1" if r1_trim_bp_right_of_barcode is None else f"1:{r1_trim_bp_right_of_barcode}"
+
+            config_line_r1 = [
+                barcode_sequence,              # The barcode sequence to search for
+                f"{sample_library_id}_R1",     # ID (MUST match keep file column 1)
+                f"0:0:{barcode_len}",          # locations: FILE:START:END (0=R1, 0-barcode_len)
+                str(max_hamming_dist),         # Maximum hamming distance
+                left_trim,                     # Trim from left (barcode + optional extra bp)
+                "0"                            # Trim from right (not used for R1)
+            ]
+            config_tsv_writer.writerow(config_line_r1)
+
+            # TODO: R2 barcode support (currently commented out in splitcode_demux)
+            # If needed, would add config_line_r2 here using r2_trim_bp_left_of_barcode
+
+    # ======== Create splitcode keep file ========
+    # Keep file maps barcode IDs to output file prefixes
+    # NO header row (unlike config file)
+
+    keep_file = util.file.mkstempfname(f"splitcode_{pool_id}_keepfile.txt")
+    sample_library_ids = []
+
+    with open(keep_file, "w") as keep_fh:
+        keep_tsv_writer = csv.writer(keep_fh, delimiter="\t")
+
+        for sample_name, sample_row in pool_samples_df.iterrows():
+            sample_library_id = sample_row["run"]
+            sample_library_ids.append(sample_library_id)
+
+            # Output prefix: /output/dir/Sample1.lLib1
+            # Splitcode will create: /output/dir/Sample1.lLib1_R1.fastq, ...R2.fastq
+            sample_output_prefix = f"{output_dir}/{sample_library_id}"
+
+            keep_row = [
+                f"{sample_library_id}_R1",  # MUST match config file "id" column
+                sample_output_prefix,       # Output prefix (without _R1/_R2.fastq)
+            ]
+            keep_tsv_writer.writerow(keep_row)
+
+    return (config_file, keep_file, sample_library_ids)
+
 def splitcode_demux(
     inDir,
     lane,
@@ -3359,143 +3511,46 @@ def splitcode_demux(
     #fastq_files = " ".join(f"'{f}'" for f in glob.glob(fastqs))
     #subprocess.run(["pigz", "-d", *fastq_files], check=True)    
 
+    # ======== Generate splitcode config and keep files for each pool ========
     for pool_id, sample_libraries in pool_id_to_sample_library_id_map.items():
         log.info(f"pool to demux with splitcode: {pool_id} containing {len(sample_libraries)} libraries")
-        log.debug(f"creating splitcode config file for {pool_id}")
-        # ======== create splitcode config file ========
-        # for more information on config format and parameters see:
-        #   https://splitcode.readthedocs.io/en/latest/reference_guide.html#table-options
-        #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#locations
-        #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#left-and-right-trimming
-        #   https://github.com/pachterlab/splitcode/blob/d309cfcbb2fb586816241d2444577847ff9108c8/src/SplitCode.h#L1681
-        #
-        # Config file format (TSV with header):
-        #   tag        - The barcode sequence to search for (e.g., "AAAAAAAA")
-        #   id         - Unique identifier for this barcode (e.g., "Sample1_R1")
-        #                IMPORTANT: This MUST match the first column in the keep file
-        #   locations  - Where to find barcode in reads: FILE_NUMBER:START_BP:END_BP
-        #                Example: "0:0:8" = file 0 (R1), positions 0-8 (8bp barcode)
-        #                The endpoint is EXCLUSIVE (Python-like slicing)
-        #   distance   - Maximum Hamming distance for fuzzy matching (0 = exact match)
-        #   left       - Trim from left: "1" to remove barcode, or "1:N" to remove barcode + N more bp
-        #   right      - Trim from right: "1" to remove barcode from right side (not commonly used for R1)
-        splitcode_config = util.file.mkstempfname(f'splitcode_{pool_id}_config.txt')
 
-        with open(splitcode_config, "w") as config_fh:
-            config_tsv_writer = csv.writer(config_fh, delimiter="\t")
+        # Use the extracted function to generate config/keep files
+        splitcode_config, splitcode_sample_keep_file, returned_sample_ids = generate_splitcode_config_and_keep_files(
+            inner_demux_barcode_map_df,
+            pool_id,
+            splitcode_out_tmp_dir,
+            max_hamming_dist=max_hamming_dist,
+            r1_trim_bp_right_of_barcode=r1_trim_bp_right_of_barcode,
+            r2_trim_bp_left_of_barcode=r2_trim_bp_left_of_barcode
+        )
 
-            # Write header columns
-            config_header = [
-                                "tag",        # Barcode sequence
-                                "id",         # Barcode identifier (must match keep file)
-                                "locations",  # FILE:START:END format
-                                "distance",   # Max hamming distance
-                                "left",       # Trim from left
-                                "right"       # Trim from right
-                            ]
-
-            config_tsv_writer.writerow(config_header)
-
-            # Create splitcode config files
-            for sample_name, sample_row in inner_demux_barcode_map_df.iterrows():
-                barcode_sequence  = sample_row["barcode_3"]
-                barcode_len       = len(barcode_sequence)
-                inline_index_id   = sample_row["Inline_Index_ID"]
-                sample_library_id = sample_row["run"]
-
-                if sample_row["muxed_run"] == pool_id:
-                    # Columns: Barcode, tag_name, location, max allowed Hamming distance, trim from left on/off, trim from right on/off
-                    # R1 barcode (using the "left" (-> remove from the left) column to remove the inline barcodes from R1 reads)
-                    
-                    
-                    # ToDo: potential optimization: we may want to specify initiator or terminator symbols in the barcode sequence 
-                    # to avoid searching for other tags in each read. 
-                    #
-                    # ex. 
-                    #   f"{barcode_sequence}*": once we’ve found this sequence, stop our search for others
-                    #   f"*{barcode_sequence}": no other sequences will be found until this sequence is
-                    #
-                    # see:
-                    #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#initiator-and-terminator-sequences
-                    
-
-                    config_line_r1 = [
-                                        barcode_sequence, 
-                                        f"{sample_library_id}_R1", 
-                                        f"0:0:{barcode_len}", # where to look for the barcode/tag sequence ($FILE_NUMBER:$START_BP:$END_BP)
-                                        str(max_hamming_dist), 
-                                        "1" if r1_trim_bp_right_of_barcode is None else f"1:{r1_trim_bp_right_of_barcode}", # left; $ENABLE_TRIM_FROM_BARCODE_LEFTWARD[:$ADDITIONAL_BP_TO_TRIM_RIGHT_OF_BARCODE]
-                                        "0"  # right
-                                     ]
-                    config_tsv_writer.writerow(config_line_r1)
-
-                    # === retain for now ===
-                    # R2 barcode (using the "right" (-> remove from the right) column to remove the inline barcodes from R2 reads)
-                    # config_line_r2 = [
-                    #                     barcode_sequence, 
-                    #                     f"{inline_index_id}_R2", 
-                    #                     f"1:-{barcode_len}:0", 
-                    #                     str(max_hamming_dist), 
-                    #                     "0", 
-                    #                     "1" if r2_trim_bp_left_of_barcode is None else f"1:{r2_trim_bp_left_of_barcode}"
-                    #                  ]
-                    # #config_f.write("\t".join(config_line_r2)+"\n")
-                    # config_tsv_writer.writerow(config_line_r2)
-                    # =======================
-
+        # Store paths for later use
         pool_id_to_splitcode_configfile[pool_id] = splitcode_config
-        log.debug(f"splitcode config file created for {pool_id}")
+        pool_id_to_splitcode_keepfile[pool_id] = splitcode_sample_keep_file
 
+        # Build sample_library_id_to_fastqs mapping
+        for sample_library_id in returned_sample_ids:
+            assert (sample_library_id not in sample_library_id_to_fastqs), "%s detected twice when it should be present only once" % sample_library_id
 
+            # Map sample_library_id to expected output FASTQ paths
+            # ex. 'VGG_19883.lPool_3.HHJYWDRX5.1' ->
+            #     ["VGG_19883.lPool_3.HHJYWDRX5.1_R1.fastq", "VGG_19883.lPool_3.HHJYWDRX5.1_R2.fastq"]
+            sample_output_prefix = f"{splitcode_out_tmp_dir}/{sample_library_id}"
+            sample_library_id_to_fastqs[sample_library_id] = [
+                f"{sample_output_prefix}_R1.fastq",
+                f"{sample_output_prefix}_R2.fastq"
+            ]
 
-        # ======== create splitcode keep file ==========
-        # Keep file format (TSV, NO header):
-        #   Column 1: barcode_id - MUST exactly match the "id" column from config file
-        #   Column 2: output_prefix - Path prefix for output FASTQs (without _R1.fastq/_R2.fastq)
-        #
-        # Example row: "Sample1_R1\t/path/to/output/Sample1"
-        #   This will create: /path/to/output/Sample1_R1.fastq, /path/to/output/Sample1_R2.fastq
-        #
-        # IMPORTANT: The barcode_id must match between config and keep files!
-        #   Config file:  AAAAAAAA  Sample1_R1  0:0:8  0  1  0
-        #   Keep file:    Sample1_R1<tab>/path/to/Sample1
+        # Add unmatched reads to the mapping
+        unmatched_sample_name = f"{unmatched_name}.{pool_id}"
+        unmatched_output_prefix = f"{splitcode_out_tmp_dir}/{unmatched_sample_name}"
+        sample_library_id_to_fastqs[unmatched_sample_name] = [
+            f"{unmatched_output_prefix}_R1.fastq",
+            f"{unmatched_output_prefix}_R2.fastq"
+        ]
 
-        # ToDo: consider... rather than creating a single splitcode keep file for each pool,
-        #       provide the option to create 1..N splitcode keep files for each pool
-        #       where N is the number of samples in each pool
-        #       to allow for increased parallelization of the splitcode demuxing,
-        #       one job per library (at the expense of more I/O)
-
-        log.debug(f"creating splitcode keep file for {pool_id}")
-        splitcode_sample_keep_file = util.file.mkstempfname(f"splitcode_{pool_id}_keepfile.txt")
-        with open(splitcode_sample_keep_file, "w") as splitcode_sample_keep_fh:
-            splitcode_sample_keepfile_tsv_writer = csv.writer(splitcode_sample_keep_fh, delimiter="\t")
-
-            for sample_library_id in sample_libraries:
-                sample_output_prefix = f"{splitcode_out_tmp_dir}/{sample_library_id}"
-                splitcode_sample_keep_row = [
-                                                f"{sample_library_id}_R1",  # MUST match config file "id" column
-                                                sample_output_prefix,       # Output prefix (without _R1/_R2.fastq)
-                                                #f"Barcode_{inline_index_id}" + "\n"
-                                                #f"{sample_name}" + "\n"
-                                                #f"{sampled_demuxed_basename}"
-                                            ]
-                splitcode_sample_keepfile_tsv_writer.writerow(splitcode_sample_keep_row)
-
-                assert (sample_library_id not in sample_library_id_to_fastqs), "%s detected twice when it should be present only once" % sample_library_id
-                
-                # maps sample_library_id to fastqs
-                # ex.
-                #   'VGG_19883.lPool_3.HHJYWDRX5.1' -> ["VGG_19883.lPool_3.HHJYWDRX5.1_R1.fastq","VGG_19883.lPool_3.HHJYWDRX5.1_R2.fastq"]
-                sample_library_id_to_fastqs[sample_library_id] = [f"{sample_output_prefix}_R1.fastq",f"{sample_output_prefix}_R2.fastq"]
-                  
-            pool_id_to_splitcode_keepfile[pool_id] = splitcode_sample_keep_file
-            
-            unmatched_sample_name = f"{unmatched_name}.{pool_id}"
-            unmatched_output_prefix = f"{splitcode_out_tmp_dir}/{unmatched_sample_name}"
-            sample_library_id_to_fastqs[unmatched_sample_name] = [f"{unmatched_output_prefix}_R1.fastq",f"{unmatched_output_prefix}_R2.fastq"]
-
-        log.debug(f"splitcode config keep created for {pool_id}")
+        log.debug(f"splitcode config and keep files created for {pool_id}")
         
 
     # ======== run splitcode ==========

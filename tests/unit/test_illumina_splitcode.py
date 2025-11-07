@@ -531,3 +531,338 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
                         "Should find exactly one summary JSON file")
         self.assertEqual(found_files[0], expected_summary,
                         "Should find the summary JSON with base pool_id")
+
+
+class TestGenerateSplitkodeConfigAndKeepFiles(TestCaseWithTmp):
+    """
+    Test generate_splitcode_config_and_keep_files function.
+
+    This function takes sample metadata and generates splitcode config/keep files.
+    It's a pure text-file transformation that's ideal for unit testing.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        super().tearDown()
+
+    def test_basic_single_pool(self):
+        """Test basic config/keep generation with a single pool containing 2 samples."""
+        import pandas as pd
+        import csv
+
+        # Create test DataFrame matching inner_demux_mapper output
+        df = pd.DataFrame({
+            'barcode_3': ['AAAAAAAA', 'CCCCCCCC'],
+            'run': ['Sample1.lLib1', 'Sample2.lLib1'],
+            'muxed_run': ['Pool1', 'Pool1']
+        }, index=['Sample1', 'Sample2'])
+
+        config_file, keep_file, sample_ids = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', self.temp_dir, max_hamming_dist=1
+        )
+
+        # Verify return values
+        self.assertTrue(os.path.exists(config_file), "Config file should exist")
+        self.assertTrue(os.path.exists(keep_file), "Keep file should exist")
+        self.assertEqual(sample_ids, ['Sample1.lLib1', 'Sample2.lLib1'])
+
+        # Verify config file format
+        with open(config_file) as f:
+            reader = csv.reader(f, delimiter='\t')
+            rows = list(reader)
+
+        # Check header
+        self.assertEqual(rows[0], ['tag', 'id', 'locations', 'distance', 'left', 'right'])
+
+        # Check Sample1 config line
+        self.assertEqual(rows[1][0], 'AAAAAAAA')  # barcode
+        self.assertEqual(rows[1][1], 'Sample1.lLib1_R1')  # ID
+        self.assertEqual(rows[1][2], '0:0:8')  # locations
+        self.assertEqual(rows[1][3], '1')  # distance
+        self.assertEqual(rows[1][4], '1')  # left trim
+        self.assertEqual(rows[1][5], '0')  # right trim
+
+        # Check Sample2 config line
+        self.assertEqual(rows[2][0], 'CCCCCCCC')
+        self.assertEqual(rows[2][1], 'Sample2.lLib1_R1')
+        self.assertEqual(rows[2][2], '0:0:8')
+
+        # Verify keep file format (NO header)
+        with open(keep_file) as f:
+            reader = csv.reader(f, delimiter='\t')
+            keep_rows = list(reader)
+
+        # Should have 2 rows, no header
+        self.assertEqual(len(keep_rows), 2)
+
+        # Check Sample1 keep line
+        self.assertEqual(keep_rows[0][0], 'Sample1.lLib1_R1')
+        self.assertEqual(keep_rows[0][1], f'{self.temp_dir}/Sample1.lLib1')
+
+        # Check Sample2 keep line
+        self.assertEqual(keep_rows[1][0], 'Sample2.lLib1_R1')
+        self.assertEqual(keep_rows[1][1], f'{self.temp_dir}/Sample2.lLib1')
+
+    def test_variable_barcode_lengths(self):
+        """Test that config correctly handles different barcode lengths."""
+        import pandas as pd
+        import csv
+
+        df = pd.DataFrame({
+            'barcode_3': ['AAAA', 'CCCCCCCCCC', 'GGGGGGGG'],  # 4bp, 10bp, 8bp
+            'run': ['S1.lL1', 'S2.lL1', 'S3.lL1'],
+            'muxed_run': ['Pool1', 'Pool1', 'Pool1']
+        }, index=['S1', 'S2', 'S3'])
+
+        config_file, keep_file, sample_ids = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', self.temp_dir
+        )
+
+        with open(config_file) as f:
+            reader = csv.reader(f, delimiter='\t')
+            rows = list(reader)
+
+        # Check locations are adjusted for barcode length
+        self.assertEqual(rows[1][2], '0:0:4')   # 4bp barcode
+        self.assertEqual(rows[2][2], '0:0:10')  # 10bp barcode
+        self.assertEqual(rows[3][2], '0:0:8')   # 8bp barcode
+
+    def test_hamming_distance_parameter(self):
+        """Test that max_hamming_dist parameter is correctly written to config."""
+        import pandas as pd
+        import csv
+
+        df = pd.DataFrame({
+            'barcode_3': ['AAAAAAAA'],
+            'run': ['Sample1.lLib1'],
+            'muxed_run': ['Pool1']
+        }, index=['Sample1'])
+
+        # Test distance=0 (exact match only)
+        config_file, _, _ = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', self.temp_dir, max_hamming_dist=0
+        )
+
+        with open(config_file) as f:
+            reader = csv.reader(f, delimiter='\t')
+            rows = list(reader)
+
+        self.assertEqual(rows[1][3], '0')  # distance column
+
+        # Test distance=2
+        config_file, _, _ = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', self.temp_dir, max_hamming_dist=2
+        )
+
+        with open(config_file) as f:
+            reader = csv.reader(f, delimiter='\t')
+            rows = list(reader)
+
+        self.assertEqual(rows[1][3], '2')  # distance column
+
+    def test_r1_trim_bp_right_of_barcode(self):
+        """Test that r1_trim_bp_right_of_barcode correctly sets left trim parameter."""
+        import pandas as pd
+        import csv
+
+        df = pd.DataFrame({
+            'barcode_3': ['AAAAAAAA'],
+            'run': ['Sample1.lLib1'],
+            'muxed_run': ['Pool1']
+        }, index=['Sample1'])
+
+        # Test default (None) - should be "1"
+        config_file, _, _ = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', self.temp_dir, r1_trim_bp_right_of_barcode=None
+        )
+
+        with open(config_file) as f:
+            reader = csv.reader(f, delimiter='\t')
+            rows = list(reader)
+
+        self.assertEqual(rows[1][4], '1')  # left column: "1" means trim barcode only
+
+        # Test with 5 extra bp
+        config_file, _, _ = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', self.temp_dir, r1_trim_bp_right_of_barcode=5
+        )
+
+        with open(config_file) as f:
+            reader = csv.reader(f, delimiter='\t')
+            rows = list(reader)
+
+        self.assertEqual(rows[1][4], '1:5')  # left column: "1:5" means trim barcode + 5bp
+
+    def test_multi_pool_filtering(self):
+        """Test that function correctly filters to only the specified pool."""
+        import pandas as pd
+        import csv
+
+        # DataFrame with samples from two different pools
+        df = pd.DataFrame({
+            'barcode_3': ['AAAAAAAA', 'CCCCCCCC', 'GGGGGGGG'],
+            'run': ['S1.lL1', 'S2.lL1', 'S3.lL1'],
+            'muxed_run': ['Pool1', 'Pool2', 'Pool1']  # Mixed pools
+        }, index=['S1', 'S2', 'S3'])
+
+        # Generate for Pool1 only
+        config_file, keep_file, sample_ids = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', self.temp_dir
+        )
+
+        # Should only have S1 and S3 (Pool1 samples)
+        self.assertEqual(sample_ids, ['S1.lL1', 'S3.lL1'])
+
+        with open(config_file) as f:
+            reader = csv.reader(f, delimiter='\t')
+            rows = list(reader)
+
+        # Header + 2 sample rows (S1 and S3)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[1][0], 'AAAAAAAA')  # S1 barcode
+        self.assertEqual(rows[2][0], 'GGGGGGGG')  # S3 barcode
+
+        # S2 (Pool2) should NOT be present
+        barcodes_in_config = [row[0] for row in rows[1:]]
+        self.assertNotIn('CCCCCCCC', barcodes_in_config)
+
+    def test_empty_pool_raises_error(self):
+        """Test that requesting a non-existent pool raises ValueError."""
+        import pandas as pd
+
+        df = pd.DataFrame({
+            'barcode_3': ['AAAAAAAA'],
+            'run': ['Sample1.lLib1'],
+            'muxed_run': ['Pool1']
+        }, index=['Sample1'])
+
+        # Try to generate for Pool2 (which doesn't exist)
+        with self.assertRaises(ValueError) as context:
+            illumina.generate_splitcode_config_and_keep_files(
+                df, 'Pool2', self.temp_dir
+            )
+
+        self.assertIn('No samples found', str(context.exception))
+        self.assertIn('Pool2', str(context.exception))
+
+    def test_config_keep_id_matching(self):
+        """
+        Test the critical requirement: config file "id" must match keep file column 1.
+
+        This is the most common source of splitcode errors.
+        """
+        import pandas as pd
+        import csv
+
+        df = pd.DataFrame({
+            'barcode_3': ['AAAAAAAA', 'TTTTTTTT'],
+            'run': ['MySample.lMyLib.FC.1', 'Other.lLib2.FC.1'],
+            'muxed_run': ['Pool1', 'Pool1']
+        }, index=['MySample', 'Other'])
+
+        config_file, keep_file, _ = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', self.temp_dir
+        )
+
+        # Read both files
+        with open(config_file) as f:
+            config_rows = list(csv.reader(f, delimiter='\t'))
+
+        with open(keep_file) as f:
+            keep_rows = list(csv.reader(f, delimiter='\t'))
+
+        # Extract IDs from config file (column 1, skip header)
+        config_ids = [row[1] for row in config_rows[1:]]
+
+        # Extract IDs from keep file (column 0, no header)
+        keep_ids = [row[0] for row in keep_rows]
+
+        # They MUST match exactly
+        self.assertEqual(config_ids, keep_ids)
+        self.assertEqual(config_ids, ['MySample.lMyLib.FC.1_R1', 'Other.lLib2.FC.1_R1'])
+
+    def test_output_prefix_path_construction(self):
+        """Test that keep file constructs correct output paths."""
+        import pandas as pd
+        import csv
+
+        df = pd.DataFrame({
+            'barcode_3': ['AAAAAAAA'],
+            'run': ['Sample1.lLib1.FLOWCELL.1'],
+            'muxed_run': ['Pool1']
+        }, index=['Sample1'])
+
+        output_dir = "/custom/output/path"
+        _, keep_file, _ = illumina.generate_splitcode_config_and_keep_files(
+            df, 'Pool1', output_dir
+        )
+
+        with open(keep_file) as f:
+            keep_rows = list(csv.reader(f, delimiter='\t'))
+
+        # Output prefix should be: {output_dir}/{sample_library_id}
+        expected_prefix = f"{output_dir}/Sample1.lLib1.FLOWCELL.1"
+        self.assertEqual(keep_rows[0][1], expected_prefix)
+
+        # Note: splitcode will append _R1.fastq and _R2.fastq to this prefix
+
+    def test_complex_realistic_scenario(self):
+        """
+        Test a realistic scenario with multiple samples, realistic IDs, and mixed parameters.
+        """
+        import pandas as pd
+        import csv
+
+        # Realistic sample sheet data
+        df = pd.DataFrame({
+            'barcode_3': ['AAAAAAAA', 'CCCCCCCC', 'GGGGGGGG', 'TTTTTTTT'],
+            'run': [
+                'Sample1.lPool_1.HHJYWDRX5.6',
+                'Sample2.lPool_1.HHJYWDRX5.6',
+                'Sample3.lPool_2.HHJYWDRX5.6',
+                'Sample4.lPool_2.HHJYWDRX5.6'
+            ],
+            'muxed_run': [
+                'ATCGATCG-GCTAGCTA.lPool_1.HHJYWDRX5.6',
+                'ATCGATCG-GCTAGCTA.lPool_1.HHJYWDRX5.6',
+                'TTTTAAAA-CCCCGGGG.lPool_2.HHJYWDRX5.6',
+                'TTTTAAAA-CCCCGGGG.lPool_2.HHJYWDRX5.6'
+            ]
+        }, index=['Sample1', 'Sample2', 'Sample3', 'Sample4'])
+
+        # Generate for Pool_1 only
+        pool_id = 'ATCGATCG-GCTAGCTA.lPool_1.HHJYWDRX5.6'
+        config_file, keep_file, sample_ids = illumina.generate_splitcode_config_and_keep_files(
+            df, pool_id, '/output', max_hamming_dist=1, r1_trim_bp_right_of_barcode=3
+        )
+
+        # Should have Sample1 and Sample2
+        self.assertEqual(len(sample_ids), 2)
+        self.assertIn('Sample1.lPool_1.HHJYWDRX5.6', sample_ids)
+        self.assertIn('Sample2.lPool_1.HHJYWDRX5.6', sample_ids)
+
+        # Verify config file
+        with open(config_file) as f:
+            config_rows = list(csv.reader(f, delimiter='\t'))
+
+        # Header + 2 samples
+        self.assertEqual(len(config_rows), 3)
+
+        # Verify first sample
+        self.assertEqual(config_rows[1][0], 'AAAAAAAA')
+        self.assertEqual(config_rows[1][1], 'Sample1.lPool_1.HHJYWDRX5.6_R1')
+        self.assertEqual(config_rows[1][2], '0:0:8')
+        self.assertEqual(config_rows[1][3], '1')
+        self.assertEqual(config_rows[1][4], '1:3')  # Trim barcode + 3bp
+
+        # Verify keep file
+        with open(keep_file) as f:
+            keep_rows = list(csv.reader(f, delimiter='\t'))
+
+        self.assertEqual(len(keep_rows), 2)
+        self.assertEqual(keep_rows[0][0], 'Sample1.lPool_1.HHJYWDRX5.6_R1')
+        self.assertEqual(keep_rows[0][1], '/output/Sample1.lPool_1.HHJYWDRX5.6')
