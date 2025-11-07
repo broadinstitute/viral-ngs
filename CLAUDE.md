@@ -42,10 +42,10 @@ Development workflow:
 
 ```bash
 # Run all unit tests in parallel
-pytest -rsxX -n auto test/unit
-
-# Run with full coverage (as done in CI)
-pytest -rsxX --durations=25 --fixture-durations=10 --junit-xml=pytest.xml --cov-config=.coveragerc --cov-report xml:coverage.xml --cov broad_utils --cov illumina --cov read_utils --cov reports --cov tools --cov util --cov file_utils -n auto test/unit
+docker run --rm \
+  -v $(pwd):/opt/viral-ngs/source \
+  quay.io/broadinstitute/viral-core:$(git branch --show-current) \
+  pytest -rsxX -n auto /opt/viral-ngs/source/test/unit
 ```
 
 **Important test notes:**
