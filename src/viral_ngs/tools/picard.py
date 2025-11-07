@@ -219,17 +219,99 @@ class FastqToSamTool(PicardTools):
     subtoolName = 'FastqToSam'
     jvmMemDefault = '4g'
 
+    @staticmethod
+    def isFastqEmpty(fastq_file):
+        """
+        Check if a FASTQ file is semantically empty (contains no reads).
+
+        A FASTQ file is considered empty if:
+        - The file does not exist
+        - The file is zero bytes
+        - The file is small (< 1024 bytes) and contains only whitespace
+
+        For performance, files >= 1024 bytes are assumed to be non-empty without
+        reading their contents.
+
+        Args:
+            fastq_file (str): Path to FASTQ file
+
+        Returns:
+            bool: True if file is empty, False if it contains data
+        """
+        if not fastq_file or not os.path.exists(fastq_file):
+            return True
+
+        # Large files are assumed to be non-empty (avoid reading huge files)
+        if os.path.getsize(fastq_file) > 1024:
+            return False
+
+        # Small files: check if they contain only whitespace
+        with open(fastq_file, 'r') as f:
+            return len(f.read().strip()) == 0
+
     def execute(
-        self, 
-        inFastq1, 
-        inFastq2, 
+        self,
+        inFastq1,
+        inFastq2,
         sampleName,
-        outBam, 
-        picardOptions=None, 
+        outBam,
+        picardOptions=None,
         JVMmemory=None
     ):    # pylint: disable=W0221
         picardOptions = picardOptions or []
 
+        # Check if FASTQ inputs are empty (defensive code to handle edge cases)
+        # Picard's FastqToSam crashes on empty FASTQs because it cannot determine quality encoding
+        fastq1_empty = self.isFastqEmpty(inFastq1)
+        fastq2_empty = self.isFastqEmpty(inFastq2) if inFastq2 else True
+
+        # If inFastq2 is specified but empty, treat as single-read input
+        if inFastq2 and fastq2_empty and not fastq1_empty:
+            _log.warning("FASTQ2 file is empty; treating as single-read input: %s", inFastq1)
+            inFastq2 = None
+            fastq2_empty = True
+
+        # If inFastq1 is empty, create an empty BAM file manually
+        if fastq1_empty:
+            _log.warning("FASTQ1 file is empty; creating empty BAM file: %s", outBam)
+            # Parse picardOptions to extract header information
+            picard_opts_dict = {}
+            for opt in picardOptions:
+                if '=' in opt:
+                    key, value = opt.split('=', 1)
+                    picard_opts_dict[key] = value
+
+            # Create a minimal BAM header
+            header = {
+                'HD': {'VN': '1.6', 'SO': 'queryname'},
+                'RG': [{
+                    'ID': picard_opts_dict.get('READ_GROUP_NAME', 'A'),
+                    'SM': sampleName,
+                    'LB': picard_opts_dict.get('LIBRARY_NAME', sampleName),
+                    'PL': picard_opts_dict.get('PLATFORM', 'ILLUMINA'),
+                }]
+            }
+
+            # Add optional header fields if present
+            if 'PLATFORM_UNIT' in picard_opts_dict:
+                header['RG'][0]['PU'] = picard_opts_dict['PLATFORM_UNIT']
+            if 'PLATFORM_MODEL' in picard_opts_dict:
+                header['RG'][0]['PM'] = picard_opts_dict['PLATFORM_MODEL']
+            if 'SEQUENCING_CENTER' in picard_opts_dict:
+                header['RG'][0]['CN'] = picard_opts_dict['SEQUENCING_CENTER']
+            if 'RUN_DATE' in picard_opts_dict:
+                header['RG'][0]['DT'] = picard_opts_dict['RUN_DATE']
+            if 'DESCRIPTION' in picard_opts_dict:
+                header['RG'][0]['DS'] = picard_opts_dict['DESCRIPTION']
+
+            # Write empty BAM file with pysam
+            with pysam.AlignmentFile(outBam, 'wb', header=header) as outf:
+                pass  # No reads to write
+
+            _log.info("Created empty BAM file with header: %s", outBam)
+            return
+
+        # Normal case: non-empty FASTQs, call Picard
         if inFastq2:
             opts = ['FASTQ=' + inFastq1, 'FASTQ2=' + inFastq2, 'OUTPUT=' + outBam, 'SAMPLE_NAME=' + sampleName]
         else:
