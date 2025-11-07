@@ -83,19 +83,22 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
 
         # Create splitcode config file
         # Format: tag, id, locations, distance, left, right
+        # The "id" column must match what's in the keep file
         splitcode_config = os.path.join(self.temp_dir, 'config.txt')
+        sample_id = "Sample1_R1"  # This matches illumina.py convention: f"{sample_library_id}_R1"
         with open(splitcode_config, 'w') as f:
             f.write("tag\tid\tlocations\tdistance\tleft\tright\n")
-            # AAAAAAAA at positions 0-7 in R1, distance=1, trim from left
-            f.write("AAAAAAAA\tBC1\t0:7\t1\t1\t0\n")
+            # AAAAAAAA barcode, ID=Sample1_R1, in file 0 (R1) from position 0 to 8, distance=0 (exact match), trim from left
+            # locations format: FILE_NUMBER:START_BP:END_BP (0:0:8 means R1, positions 0-8)
+            f.write(f"AAAAAAAA\t{sample_id}\t0:0:8\t0\t1\t0\n")
 
-        # Create MINIMAL keep file - just use the barcode ID without suffix
-        # This is the simplest format that works
+        # Create keep file matching the config file ID
+        # Format: barcode_id (from config) <tab> output_prefix
         splitcode_keepfile = os.path.join(self.temp_dir, 'keep.txt')
         output_prefix = os.path.join(self.temp_dir, 'Sample1')
         with open(splitcode_keepfile, 'w') as f:
-            # Just the barcode ID from config (without _R1 suffix)
-            f.write(f"BC1\t{output_prefix}\n")
+            # Column 1 must match the "id" from config file
+            f.write(f"{sample_id}\t{output_prefix}\n")
 
         pool_id = "TestPool"
         out_demux_dir = self.temp_dir
@@ -130,13 +133,15 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
         self.assertIn('tag_qc', summary, "JSON should have 'tag_qc' field")
         self.assertIsInstance(summary['tag_qc'], list, "'tag_qc' should be a list")
 
-        # Find BC1 in tag_qc
-        tag_qc_dict = {item['tag']: item for item in summary['tag_qc']}
-        self.assertIn('BC1', tag_qc_dict, "BC1 should be in tag_qc")
+        # Find Sample1_R1 in tag_qc (splitcode uses the ID as the tag name in output)
+        # Note: tag_qc has multiple entries per tag (one for each distance level)
+        # We want to check that at least one distance level has count > 0
+        matching_entries = [item for item in summary['tag_qc'] if item['tag'] == sample_id]
+        self.assertGreater(len(matching_entries), 0, f"{sample_id} should appear in tag_qc")
 
-        bc1_entry = tag_qc_dict['BC1']
-        self.assertIn('count', bc1_entry, "BC1 entry should have 'count' field")
-        self.assertGreater(bc1_entry['count'], 0, "BC1 should have matched some reads")
+        # Check that we have at least one entry with count > 0
+        total_count = sum(item['count'] for item in matching_entries)
+        self.assertGreater(total_count, 0, f"{sample_id} should have matched some reads across all distance levels")
 
     def test_run_splitcode_on_pool_empty_output(self):
         """
@@ -152,19 +157,23 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
         self.create_test_bam_with_inline_barcodes(pool_bam, num_reads=3, barcode="AAAAAAAA")
 
         # Config with BC1 (present) and BC2 (absent)
+        # IDs must match illumina.py convention: f"{sample_library_id}_R1"
         splitcode_config = os.path.join(self.temp_dir, 'config.txt')
+        sample_id_1 = "Sample1_R1"
+        sample_id_2 = "Sample2_R1"
         with open(splitcode_config, 'w') as f:
             f.write("tag\tid\tlocations\tdistance\tleft\tright\n")
-            f.write("AAAAAAAA\tBC1\t0:7\t0\t1\t0\n")
-            f.write("CCCCCCCC\tBC2\t0:7\t0\t1\t0\n")  # Won't match any reads
+            # locations format: FILE_NUMBER:START_BP:END_BP
+            f.write(f"AAAAAAAA\t{sample_id_1}\t0:0:8\t0\t1\t0\n")
+            f.write(f"CCCCCCCC\t{sample_id_2}\t0:0:8\t0\t1\t0\n")  # Won't match any reads
 
         # Keep file for both barcodes
         splitcode_keepfile = os.path.join(self.temp_dir, 'keep.txt')
         output_prefix1 = os.path.join(self.temp_dir, 'Sample1')
         output_prefix2 = os.path.join(self.temp_dir, 'Sample2')
         with open(splitcode_keepfile, 'w') as f:
-            f.write(f"BC1_R1\t{output_prefix1}\n")
-            f.write(f"BC2_R1\t{output_prefix2}\n")
+            f.write(f"{sample_id_1}\t{output_prefix1}\n")
+            f.write(f"{sample_id_2}\t{output_prefix2}\n")
 
         pool_id = "TestPool"
         out_demux_dir = self.temp_dir
@@ -189,16 +198,18 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
         with open(expected_summary) as f:
             summary = json.load(f)
 
-        tag_qc_dict = {item['tag']: item for item in summary['tag_qc']}
+        # Sample1_R1 should have reads (check total across all distance levels)
+        sample1_entries = [item for item in summary['tag_qc'] if item['tag'] == sample_id_1]
+        self.assertGreater(len(sample1_entries), 0, f"{sample_id_1} should appear in tag_qc")
+        sample1_total = sum(item['count'] for item in sample1_entries)
+        self.assertGreater(sample1_total, 0, f"{sample_id_1} should have matched some reads")
 
-        # BC1 should have reads
-        self.assertIn('BC1', tag_qc_dict)
-        self.assertGreater(tag_qc_dict['BC1']['count'], 0)
-
-        # BC2 might not appear in tag_qc, or it might appear with count=0
-        if 'BC2' in tag_qc_dict:
-            self.assertEqual(tag_qc_dict['BC2']['count'], 0,
-                           "BC2 should have 0 reads if it appears in tag_qc")
+        # Sample2_R1 might appear with count=0 (check total across all distance levels)
+        sample2_entries = [item for item in summary['tag_qc'] if item['tag'] == sample_id_2]
+        if len(sample2_entries) > 0:
+            sample2_total = sum(item['count'] for item in sample2_entries)
+            self.assertEqual(sample2_total, 0,
+                           f"{sample_id_2} should have 0 reads total if it appears in tag_qc")
 
         # Sample1 files should exist and be non-empty
         self.assertTrue(os.path.exists(f"{output_prefix1}_R1.fastq"))
@@ -227,14 +238,16 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
         self.create_test_bam_with_inline_barcodes(pool_bam, num_reads=10, barcode="GGGGGGGG")
 
         splitcode_config = os.path.join(self.temp_dir, 'config.txt')
+        sample_id = "Sample3_R1"
         with open(splitcode_config, 'w') as f:
             f.write("tag\tid\tlocations\tdistance\tleft\tright\n")
-            f.write("GGGGGGGG\tBC3\t0:7\t1\t1\t0\n")
+            # locations format: FILE_NUMBER:START_BP:END_BP
+            f.write(f"GGGGGGGG\t{sample_id}\t0:0:8\t1\t1\t0\n")
 
         splitcode_keepfile = os.path.join(self.temp_dir, 'keep.txt')
         output_prefix = os.path.join(self.temp_dir, 'Sample3')
         with open(splitcode_keepfile, 'w') as f:
-            f.write(f"BC3_R1\t{output_prefix}\n")
+            f.write(f"{sample_id}\t{output_prefix}\n")
 
         pool_id = "TestPool"
 
@@ -292,14 +305,16 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
         self.create_test_bam_with_inline_barcodes(pool_bam, num_reads=8, barcode="TTTTTTTT")
 
         splitcode_config = os.path.join(self.temp_dir, 'config.txt')
+        sample_id = "MySample_R1"
         with open(splitcode_config, 'w') as f:
             f.write("tag\tid\tlocations\tdistance\tleft\tright\n")
-            f.write("TTTTTTTT\tBC4\t0:7\t0\t1\t0\n")
+            # locations format: FILE_NUMBER:START_BP:END_BP
+            f.write(f"TTTTTTTT\t{sample_id}\t0:0:8\t0\t1\t0\n")
 
         splitcode_keepfile = os.path.join(self.temp_dir, 'keep.txt')
         sample_output_prefix = os.path.join(self.temp_dir, 'MySample')
         with open(splitcode_keepfile, 'w') as f:
-            f.write(f"BC4_R1\t{sample_output_prefix}\n")
+            f.write(f"{sample_id}\t{sample_output_prefix}\n")
 
         pool_id = "MyPool"
         unmatched_name = "unassigned"
@@ -354,15 +369,17 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
         self.create_test_bam_with_inline_barcodes(pool_bam, num_reads=5, barcode="AAAAAAAA")
 
         splitcode_config = os.path.join(self.temp_dir, 'config.txt')
+        sample_id = "Sample1_R1"
         with open(splitcode_config, 'w') as f:
             f.write("tag\tid\tlocations\tdistance\tleft\tright\n")
             # left=1 means trim the barcode from the left side
-            f.write("AAAAAAAA\tBC1\t0:7\t0\t1\t0\n")
+            # locations format: FILE_NUMBER:START_BP:END_BP
+            f.write(f"AAAAAAAA\t{sample_id}\t0:0:8\t0\t1\t0\n")
 
         splitcode_keepfile = os.path.join(self.temp_dir, 'keep.txt')
         output_prefix = os.path.join(self.temp_dir, 'Sample1')
         with open(splitcode_keepfile, 'w') as f:
-            f.write(f"BC1_R1\t{output_prefix}\n")
+            f.write(f"{sample_id}\t{output_prefix}\n")
 
         illumina.run_splitcode_on_pool(
             pool_id="TestPool",
@@ -413,14 +430,16 @@ class TestSplitkodeIntegration(TestCaseWithTmp):
         self.create_test_bam_with_inline_barcodes(pool_bam, num_reads=3, barcode="GGGGGGGG")
 
         splitcode_config = os.path.join(self.temp_dir, 'config.txt')
+        sample_id = "Sample1_R1"
         with open(splitcode_config, 'w') as f:
             f.write("tag\tid\tlocations\tdistance\tleft\tright\n")
-            f.write("GGGGGGGG\tBC1\t0:7\t0\t1\t0\n")
+            # locations format: FILE_NUMBER:START_BP:END_BP
+            f.write(f"GGGGGGGG\t{sample_id}\t0:0:8\t0\t1\t0\n")
 
         splitcode_keepfile = os.path.join(self.temp_dir, 'keep.txt')
         output_prefix = os.path.join(self.temp_dir, 'Sample1')
         with open(splitcode_keepfile, 'w') as f:
-            f.write(f"BC1_R1\t{output_prefix}\n")
+            f.write(f"{sample_id}\t{output_prefix}\n")
 
         base_pool_id = "Pool1"
         out_demux_dir = self.temp_dir
