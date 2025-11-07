@@ -2030,6 +2030,7 @@ class SampleSheet(object):
               - barcode_2 (only if present)
               - barcode_3
               - sample             (becomes the index)
+              - library_id_per_sample
               - Inline_Index_ID
               - run
               - muxed_run
@@ -2100,7 +2101,7 @@ class SampleSheet(object):
         out_cols = ["barcode_1"]
         if has_barcode2:
             out_cols.append("barcode_2")
-        out_cols.extend(["barcode_3", "sample", "Inline_Index_ID", "run", "muxed_run"])
+        out_cols.extend(["barcode_3", "sample", "library_id_per_sample", "Inline_Index_ID", "run", "muxed_run"])
 
         # Keep only columns that exist in df
         existing_cols = [c for c in out_cols if c in df.columns]
@@ -2425,7 +2426,7 @@ __commands__.append(("extract_fc_metadata", parser_extract_fc_metadata))
 # ==================
 
 
-def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
+def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
     """
     Create a lookup table (LUT) consolidating splitcode demux results with sample metadata.
 
@@ -2445,9 +2446,18 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
 
     Parameters
     ----------
-    sample_sheet : str
-        Path to TSV file with barcode mappings. Must contain columns:
-        barcode_1, barcode_2, barcode_3, sample, library_id_per_sample
+    sample_sheet_or_dataframe : str or pd.DataFrame
+        Either:
+        - Path to TSV file with barcode mappings (str), OR
+        - DataFrame from SampleSheet.inner_demux_mapper() (pd.DataFrame)
+
+        If DataFrame, must already contain columns:
+        - barcode_1, barcode_2, barcode_3, sample, library_id_per_sample
+        - run: Sample run identifier (sample.lLibrary[.FlowcellID])
+        - muxed_run: Pool identifier (barcode_1-barcode_2.lLibrary[.FlowcellID])
+
+        If str (file path), must be TSV with columns:
+        - barcode_1, barcode_2, barcode_3, sample, library_id_per_sample
     csv_out : str
         Output path for the lookup table CSV file
     unmatched_name : str
@@ -2455,7 +2465,9 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
     pool_ids : list, optional
         List of pool IDs to process. If None/empty, processes all pools found.
     append_run_id : str, optional
-        Suffix to append to run identifiers (typically flowcell ID)
+        Suffix to append to run identifiers (typically flowcell ID).
+        Only used when sample_sheet_or_dataframe is a file path (str).
+        Ignored when a DataFrame is provided (which already has run/muxed_run).
     check_sample_sheet_consistency : bool, optional
         If True, validates sample sheet for duplicate barcode combinations
 
@@ -2489,38 +2501,53 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
 
     outDir=os.path.dirname(csv_out)
 
-    # Load sample_sheet
-    barcodes_df = pd.read_csv(sample_sheet, sep="\t", dtype=str)
-    
+    # Load or reuse barcode data
+    # If we receive a DataFrame (from SampleSheet.inner_demux_mapper()), use it directly
+    # This ensures pool IDs match exactly what was used to create summary JSON files
+    if isinstance(sample_sheet_or_dataframe, pd.DataFrame):
+        log.debug("Using provided DataFrame for barcode lookup table")
+        barcodes_df = sample_sheet_or_dataframe.copy()
+        # Reset index to make 'sample' a regular column (inner_demux_mapper sets it as index)
+        barcodes_df.reset_index(inplace=True)
+
+        # Rename 'muxed_run' to 'muxed_pool' for consistency with legacy code
+        # The inner_demux_mapper() creates 'muxed_run' column, but this function expects 'muxed_pool'
+        if 'muxed_run' in barcodes_df.columns and 'muxed_pool' not in barcodes_df.columns:
+            barcodes_df['muxed_pool'] = barcodes_df['muxed_run']
+    else:
+        # Legacy path: read from file and build columns
+        log.debug("Reading sample sheet from file: %s", sample_sheet_or_dataframe)
+        barcodes_df = pd.read_csv(sample_sheet_or_dataframe, sep="\t", dtype=str)
+
+        # Build "run" column = "<sample>.l<library_id_per_sample>[.<append_run_id>]"
+        def build_sample_library_id_string(row):
+            sample_val = row.get("sample", "")
+            lib_val    = row.get("library_id_per_sample", "")
+            run_str = f"{sample_val}.l{lib_val}"
+            if append_run_id:
+                run_str += f".{append_run_id}"
+            return run_str
+        barcodes_df["run"] = barcodes_df.apply(build_sample_library_id_string, axis=1)
+
+        def build_muxed_run_string(row):
+            b1 = row.get("barcode_1", "")
+            b2 = row.get("barcode_2", None)
+            if b2 and b2.strip():
+                muxed_sample = f"{b1}-{b2}"
+            else:
+                muxed_sample = b1
+
+            lib_val = row.get("library_id_per_sample", "")
+            muxed_run_str = f"{muxed_sample}.l{lib_val}"
+            if append_run_id:
+                muxed_run_str += f".{append_run_id}"
+            return muxed_run_str
+        barcodes_df["muxed_pool"] = barcodes_df.apply(build_muxed_run_string, axis=1)
+
     df_csv_out = f"{csv_out}"
 
     i7_barcodes = list(set(barcodes_df["barcode_1"].values))
     barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
-
-    # Build "run" column = "<sample>.l<library_id_per_sample>[.<append_run_id>]"
-    def build_sample_library_id_string(row):
-        sample_val = row.get("sample", "")
-        lib_val    = row.get("library_id_per_sample", "")
-        run_str = f"{sample_val}.l{lib_val}"
-        if append_run_id:
-            run_str += f".{append_run_id}"
-        return run_str
-    barcodes_df["run"] = barcodes_df.apply(build_sample_library_id_string, axis=1)
-    
-    def build_muxed_run_string(row):
-        b1 = row.get("barcode_1", "")
-        b2 = row.get("barcode_2", None)
-        if b2 and b2.strip():
-            muxed_sample = f"{b1}-{b2}"
-        else:
-            muxed_sample = b1
-
-        lib_val = row.get("library_id_per_sample", "")
-        muxed_run_str = f"{muxed_sample}.l{lib_val}"
-        if append_run_id:
-            muxed_run_str += f".{append_run_id}"
-        return muxed_run_str
-    barcodes_df["muxed_pool"] = barcodes_df.apply(build_muxed_run_string, axis=1)
 
     def duplication_check(df, primary_cols, secondary_col, error_message_header=None, error_message=None):
         default_error_message_header = "Error: More than one '{column_to_check_for_duplicates}' value present for distinct combinations of the columns {affected_column_names}:"
@@ -3713,7 +3740,16 @@ def splitcode_demux(
     log.info("gathering splitcode demux metrics...")
     # Create look-up table that shows number of reads for each sample and maps i7/i5/inline barcodes
     splitcode_csv_metrics_out = f"{outDir}/bc2sample_lut.csv"
-    df_csv_out_path = create_splitcode_lookup_table(sampleSheet, splitcode_csv_metrics_out, unmatched_name, pool_ids_successfully_demuxed_via_splitcode, append_run_id=run_id)
+    # Pass the inner_demux_barcode_map_df directly instead of re-reading the sample sheet
+    # This ensures pool IDs match exactly what was used to create summary JSON files
+    # (avoiding mismatch between SampleSheet.inner_demux_mapper() and create_splitcode_lookup_table())
+    df_csv_out_path = create_splitcode_lookup_table(
+        inner_demux_barcode_map_df,  # Pass DataFrame directly (not file path)
+        splitcode_csv_metrics_out,
+        unmatched_name,
+        pool_ids_successfully_demuxed_via_splitcode
+        # Note: append_run_id not needed when passing DataFrame (it's already in the DataFrame)
+    )
     log.info("splitcode demux metrics written to %s", splitcode_csv_metrics_out)
 
     picard_style_splitcode_metrics_path = os.path.splitext(df_csv_out_path)[0] + "_picard-style.txt"
