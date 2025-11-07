@@ -2619,9 +2619,84 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
         if append_run_id and pool.endswith(f".{append_run_id}"):
             pool_for_file_lookup = pool[:-len(f".{append_run_id}")]
 
-        splitcode_summary_file = glob.glob(f"{outDir}/{pool_for_file_lookup}_summary.json")[0]
-        with open(splitcode_summary_file, "r") as f:
-            splitcode_summary = json.load(f)
+        # Try to find and load the splitcode summary JSON file
+        # Add robust error handling since missing/misplaced JSON files are a common issue
+        try:
+            summary_pattern = f"{outDir}/{pool_for_file_lookup}_summary.json"
+            matching_files = glob.glob(summary_pattern)
+
+            if not matching_files:
+                # JSON file not found - list directory contents for debugging
+                log.error(f"Splitcode summary JSON not found for pool '{pool_for_file_lookup}'")
+                log.error(f"  Expected pattern: {summary_pattern}")
+                log.error(f"  Searching in directory: {outDir}")
+
+                # List all files in the output directory to help debug
+                try:
+                    dir_contents = os.listdir(outDir)
+                    log.error(f"  Directory contents ({len(dir_contents)} files):")
+                    # List JSON files first (most relevant)
+                    json_files = [f for f in dir_contents if f.endswith('.json')]
+                    if json_files:
+                        log.error(f"    JSON files found ({len(json_files)}):")
+                        for f in sorted(json_files):
+                            log.error(f"      - {f}")
+                    else:
+                        log.error(f"    No JSON files found in directory")
+
+                    # List first 20 other files for context
+                    other_files = [f for f in dir_contents if not f.endswith('.json')]
+                    if other_files:
+                        log.error(f"    Other files (showing first 20 of {len(other_files)}):")
+                        for f in sorted(other_files)[:20]:
+                            log.error(f"      - {f}")
+                except OSError as list_err:
+                    log.error(f"  Could not list directory contents: {list_err}")
+
+                raise FileNotFoundError(
+                    f"Splitcode summary JSON not found for pool '{pool_for_file_lookup}'. "
+                    f"Expected file: {summary_pattern}. "
+                    f"Check logs above for directory contents."
+                )
+
+            splitcode_summary_file = matching_files[0]
+
+            # Warn if multiple matches found (shouldn't happen but good to catch)
+            if len(matching_files) > 1:
+                log.warning(f"Multiple summary JSON files match pattern '{summary_pattern}':")
+                for f in matching_files:
+                    log.warning(f"  - {f}")
+                log.warning(f"Using first match: {splitcode_summary_file}")
+
+            log.debug(f"Loading splitcode summary from: {splitcode_summary_file}")
+
+            with open(splitcode_summary_file, "r") as f:
+                splitcode_summary = json.load(f)
+
+        except (FileNotFoundError, IndexError) as e:
+            # Re-raise with more context (directory listing already logged above)
+            raise
+        except json.JSONDecodeError as e:
+            log.error(f"Failed to parse JSON from {splitcode_summary_file}")
+            log.error(f"  JSON decode error: {e}")
+            # Try to show first few lines of the file for debugging
+            try:
+                with open(splitcode_summary_file, "r") as f:
+                    lines = f.readlines()
+                    log.error(f"  File contents (first 10 lines):")
+                    for i, line in enumerate(lines[:10], 1):
+                        log.error(f"    {i}: {line.rstrip()}")
+                    if len(lines) > 10:
+                        log.error(f"    ... ({len(lines) - 10} more lines)")
+            except Exception as read_err:
+                log.error(f"  Could not read file for debugging: {read_err}")
+            raise
+        except Exception as e:
+            log.error(f"Unexpected error loading splitcode summary for pool '{pool_for_file_lookup}'")
+            log.error(f"  File: {splitcode_summary_file if 'splitcode_summary_file' in locals() else 'not determined'}")
+            log.error(f"  Error type: {type(e).__name__}")
+            log.error(f"  Error message: {e}")
+            raise
 
         samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["muxed_pool"] == pool]
 

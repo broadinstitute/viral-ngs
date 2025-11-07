@@ -866,3 +866,86 @@ class TestGenerateSplitkodeConfigAndKeepFiles(TestCaseWithTmp):
         self.assertEqual(len(keep_rows), 2)
         self.assertEqual(keep_rows[0][0], 'Sample1.lPool_1.HHJYWDRX5.6_R1')
         self.assertEqual(keep_rows[0][1], '/output/Sample1.lPool_1.HHJYWDRX5.6')
+
+
+class TestSplitcodeSummaryJSONErrorHandling(TestCaseWithTmp):
+    """
+    Test error handling when loading splitcode summary JSON files.
+
+    These tests validate that we provide helpful debugging information
+    when JSON files are missing or malformed.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        super().tearDown()
+
+    def test_missing_json_file_provides_debugging_info(self):
+        """Test that missing JSON file error includes directory listing."""
+        import pandas as pd
+
+        # Create a sample sheet pointing to a pool
+        sample_sheet = os.path.join(self.temp_dir, 'samples.tsv')
+        with open(sample_sheet, 'w') as f:
+            f.write("sample\tlibrary_id_per_sample\tbarcode_1\tbarcode_2\tbarcode_3\n")
+            f.write("Sample1\tLib1\tATCGATCG\tGCTAGCTA\tAAAAAAAA\n")
+
+        # Create the output directory with some files but NOT the expected JSON
+        out_dir = os.path.join(self.temp_dir, 'output')
+        os.makedirs(out_dir, exist_ok=True)
+
+        # Create some dummy files to appear in the directory listing
+        with open(os.path.join(out_dir, 'other_file.txt'), 'w') as f:
+            f.write("dummy")
+        with open(os.path.join(out_dir, 'wrong_pool_summary.json'), 'w') as f:
+            f.write('{"tag_qc": []}')
+
+        # csv_out determines outDir - put it in the output directory
+        csv_out = os.path.join(out_dir, 'lut.csv')
+
+        # Should raise FileNotFoundError with helpful message
+        with self.assertRaises(FileNotFoundError) as context:
+            illumina.create_splitcode_lookup_table(
+                sample_sheet,
+                csv_out,
+                unmatched_name="Unmatched"
+            )
+
+        # Check that error message mentions the pool
+        error_msg = str(context.exception)
+        self.assertIn('ATCGATCG-GCTAGCTA', error_msg)
+        self.assertIn('summary.json', error_msg)
+
+    def test_malformed_json_provides_file_preview(self):
+        """Test that malformed JSON error includes file content preview."""
+        import pandas as pd
+
+        # Create a sample sheet
+        sample_sheet = os.path.join(self.temp_dir, 'samples.tsv')
+        with open(sample_sheet, 'w') as f:
+            f.write("sample\tlibrary_id_per_sample\tbarcode_1\tbarcode_2\tbarcode_3\n")
+            f.write("Sample1\tLib1\tATCGATCG\tGCTAGCTA\tAAAAAAAA\n")
+
+        out_dir = os.path.join(self.temp_dir, 'output')
+        os.makedirs(out_dir, exist_ok=True)
+
+        # Create a malformed JSON file
+        pool_name = "ATCGATCG-GCTAGCTA.lLib1"
+        malformed_json = os.path.join(out_dir, f'{pool_name}_summary.json')
+        with open(malformed_json, 'w') as f:
+            f.write('{"tag_qc": [this is not valid json}')
+
+        # csv_out determines outDir - put it in the output directory
+        csv_out = os.path.join(out_dir, 'lut.csv')
+
+        # Should raise JSONDecodeError
+        with self.assertRaises(json.JSONDecodeError):
+            illumina.create_splitcode_lookup_table(
+                sample_sheet,
+                csv_out,
+                unmatched_name="Unmatched"
+            )
