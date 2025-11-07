@@ -3409,7 +3409,7 @@ def splitcode_demux(
                 pool_ids_successfully_demuxed_via_splitcode.append(pool_id)
             except subprocess.CalledProcessError as e:
                 log.error("Error running splitcode on pool; return code %s: %s", e.returncode, e.output)
-                #raise e
+                raise e
 
     splitcode_demux_failures = list(set(pool_id_to_sample_library_id_map.keys()) - set(pool_ids_successfully_demuxed_via_splitcode))
     if len(splitcode_demux_failures)>0:
@@ -3519,7 +3519,7 @@ def splitcode_demux(
                 bams_successfully_created_for_samples.append(sample_name)
             except subprocess.CalledProcessError as e:
                 log.error("Error running picard FastqToSamTool; return code %s: %s", e.returncode, e.output)
-                #raise e
+                raise e
     bam_conversion_failures = list(set(bam_conversion_attempted_for_samples) - set(bams_successfully_created_for_samples))
     if len(bam_conversion_failures)>0:
         log.warning("picard FastqToSamTool failed for: %s", bam_conversion_failures)
