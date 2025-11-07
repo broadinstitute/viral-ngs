@@ -2625,7 +2625,21 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
 
         samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["muxed_pool"] == pool]
 
-        # Handle case where splitcode processed 0 reads (tag_qc will be empty)
+        # Parse splitcode summary JSON
+        # IMPORTANT: The tag_qc array has MULTIPLE entries per barcode tag!
+        # Each barcode appears once for each hamming distance level (0, 1, 2, 3).
+        # Example tag_qc structure:
+        #   [
+        #     {"tag": "Sample1_R1", "distance": 0, "count": 5},   # Perfect matches
+        #     {"tag": "Sample1_R1", "distance": 1, "count": 2},   # 1 mismatch
+        #     {"tag": "Sample1_R1", "distance": 2, "count": 0},   # 2 mismatches
+        #     {"tag": "Sample1_R1", "distance": 3, "count": 0},   # 3 mismatches
+        #     {"tag": "Sample2_R1", "distance": 0, "count": 3},
+        #     ...
+        #   ]
+        #
+        # Here we filter to distance=0 (perfect matches) and distance=1 (1-mismatch) separately
+        # for downstream metrics and QC analysis.
         if len(splitcode_summary.get("tag_qc", [])) > 0:
             splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"])
             # Convert only the tag column to string, keep count/distance as numeric
@@ -2634,7 +2648,9 @@ def create_splitcode_lookup_table(sample_sheet, csv_out, unmatched_name, pool_id
             splitcode_summary_df['run'] = splitcode_summary_df['tag'].copy()
             splitcode_summary_df['run'] = splitcode_summary_df['run'].str.removesuffix('_R1')
 
+            # Extract perfect matches (hamming distance = 0)
             splitcode_summary_df_h0_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 0]
+            # Extract 1-mismatch reads (hamming distance = 1)
             splitcode_summary_df_h1_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 1].copy()
 
             splitcode_summary_df_h1_df  = splitcode_summary_df_h1_df.rename(columns={"count": "count_h1"})
@@ -2942,11 +2958,11 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
 # with concurrent.futures.ProcessPoolExecutor()
 # see: https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor
 #      https://stackoverflow.com/a/72776044
-def run_splitcode_on_pool(  pool_id, 
-                            pool_bam_file, 
-                            splitcode_config, 
-                            splitcode_keepfile, 
-                            out_demux_dir_path, 
+def run_splitcode_on_pool(  pool_id,
+                            pool_bam_file,
+                            splitcode_config,
+                            splitcode_keepfile,
+                            out_demux_dir_path,
                             unmatched_name         = "unmatched",
                             threads_per_worker     = None,
                             out_dir_path           = None,
@@ -2957,6 +2973,46 @@ def run_splitcode_on_pool(  pool_id,
                             predemux_r2_trim_5prime_num_bp=None,
                             predemux_r2_trim_3prime_num_bp=None
                             ):
+    """
+    Execute splitcode demultiplexing on a single BAM pool.
+
+    This function converts the input BAM to FASTQ, runs splitcode to demultiplex based on
+    inline barcodes, and generates a summary JSON with barcode matching statistics.
+
+    Args:
+        pool_id: Identifier for this pool (used in output filenames)
+        pool_bam_file: Path to input BAM file containing multiplexed reads
+        splitcode_config: Path to splitcode config file (TSV format with columns:
+                         tag, id, locations, distance, left, right)
+        splitcode_keepfile: Path to keep file (TSV: barcode_id<tab>output_prefix)
+        out_demux_dir_path: Directory for demultiplexed output FASTQs
+        unmatched_name: Prefix for unmatched/unassigned reads output
+        out_dir_path: Directory for summary JSON (defaults to out_demux_dir_path)
+        out_demux_dir_path_tmp: Temporary directory for intermediate files
+
+    Returns:
+        tuple: (return_code, pool_id) where return_code is 0 on success
+
+    Output files:
+        - Summary JSON: {out_dir_path}/{pool_id}_summary.json
+          Contains 'tag_qc' array with barcode matching statistics. Each barcode has
+          multiple entries (one per hamming distance level 0-3) with 'tag', 'distance',
+          and 'count' fields.
+        - Demuxed FASTQs: {output_prefix}_R1.fastq, {output_prefix}_R2.fastq
+          (output_prefix comes from keepfile, one pair per barcode)
+        - Unmatched FASTQs: {unmatched_name}.{pool_id}_R1.fastq, {unmatched_name}.{pool_id}_R2.fastq
+
+    Notes:
+        - Splitcode config locations format: FILE_NUMBER:START_BP:END_BP
+          Example: "0:0:8" means file 0 (R1), positions 0-8 (8bp barcode)
+        - The 'id' column in config file must match the first column in keepfile
+        - By convention, we use f"{sample_library_id}_R1" as the ID
+        - tag_qc in summary JSON has multiple entries per tag (one for each distance level),
+          so downstream code must sum counts across all distance levels if needed
+
+    See test/unit/test_illumina_splitcode.py for detailed examples and validation of
+    splitcode behavior assumptions.
+    """
     with tools.samtools.SamtoolsTool().bam2fq_tmp(pool_bam_file) as (fqin1, fqin2):
         n_fastqs = 2
         splitcode_tool = tools.splitcode.SplitCodeTool()
@@ -3312,6 +3368,17 @@ def splitcode_demux(
         #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#locations
         #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#left-and-right-trimming
         #   https://github.com/pachterlab/splitcode/blob/d309cfcbb2fb586816241d2444577847ff9108c8/src/SplitCode.h#L1681
+        #
+        # Config file format (TSV with header):
+        #   tag        - The barcode sequence to search for (e.g., "AAAAAAAA")
+        #   id         - Unique identifier for this barcode (e.g., "Sample1_R1")
+        #                IMPORTANT: This MUST match the first column in the keep file
+        #   locations  - Where to find barcode in reads: FILE_NUMBER:START_BP:END_BP
+        #                Example: "0:0:8" = file 0 (R1), positions 0-8 (8bp barcode)
+        #                The endpoint is EXCLUSIVE (Python-like slicing)
+        #   distance   - Maximum Hamming distance for fuzzy matching (0 = exact match)
+        #   left       - Trim from left: "1" to remove barcode, or "1:N" to remove barcode + N more bp
+        #   right      - Trim from right: "1" to remove barcode from right side (not commonly used for R1)
         splitcode_config = util.file.mkstempfname(f'splitcode_{pool_id}_config.txt')
 
         with open(splitcode_config, "w") as config_fh:
@@ -3319,12 +3386,12 @@ def splitcode_demux(
 
             # Write header columns
             config_header = [
-                                "tag",
-                                "id",
-                                "locations",
-                                "distance",
-                                "left",
-                                "right"
+                                "tag",        # Barcode sequence
+                                "id",         # Barcode identifier (must match keep file)
+                                "locations",  # FILE:START:END format
+                                "distance",   # Max hamming distance
+                                "left",       # Trim from left
+                                "right"       # Trim from right
                             ]
 
             config_tsv_writer.writerow(config_header)
@@ -3382,7 +3449,17 @@ def splitcode_demux(
 
 
         # ======== create splitcode keep file ==========
-    
+        # Keep file format (TSV, NO header):
+        #   Column 1: barcode_id - MUST exactly match the "id" column from config file
+        #   Column 2: output_prefix - Path prefix for output FASTQs (without _R1.fastq/_R2.fastq)
+        #
+        # Example row: "Sample1_R1\t/path/to/output/Sample1"
+        #   This will create: /path/to/output/Sample1_R1.fastq, /path/to/output/Sample1_R2.fastq
+        #
+        # IMPORTANT: The barcode_id must match between config and keep files!
+        #   Config file:  AAAAAAAA  Sample1_R1  0:0:8  0  1  0
+        #   Keep file:    Sample1_R1<tab>/path/to/Sample1
+
         # ToDo: consider... rather than creating a single splitcode keep file for each pool,
         #       provide the option to create 1..N splitcode keep files for each pool
         #       where N is the number of samples in each pool
@@ -3397,8 +3474,8 @@ def splitcode_demux(
             for sample_library_id in sample_libraries:
                 sample_output_prefix = f"{splitcode_out_tmp_dir}/{sample_library_id}"
                 splitcode_sample_keep_row = [
-                                                f"{sample_library_id}_R1",
-                                                sample_output_prefix,
+                                                f"{sample_library_id}_R1",  # MUST match config file "id" column
+                                                sample_output_prefix,       # Output prefix (without _R1/_R2.fastq)
                                                 #f"Barcode_{inline_index_id}" + "\n"
                                                 #f"{sample_name}" + "\n"
                                                 #f"{sampled_demuxed_basename}"
