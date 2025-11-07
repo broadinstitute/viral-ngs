@@ -4070,6 +4070,13 @@ def convert_splitcode_demux_metrics_to_picard_style(
                 f"Required column '{col}' is present but entirely empty (no usable data)."
             )
 
+    # Convert numeric columns from string to numeric
+    # These columns are read as strings but need to be numeric for calculations
+    numeric_cols = ["num_reads_hdistance0", "num_reads_hdistance1", "num_reads_total"]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
     # If 'inline_barcode' is present, treat it as a potential "third" barcode
     barcode_3_col = "inline_barcode" if "inline_barcode" in df.columns else None
 
@@ -4109,10 +4116,13 @@ def convert_splitcode_demux_metrics_to_picard_style(
     def is_all_N(barcode_str: str) -> bool:
         """
         Return True if the entire (combined) barcode is all 'N' and non-empty.
+        Ignores delimiter characters ('-').
         """
         if not isinstance(barcode_str, str):
             return False
-        return len(barcode_str) > 0 and all(ch == 'N' for ch in barcode_str)
+        # Remove delimiters before checking
+        barcode_no_delim = barcode_str.replace('-', '')
+        return len(barcode_no_delim) > 0 and all(ch == 'N' for ch in barcode_no_delim)
 
     def last_barcode_is_all_N(barcode_str: str) -> bool:
         """
@@ -4163,6 +4173,15 @@ def convert_splitcode_demux_metrics_to_picard_style(
 
             # Recombine the "not all-N" rows plus this one collapsed row
             df = pd.concat([df_not_all_n, pd.DataFrame([collapsed], dtype=str)], ignore_index=True)
+
+            # After concat with dtype=str, re-convert numeric columns
+            numeric_cols_to_reconvert = [
+                "READS", "PF_READS", "PERFECT_MATCHES", "PF_PERFECT_MATCHES",
+                "ONE_MISMATCH_MATCHES", "PF_ONE_MISMATCH_MATCHES"
+            ]
+            for col in numeric_cols_to_reconvert:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
         # Drop helper column
         df.drop(columns=["IS_ALL_N"], inplace=True, errors="ignore")
