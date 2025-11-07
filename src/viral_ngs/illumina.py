@@ -3113,8 +3113,14 @@ def run_splitcode_on_pool(  pool_id,
         # write the stats to the output directory rather than tmp
         summary_stats = f"{out_dir_path}/{pool_id}_summary.json"
 
-        # Optional: Pass 'predemux_r2_trim_3prime_num_bp':8 for '--trim-3 0,8' 
-        # to remove 8 bases from end of R2 read 
+        # Dummy output files for --output parameter
+        # Note: --no-output flag prevents --keep files from being written, so we must
+        # provide --output even though we don't use these files
+        dummy_output_r1 = f"{out_demux_dir_path_tmp}/_dummy_main_output_{pool_id}_R1.fastq"
+        dummy_output_r2 = f"{out_demux_dir_path_tmp}/_dummy_main_output_{pool_id}_R2.fastq"
+
+        # Optional: Pass 'predemux_r2_trim_3prime_num_bp':8 for '--trim-3 0,8'
+        # to remove 8 bases from end of R2 read
         # (note: trimming happens before demuxing)
         # valid options:
         #   predemux_r1_trim_5prime_num_bp
@@ -3137,7 +3143,8 @@ def run_splitcode_on_pool(  pool_id,
             "predemux_r1_trim_3prime_num_bp" : predemux_r1_trim_3prime_num_bp,
             "predemux_r2_trim_5prime_num_bp" : predemux_r2_trim_5prime_num_bp,
             "predemux_r2_trim_3prime_num_bp" : predemux_r2_trim_3prime_num_bp,
-            "splitcode_opts"                 : ["--no-output", "--no-outb"], # "Don't output any sequences", "Don't output final barcode sequences"
+            "keep_r1_r2_suffixes"            : True,  # Add --keep-r1-r2 flag for _R1/_R2 suffixes
+            "splitcode_opts"                 : [f"--output={dummy_output_r1},{dummy_output_r2}"],  # Required for --keep to work
         }
         if string_to_log:
             log.info(string_to_log)
@@ -3285,9 +3292,11 @@ def generate_splitcode_config_and_keep_files(
             # Format: "1" (trim barcode only) or "1:N" (trim barcode + N more bp)
             left_trim = "1" if r1_trim_bp_right_of_barcode is None else f"1:{r1_trim_bp_right_of_barcode}"
 
+            # When using --keep-r1-r2 flag, splitcode automatically adds _R1/_R2 suffixes
+            # to output filenames, so the ID should NOT include _R1 suffix
             config_line_r1 = [
                 barcode_sequence,              # The barcode sequence to search for
-                f"{sample_library_id}_R1",     # ID (MUST match keep file column 1)
+                sample_library_id,             # ID (MUST match keep file column 1)
                 f"0:0:{barcode_len}",          # locations: FILE:START:END (0=R1, 0-barcode_len)
                 str(max_hamming_dist),         # Maximum hamming distance
                 left_trim,                     # Trim from left (barcode + optional extra bp)
@@ -3313,12 +3322,13 @@ def generate_splitcode_config_and_keep_files(
             sample_library_ids.append(sample_library_id)
 
             # Output prefix: /output/dir/Sample1.lLib1
-            # Splitcode will create: /output/dir/Sample1.lLib1_R1.fastq, ...R2.fastq
+            # When using --keep-r1-r2, splitcode will create:
+            #   /output/dir/Sample1.lLib1_R1.fastq, ...R2.fastq
             sample_output_prefix = f"{output_dir}/{sample_library_id}"
 
             keep_row = [
-                f"{sample_library_id}_R1",  # MUST match config file "id" column
-                sample_output_prefix,       # Output prefix (without _R1/_R2.fastq)
+                sample_library_id,       # MUST match config file "id" column (no _R1 suffix)
+                sample_output_prefix,    # Output prefix (without _R1/_R2.fastq)
             ]
             keep_tsv_writer.writerow(keep_row)
 
@@ -3388,7 +3398,9 @@ def splitcode_demux(
 
     rev_comp_barcodes_before_demux (list(str)) List of barcode columns to reverse complement before demux.
     """
-    splitcode_out_tmp_dir = tempfile.mkdtemp(prefix="splitcode_demux_output_tmp-")
+    # Create temp directory for splitcode FASTQs inside outDir to prevent cleanup issues
+    splitcode_out_tmp_dir = os.path.join(outDir, ".splitcode_tmp")
+    os.makedirs(splitcode_out_tmp_dir, exist_ok=True)
 
     threads = threads or util.misc.available_cpu_count()
     unmatched_name = unmatched_name or "Unmatched"
@@ -3688,6 +3700,7 @@ def splitcode_demux(
                 return_code, pool_id = future.result()
                 log.info("worker done processing with splitcode: %s ", pool_id)
                 pool_ids_successfully_demuxed_via_splitcode.append(pool_id)
+
             except subprocess.CalledProcessError as e:
                 log.error("Error running splitcode on pool; return code %s: %s", e.returncode, e.output)
                 raise e
@@ -3732,6 +3745,7 @@ def splitcode_demux(
     bam_conversion_attempted_for_samples  = []
 
     log.info(f"Converting splitcode output to ubam using {workers} worker{'s'[:workers^1]} for {len(sample_library_id_to_fastqs)} samples, with {threads_per_worker} thread{'s'[:threads_per_worker^1]} per worker")
+
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
         futures = []
         # Generate bam files

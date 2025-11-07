@@ -16,7 +16,7 @@ import util.file
 import illumina
 import tools.samtools
 import tools.picard
-from test import TestCaseWithTmp
+from test import TestCaseWithTmp, assert_equal_bam_reads
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -2227,6 +2227,11 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
         """
         Create a test BAM file with reads containing inline barcodes.
 
+        This simulates what Picard creates from a sequencer with read structure "50T8B8B50T":
+        - R1: 50bp template (first 8bp are inline barcode, remaining 42bp are actual sequence)
+        - R2: 50bp template
+        - The index reads (8B8B) are not included in the BAM template sequences
+
         Args:
             output_bam: Path to output BAM file
             barcode_reads: Dict mapping barcode -> num_reads
@@ -2239,11 +2244,12 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
             read_id = 0
             for barcode, num_reads in barcode_reads.items():
                 for _ in range(num_reads):
-                    # R1 has 8bp inline barcode prepended, then 42bp of sequence
-                    seq_r1 = barcode + ("ACGT" * 10) + "ACGTACGTAC"  # 8bp barcode + 42bp = 50bp total
+                    # R1: 50bp total (8bp inline barcode + 42bp sequence)
+                    # Picard treats all 50bp as template, doesn't know about the inline barcode
+                    seq_r1 = barcode + ("ACGT" * 10) + "AC"  # 8bp + 40bp + 2bp = 50bp
                     qual_r1 = "I" * len(seq_r1)
 
-                    # R2 is 50bp normal sequence
+                    # R2: 50bp template
                     seq_r2 = "TGCA" * 12 + "TG"  # 50bp
                     qual_r2 = "I" * len(seq_r2)
 
@@ -2265,6 +2271,63 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
 
         return output_bam
 
+    def create_expected_output_bam(self, output_bam, sample_name, barcode, num_reads, sample_idx=0, starting_read_id=0):
+        """
+        Create an expected output BAM file with reads after splitcode demux.
+
+        After demuxing with splitcode using read structure "50T8B8B50T":
+        - R1: Original 50bp read (barcode trimmed off)
+        - R2: Original 50bp read (unchanged)
+
+        Args:
+            output_bam: Path to output BAM file
+            sample_name: Sample name for read group
+            barcode: The inline barcode (for verification, not included in output)
+            num_reads: Number of reads to create
+            sample_idx: Sample index (0-based) for read group name generation
+            starting_read_id: Starting read ID number (for sequential read numbering)
+        """
+        r1_fastq = util.file.mkstempfname('.fastq')
+        r2_fastq = util.file.mkstempfname('.fastq')
+
+        with open(r1_fastq, 'w') as f1, open(r2_fastq, 'w') as f2:
+            for i in range(num_reads):
+                read_id = starting_read_id + i
+                # After splitcode demux:
+                # R1: The barcode is trimmed, leaving only the 42bp sequence after barcode
+                # (splitcode trims the 8bp inline barcode from the start of the 50bp R1)
+                seq_r1 = ("ACGT" * 10) + "AC"  # 42bp (barcode already removed)
+                qual_r1 = "I" * len(seq_r1)
+
+                # R2: Unchanged 50bp
+                seq_r2 = "TGCA" * 12 + "TG"  # 50bp
+                qual_r2 = "I" * len(seq_r2)
+
+                f1.write(f"@read{read_id}\n{seq_r1}\n+\n{qual_r1}\n")
+                f2.write(f"@read{read_id}\n{seq_r2}\n+\n{qual_r2}\n")
+
+        # Convert to BAM with same read group structure as splitcode_demux output
+        # Read group name format: {sequencing_center}.{lane}.{sample_idx+1}
+        read_group_name = f"TEST.1.{sample_idx + 1}"
+        self.picard.execute(
+            r1_fastq,
+            r2_fastq,
+            sample_name,
+            output_bam,
+            picardOptions=[
+                f'LIBRARY_NAME=L1',
+                'PLATFORM=ILLUMINA',
+                'SEQUENCING_CENTER=TEST',
+                f'RUN_DATE=2025-01-01',
+                f'READ_GROUP_NAME={read_group_name}',
+            ]
+        )
+
+        os.unlink(r1_fastq)
+        os.unlink(r2_fastq)
+
+        return output_bam
+
     def test_splitcode_demux_basic(self):
         """
         Test splitcode_demux command with minimal realistic input.
@@ -2273,62 +2336,103 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
         Verifies that:
         - Command runs without error
         - Output BAM files are created for each sample
-        - Output BAMs contain reads
+        - Output BAMs contain expected number of reads
+        - Output BAM content matches expected (reads correctly demuxed and trimmed)
         """
         # Get test input directory
         inDir = util.file.get_test_input_path(self)
 
+        # Define expected read counts per sample
+        sample1_reads = 100
+        sample2_reads = 50
+
         # Create temporary directories
         with tempfile.TemporaryDirectory() as input_bams_dir:
             with tempfile.TemporaryDirectory() as outDir:
-                # Create a pool BAM file with reads from 2 barcodes
-                # Pool identifier from sample sheet: ATCGATCG-GCTAGCTA.lL1.TESTFLOW.1
-                pool_bam = os.path.join(input_bams_dir, 'ATCGATCG-GCTAGCTA.lL1.TESTFLOW.1.bam')
-                self.create_test_bam_with_inline_barcodes(
-                    pool_bam,
-                    {
-                        "AAAACCCC": 100,  # TestSample1 barcode
-                        "GGGGTTTT": 50,   # TestSample2 barcode
-                    }
-                )
-
-                # Run splitcode_demux
-                # Skip metrics conversion for now - there's a pandas dtype issue to debug separately
-                out_meta_by_sample = os.path.join(outDir, 'test_meta_by_sample.txt')
-                illumina.splitcode_demux(
-                    inDir=input_bams_dir,
-                    lane="1",
-                    outDir=outDir,
-                    sampleSheet=os.path.join(inDir, 'SampleSheet.tsv'),
-                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
-                    flowcell="TESTFLOW",
-                    run_id="TESTFLOW.1",
-                    run_date="2025-01-01",
-                    read_structure="50T8B8B50T",  # 50bp read, 8bp barcode, 8bp barcode, 50bp read
-                    platform_name="ILLUMINA",
-                    sequencing_center="TEST",
-                    unmatched_name="Unmatched",
-                    max_hamming_dist=1,
-                    threads=1,
-                    out_meta_by_sample=out_meta_by_sample
-                )
-
-                # Verify output files exist
-                # Expected pattern: {sample}.l{library}.{flowcell}.{lane}.bam
-                expected_bams = [
-                    os.path.join(outDir, 'TestSample1.lL1.TESTFLOW.1.bam'),
-                    os.path.join(outDir, 'TestSample2.lL1.TESTFLOW.1.bam'),
-                ]
-
-                # Verify workflow completed and created output BAMs
-                for bam_path in expected_bams:
-                    self.assertTrue(
-                        os.path.exists(bam_path),
-                        f"Expected output BAM not found: {bam_path}"
+                with tempfile.TemporaryDirectory() as expectedDir:
+                    # Create a pool BAM file with reads from 2 barcodes
+                    # Pool identifier from sample sheet: ATCGATCG-GCTAGCTA.lL1.TESTFLOW.1
+                    pool_bam = os.path.join(input_bams_dir, 'ATCGATCG-GCTAGCTA.lL1.TESTFLOW.1.bam')
+                    self.create_test_bam_with_inline_barcodes(
+                        pool_bam,
+                        {
+                            "AAAAAAAA": sample1_reads,  # TestSample1 barcode
+                            "CCCCCCCC": sample2_reads,   # TestSample2 barcode
+                        }
                     )
 
-                # Note: We don't verify read counts here because getting the splitcode
-                # config exactly right for synthetic test data is complex. This test
-                # primarily verifies that the splitcode_demux workflow runs end-to-end
-                # without errors (which was the main goal - catching the dtype bugs and
-                # the pool ID suffix bug we fixed earlier).
+                    # Create expected output BAM files
+                    expected_sample1_bam = os.path.join(expectedDir, 'TestSample1.lL1.TESTFLOW.1.bam')
+                    expected_sample2_bam = os.path.join(expectedDir, 'TestSample2.lL1.TESTFLOW.1.bam')
+
+                    self.create_expected_output_bam(
+                        expected_sample1_bam,
+                        "TestSample1",
+                        "AAAAAAAA",
+                        sample1_reads,
+                        sample_idx=0,  # First sample in samplesheet
+                        starting_read_id=0  # Reads 0-99
+                    )
+                    self.create_expected_output_bam(
+                        expected_sample2_bam,
+                        "TestSample2",
+                        "CCCCCCCC",
+                        sample2_reads,
+                        sample_idx=1,  # Second sample in samplesheet
+                        starting_read_id=sample1_reads  # Reads 100-149
+                    )
+
+                    # Run splitcode_demux
+                    out_meta_by_sample = os.path.join(outDir, 'test_meta_by_sample.txt')
+                    illumina.splitcode_demux(
+                        inDir=input_bams_dir,
+                        lane="1",
+                        outDir=outDir,
+                        sampleSheet=os.path.join(inDir, 'SampleSheet.tsv'),
+                        runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                        flowcell="TESTFLOW",
+                        run_id="TESTFLOW.1",
+                        run_date="2025-01-01",
+                        read_structure="50T8B8B50T",
+                        platform_name="ILLUMINA",
+                        sequencing_center="TEST",
+                        unmatched_name="Unmatched",
+                        max_hamming_dist=1,
+                        threads=1,
+                        out_meta_by_sample=out_meta_by_sample
+                    )
+
+                    # Verify output files exist and have correct read counts
+                    actual_sample1_bam = os.path.join(outDir, 'TestSample1.lL1.TESTFLOW.1.bam')
+                    actual_sample2_bam = os.path.join(outDir, 'TestSample2.lL1.TESTFLOW.1.bam')
+
+                    # Verify files exist
+                    self.assertTrue(
+                        os.path.exists(actual_sample1_bam),
+                        f"Expected output BAM not found: {actual_sample1_bam}"
+                    )
+                    self.assertTrue(
+                        os.path.exists(actual_sample2_bam),
+                        f"Expected output BAM not found: {actual_sample2_bam}"
+                    )
+
+                    # Verify read counts match expected
+                    actual_sample1_count = self.samtools.count(actual_sample1_bam)
+                    actual_sample2_count = self.samtools.count(actual_sample2_bam)
+                    expected_sample1_count = self.samtools.count(expected_sample1_bam)
+                    expected_sample2_count = self.samtools.count(expected_sample2_bam)
+
+                    self.assertEqual(
+                        actual_sample1_count,
+                        expected_sample1_count,
+                        f"TestSample1 read count mismatch: got {actual_sample1_count}, expected {expected_sample1_count}"
+                    )
+                    self.assertEqual(
+                        actual_sample2_count,
+                        expected_sample2_count,
+                        f"TestSample2 read count mismatch: got {actual_sample2_count}, expected {expected_sample2_count}"
+                    )
+
+                    # Verify BAM content matches expected
+                    assert_equal_bam_reads(self, actual_sample1_bam, expected_sample1_bam)
+                    assert_equal_bam_reads(self, actual_sample2_bam, expected_sample2_bam)

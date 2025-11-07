@@ -61,8 +61,6 @@ class SplitCodeTool(tools.Tool):
             f"-c", config_file,
             f"--keep={keep_file}",
             f"--unassigned={unassigned_r1},{unassigned_r2}",
-            "--no-output",
-            "--no-outb",
             f"--summary", summary_stats
         ]
         if gzip_output and "--gzip" not in splitcode_opts:
@@ -84,7 +82,12 @@ class SplitCodeTool(tools.Tool):
         tool_cmd.extend([r1,r2])
 
         log.debug('Running splitcode with command: %s', ' '.join(tool_cmd))
-        return subprocess.check_call(tool_cmd)
+        try:
+            return subprocess.check_call(tool_cmd)
+        except subprocess.CalledProcessError as e:
+            log.error(f'Splitcode failed with return code {e.returncode}')
+            log.error(f'Command was: {" ".join(tool_cmd)}')
+            raise
 
     def check_installation(self):
         """Ensure the tool is properly installed."""
