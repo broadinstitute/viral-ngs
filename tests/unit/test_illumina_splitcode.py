@@ -2,6 +2,51 @@
 
 __author__ = "dpark@broadinstitute.org"
 
+"""
+Integration tests for splitcode demultiplexing functionality.
+
+These tests validate our assumptions about splitcode behavior rather than testing
+the external splitcode tool itself. The focus is on:
+  - File format requirements (config, keep file)
+  - Output file locations and naming conventions
+  - Summary JSON structure and parsing
+  - Barcode matching and trimming behavior
+
+Key splitcode file format reference:
+
+  Config file (TSV with header):
+    tag        - Barcode sequence (e.g., "AAAAAAAA")
+    id         - Barcode identifier (e.g., "Sample1_R1") - MUST match keep file
+    locations  - FILE_NUMBER:START_BP:END_BP (e.g., "0:0:8" for R1 positions 0-8)
+    distance   - Max hamming distance for fuzzy matching (0=exact, 1=1 mismatch, etc.)
+    left       - Trim from left: "1" removes barcode, "1:N" removes barcode + N more bp
+    right      - Trim from right (typically "0" for R1 barcodes)
+
+  Keep file (TSV, NO header):
+    Column 1: barcode_id - MUST match "id" from config file
+    Column 2: output_prefix - Path prefix for output FASTQs (without _R1/_R2.fastq)
+
+  Summary JSON output:
+    Location: {out_demux_dir_path}/{pool_id}_summary.json
+    Structure: Contains 'tag_qc' array with multiple entries per barcode tag
+
+    Example tag_qc:
+      [
+        {"tag": "Sample1_R1", "distance": 0, "count": 5},  # Perfect matches
+        {"tag": "Sample1_R1", "distance": 1, "count": 2},  # 1 mismatch
+        {"tag": "Sample1_R1", "distance": 2, "count": 0},  # 2 mismatches
+        {"tag": "Sample1_R1", "distance": 3, "count": 0},  # 3 mismatches
+        ...
+      ]
+
+    IMPORTANT: Each tag has multiple entries (one per distance level 0-3).
+    To get total reads for a tag, sum counts across all distance levels.
+
+  Output files:
+    - Demuxed FASTQs: {output_prefix}_R1.fastq, {output_prefix}_R2.fastq
+    - Unmatched reads: {unmatched_name}.{pool_id}_R1.fastq, ...R2.fastq
+"""
+
 import unittest
 import os
 import tempfile
@@ -16,7 +61,12 @@ from test import TestCaseWithTmp
 
 
 class TestSplitkodeIntegration(TestCaseWithTmp):
-    """Test our assumptions about splitcode behavior and file formats"""
+    """
+    Test our assumptions about splitcode behavior and file formats.
+
+    These tests create minimal test data to validate splitcode integration
+    without testing the external splitcode tool itself.
+    """
 
     def setUp(self):
         super().setUp()
