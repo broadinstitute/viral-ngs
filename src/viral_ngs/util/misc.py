@@ -1,18 +1,22 @@
 '''A few miscellaneous tools. '''
-import math
 import collections
 import contextlib
-import itertools, functools, operator
+import copy
+import functools
+import hashlib
+import itertools
+import json
 import logging
+import math
+import multiprocessing
+import operator
 import os, os.path
 import re
 import subprocess
-import threading
-import multiprocessing
 import sys
-import copy
-import yaml, json
+import threading
 import time
+import yaml
 
 import util.file
 
@@ -46,6 +50,7 @@ def memoize(obj):
         return cache[key]
     return memoizer
 
+
 def unique(items):
     ''' Return unique items in the same order as seen in the input. '''
     seen = set()
@@ -53,6 +58,70 @@ def unique(items):
         if i not in seen:
             seen.add(i)
             yield i
+
+def collapse_dup_strs_to_str_or_md5(values,
+                                    suffix              =  "",
+                                    delimiter           = "_",
+                                    hash_if_longer_than =  -1,
+                                    sort_plural_vals    = False,
+                                    calculate_md5_including_suffix  = False,
+                                    append_suffix_to_delimited_str  = True,
+                                    append_suffix_to_one_unique_str = False,
+                                    ):
+    """
+    Collapse multiple string values into one string value
+
+    Given a list of values (ex. from a column in a duplicated group of >=2 rows):
+      1) If all values are empty (""), return "".
+      2) Otherwise, if there's exactly 1 unique value (non-empty or empty), return that value + (suffix, optionally)
+      3) Otherwise (>=2 distinct values), join with delimiter. 
+         If (length with delimiters + suffix, if appending) > max_length, 
+         compute the MD5 hash of the joined values (without delimiters, optionally including the suffix),
+         and only return the last 8 characters of that MD5 hash plus suffix.
+         The default is to always return MD5+suffix (default max_length is -1)
+
+         Note that the MD5 hash will *not* be affected by 
+         any empty strings present in the input
+         (and when returning a delimited string of the joined values,
+          such empty strings will be omitted).
+    """
+    # If all values are empty, return ""
+    if all(v == "" for v in values):
+        return ""
+
+    # Get the unique values, in the original order
+    unique_vals = list(unique(values))
+
+    # Exactly 1 unique value => <value><suffix>
+    if len(unique_vals) == 1:
+        return f"{unique_vals[0]}{suffix if append_suffix_to_one_unique_str else ''}"
+
+    # Otherwise, return joined values
+    # or if that would be too long, return (MD5 of joined values)[-8:]+(optional suffix)
+    # the input values are optionally sorted after removing empty strings
+    joined_values_delimited = f"{delimiter}".join(sorted([s for s in unique_vals if len(s)>0]) if sort_plural_vals else unique_vals) + (suffix if append_suffix_to_delimited_str else "")
+    
+
+    if len(joined_values_delimited) <= int(hash_if_longer_than):
+        return joined_values_delimited
+    else:
+        # If the joined string is too long, compute MD5 of joined values
+        #joined_values = f"".join(sorted(unique_vals)) + (suffix if calculate_md5_including_suffix else "")
+        joined_values = f"".join(unique_vals) + (suffix if calculate_md5_including_suffix else "")
+        # Use only the last 8 characters of the MD5
+        short_md5 = md5_digest(joined_values)
+        return f"{short_md5}{suffix}"
+
+def md5_digest(in_str, last_n_chr=8):
+    '''Return the last `last_n_chr` characters of the md5 digest of `str`.'''
+    return hashlib.md5(in_str.encode('utf-8')).hexdigest()[-last_n_chr:]
+
+def reverse_complement(seq):
+    """
+        Returns the reverse complement using string.maketrans
+    """
+    table = bytearray.maketrans(b"ACTGN",b"TGACN")
+    return bytearray(seq.encode("UTF8")).translate(table)[::-1].decode("UTF8")
 
 
 def histogram(items):
@@ -374,9 +443,10 @@ def available_cpu_count():
     except IOError:
         pass
 
-    log.debug('cgroup_cpus %d, proc_cpus %d, multiprocessing cpus %d',
-              cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
-    return min(cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
+    min_cpu_count_reported = min(cgroup_cpus, proc_cpus, multiprocessing.cpu_count())
+    log.debug('min(cgroup_cpus %d, proc_cpus %d, multiprocessing cpus %d) = %d',
+              cgroup_cpus, proc_cpus, multiprocessing.cpu_count(), min_cpu_count_reported)
+    return min_cpu_count_reported
 
 def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count):
     ''' Given a user specified thread count, this function will:

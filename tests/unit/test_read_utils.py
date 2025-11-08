@@ -123,6 +123,57 @@ class TestFastqBam(TestCaseWithTmp):
         args = parser.parse_args([inFastq1, inFastq2, outBamTxt, '--header', inHeader])
         args.func_main(args)
 
+    def test_fastq_to_bam_empty_inputs(self):
+        """Test that fastq_to_bam handles empty FASTQ files correctly.
+
+        With defensive code added to FastqToSamTool.execute, empty FASTQ inputs
+        should now produce a valid BAM file with:
+        - A proper BAM header (non-zero file size)
+        - Zero reads (SamtoolsTool.isEmpty should return True)
+        - Readable by samtools (no corruption)
+
+        This test verifies that the defensive code properly handles empty inputs
+        instead of letting Picard crash.
+        """
+        # Create empty FASTQ files
+        emptyFastq1 = util.file.mkstempfname('.fastq')
+        emptyFastq2 = util.file.mkstempfname('.fastq')
+        outBam = util.file.mkstempfname('.bam')
+
+        # Create zero-byte FASTQ files
+        open(emptyFastq1, 'w').close()
+        open(emptyFastq2, 'w').close()
+
+        # Convert empty FASTQs to BAM (should now succeed with defensive code)
+        read_utils.fastq_to_bam(
+            emptyFastq1,
+            emptyFastq2,
+            outBam,
+            sampleName='EmptySample',
+            picardOptions=['LIBRARY_NAME=EmptyLibrary']
+        )
+
+        # Verify the BAM file was created
+        self.assertTrue(os.path.exists(outBam), "Output BAM file should exist")
+
+        # Verify the BAM file is non-zero (contains header)
+        bam_size = os.path.getsize(outBam)
+        self.assertGreater(bam_size, 0, "BAM file should be non-zero (contains header)")
+
+        # Verify the BAM file is empty (no reads) using SamtoolsTool
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertTrue(samtools.isEmpty(outBam), "BAM should be empty (no reads)")
+
+        # Verify the BAM file has zero reads via count
+        read_count = samtools.count(outBam)
+        self.assertEqual(read_count, 0, "BAM should contain zero reads")
+
+        # Verify the BAM file is readable (has valid header)
+        header_file = util.file.mkstempfname('.txt')
+        samtools.dumpHeader(outBam, header_file)
+        header_size = os.path.getsize(header_file)
+        self.assertGreater(header_size, 0, "BAM header should be non-empty")
+
 
 class TestRmdupUnaligned(TestCaseWithTmp):
     def test_mvicuna_canned_input(self):

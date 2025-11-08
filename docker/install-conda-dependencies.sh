@@ -7,21 +7,47 @@
 # A miniconda install must exist at $CONDA_DEFAULT_ENV
 # and $CONDA_DEFAULT_ENV/bin must be in the PATH
 
-set -e -o pipefail
+set -e -o pipefail -x
 
-#DEBUG=1 # set DEBUG=1 for more verbose output
+DEBUG=0 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
+LANG=C
 
-echo "PATH:              ${PATH}"
-echo "INSTALL_PATH:      ${INSTALL_PATH}"
-echo "CONDA_PREFIX:      ${CONDA_PREFIX}"
-echo "VIRAL_NGS_PATH:    ${VIRAL_NGS_PATH}"
-echo "MINICONDA_PATH:    ${MINICONDA_PATH}"
-echo "CONDA_DEFAULT_ENV: ${CONDA_DEFAULT_ENV}"
-CONDA_CHANNEL_STRING="--override-channels -c broad-viral -c conda-forge -c bioconda"
+export G_SLICE=always-malloc
+export MAMBA_ALWAYS_YES=true
 
-# ToDo: if confirmed working, move to conda config section of viral-baseimage
-conda config --set repodata_threads $(nproc)
+if [[ $DEBUG == 1 ]]; then 
+    # If DEBUG=1, set MAMBA_DEBUG_LEVEL
+    # '-v':    detailed output
+    # '-vv':   INFO logging
+    # '-vvv':  DEBUG logging
+    # '-vvvv': four times for TRACE logging.
+    # See:
+    #   https://docs.conda.io/projects/conda/en/stable/commands/install.html#conda.cli.conda_argparse-generate_parser-output,-prompt,-and-flow-control-options
+    MAMBA_DEBUG_LEVEL="-vv"
+fi
+
+echo "PATH:                       ${PATH}"
+echo "INSTALL_PATH:               ${INSTALL_PATH}"
+echo "CONDA_PREFIX:               ${CONDA_PREFIX}"
+echo "VIRAL_NGS_PATH:             ${VIRAL_NGS_PATH}"
+echo "MINICONDA_PATH:             ${MINICONDA_PATH}"
+echo "CONDA_DEFAULT_ENV:          ${CONDA_DEFAULT_ENV}"
+echo "CONDA_PACKAGE_INSTALL_OPTS: ${CONDA_PACKAGE_INSTALL_OPTS}"
+echo "CONDA_CHANNEL_STRING:       ${CONDA_CHANNEL_STRING}"
+
+echo "Conda version:  $(conda --version)"
+echo "Mamba version:  $(mamba --version)"
+echo "Python version: $(python --version)"
+echo "which python:   $(which python)"
+echo "which conda:    $(which conda)"
+echo "which mamba:    $(which mamba)"
+echo "conda list:     $(conda list)"
+echo "conda config --show:"
+echo "$(conda config --show)"
+
+#conda config --set experimental_sat_error_message true
+#conda config --set use_lockfiles False
 
 # solving the dependency graph for a conda environment can take a while.
 # so long, in fact, that the conda process can run for >10 minutes without
@@ -48,9 +74,14 @@ function start_keepalive {
     >&2 echo "Running..."
     # Start a process that runs as a keep-alive
     # to avoid having the CI running quit if there is no output
-    (while true; do
-        sleep 120
-        >&2 echo "Still running..."
+    # also keep track of start time and report human-readable duration as part of the heartbeat log lines
+    (local start_time=$(date +%s)
+        while true; do
+        sleep 120;
+        local current_time=$(date +%s);
+        local elapsed_time=$((current_time - start_time));
+        local elapsed_time_human=$(date -u -d @$elapsed_time +%Hh:%Mm:%Ss);
+        >&2 echo "Still running (${elapsed_time_human})..."
     done) &
     KEEPALIVE_PID=$!
     disown
@@ -71,22 +102,28 @@ trap stop_keepalive EXIT SIGINT SIGQUIT SIGTERM
 # setup/install viral-ngs directory tree and conda dependencies
 sync
 
-REQUIREMENTS=""
+REQUIREMENT_FILE_PATHS_STR=""
 for condafile in $*; do
-	REQUIREMENTS="$REQUIREMENTS --file $condafile"
+	REQUIREMENT_FILE_PATHS_STR="$REQUIREMENT_FILE_PATHS_STR --file $condafile"
 
     # print dependency tree for all packages in file
-    [[ $DEBUG = 1 ]] && grep -vE '^#' "${condafile}" | xargs -I {} mamba repoquery depends $CONDA_CHANNEL_STRING --quiet --pretty --recursive --tree "{}";
+    [[ $DEBUG == 1 ]] && grep -vE '^#' "${condafile}" | xargs -I {} mamba repoquery depends $CONDA_CHANNEL_STRING --quiet --pretty --recursive --tree "{}";
 done
 
 # run conda install with keepalive subshell process running in background
 # to keep travis build going. Enforce a hard timeout via timeout GNU coreutil
 start_keepalive
-if [[ $DEBUG = 1 ]]; then 
-    MAMBA_DEBUG_LEVEL="-vvv"
-fi
-mamba install -y $MAMBA_DEBUG_LEVEL -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
+mamba create -y -q $MAMBA_DEBUG_LEVEL $CONDA_PACKAGE_INSTALL_OPTS $CONDA_CHANNEL_STRING --prefix ${CONDA_PREFIX} $REQUIREMENT_FILE_PATHS_STR
 stop_keepalive
+
+source "${MINICONDA_PATH}/etc/profile.d/conda.sh"
+source "${MINICONDA_PATH}/etc/profile.d/mamba.sh"
+hash -r
+conda init --quiet --all --system
+
+source ${MINICONDA_PATH}/bin/activate ${CONDA_PREFIX}
+
+mamba list
 
 # clean up
 conda clean -y --all

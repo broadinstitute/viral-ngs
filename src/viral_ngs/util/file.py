@@ -6,42 +6,54 @@ general file-handling routines.
 __author__ = "dpark@broadinstitute.org"
 
 import codecs
+import concurrent.futures
 import contextlib
-import os
+import csv
+import errno
 import gzip
+import inspect
+import io
+import io
+import itertools
+import json
+import logging
+import os
+import re
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tarfile
+import tempfile
+import urllib.request
+
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqIO import FastaIO
+from Bio.SeqRecord import SeqRecord
 import bz2
 import lz4.frame
+import pysam
 import zstandard as zstd
-import io
-import tempfile
-import subprocess
-import shutil
-import errno
-import logging
-import json
-import sys
-import io
-import csv
-import inspect
-import sqlite3
-import tarfile
-import itertools
-import re
-import urllib.request
-import concurrent.futures
 
 import util.cmd
 import util.misc
 
-from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.SeqIO import FastaIO
-
-import pysam
-
 log = logging.getLogger(__name__)
 
+if sys.version_info >= (3, 10, 12):
+    '''
+    Set the default extraction filter at class instance level for the tarfile
+    module, to avoid needing to specify it every time we extract a tarball.
+    The extraction filter avoids extracting "unsafe" items from tarballs, and
+    is available in Python 3.10.12+. This sets the default to "tar_filter".
+    For other filter types and general info on the tarfile module, see:
+        https://docs.python.org/3.12/library/tarfile.html#tarfile.TarFile.extraction_filter
+        https://docs.python.org/3.12/library/tarfile.html#tarfile.tar_filter
+        https://docs.python.org/3.12/library/tarfile.html#extraction-filters
+    '''
+    log.debug("Setting extraction filter for tarfile module to tar_filter")
+    tarfile.TarFile.extraction_filter = staticmethod(tarfile.tar_filter) if hasattr(tarfile, 'data_filter') else (lambda member, path: member)
 
 class StringNotFoundException(Exception):
     """When a substring is not found."""
@@ -842,7 +854,11 @@ def grep_count(file_path, to_match, additional_flags=None, fixed_mode=True, star
     return int(number_of_seqs.decode("utf-8").rstrip(os.linesep))
 
 # used by count_and_sort_barcodes
-def count_occurrences_in_tsv(filePath, col=0, noise_chr='.', delimiter='\t', include_noise=False):
+def count_occurrences_in_tsv(filePath, 
+                                col=0, 
+                                noise_chr='.',
+                                delimiter='\t',
+                                include_noise=False):
     file_occurrence_counts = {}
     with open(filePath) as infile:
         for row in csv.reader(infile, delimiter=delimiter):
@@ -851,7 +867,12 @@ def count_occurrences_in_tsv(filePath, col=0, noise_chr='.', delimiter='\t', inc
     return file_occurrence_counts
 
 # used by count_and_sort_barcodes
-def count_occurrences_in_tsv_sqlite_backed(db_file_path, file_path, col=0, noise_chr='.', delimiter='\t', include_noise=False):
+def count_occurrences_in_tsv_sqlite_backed(db_file_path, 
+                                            file_path, 
+                                            col=0, 
+                                            noise_chr='.', 
+                                            delimiter='\t', 
+                                            include_noise=False):
     db = CountDB(db_file_path)
     db.start()
     with open(file_path) as infile:
@@ -1104,7 +1125,7 @@ class DBConnection:
              self.db_file=db_file
         self.conn = sqlite3.connect(self.db_file, isolation_level='DEFERRED')
         assert self.conn.isolation_level
-        self.conn.text_factory = sqlite3.OptimizedUnicode
+        self.conn.text_factory = str
         self.cur = self.conn.cursor()
         self.cur.execute("PRAGMA foreign_keys=ON")
         self.cur.execute("PRAGMA foreign_keys")
@@ -1118,7 +1139,7 @@ class DBConnection:
         return self
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-        return 0
+        return False # ensure exceptions are propagated
     def close(self):
         if not self.conn:
             return

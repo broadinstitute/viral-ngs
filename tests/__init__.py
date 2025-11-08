@@ -57,7 +57,29 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
     samtools.view(args=[], inFile=bam_filename2, outFile=sam_two)
 
     try:
-        testCase.assertTrue(filecmp.cmp(sam_one, sam_two, shallow=False))
+        if not filecmp.cmp(sam_one, sam_two, shallow=False):
+            # Files are different - show debug output
+            print("\n" + "="*80)
+            print(f"DEBUG: BAM files are not equal")
+            print(f"  File 1: {bam_filename1}")
+            print(f"  File 2: {bam_filename2}")
+            print("\nFirst 5 reads from each file:")
+            print("-" * 80)
+            print("File 1:")
+            with open(sam_one, 'r') as f:
+                for i, line in enumerate(f):
+                    if i >= 5:
+                        break
+                    print(f"  {line.rstrip()}")
+            print("-" * 80)
+            print("File 2:")
+            with open(sam_two, 'r') as f:
+                for i, line in enumerate(f):
+                    if i >= 5:
+                        break
+                    print(f"  {line.rstrip()}")
+            print("="*80 + "\n")
+            testCase.fail("BAM files are not equal (see debug output above)")
     finally:
         for fname in [sam_one, sam_two]:
             if os.path.exists(fname):

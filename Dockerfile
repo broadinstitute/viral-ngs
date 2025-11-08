@@ -1,6 +1,7 @@
 FROM quay.io/broadinstitute/viral-baseimage:0.3.0
 
-LABEL maintainer "viral-ngs@broadinstitute.org"
+
+LABEL maintainer="viral-ngs@broadinstitute.org"
 
 # to build:
 #   git describe --tags --always --dirty > VERSION
@@ -16,8 +17,12 @@ ENV \
 	INSTALL_PATH="/opt/viral-ngs" \
 	VIRAL_NGS_PATH="/opt/viral-ngs/source" \
 	MINICONDA_PATH="/opt/miniconda" \
+	CONDA_ROOT="/opt/miniconda" \
+	MAMBA_ROOT_PREFIX="/opt/miniconda" \
 	CONDA_DEFAULT_ENV=viral-ngs-env \
-	CONDA_ENVS_PATH="$MINICONDA_PATH/envs"
+	CONDA_ENVS_PATH="$MINICONDA_PATH/envs" \
+	CONDA_PACKAGE_INSTALL_OPTS="--strict-channel-priority" \
+	CONDA_CHANNEL_STRING="--override-channels -c conda-forge -c broad-viral -c bioconda"
 ENV \
 	PATH="$VIRAL_NGS_PATH:$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV/bin:$MINICONDA_PATH/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
 	CONDA_PREFIX=$MINICONDA_PATH/envs/$CONDA_DEFAULT_ENV \
@@ -28,13 +33,15 @@ ENV \
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
-RUN mamba create -n $CONDA_DEFAULT_ENV python=3.12
-RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
-RUN hash -r
+
+#RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
 COPY requirements-conda.txt requirements-conda-tests.txt $VIRAL_NGS_PATH/
-RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt $VIRAL_NGS_PATH/requirements-conda-tests.txt
+RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt $VIRAL_NGS_PATH/requirements-conda-tests.txt && \
+	echo "source activate $CONDA_PREFIX" >> ~/.bashrc
 RUN $VIRAL_NGS_PATH/docker/install-gatk.sh
+
+RUN hash -r
 
 # Copy all of the source code into the repo
 # This probably changes all the time, so all downstream build
@@ -53,4 +60,11 @@ RUN	ln -s /lib/x86_64-linux-gnu/libreadline.so.7 /lib/x86_64-linux-gnu/libreadli
 # verifies that conda-installed python libraries are working.
 RUN /bin/bash -c "set -e; echo -n 'viral-ngs version: '; read_utils.py --version"
 
+# import matplotlib to force a (re)build of its font cache
+# See:
+#   https://stackoverflow.com/questions/72060002/how-does-one-trigger-matplotlib-to-initialize-the-cache-on-install-in-an-image
+#   https://stackoverflow.com/questions/37920935/matplotlib-cant-find-font-installed-in-my-linux-machine/70647041#70647041
+RUN python -c "import matplotlib.font_manager; matplotlib.font_manager._load_fontmanager(try_read_cache=False); import matplotlib.pyplot"
+
+#CMD ["/bin/bash","-l"] # for a login shell (loads bash profile)
 CMD ["/bin/bash"]
