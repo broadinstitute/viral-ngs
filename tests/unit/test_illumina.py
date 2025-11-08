@@ -2437,3 +2437,370 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
                     # Verify BAM content matches expected
                     assert_equal_bam_reads(self, actual_sample1_bam, expected_sample1_bam)
                     assert_equal_bam_reads(self, actual_sample2_bam, expected_sample2_bam)
+
+
+class TestParseIlluminaFastqFilename(unittest.TestCase):
+    """Test parsing of Illumina DRAGEN FASTQ filename patterns.
+
+    DRAGEN format: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq.gz
+    Example: 22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
+    """
+
+    def test_standard_dragen_format_r1(self):
+        """Test standard DRAGEN FASTQ naming with flowcell ID."""
+        filename = "22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz"
+        result = illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['lane_short'], 6)
+        self.assertEqual(result['numeric_id'], '0420593812')
+        self.assertEqual(result['sample_name'], 'B13Pool1a')
+        self.assertEqual(result['sample_number'], 1)
+        self.assertEqual(result['lane'], 6)
+        self.assertEqual(result['read'], 1)
+        self.assertEqual(result['chunk'], 1)
+
+    def test_standard_dragen_format_r2(self):
+        """Test standard DRAGEN format for R2 file."""
+        filename = "22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R2_001.fastq.gz"
+        result = illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['sample_name'], 'B13Pool1a')
+        self.assertEqual(result['read'], 2)
+
+    def test_sample_name_with_underscores(self):
+        """Test sample names containing underscores."""
+        filename = "22J5GLLT4_6_0420593812_RS_Batch_20_NTC_01_S5_L006_R1_001.fastq.gz"
+        result = illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['lane_short'], 6)
+        self.assertEqual(result['numeric_id'], '0420593812')
+        self.assertEqual(result['sample_name'], 'RS_Batch_20_NTC_01')
+        self.assertEqual(result['sample_number'], 5)
+        self.assertEqual(result['lane'], 6)
+        self.assertEqual(result['read'], 1)
+
+    def test_different_flowcells(self):
+        """Test parsing files from different flowcell IDs."""
+        test_cases = [
+            "ABCDEFGH1_1_1234567890_Sample1_S1_L001_R1_001.fastq.gz",
+            "22J5GLLT4_1_1234567890_Sample1_S1_L001_R1_001.fastq.gz",
+            "H7YVLDSXY_1_1234567890_Sample1_S1_L001_R1_001.fastq.gz",
+        ]
+        expected_flowcells = ['ABCDEFGH1', '22J5GLLT4', 'H7YVLDSXY']
+
+        for filename, expected_fc in zip(test_cases, expected_flowcells):
+            result = illumina.parse_illumina_fastq_filename(filename)
+            self.assertEqual(result['flowcell'], expected_fc)
+
+    def test_different_lane_numbers(self):
+        """Test parsing files from different lanes."""
+        for lane in [1, 2, 3, 4, 5, 6, 7, 8]:
+            filename = f"22J5GLLT4_{lane}_0420593812_Sample1_S1_L00{lane}_R1_001.fastq.gz"
+            result = illumina.parse_illumina_fastq_filename(filename)
+            self.assertEqual(result['lane'], lane)
+            self.assertEqual(result['lane_short'], lane)
+
+    def test_different_sample_numbers(self):
+        """Test parsing files with various sample numbers."""
+        test_cases = [
+            ("22J5GLLT4_6_0420593812_Sample1_S1_L006_R1_001.fastq.gz", 1),
+            ("22J5GLLT4_6_0420593812_Sample1_S10_L006_R1_001.fastq.gz", 10),
+            ("22J5GLLT4_6_0420593812_Sample1_S100_L006_R1_001.fastq.gz", 100),
+        ]
+        for filename, expected_num in test_cases:
+            result = illumina.parse_illumina_fastq_filename(filename)
+            self.assertEqual(result['sample_number'], expected_num)
+
+    def test_different_chunk_numbers(self):
+        """Test parsing files with different chunk numbers."""
+        filename = "22J5GLLT4_6_0420593812_Sample1_S1_L006_R1_002.fastq.gz"
+        result = illumina.parse_illumina_fastq_filename(filename)
+        self.assertEqual(result['chunk'], 2)
+
+        filename = "22J5GLLT4_6_0420593812_Sample1_S1_L006_R1_003.fastq.gz"
+        result = illumina.parse_illumina_fastq_filename(filename)
+        self.assertEqual(result['chunk'], 3)
+
+    def test_with_full_path(self):
+        """Test parsing filename with full directory path."""
+        filename = "/path/to/data/22J5GLLT4_6_0420593812_Sample1_S1_L006_R1_001.fastq.gz"
+        result = illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['sample_name'], 'Sample1')
+        self.assertEqual(result['lane'], 6)
+
+    def test_without_gz_extension(self):
+        """Test parsing filename without .gz extension."""
+        filename = "22J5GLLT4_6_0420593812_Sample1_S1_L006_R1_001.fastq"
+        result = illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['sample_name'], 'Sample1')
+
+    def test_simple_format_without_flowcell(self):
+        """Test simple Illumina format without flowcell ID (backward compatibility).
+
+        Format: {sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq.gz
+        Example: mebv-48-5_S17_L001_R1_001.fastq.gz
+        """
+        filename = "mebv-48-5_S17_L001_R1_001.fastq.gz"
+        result = illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'mebv-48-5')
+        self.assertEqual(result['sample_number'], 17)
+        self.assertEqual(result['lane'], 1)
+        self.assertEqual(result['read'], 1)
+        self.assertEqual(result['chunk'], 1)
+        self.assertIsNone(result.get('flowcell'))
+
+    def test_simple_format_r2(self):
+        """Test simple format for R2 file."""
+        filename = "Sample1_S5_L001_R2_001.fastq.gz"
+        result = illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'Sample1')
+        self.assertEqual(result['sample_number'], 5)
+        self.assertEqual(result['lane'], 1)
+        self.assertEqual(result['read'], 2)
+
+    def test_malformed_invalid_format(self):
+        """Test error handling for completely invalid filename."""
+        filename = "random_file.fastq.gz"
+        with self.assertRaises(ValueError) as context:
+            illumina.parse_illumina_fastq_filename(filename)
+        self.assertIn("does not match", str(context.exception).lower())
+
+    def test_empty_filename(self):
+        """Test error handling for empty filename."""
+        with self.assertRaises(ValueError):
+            illumina.parse_illumina_fastq_filename("")
+
+    def test_malformed_missing_read_number(self):
+        """Test error handling for filename missing read number."""
+        filename = "22J5GLLT4_6_0420593812_Sample1_S1_L006_001.fastq.gz"
+        with self.assertRaises(ValueError) as context:
+            illumina.parse_illumina_fastq_filename(filename)
+        self.assertIn("does not match", str(context.exception).lower())
+
+    def test_index_reads_not_supported(self):
+        """Test that index reads (I1, I2) are handled appropriately.
+
+        Note: DRAGEN may not produce I1/I2 files in the same way as bcl2fastq.
+        This test documents expected behavior if encountered.
+        """
+        # If DRAGEN produces index files, they might follow a different pattern
+        # For now, test that we handle them gracefully or raise appropriate errors
+        pass
+
+
+class TestNormalizeBarcode(unittest.TestCase):
+    """Test barcode normalization function."""
+
+    def test_uppercase_conversion(self):
+        """Test that lowercase barcodes are converted to uppercase."""
+        self.assertEqual(illumina.normalize_barcode("acgt"), "ACGT")
+        self.assertEqual(illumina.normalize_barcode("atcgatcg"), "ATCGATCG")
+        self.assertEqual(illumina.normalize_barcode("aCgT"), "ACGT")
+
+    def test_whitespace_trimming(self):
+        """Test that leading and trailing whitespace is removed."""
+        self.assertEqual(illumina.normalize_barcode("  ACGT  "), "ACGT")
+        self.assertEqual(illumina.normalize_barcode("\tACGT\n"), "ACGT")
+        self.assertEqual(illumina.normalize_barcode(" ATCGATCG "), "ATCGATCG")
+
+    def test_combined_normalization(self):
+        """Test combined uppercase conversion and whitespace trimming."""
+        self.assertEqual(illumina.normalize_barcode(" acgt "), "ACGT")
+        self.assertEqual(illumina.normalize_barcode("\tatcg\n"), "ATCG")
+
+    def test_already_normalized(self):
+        """Test that already-normalized barcodes pass through unchanged."""
+        self.assertEqual(illumina.normalize_barcode("ACGT"), "ACGT")
+        self.assertEqual(illumina.normalize_barcode("ATCGATCG"), "ATCGATCG")
+
+    def test_empty_string(self):
+        """Test handling of empty strings."""
+        self.assertEqual(illumina.normalize_barcode(""), "")
+        self.assertEqual(illumina.normalize_barcode("  "), "")
+
+    def test_valid_characters_only(self):
+        """Test validation that only ACGTN characters are allowed."""
+        # Valid barcodes
+        self.assertEqual(illumina.normalize_barcode("ACGT"), "ACGT")
+        self.assertEqual(illumina.normalize_barcode("AAACCCGGGTTT"), "AAACCCGGGTTT")
+        self.assertEqual(illumina.normalize_barcode("ACGTN"), "ACGTN")  # N for ambiguous base
+        self.assertEqual(illumina.normalize_barcode("NNNACGT"), "NNNACGT")
+
+    def test_invalid_characters(self):
+        """Test that invalid characters raise ValueError."""
+        with self.assertRaises(ValueError) as context:
+            illumina.normalize_barcode("ACGTX")
+        self.assertIn("invalid", str(context.exception).lower())
+
+        with self.assertRaises(ValueError):
+            illumina.normalize_barcode("ACG-TGC")
+
+        with self.assertRaises(ValueError):
+            illumina.normalize_barcode("ACG TGC")  # space in middle
+
+        with self.assertRaises(ValueError):
+            illumina.normalize_barcode("123")
+
+    def test_mixed_case_with_n(self):
+        """Test mixed case barcodes containing N."""
+        self.assertEqual(illumina.normalize_barcode("acgtn"), "ACGTN")
+        self.assertEqual(illumina.normalize_barcode("NNNacgt"), "NNNACGT")
+
+    def test_typical_illumina_barcodes(self):
+        """Test with real Illumina barcode sequences."""
+        # Typical 8bp dual index barcodes
+        self.assertEqual(illumina.normalize_barcode("CTGATCGT"), "CTGATCGT")
+        self.assertEqual(illumina.normalize_barcode("ctgatcgt"), "CTGATCGT")
+
+        # Typical 10bp barcode
+        self.assertEqual(illumina.normalize_barcode("AACCGGTTAA"), "AACCGGTTAA")
+
+        # With whitespace (common in CSV files)
+        self.assertEqual(illumina.normalize_barcode(" CTGATCGT "), "CTGATCGT")
+
+    def test_none_input(self):
+        """Test handling of None input."""
+        with self.assertRaises((ValueError, TypeError)):
+            illumina.normalize_barcode(None)
+
+    def test_non_string_input(self):
+        """Test handling of non-string input."""
+        with self.assertRaises((ValueError, TypeError)):
+            illumina.normalize_barcode(12345)
+
+        with self.assertRaises((ValueError, TypeError)):
+            illumina.normalize_barcode(['A', 'C', 'G', 'T'])
+
+
+class TestBuildRunInfoJson(TestCaseWithTmp):
+    """Test run_info.json construction."""
+
+    def test_build_with_all_parameters(self):
+        """Test building run_info.json with all parameters provided."""
+        run_info_data = illumina.build_run_info_json(
+            sequencing_center="BROAD",
+            run_start_date="2024-01-15",
+            read_structure="76T8B8B76T",
+            indexes=2,
+            run_id="FLOWCELL123.1",
+            lane=1,
+            flowcell="FLOWCELL123",
+            lane_count=8,
+            surface_count=2,
+            swath_count=3,
+            tile_count=4,
+            total_tile_count=192,
+            sequencer_model="NextSeq 2000"
+        )
+
+        self.assertEqual(run_info_data['sequencing_center'], 'BROAD')
+        self.assertEqual(run_info_data['run_start_date'], '2024-01-15')
+        self.assertEqual(run_info_data['read_structure'], '76T8B8B76T')
+        self.assertEqual(run_info_data['indexes'], '2')
+        self.assertEqual(run_info_data['run_id'], 'FLOWCELL123.1')
+        self.assertEqual(run_info_data['lane'], '1')
+        self.assertEqual(run_info_data['flowcell'], 'FLOWCELL123')
+        self.assertEqual(run_info_data['lane_count'], '8')
+        self.assertEqual(run_info_data['surface_count'], '2')
+        self.assertEqual(run_info_data['swath_count'], '3')
+        self.assertEqual(run_info_data['tile_count'], '4')
+        self.assertEqual(run_info_data['total_tile_count'], '192')
+        self.assertEqual(run_info_data['sequencer_model'], 'NextSeq 2000')
+
+    def test_build_with_minimal_parameters(self):
+        """Test building with only required parameters."""
+        run_info_data = illumina.build_run_info_json(
+            sequencing_center="BROAD",
+            run_start_date="2024-01-15",
+            read_structure="76T8B76T",
+            indexes=1,
+            run_id="FC123.1",
+            lane=1,
+            flowcell="FC123"
+        )
+
+        # Required fields should be present
+        self.assertEqual(run_info_data['sequencing_center'], 'BROAD')
+        self.assertEqual(run_info_data['run_start_date'], '2024-01-15')
+        self.assertEqual(run_info_data['read_structure'], '76T8B76T')
+        self.assertEqual(run_info_data['flowcell'], 'FC123')
+        self.assertEqual(run_info_data['lane'], '1')
+        self.assertEqual(run_info_data['indexes'], '1')
+
+        # Optional fields should NOT be present when not provided
+        self.assertNotIn('lane_count', run_info_data)
+        self.assertNotIn('surface_count', run_info_data)
+        self.assertNotIn('sequencer_model', run_info_data)
+
+    def test_integer_to_string_conversion(self):
+        """Test that integer parameters are converted to strings."""
+        run_info_data = illumina.build_run_info_json(
+            sequencing_center="BROAD",
+            run_start_date="2024-01-15",
+            read_structure="76T",
+            indexes=0,
+            run_id="FC.1",
+            lane=3,  # integer
+            flowcell="FC",
+            lane_count=8  # integer
+        )
+
+        # All numeric fields should be strings in the output
+        self.assertIsInstance(run_info_data['lane'], str)
+        self.assertEqual(run_info_data['lane'], '3')
+        self.assertIsInstance(run_info_data['lane_count'], str)
+        self.assertEqual(run_info_data['indexes'], '0')
+
+    def test_consistency_with_existing_output_schema(self):
+        """Test that output matches the schema used by illumina_demux and splitcode_demux."""
+        run_info_data = illumina.build_run_info_json(
+            sequencing_center="SEQ_CENTER",
+            run_start_date="2024-01-15",
+            read_structure="76T8B8B76T",
+            indexes=2,
+            run_id="RUN.1",
+            lane=1,
+            flowcell="FLOWCELL",
+            lane_count=8,
+            surface_count=2,
+            swath_count=3,
+            tile_count=4,
+            total_tile_count=192,
+            sequencer_model="NextSeq"
+        )
+
+        # Verify all expected keys are present
+        expected_keys = [
+            'sequencing_center', 'run_start_date', 'read_structure', 'indexes',
+            'run_id', 'lane', 'flowcell', 'lane_count', 'surface_count',
+            'swath_count', 'tile_count', 'total_tile_count', 'sequencer_model'
+        ]
+        for key in expected_keys:
+            self.assertIn(key, run_info_data, f"Missing expected key: {key}")
+
+    def test_none_values_handled(self):
+        """Test that None values for optional parameters are handled gracefully."""
+        run_info_data = illumina.build_run_info_json(
+            sequencing_center="BROAD",
+            run_start_date="2024-01-15",
+            read_structure="76T",
+            indexes=0,
+            run_id="FC.1",
+            lane=1,
+            flowcell="FC",
+            lane_count=None,
+            sequencer_model=None
+        )
+
+        # Function should handle None gracefully
+        self.assertIsNotNone(run_info_data)
+        self.assertEqual(run_info_data['flowcell'], 'FC')

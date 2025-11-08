@@ -41,6 +41,231 @@ from util.illumina_indices import IlluminaIndexReference, IlluminaBarcodeHelper
 log = logging.getLogger(__name__)
 
 
+# =============================
+# ***  Utility Functions   ***
+# =============================
+
+
+def parse_illumina_fastq_filename(filename):
+    """Parse Illumina FASTQ filename to extract metadata.
+
+    Supports two filename formats:
+    1. DRAGEN format (with flowcell ID):
+       {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
+       Example: 22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
+
+    2. Simple bcl2fastq format (without flowcell ID):
+       {sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
+       Example: mebv-48-5_S17_L001_R1_001.fastq.gz
+
+    Args:
+        filename (str): FASTQ filename (with or without path)
+
+    Returns:
+        dict: Dictionary with extracted metadata fields:
+            For DRAGEN format:
+                - flowcell (str): Flowcell ID (typically 9 alphanumeric characters)
+                - lane_short (int): Short lane number (1-8)
+                - numeric_id (str): Numeric identifier
+                - sample_name (str): Sample name (may contain underscores)
+                - sample_number (int): Sample number (from S#)
+                - lane (int): Full lane number (from L00#)
+                - read (int): Read number (1 or 2)
+                - chunk (int): Chunk number (typically 001)
+            For simple format:
+                - sample_name (str): Sample name
+                - sample_number (int): Sample number (from S#)
+                - lane (int): Lane number (from L00#)
+                - read (int): Read number (1 or 2)
+                - chunk (int): Chunk number (typically 001)
+
+    Raises:
+        ValueError: If filename doesn't match expected format
+    """
+    if not filename:
+        raise ValueError("Filename cannot be empty")
+
+    # Extract basename and remove extensions
+    basename = os.path.basename(filename)
+    basename = basename.replace('.fastq.gz', '').replace('.fastq', '')
+
+    # Try DRAGEN format first (with flowcell ID)
+    # Pattern: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}
+    # The tricky part: sample_name can contain underscores!
+    # Strategy: Match from both ends and extract the middle as sample_name
+
+    # DRAGEN pattern: we know the last 4 fields are always S#_L00#_R#_chunk
+    # and the first 3 fields are flowcell_lane_numeric_id
+    # Everything in between is the sample name
+    dragen_pattern = r'^([A-Z0-9]{9})_(\d)_(\d{10})_(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    match = re.match(dragen_pattern, basename)
+
+    if match:
+        return {
+            'flowcell': match.group(1),
+            'lane_short': int(match.group(2)),
+            'numeric_id': match.group(3),
+            'sample_name': match.group(4),
+            'sample_number': int(match.group(5)),
+            'lane': int(match.group(6)),
+            'read': int(match.group(8)),
+            'chunk': int(match.group(9)),
+            'is_index': match.group(7) == 'I'
+        }
+
+    # Try simple bcl2fastq format (without flowcell ID)
+    # Pattern: {sample_name}_{S#}_{L00#}_{R#}_{chunk}
+    # Sample name cannot contain underscores followed by S# pattern
+    simple_pattern = r'^(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    match = re.match(simple_pattern, basename)
+
+    if match:
+        return {
+            'sample_name': match.group(1),
+            'sample_number': int(match.group(2)),
+            'lane': int(match.group(3)),
+            'read': int(match.group(5)),
+            'chunk': int(match.group(6)),
+            'is_index': match.group(4) == 'I'
+        }
+
+    # If neither pattern matches, raise an error
+    raise ValueError(
+        f"Filename '{basename}' does not match expected Illumina FASTQ format. "
+        f"Expected formats:\n"
+        f"  DRAGEN: {{flowcell}}_{{lane}}_{{numeric_id}}_{{sample_name}}_S#_L00#_R#_###.fastq[.gz]\n"
+        f"  Simple: {{sample_name}}_S#_L00#_R#_###.fastq[.gz]"
+    )
+
+
+def normalize_barcode(barcode):
+    """Normalize an Illumina barcode sequence.
+
+    Performs the following normalizations:
+    1. Converts to uppercase
+    2. Strips leading and trailing whitespace
+    3. Validates that only ACGTN characters are present
+
+    Args:
+        barcode (str): Barcode sequence to normalize
+
+    Returns:
+        str: Normalized barcode (uppercase, no whitespace)
+
+    Raises:
+        ValueError: If barcode contains invalid characters (not ACGTN)
+        TypeError: If barcode is not a string
+
+    Examples:
+        >>> normalize_barcode("acgt")
+        'ACGT'
+        >>> normalize_barcode(" CTGATCGT ")
+        'CTGATCGT'
+        >>> normalize_barcode("acgtn")
+        'ACGTN'
+    """
+    if not isinstance(barcode, str):
+        raise TypeError(f"Barcode must be a string, got {type(barcode).__name__}")
+
+    # Strip whitespace and convert to uppercase
+    normalized = barcode.strip().upper()
+
+    # Empty string is valid (allows for missing barcodes)
+    if not normalized:
+        return normalized
+
+    # Validate characters (only ACGTN allowed)
+    valid_chars = set('ACGTN')
+    invalid_chars = set(normalized) - valid_chars
+
+    if invalid_chars:
+        raise ValueError(
+            f"Barcode contains invalid characters: {sorted(invalid_chars)}. "
+            f"Only ACGTN characters are allowed. Got: '{barcode}'"
+        )
+
+    return normalized
+
+
+def build_run_info_json(
+    sequencing_center,
+    run_start_date,
+    read_structure,
+    indexes,
+    run_id,
+    lane,
+    flowcell,
+    lane_count=None,
+    surface_count=None,
+    swath_count=None,
+    tile_count=None,
+    total_tile_count=None,
+    sequencer_model=None
+):
+    """Build a run_info.json dictionary with standardized schema.
+
+    This function consolidates run info JSON construction logic used by
+    illumina_demux, splitcode_demux, and other demultiplexing functions.
+
+    Args:
+        sequencing_center (str): Sequencing center name
+        run_start_date (str): Run start date in ISO format (YYYY-MM-DD)
+        read_structure (str): Picard-style read structure (e.g., "76T8B8B76T")
+        indexes (int): Number of index reads
+        run_id (str): Run identifier (often flowcell.lane)
+        lane (int): Lane number
+        flowcell (str): Flowcell identifier
+        lane_count (int, optional): Number of lanes in the flowcell
+        surface_count (int, optional): Number of surfaces
+        swath_count (int, optional): Number of swaths
+        tile_count (int, optional): Number of tiles per lane
+        total_tile_count (int, optional): Total number of tiles
+        sequencer_model (str, optional): Sequencer model name
+
+    Returns:
+        dict: Dictionary with run metadata matching the standard schema.
+            All numeric fields are converted to strings for JSON consistency.
+
+    Examples:
+        >>> info = build_run_info_json(
+        ...     sequencing_center="BROAD",
+        ...     run_start_date="2024-01-15",
+        ...     read_structure="76T8B76T",
+        ...     indexes=1,
+        ...     run_id="FC123.1",
+        ...     lane=1,
+        ...     flowcell="FC123"
+        ... )
+        >>> info['flowcell']
+        'FC123'
+    """
+    run_info_data = {
+        "sequencing_center": sequencing_center,
+        "run_start_date": run_start_date,
+        "read_structure": read_structure,
+        "indexes": str(indexes),
+        "run_id": run_id,
+        "lane": str(lane),
+        "flowcell": str(flowcell),
+    }
+
+    # Add optional fields if provided
+    if lane_count is not None:
+        run_info_data["lane_count"] = str(lane_count)
+    if surface_count is not None:
+        run_info_data["surface_count"] = str(surface_count)
+    if swath_count is not None:
+        run_info_data["swath_count"] = str(swath_count)
+    if tile_count is not None:
+        run_info_data["tile_count"] = str(tile_count)
+    if total_tile_count is not None:
+        run_info_data["total_tile_count"] = str(total_tile_count)
+    if sequencer_model is not None:
+        run_info_data["sequencer_model"] = sequencer_model
+
+    return run_info_data
+
+
 # =========================
 # ***  illumina_demux   ***
 # =========================
