@@ -2804,3 +2804,303 @@ class TestBuildRunInfoJson(TestCaseWithTmp):
         # Function should handle None gracefully
         self.assertIsNotNone(run_info_data)
         self.assertEqual(run_info_data['flowcell'], 'FC')
+
+
+class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
+    """
+    Test suite for splitcode_demux_fastqs entry point (Phase 2).
+
+    Tests demultiplexing from paired DRAGEN FASTQ files using 3-barcode scheme:
+    - Input: Paired R1/R2 FASTQ files with inline barcodes
+    - Metadata: RunInfo.xml and SampleSheet.csv (DRAGEN format)
+    - Custom samplesheet: TSV mapping 3 barcodes (index1+index2+inline) to samples
+    - Output: Per-sample unaligned BAMs with metrics
+
+    Test data:
+    - TestPool1 (ATCGATCG+GCTAGCTA):
+      * TestSample1 (AAAAAAAA): 100 reads
+      * TestSample2 (CCCCCCCC): 75 reads
+      * TestSample3 (GGGGTTTT): 50 reads
+      * TestSampleEmpty (TTTTGGGG): 0 reads (empty sample)
+      * Unmatched (NNNNANNN): 25 reads
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.input_dir = util.file.get_test_input_path(self)
+
+        # Input FASTQ files
+        self.r1_fastq = os.path.join(self.input_dir, 'TestPool1_S1_L001_R1_001.fastq.gz')
+        self.r2_fastq = os.path.join(self.input_dir, 'TestPool1_S1_L001_R2_001.fastq.gz')
+
+        # Metadata files
+        self.runinfo_xml = os.path.join(self.input_dir, 'RunInfo.xml')
+        self.samplesheet_csv = os.path.join(self.input_dir, 'SampleSheet.csv')
+        self.samples_3bc = os.path.join(self.input_dir, 'samples_3bc.tsv')
+
+        # Verify test input files exist
+        for f in [self.r1_fastq, self.r2_fastq, self.runinfo_xml,
+                  self.samplesheet_csv, self.samples_3bc]:
+            self.assertTrue(os.path.exists(f), f"Test input file missing: {f}")
+
+    def test_parse_fastq_filename_from_test_data(self):
+        """Test that our test FASTQ filenames can be parsed correctly."""
+        # Test with simple format (no flowcell ID prefix)
+        result = illumina.parse_illumina_fastq_filename(self.r1_fastq)
+
+        self.assertEqual(result['sample_name'], 'TestPool1')
+        self.assertEqual(result['sample_number'], 1)
+        self.assertEqual(result['lane'], 1)
+        self.assertEqual(result['read'], 1)
+        self.assertEqual(result['chunk'], 1)
+        self.assertFalse(result.get('is_index', False))
+
+    def test_barcode_normalization_on_samplesheet(self):
+        """Test that barcodes from samplesheet can be normalized."""
+        # Read the custom 3-barcode samplesheet
+        # Note: allow_non_unique=True because samples share index1+index2, differ only in barcode_3
+        samples = illumina.SampleSheet(self.samples_3bc, allow_non_unique=True)
+
+        # Get first sample's barcodes
+        first_sample = samples.get_rows()[0]
+
+        # Test normalization of each barcode
+        bc1 = illumina.normalize_barcode(first_sample['barcode_1'])
+        bc2 = illumina.normalize_barcode(first_sample['barcode_2'])
+        bc3 = illumina.normalize_barcode(first_sample['barcode_3'])
+
+        # Should all be uppercase, valid DNA
+        self.assertTrue(all(c in 'ACGTN' for c in bc1))
+        self.assertTrue(all(c in 'ACGTN' for c in bc2))
+        self.assertTrue(all(c in 'ACGTN' for c in bc3))
+
+    def test_basic_demux_workflow(self):
+        """
+        Test basic demultiplexing workflow from paired FASTQs.
+
+        This test will:
+        1. Parse FASTQ filenames for metadata
+        2. Load RunInfo.xml and SampleSheet.csv
+        3. Load custom 3-barcode samplesheet
+        4. Run splitcode demultiplexing
+        5. Verify output BAMs are created
+        6. Verify output metrics and JSON files
+        """
+        out_dir = tempfile.mkdtemp()
+
+        # Call the main function (will fail until implemented in Phase 3)
+        illumina.splitcode_demux_fastqs(
+            fastq_r1=self.r1_fastq,
+            fastq_r2=self.r2_fastq,
+            samplesheet=self.samples_3bc,
+            runinfo_xml=self.runinfo_xml,
+            illumina_samplesheet=self.samplesheet_csv,
+            outdir=out_dir
+        )
+
+        # Verify expected output files exist
+        expected_bams = [
+            os.path.join(out_dir, 'TestSample1.bam'),
+            os.path.join(out_dir, 'TestSample2.bam'),
+            os.path.join(out_dir, 'TestSample3.bam'),
+            os.path.join(out_dir, 'TestSampleEmpty.bam'),
+        ]
+
+        for bam in expected_bams:
+            self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+
+        # Verify metadata files
+        self.assertTrue(os.path.exists(os.path.join(out_dir, 'demux_metadata.json')))
+        self.assertTrue(os.path.exists(os.path.join(out_dir, 'barcodes_common.txt')))
+        self.assertTrue(os.path.exists(os.path.join(out_dir, 'barcodes_outliers.txt')))
+        self.assertTrue(os.path.exists(os.path.join(out_dir, 'run_info.json')))
+
+    def test_barcode_matching_perfect_match(self):
+        """
+        Test that reads with perfect barcode matches are assigned correctly.
+
+        Verify:
+        - TestSample1 (AAAAAAAA) gets exactly 100 reads
+        - TestSample2 (CCCCCCCC) gets exactly 75 reads
+        - TestSample3 (GGGGTTTT) gets exactly 50 reads
+        """
+        out_dir = tempfile.mkdtemp()
+
+        illumina.splitcode_demux_fastqs(
+            fastq_r1=self.r1_fastq,
+            fastq_r2=self.r2_fastq,
+            samplesheet=self.samples_3bc,
+            runinfo_xml=self.runinfo_xml,
+            outdir=out_dir
+        )
+
+        # Use samtools to count reads in each output BAM
+        samtools = tools.samtools.SamtoolsTool()
+
+        sample1_bam = os.path.join(out_dir, 'TestSample1.bam')
+        sample2_bam = os.path.join(out_dir, 'TestSample2.bam')
+        sample3_bam = os.path.join(out_dir, 'TestSample3.bam')
+
+        # Count reads using samtools view -c
+        sample1_count = int(samtools.execute(['view', '-c', sample1_bam], stdout=subprocess.PIPE).stdout.strip())
+        sample2_count = int(samtools.execute(['view', '-c', sample2_bam], stdout=subprocess.PIPE).stdout.strip())
+        sample3_count = int(samtools.execute(['view', '-c', sample3_bam], stdout=subprocess.PIPE).stdout.strip())
+
+        self.assertEqual(sample1_count, 100, "TestSample1 should have exactly 100 reads")
+        self.assertEqual(sample2_count, 75, "TestSample2 should have exactly 75 reads")
+        self.assertEqual(sample3_count, 50, "TestSample3 should have exactly 50 reads")
+
+    def test_unmatched_barcodes(self):
+        """
+        Test handling of reads with unmatched inline barcodes.
+
+        Verify:
+        - Reads with barcode NNNNANNN (25 reads) are classified as unmatched
+        - Unmatched reads appear in metrics/reports
+        - Unmatched barcode appears in barcodes_outliers.txt
+        """
+        out_dir = tempfile.mkdtemp()
+
+        illumina.splitcode_demux_fastqs(
+            fastq_r1=self.r1_fastq,
+            fastq_r2=self.r2_fastq,
+            samplesheet=self.samples_3bc,
+            runinfo_xml=self.runinfo_xml,
+            outdir=out_dir
+        )
+
+        # Check barcodes_outliers.txt for unmatched barcode
+        outliers_file = os.path.join(out_dir, 'barcodes_outliers.txt')
+        self.assertTrue(os.path.exists(outliers_file))
+
+        with open(outliers_file, 'r') as f:
+            outliers_content = f.read()
+
+        # The unmatched barcode NNNNANNN should appear in outliers
+        # (exact format depends on implementation, but it should be present)
+        self.assertIn('NNNN', outliers_content, "Unmatched barcode should appear in outliers file")
+
+        # Check demux_metadata.json for unmatched read count
+        metadata_file = os.path.join(out_dir, 'demux_metadata.json')
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+
+        # Should have some record of unmatched reads (25 total)
+        # Exact structure TBD, but there should be unmatched reads reported
+        self.assertIn('unmatched', str(metadata).lower(), "Metadata should mention unmatched reads")
+
+    def test_empty_barcode_sample(self):
+        """
+        Test handling of sample with zero matching reads.
+
+        Verify:
+        - TestSampleEmpty (TTTTGGGG) is in samplesheet but has 0 reads
+        - Empty BAM file is still created (or noted in metrics)
+        - No errors/crashes when sample has zero reads
+        """
+        out_dir = tempfile.mkdtemp()
+
+        # Should not raise an exception even though TestSampleEmpty has 0 reads
+        illumina.splitcode_demux_fastqs(
+            fastq_r1=self.r1_fastq,
+            fastq_r2=self.r2_fastq,
+            samplesheet=self.samples_3bc,
+            runinfo_xml=self.runinfo_xml,
+            outdir=out_dir
+        )
+
+        # Empty sample should either:
+        # 1. Have an empty BAM file created, OR
+        # 2. Be noted in metadata as having 0 reads
+
+        empty_bam = os.path.join(out_dir, 'TestSampleEmpty.bam')
+
+        if os.path.exists(empty_bam):
+            # If BAM exists, it should have 0 reads
+            samtools = tools.samtools.SamtoolsTool()
+            read_count = int(samtools.execute(['view', '-c', empty_bam], stdout=subprocess.PIPE).stdout.strip())
+            self.assertEqual(read_count, 0, "Empty sample should have 0 reads")
+        else:
+            # If no BAM, check metadata mentions this sample
+            metadata_file = os.path.join(out_dir, 'demux_metadata.json')
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+
+            # TestSampleEmpty should be mentioned somewhere in metadata
+            self.assertIn('TestSampleEmpty', str(metadata), "Empty sample should be mentioned in metadata")
+
+    def test_output_schema_consistency(self):
+        """
+        Test that output files match existing demux schemas.
+
+        Verify:
+        - run_info.json has same schema as illumina_demux
+        - demux_metadata.json has expected fields
+        - Barcode reports match expected format
+        """
+        out_dir = tempfile.mkdtemp()
+
+        illumina.splitcode_demux_fastqs(
+            fastq_r1=self.r1_fastq,
+            fastq_r2=self.r2_fastq,
+            samplesheet=self.samples_3bc,
+            runinfo_xml=self.runinfo_xml,
+            outdir=out_dir
+        )
+
+        # Check run_info.json schema
+        run_info_file = os.path.join(out_dir, 'run_info.json')
+        with open(run_info_file, 'r') as f:
+            run_info = json.load(f)
+
+        # Should have standard fields from build_run_info_json
+        expected_fields = [
+            'sequencing_center', 'run_start_date', 'read_structure',
+            'indexes', 'run_id', 'lane', 'flowcell'
+        ]
+        for field in expected_fields:
+            self.assertIn(field, run_info, f"run_info.json missing required field: {field}")
+
+        # Check demux_metadata.json has expected structure
+        metadata_file = os.path.join(out_dir, 'demux_metadata.json')
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+
+        # Should have sample-level information
+        self.assertIsInstance(metadata, (dict, list), "demux_metadata.json should be JSON dict or list")
+
+    def test_run_metadata_extraction(self):
+        """
+        Test extraction of run metadata from RunInfo.xml and FASTQ filename.
+
+        Verify:
+        - Flowcell ID extracted correctly
+        - Lane number extracted correctly
+        - Run date extracted correctly
+        - Read structure parsed correctly (50T8B8B50T)
+        """
+        out_dir = tempfile.mkdtemp()
+
+        illumina.splitcode_demux_fastqs(
+            fastq_r1=self.r1_fastq,
+            fastq_r2=self.r2_fastq,
+            samplesheet=self.samples_3bc,
+            runinfo_xml=self.runinfo_xml,
+            outdir=out_dir
+        )
+
+        # Check run_info.json for correct metadata
+        run_info_file = os.path.join(out_dir, 'run_info.json')
+        with open(run_info_file, 'r') as f:
+            run_info = json.load(f)
+
+        # From RunInfo.xml
+        self.assertEqual(run_info['flowcell'], 'TESTFC01')
+        self.assertEqual(run_info['lane'], '1')
+
+        # Read structure should be 50T8B8B50T (from RunInfo.xml: 50+8+8+50)
+        self.assertIn('50', run_info['read_structure'], "Read structure should include 50bp reads")
+        self.assertIn('8', run_info['read_structure'], "Read structure should include 8bp barcodes")
+
+        # Run date from RunInfo.xml
+        self.assertIn('2025', run_info['run_start_date'], "Run date should be from RunInfo.xml")
