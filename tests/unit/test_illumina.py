@@ -2816,13 +2816,17 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
     - Custom samplesheet: TSV mapping 3 barcodes (index1+index2+inline) to samples
     - Output: Per-sample unaligned BAMs with metrics
 
-    Test data:
-    - TestPool1 (ATCGATCG+GCTAGCTA):
+    Test data includes both 3-barcode and 2-barcode samples:
+
+    - TestPool1 (ATCGATCG+GCTAGCTA) - 3 barcodes:
       * TestSample1 (AAAAAAAA): 100 reads
       * TestSample2 (CCCCCCCC): 75 reads
       * TestSample3 (GGGGTTTT): 50 reads
       * TestSampleEmpty (TTTTGGGG): 0 reads (empty sample)
       * Unmatched (NNNNANNN): 25 reads
+
+    - TestPool3 (GGAATTCC+CCGGAATT) - 2 barcodes only (no barcode_3):
+      * TestSampleNoSplitcode: 80 reads (should bypass splitcode, direct FASTQ→BAM)
     """
 
     def setUp(self):
@@ -3104,3 +3108,62 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
         # Run date from RunInfo.xml
         self.assertIn('2025', run_info['run_start_date'], "Run date should be from RunInfo.xml")
+
+    def test_two_barcode_sample_bypass_splitcode(self):
+        """
+        Test handling of 2-barcode samples (empty barcode_3).
+
+        This tests a mixed samplesheet where some rows have 3 barcodes (requiring
+        splitcode demux) and other rows have only 2 barcodes (empty barcode_3).
+
+        For 2-barcode rows, splitcode_demux_fastqs should:
+        - Skip splitcode demultiplexing
+        - Perform direct FASTQ → BAM conversion
+        - Produce exactly one output BAM (the pool itself)
+        - Still generate standard output files (JSONs, metrics)
+
+        Test data:
+        - TestPool3 (GGAATTCC+CCGGAATT): 80 reads, no inline barcode
+        - Expected: Single BAM file with all 80 reads
+        """
+        out_dir = tempfile.mkdtemp()
+
+        # Use TestPool3 which has empty barcode_3 (2-barcode sample)
+        r1_fastq = os.path.join(self.input_dir, 'TestPool3_S3_L001_R1_001.fastq.gz')
+        r2_fastq = os.path.join(self.input_dir, 'TestPool3_S3_L001_R2_001.fastq.gz')
+
+        # Verify test files exist
+        self.assertTrue(os.path.exists(r1_fastq), f"Test FASTQ missing: {r1_fastq}")
+        self.assertTrue(os.path.exists(r2_fastq), f"Test FASTQ missing: {r2_fastq}")
+
+        # Run demux on 2-barcode sample
+        illumina.splitcode_demux_fastqs(
+            fastq_r1=r1_fastq,
+            fastq_r2=r2_fastq,
+            samplesheet=self.samples_3bc,
+            runinfo_xml=self.runinfo_xml,
+            illumina_samplesheet=self.samplesheet_csv,
+            outdir=out_dir
+        )
+
+        # For 2-barcode sample, should produce exactly one BAM file
+        # (the entire pool, no splitcode demux)
+        expected_bam = os.path.join(out_dir, 'TestSampleNoSplitcode.bam')
+        self.assertTrue(os.path.exists(expected_bam),
+                       "2-barcode sample should produce a single BAM file")
+
+        # Verify all 80 reads are in the output BAM
+        samtools = tools.samtools.SamtoolsTool()
+        read_count = int(samtools.execute(['view', '-c', expected_bam],
+                                         stdout=subprocess.PIPE).stdout.strip())
+        self.assertEqual(read_count, 80,
+                        "All 80 reads should be in the 2-barcode sample BAM")
+
+        # Verify standard output files still exist
+        self.assertTrue(os.path.exists(os.path.join(out_dir, 'run_info.json')))
+        self.assertTrue(os.path.exists(os.path.join(out_dir, 'demux_metadata.json')))
+
+        # For 2-barcode samples, there should be no barcode outliers file
+        # (or it should be empty/minimal since no splitcode was run)
+        # The exact behavior depends on implementation, but the important
+        # thing is no splitcode demux occurred
