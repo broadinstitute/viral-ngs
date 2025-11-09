@@ -8,6 +8,7 @@ import os.path
 import shutil
 import subprocess
 import sys
+import zipfile
 
 import tools
 import tools.samtools
@@ -36,7 +37,8 @@ class FastQC(tools.Tool):
             with open(out_html, 'wt') as outf:
                 outf.write("<html><body>Input BAM has zero reads.</body></html>\n")
             if out_zip:
-                util.file.touch(out_zip)
+                with zipfile.ZipFile(out_zip, 'w') as zf:
+                    pass
 
         else:
             # run fastqc
