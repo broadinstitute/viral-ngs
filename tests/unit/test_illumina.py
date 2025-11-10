@@ -3050,11 +3050,14 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         self.r1_fastq = os.path.join(self.input_dir, 'TestPool1_S1_L001_R1_001.fastq.gz')
         self.r2_fastq = os.path.join(self.input_dir, 'TestPool1_S1_L001_R2_001.fastq.gz')
 
-        # Custom 3-barcode samplesheet (ONLY required input besides FASTQs)
+        # Custom 3-barcode samplesheet
         self.samples_3bc = os.path.join(self.input_dir, 'samples_3bc.tsv')
 
+        # RunInfo.xml for richer BAM metadata
+        self.runinfo_xml = os.path.join(self.input_dir, 'RunInfo.xml')
+
         # Verify test input files exist
-        for f in [self.r1_fastq, self.r2_fastq, self.samples_3bc]:
+        for f in [self.r1_fastq, self.r2_fastq, self.samples_3bc, self.runinfo_xml]:
             self.assertTrue(os.path.exists(f), f"Test input file missing: {f}")
 
     def test_parse_fastq_filename_from_test_data(self):
@@ -3108,6 +3111,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
             outdir=out_dir,
+            runinfo=self.runinfo_xml,
             threads=1
         )
 
@@ -3149,6 +3153,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
             outdir=out_dir,
+            runinfo=self.runinfo_xml,
             threads=1
         )
 
@@ -3189,6 +3194,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
             outdir=out_dir,
+            runinfo=self.runinfo_xml,
             threads=1
         )
 
@@ -3225,6 +3231,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
             outdir=out_dir,
+            runinfo=self.runinfo_xml,
             threads=1
         )
 
@@ -3265,6 +3272,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
             outdir=out_dir,
+            runinfo=self.runinfo_xml,
             threads=1
         )
 
@@ -3302,6 +3310,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
             outdir=out_dir,
+            runinfo=self.runinfo_xml,
             threads=1
         )
 
@@ -3342,12 +3351,13 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         self.assertTrue(os.path.exists(r1_fastq), f"Test FASTQ missing: {r1_fastq}")
         self.assertTrue(os.path.exists(r2_fastq), f"Test FASTQ missing: {r2_fastq}")
 
-        # Run demux on 2-barcode sample (simplified interface)
+        # Run demux on 2-barcode sample
         illumina.splitcode_demux_fastqs(
             fastq_r1=r1_fastq,
             fastq_r2=r2_fastq,
             samplesheet=self.samples_3bc,
             outdir=out_dir,
+            runinfo=self.runinfo_xml,
             threads=1
         )
 

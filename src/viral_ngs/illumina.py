@@ -446,7 +446,8 @@ def splitcode_demux_fastqs(
     fastq_r2,
     samplesheet,
     outdir,
-    sequencing_center='Broad',
+    runinfo=None,
+    sequencing_center=None,
     max_hamming_dist=1,
     r1_trim_bp_right_of_barcode=None,
     r2_trim_bp_left_of_barcode=None,
@@ -459,9 +460,8 @@ def splitcode_demux_fastqs(
     """
     Simplified splitcode demultiplexing from paired DRAGEN FASTQ files.
 
-    This function performs 3-barcode demultiplexing directly from paired FASTQ files
-    without requiring RunInfo.xml or Illumina SampleSheet.csv. It's designed to run
-    in parallel across multiple FASTQ pairs.
+    This function performs 3-barcode demultiplexing directly from paired FASTQ files.
+    It's designed to run in parallel across multiple FASTQ pairs.
 
     For samples with empty barcode_3 (2-barcode samples), it skips splitcode and
     performs direct FASTQ → BAM conversion.
@@ -471,7 +471,8 @@ def splitcode_demux_fastqs(
         fastq_r2 (str): Path to R2 FASTQ file
         samplesheet (str): Path to custom 3-barcode samplesheet (TSV format)
         outdir (str): Output directory for BAM files and metrics
-        sequencing_center (str): Sequencing center name (default: 'Broad')
+        runinfo (str): Path to RunInfo.xml (optional, for richer BAM metadata)
+        sequencing_center (str): Sequencing center name (default: None, uses runinfo.get_machine() if available)
         max_hamming_dist (int): Maximum Hamming distance for barcode matching (default: 1)
         r1_trim_bp_right_of_barcode (int): Additional bp to trim from R1 after barcode
         r2_trim_bp_left_of_barcode (int): Additional bp to trim from R2 before barcode
@@ -511,6 +512,22 @@ def splitcode_demux_fastqs(
         raise FileNotFoundError(f"R2 FASTQ not found: {fastq_r2}")
     if not os.path.exists(samplesheet):
         raise FileNotFoundError(f"Samplesheet not found: {samplesheet}")
+
+    # Parse RunInfo.xml if provided
+    runinfo_obj = None
+    flowcell = None
+    run_date = None
+    if runinfo:
+        if not os.path.exists(runinfo):
+            raise FileNotFoundError(f"RunInfo.xml not found: {runinfo}")
+        runinfo_obj = RunInfo(runinfo)
+        flowcell = runinfo_obj.get_flowcell()
+        run_date = runinfo_obj.get_rundate_iso()
+
+        # Use machine as sequencing_center if not specified
+        if sequencing_center is None:
+            sequencing_center = runinfo_obj.get_machine()
+            log.info(f"Using sequencing center from RunInfo: {sequencing_center}")
 
     # Set default threads if not provided
     threads = threads or util.misc.available_cpu_count()
@@ -581,9 +598,34 @@ def splitcode_demux_fastqs(
         # All samples are 2-barcode → skip splitcode, do direct FASTQ→BAM
         log.info("2-barcode sample detected - bypassing splitcode, performing direct FASTQ→BAM conversion")
 
-        # Get the single sample name
+        # Get the single sample name and library ID
         sample_name = sample_rows[0]['sample']
+        sample_library_id = sample_rows[0].get('library', sample_name)
         output_bam = os.path.join(outdir, f"{sample_name}.bam")
+
+        # Build Picard options dict with richer metadata
+        picard_opts = {
+            'PLATFORM': 'illumina',
+            'LIBRARY_NAME': sample_library_id,
+            'VERBOSITY': 'WARNING',
+            'QUIET': 'TRUE'
+        }
+
+        # Add run date from RunInfo
+        if run_date:
+            picard_opts['RUN_DATE'] = run_date
+
+        # Add sequencing center
+        if sequencing_center:
+            picard_opts['SEQUENCING_CENTER'] = sequencing_center
+
+        # Add platform unit: <flowcell>.<lane>.<barcode>
+        if flowcell and target_bc1:
+            if target_bc2:
+                barcode_str = f"{target_bc1}-{target_bc2}"
+            else:
+                barcode_str = target_bc1
+            picard_opts['PLATFORM_UNIT'] = f"{flowcell}.{lane}.{barcode_str}"
 
         # Use Picard FastqToSam for conversion
         picard = tools.picard.FastqToSamTool()
@@ -592,10 +634,7 @@ def splitcode_demux_fastqs(
             fastq_r2,
             sample_name,
             output_bam,
-            picardOptions=[
-                f'SEQUENCING_CENTER={sequencing_center}',
-                'PLATFORM=illumina'
-            ]
+            picardOptions=picard.dict_to_picard_opts(picard_opts)
         )
 
         output_files['bam'] = output_bam
@@ -731,15 +770,41 @@ def splitcode_demux_fastqs(
             if os.path.exists(bc_r1) and os.path.exists(bc_r2):
                 output_bam = os.path.join(outdir, f"{sample_name}.bam")
 
+                # Get inline barcode for this sample from the dataframe
+                sample_row = inner_demux_barcode_map_df.loc[sample_name]
+                inline_barcode = sample_row.get('barcode_3', '')
+
+                # Build Picard options dict with richer metadata
+                picard_opts = {
+                    'PLATFORM': 'illumina',
+                    'LIBRARY_NAME': sample_library_id,
+                    'VERBOSITY': 'WARNING',
+                    'QUIET': 'TRUE'
+                }
+
+                # Add run date from RunInfo
+                if run_date:
+                    picard_opts['RUN_DATE'] = run_date
+
+                # Add sequencing center
+                if sequencing_center:
+                    picard_opts['SEQUENCING_CENTER'] = sequencing_center
+
+                # Add platform unit: <flowcell>.<lane>.<barcode>
+                # For 3-barcode samples, include all three barcodes
+                if flowcell and target_bc1:
+                    if target_bc2:
+                        barcode_str = f"{target_bc1}-{target_bc2}-{inline_barcode}"
+                    else:
+                        barcode_str = f"{target_bc1}-{inline_barcode}"
+                    picard_opts['PLATFORM_UNIT'] = f"{flowcell}.{lane}.{barcode_str}"
+
                 picard.execute(
                     bc_r1,
                     bc_r2,
                     sample_name,
                     output_bam,
-                    picardOptions=[
-                        f'SEQUENCING_CENTER={sequencing_center}',
-                        'PLATFORM=illumina'
-                    ]
+                    picardOptions=picard.dict_to_picard_opts(picard_opts)
                 )
 
                 # Count read pairs (samtools.count returns total reads, divide by 2 for pairs)
@@ -801,9 +866,14 @@ def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
         help='Output directory for BAM files and metrics'
     )
     parser.add_argument(
+        '--runinfo',
+        default=None,
+        help='Path to RunInfo.xml (optional, for richer BAM metadata)'
+    )
+    parser.add_argument(
         '--sequencing_center',
-        default='Broad',
-        help='Sequencing center name (default: Broad)'
+        default=None,
+        help='Sequencing center name (default: None, uses runinfo.get_machine() if RunInfo.xml provided)'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_splitcode_demux_fastqs, split_args=True)
@@ -819,6 +889,7 @@ def main_splitcode_demux_fastqs(args):
         fastq_r2=args.fastq_r2,
         samplesheet=args.samplesheet,
         outdir=args.outdir,
+        runinfo=args.runinfo,
         sequencing_center=args.sequencing_center
     )
 
