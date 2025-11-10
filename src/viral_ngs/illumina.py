@@ -499,8 +499,10 @@ def splitcode_demux_fastqs(
     Outputs:
         - Per-sample unaligned BAMs
         - demux_metrics.json: Read counts per sample
-        - barcodes_common.txt: Common barcode sequences
-        - barcodes_outliers.txt: Outlier barcode sequences
+
+    Note:
+        This simplified function does NOT generate barcodes_common.txt or barcodes_outliers.txt.
+        For comprehensive barcode reporting, use illumina_demux or splitcode_demux instead.
     """
     # Validate inputs
     if not os.path.exists(fastq_r1):
@@ -523,17 +525,53 @@ def splitcode_demux_fastqs(
 
     log.info(f"Processing pool: {pool_name}, lane: {lane}")
 
+    # Extract outer barcodes (barcode_1 + barcode_2) from FASTQ header
+    # DRAGEN FASTQs have headers like: @INSTRUMENT:...:BARCODE where BARCODE is "BC1+BC2"
+    import gzip
+    with gzip.open(fastq_r1, 'rt') as f:
+        first_header = f.readline().strip()
+
+    # Parse barcode from header (last field after last space)
+    # Format: @INST:RUN:FC:LANE:TILE:X:Y READ:FILTERED:CONTROL:BARCODE
+    # Second part is like: "1:N:0:ATCGATCG+GCTAGCTA"
+    header_parts = first_header.split()
+    if len(header_parts) < 2:
+        raise ValueError(f"Invalid FASTQ header format: {first_header}")
+
+    # Extract barcode from "READ:FILTERED:CONTROL:BARCODE" field
+    metadata_field = header_parts[-1]  # e.g., "1:N:0:ATCGATCG+GCTAGCTA"
+    metadata_parts = metadata_field.split(':')
+    if len(metadata_parts) < 4:
+        raise ValueError(f"Invalid FASTQ metadata format: {metadata_field}")
+
+    barcode_field = metadata_parts[3]  # e.g., "ATCGATCG+GCTAGCTA"
+    if '+' in barcode_field:
+        target_bc1, target_bc2 = barcode_field.split('+')
+    else:
+        target_bc1 = barcode_field
+        target_bc2 = None
+
+    log.info(f"Detected outer barcodes from FASTQ header: {target_bc1}+{target_bc2}")
+
     # Load custom 3-barcode samplesheet
-    # Note: The samplesheet may contain multiple pools, but this FASTQ pair should only
-    # contain reads from one pool (one unique outer barcode pair). We'll validate this below.
+    # Note: The samplesheet may contain multiple pools, filter to only this pool's outer barcodes
     samples = SampleSheet(samplesheet, allow_non_unique=True)
 
-    # Get samples for this pool (match by barcode_1 + barcode_2)
-    # Parse the pool's barcodes from the FASTQ header to know which rows to process
-    # For now, process all samples in the samplesheet that match this pool
+    # Filter sample_rows to only those matching the outer barcodes from the FASTQ
+    all_sample_rows = list(samples.get_rows())
+    sample_rows = [
+        row for row in all_sample_rows
+        if row.get('barcode_1') == target_bc1 and row.get('barcode_2') == target_bc2
+    ]
 
-    # Check if any samples have empty barcode_3 (2-barcode samples)
-    sample_rows = list(samples.get_rows())
+    if len(sample_rows) == 0:
+        raise ValueError(
+            f"No samples found in samplesheet matching outer barcodes {target_bc1}+{target_bc2}"
+        )
+
+    log.info(f"Filtered samplesheet to {len(sample_rows)} samples matching outer barcodes")
+
+    # Now check if the FILTERED samples are 2-barcode or 3-barcode
     has_3bc_samples = any(row.get('barcode_3', '').strip() for row in sample_rows)
     has_2bc_samples = any(not row.get('barcode_3', '').strip() for row in sample_rows)
 
@@ -564,11 +602,12 @@ def splitcode_demux_fastqs(
 
         # Generate simple metrics
         samtools = tools.samtools.SamtoolsTool()
-        read_count = samtools.count(output_bam)
+        total_reads = samtools.count(output_bam)
+        read_pairs = total_reads // 2
 
         metrics = {
             'sample': sample_name,
-            'read_count': read_count,
+            'read_count': read_pairs,
             'demux_type': '2-barcode (no splitcode)'
         }
 
@@ -588,38 +627,11 @@ def splitcode_demux_fastqs(
                 "For 3-barcode demux, all samples in a pool must share the same outer barcodes."
             )
 
-        # Extract outer barcodes (barcode_1 + barcode_2) from FASTQ header
-        # DRAGEN FASTQs have headers like: @INSTRUMENT:...:BARCODE where BARCODE is "BC1+BC2"
-        import gzip
-        with gzip.open(fastq_r1, 'rt') as f:
-            first_header = f.readline().strip()
-
-        # Parse barcode from header (last field after last space)
-        # Format: @INST:RUN:FC:LANE:TILE:X:Y READ:FILTERED:CONTROL:BARCODE
-        # Second part is like: "1:N:0:ATCGATCG+GCTAGCTA"
-        header_parts = first_header.split()
-        if len(header_parts) < 2:
-            raise ValueError(f"Invalid FASTQ header format: {first_header}")
-
-        # Extract barcode from "READ:FILTERED:CONTROL:BARCODE" field
-        metadata_field = header_parts[-1]  # e.g., "1:N:0:ATCGATCG+GCTAGCTA"
-        metadata_parts = metadata_field.split(':')
-        if len(metadata_parts) < 4:
-            raise ValueError(f"Invalid FASTQ metadata format: {metadata_field}")
-
-        barcode_field = metadata_parts[3]  # e.g., "ATCGATCG+GCTAGCTA"
-        if '+' in barcode_field:
-            target_bc1, target_bc2 = barcode_field.split('+')
-        else:
-            target_bc1 = barcode_field
-            target_bc2 = None
-
-        log.info(f"Detected outer barcodes from FASTQ header: {target_bc1}+{target_bc2}")
-
         # Create the inner demux barcode map using SampleSheet method
+        # This creates a dataframe with all samples from the samplesheet
         inner_demux_barcode_map_df = samples.inner_demux_mapper()
 
-        # Filter the dataframe to only samples matching these outer barcodes
+        # Filter the dataframe to only samples matching the outer barcodes from FASTQ header
         if target_bc2:
             filtered_df = inner_demux_barcode_map_df[
                 (inner_demux_barcode_map_df['barcode_1'] == target_bc1) &
@@ -630,24 +642,18 @@ def splitcode_demux_fastqs(
                 inner_demux_barcode_map_df['barcode_1'] == target_bc1
             ]
 
-        # Verify we have samples after filtering
+        # Verify we have 3-barcode samples after filtering
         samples_with_bc3 = filtered_df[
             (filtered_df['barcode_3'].notna()) &
             (filtered_df['barcode_3'].str.strip() != '')
         ]
 
-        if len(filtered_df) == 0:
-            raise ValueError(
-                f"No samples found in samplesheet matching outer barcodes {target_bc1}+{target_bc2}"
-            )
-
         if len(samples_with_bc3) == 0:
             raise ValueError(
-                f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}. "
-                f"Found {len(filtered_df)} total samples but none have barcode_3."
+                f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}"
             )
 
-        log.info(f"Filtered samplesheet to {len(samples_with_bc3)} samples with 3-barcode scheme")
+        log.info(f"Filtered to {len(samples_with_bc3)} samples with 3-barcode scheme")
 
         # Use the filtered dataframe
         inner_demux_barcode_map_df = filtered_df
@@ -736,12 +742,13 @@ def splitcode_demux_fastqs(
                     ]
                 )
 
-                # Count reads
-                read_count = samtools.count(output_bam)
+                # Count read pairs (samtools.count returns total reads, divide by 2 for pairs)
+                total_reads = samtools.count(output_bam)
+                read_pairs = total_reads // 2
 
                 sample_metrics[sample_name] = {
                     'sample_library_id': sample_library_id,
-                    'read_count': read_count
+                    'read_count': read_pairs
                 }
 
                 output_files[f'bam_{sample_name}'] = output_bam
@@ -757,25 +764,10 @@ def splitcode_demux_fastqs(
             }, f, indent=2)
         output_files['metrics'] = metrics_file
 
-        # Generate barcode reports using existing splitcode analysis utilities
-        # (reusing pattern from splitcode_demux function)
-        common_file = os.path.join(outdir, 'barcodes_common.txt')
-        outliers_file = os.path.join(outdir, 'barcodes_outliers.txt')
-
-        # Extract inline barcodes from the dataframe
-        inline_barcodes = sorted(list(set(
-            inner_demux_barcode_map_df[inner_demux_barcode_map_df['muxed_run'] == pool_id]['barcode_3'].values
-        )))
-
-        with open(common_file, 'w') as f:
-            f.write("# Common barcodes\n")
-            for barcode in inline_barcodes:
-                f.write(f"{barcode}\n")
-        output_files['barcodes_common'] = common_file
-
-        with open(outliers_file, 'w') as f:
-            f.write("# Outlier barcodes\n")
-        output_files['barcodes_outliers'] = outliers_file
+        # Note: We don't generate barcodes_common.txt or barcodes_outliers.txt here.
+        # Those files require full barcode analysis which is handled by illumina_demux
+        # or splitcode_demux workflows. The simplified splitcode_demux_fastqs is designed
+        # for quick per-FASTQ-pair demux without comprehensive barcode reporting.
 
     else:
         raise ValueError("Samplesheet contains no valid samples (all barcode_3 values are empty)")
