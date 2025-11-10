@@ -11,6 +11,7 @@ import concurrent.futures
 import csv
 import gc
 import glob
+import gzip
 import itertools
 import json
 import logging
@@ -471,7 +472,8 @@ def splitcode_demux_fastqs(
         fastq_r2 (str): Path to R2 FASTQ file
         samplesheet (str): Path to custom 3-barcode samplesheet (TSV format)
         outdir (str): Output directory for BAM files and metrics
-        runinfo (str): Path to RunInfo.xml (optional, for richer BAM metadata)
+        runinfo (str): Path to RunInfo.xml (optional, but recommended for richer BAM metadata
+            including RUN_DATE, SEQUENCING_CENTER, and PLATFORM_UNIT)
         sequencing_center (str): Sequencing center name (default: None, uses runinfo.get_machine() if available)
         max_hamming_dist (int): Maximum Hamming distance for barcode matching (default: 1)
         r1_trim_bp_right_of_barcode (int): Additional bp to trim from R1 after barcode
@@ -544,7 +546,6 @@ def splitcode_demux_fastqs(
 
     # Extract outer barcodes (barcode_1 + barcode_2) from FASTQ header
     # DRAGEN FASTQs have headers like: @INSTRUMENT:...:BARCODE where BARCODE is "BC1+BC2"
-    import gzip
     with gzip.open(fastq_r1, 'rt') as f:
         first_header = f.readline().strip()
 
@@ -648,6 +649,8 @@ def splitcode_demux_fastqs(
         # Generate metrics with consistent schema (nested samples dict)
         samtools = tools.samtools.SamtoolsTool()
         total_reads = samtools.count(output_bam)
+        # Divide by 2 because samtools.count() returns total reads (R1+R2),
+        # but we want to report read pairs
         read_pairs = total_reads // 2
 
         metrics = {
