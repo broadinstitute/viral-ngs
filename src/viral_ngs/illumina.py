@@ -266,6 +266,449 @@ def build_run_info_json(
     return run_info_data
 
 
+# ==============================
+# ***  illumina_metadata     ***
+# ==============================
+
+
+def illumina_metadata(
+    runinfo,
+    samplesheet,
+    lane,
+    sequencing_center='Broad',
+    out_runinfo=None,
+    out_meta_by_sample=None,
+    out_meta_by_filename=None
+):
+    """
+    Generate metadata JSON files from Illumina run files without processing reads.
+
+    This function extracts metadata from RunInfo.xml and SampleSheet, generating
+    standardized JSON output files. It is designed to be run once per sequencing run
+    to create metadata that's shared across all parallel demux jobs.
+
+    Args:
+        runinfo (str): Path to RunInfo.xml file
+        samplesheet (str): Path to Illumina SampleSheet.csv file
+        lane (int): Lane number to process
+        sequencing_center (str): Sequencing center name (default: 'Broad')
+        out_runinfo (str, optional): Output path for run_info.json
+        out_meta_by_sample (str, optional): Output path for meta_by_sample.json
+        out_meta_by_filename (str, optional): Output path for meta_by_filename.json
+
+    Returns:
+        dict: Dictionary containing paths to generated files
+
+    Raises:
+        FileNotFoundError: If runinfo or samplesheet files don't exist
+        IOError: If there are issues reading input files or writing output files
+
+    Example:
+        >>> illumina_metadata(
+        ...     runinfo='RunInfo.xml',
+        ...     samplesheet='SampleSheet.csv',
+        ...     lane=1,
+        ...     out_runinfo='run_info.json',
+        ...     out_meta_by_sample='meta_by_sample.json',
+        ...     out_meta_by_filename='meta_by_filename.json'
+        ... )
+    """
+    # Validate input files exist
+    if not os.path.exists(runinfo):
+        raise FileNotFoundError(f"RunInfo.xml not found: {runinfo}")
+    if not os.path.exists(samplesheet):
+        raise FileNotFoundError(f"SampleSheet not found: {samplesheet}")
+
+    # Parse RunInfo.xml
+    runinfo_obj = RunInfo(runinfo)
+
+    # Parse SampleSheet
+    samples = SampleSheet(
+        samplesheet,
+        only_lane=lane,
+        allow_non_unique=False
+    )
+
+    output_files = {}
+
+    # Generate run_info.json using utility function
+    if out_runinfo:
+        run_info_dict = build_run_info_json(
+            sequencing_center=sequencing_center,
+            run_start_date=runinfo_obj.get_rundate_iso(),
+            read_structure=runinfo_obj.get_read_structure(),
+            indexes=str(samples.indexes),
+            run_id=runinfo_obj.get_run_id(),
+            lane=str(lane),
+            flowcell=str(runinfo_obj.get_flowcell()),
+            lane_count=runinfo_obj.get_lane_count(),
+            surface_count=runinfo_obj.get_surface_count(),
+            swath_count=runinfo_obj.get_swath_count(),
+            tile_count=runinfo_obj.get_tile_count(),
+            total_tile_count=runinfo_obj.tile_count(),
+            sequencer_model=runinfo_obj.get_machine_model()
+        )
+
+        with open(out_runinfo, 'wt') as outf:
+            json.dump(run_info_dict, outf, indent=2)
+        output_files['run_info'] = out_runinfo
+
+    # Generate sample metadata JSONs
+    if out_meta_by_sample or out_meta_by_filename:
+        # Get sample metadata and add lane
+        sample_meta = list(samples.get_rows())
+        for row in sample_meta:
+            row["lane"] = str(lane)
+
+        if out_meta_by_sample:
+            with open(out_meta_by_sample, 'wt') as outf:
+                json.dump(dict((r["sample"], r) for r in sample_meta), outf, indent=2)
+            output_files['meta_by_sample'] = out_meta_by_sample
+
+        if out_meta_by_filename:
+            with open(out_meta_by_filename, 'wt') as outf:
+                json.dump(dict((r["run"], r) for r in sample_meta), outf, indent=2)
+            output_files['meta_by_filename'] = out_meta_by_filename
+
+    return output_files
+
+
+def parser_illumina_metadata(parser=argparse.ArgumentParser()):
+    """
+    Argument parser for illumina_metadata entry point.
+    """
+    parser.add_argument(
+        '--runinfo',
+        required=True,
+        help='Path to RunInfo.xml file'
+    )
+    parser.add_argument(
+        '--samplesheet',
+        required=True,
+        help='Path to Illumina SampleSheet.csv file'
+    )
+    parser.add_argument(
+        '--lane',
+        required=True,
+        type=int,
+        help='Lane number to process'
+    )
+    parser.add_argument(
+        '--sequencing_center',
+        default='Broad',
+        help='Sequencing center name (default: Broad)'
+    )
+    parser.add_argument(
+        '--out_runinfo',
+        help='Output path for run_info.json'
+    )
+    parser.add_argument(
+        '--out_meta_by_sample',
+        help='Output path for meta_by_sample.json (sample metadata indexed by sample name)'
+    )
+    parser.add_argument(
+        '--out_meta_by_filename',
+        help='Output path for meta_by_filename.json (sample metadata indexed by library ID)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_illumina_metadata, split_args=True)
+    return parser
+
+
+def main_illumina_metadata(args):
+    """
+    Main entry point for illumina_metadata command.
+    """
+    output_files = illumina_metadata(
+        runinfo=args.runinfo,
+        samplesheet=args.samplesheet,
+        lane=args.lane,
+        sequencing_center=args.sequencing_center,
+        out_runinfo=args.out_runinfo,
+        out_meta_by_sample=args.out_meta_by_sample,
+        out_meta_by_filename=args.out_meta_by_filename
+    )
+
+    log.info(f"Generated {len(output_files)} metadata file(s):")
+    for key, path in output_files.items():
+        log.info(f"  {key}: {path}")
+
+__commands__.append(('illumina_metadata', parser_illumina_metadata))
+
+
+# ===================================
+# ***  splitcode_demux_fastqs     ***
+# ===================================
+
+
+def splitcode_demux_fastqs(
+    fastq_r1,
+    fastq_r2,
+    samplesheet,
+    outdir,
+    sequencing_center='Broad'
+):
+    """
+    Simplified splitcode demultiplexing from paired DRAGEN FASTQ files.
+
+    This function performs 3-barcode demultiplexing directly from paired FASTQ files
+    without requiring RunInfo.xml or Illumina SampleSheet.csv. It's designed to run
+    in parallel across multiple FASTQ pairs.
+
+    For samples with empty barcode_3 (2-barcode samples), it skips splitcode and
+    performs direct FASTQ → BAM conversion.
+
+    Args:
+        fastq_r1 (str): Path to R1 FASTQ file
+        fastq_r2 (str): Path to R2 FASTQ file
+        samplesheet (str): Path to custom 3-barcode samplesheet (TSV format)
+        outdir (str): Output directory for BAM files and metrics
+        sequencing_center (str): Sequencing center name (default: 'Broad')
+
+    Returns:
+        dict: Dictionary containing paths to generated files
+
+    Raises:
+        FileNotFoundError: If FASTQ or samplesheet files don't exist
+        ValueError: If samplesheet format is invalid
+
+    Example:
+        >>> splitcode_demux_fastqs(
+        ...     fastq_r1='Pool1_R1.fastq.gz',
+        ...     fastq_r2='Pool1_R2.fastq.gz',
+        ...     samplesheet='samples_3bc.tsv',
+        ...     outdir='demux_out'
+        ... )
+
+    Outputs:
+        - Per-sample unaligned BAMs
+        - demux_metrics.json: Read counts per sample
+        - barcodes_common.txt: Common barcode sequences
+        - barcodes_outliers.txt: Outlier barcode sequences
+    """
+    # Validate inputs
+    if not os.path.exists(fastq_r1):
+        raise FileNotFoundError(f"R1 FASTQ not found: {fastq_r1}")
+    if not os.path.exists(fastq_r2):
+        raise FileNotFoundError(f"R2 FASTQ not found: {fastq_r2}")
+    if not os.path.exists(samplesheet):
+        raise FileNotFoundError(f"Samplesheet not found: {samplesheet}")
+
+    # Create output directory
+    os.makedirs(outdir, exist_ok=True)
+
+    # Parse FASTQ filename to extract metadata
+    fastq_metadata = parse_illumina_fastq_filename(fastq_r1)
+    pool_name = fastq_metadata['sample_name']
+    lane = fastq_metadata['lane']
+
+    log.info(f"Processing pool: {pool_name}, lane: {lane}")
+
+    # Load custom 3-barcode samplesheet
+    samples = SampleSheet(samplesheet, allow_non_unique=True)
+
+    # Get samples for this pool (match by barcode_1 + barcode_2)
+    # Parse the pool's barcodes from the FASTQ header to know which rows to process
+    # For now, process all samples in the samplesheet that match this pool
+
+    # Check if any samples have empty barcode_3 (2-barcode samples)
+    sample_rows = list(samples.get_rows())
+    has_3bc_samples = any(row.get('barcode_3', '').strip() for row in sample_rows)
+    has_2bc_samples = any(not row.get('barcode_3', '').strip() for row in sample_rows)
+
+    output_files = {}
+
+    if has_2bc_samples and not has_3bc_samples:
+        # All samples are 2-barcode → skip splitcode, do direct FASTQ→BAM
+        log.info("2-barcode sample detected - bypassing splitcode, performing direct FASTQ→BAM conversion")
+
+        # Get the single sample name
+        sample_name = sample_rows[0]['sample']
+        output_bam = os.path.join(outdir, f"{sample_name}.bam")
+
+        # Use Picard FastqToSam for conversion
+        picard = tools.picard.FastqToSamTool()
+        picard.execute(
+            fastq_r1,
+            fastq_r2,
+            sample_name,
+            output_bam,
+            picardOptions={
+                'SEQUENCING_CENTER': sequencing_center,
+                'PLATFORM': 'illumina'
+            }
+        )
+
+        output_files['bam'] = output_bam
+
+        # Generate simple metrics
+        samtools = tools.samtools.SamtoolsTool()
+        read_count = int(samtools.execute(
+            ['view', '-c', output_bam],
+            stdout=subprocess.PIPE
+        ).stdout.strip())
+
+        metrics = {
+            'sample': sample_name,
+            'read_count': read_count,
+            'demux_type': '2-barcode (no splitcode)'
+        }
+
+        metrics_file = os.path.join(outdir, 'demux_metrics.json')
+        with open(metrics_file, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        output_files['metrics'] = metrics_file
+
+    elif has_3bc_samples:
+        # 3-barcode samples → run splitcode demux
+        log.info("3-barcode samples detected - running splitcode demultiplexing")
+
+        # Extract inline barcodes from samplesheet
+        inline_barcodes = sorted(list(set(
+            row['barcode_3'] for row in sample_rows if row.get('barcode_3', '').strip()
+        )))
+
+        log.info(f"Found {len(inline_barcodes)} unique inline barcodes")
+
+        # Generate splitcode config and keep files
+        config_file, keep_file = generate_splitcode_config_and_keep_files(
+            inline_barcodes,
+            outdir
+        )
+
+        # Run splitcode
+        splitcode_out_prefix = os.path.join(outdir, pool_name)
+        run_splitcode_on_pool(
+            pool_id=pool_name,
+            splitcode_configfile=config_file,
+            splitcode_keepfile=keep_file,
+            fastq_r1=fastq_r1,
+            fastq_r2=fastq_r2,
+            splitcode_output_prefix=splitcode_out_prefix
+        )
+
+        # Convert splitcode FASTQs to BAMs
+        # Map barcode to sample name
+        barcode_to_sample = {row['barcode_3']: row['sample'] for row in sample_rows if row.get('barcode_3', '').strip()}
+
+        picard = tools.picard.FastqToSamTool()
+        samtools = tools.samtools.SamtoolsTool()
+
+        sample_metrics = {}
+        for barcode, sample_name in barcode_to_sample.items():
+            # Find splitcode output FASTQs for this barcode
+            bc_r1 = f"{splitcode_out_prefix}_{barcode}_1.fastq.gz"
+            bc_r2 = f"{splitcode_out_prefix}_{barcode}_2.fastq.gz"
+
+            if os.path.exists(bc_r1) and os.path.exists(bc_r2):
+                output_bam = os.path.join(outdir, f"{sample_name}.bam")
+
+                picard.execute(
+                    bc_r1,
+                    bc_r2,
+                    sample_name,
+                    output_bam,
+                    picardOptions={
+                        'SEQUENCING_CENTER': sequencing_center,
+                        'PLATFORM': 'illumina'
+                    }
+                )
+
+                # Count reads
+                read_count = int(samtools.execute(
+                    ['view', '-c', output_bam],
+                    stdout=subprocess.PIPE
+                ).stdout.strip())
+
+                sample_metrics[sample_name] = {
+                    'barcode': barcode,
+                    'read_count': read_count
+                }
+
+                output_files[f'bam_{sample_name}'] = output_bam
+
+        # Write metrics
+        metrics_file = os.path.join(outdir, 'demux_metrics.json')
+        with open(metrics_file, 'w') as f:
+            json.dump({
+                'demux_type': '3-barcode (splitcode)',
+                'samples': sample_metrics
+            }, f, indent=2)
+        output_files['metrics'] = metrics_file
+
+        # Generate barcode reports (placeholder - would need actual splitcode metrics)
+        common_file = os.path.join(outdir, 'barcodes_common.txt')
+        with open(common_file, 'w') as f:
+            f.write("# Common barcodes\n")
+            for barcode in inline_barcodes:
+                f.write(f"{barcode}\n")
+        output_files['barcodes_common'] = common_file
+
+        outliers_file = os.path.join(outdir, 'barcodes_outliers.txt')
+        with open(outliers_file, 'w') as f:
+            f.write("# Outlier barcodes\n")
+        output_files['barcodes_outliers'] = outliers_file
+
+    else:
+        raise ValueError("Samplesheet contains no valid samples (all barcode_3 values are empty)")
+
+    log.info(f"Demultiplexing complete. Generated {len(output_files)} output files.")
+    return output_files
+
+
+def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
+    """
+    Argument parser for splitcode_demux_fastqs entry point.
+    """
+    parser.add_argument(
+        '--fastq_r1',
+        required=True,
+        help='Path to R1 FASTQ file'
+    )
+    parser.add_argument(
+        '--fastq_r2',
+        required=True,
+        help='Path to R2 FASTQ file'
+    )
+    parser.add_argument(
+        '--samplesheet',
+        required=True,
+        help='Path to custom 3-barcode samplesheet (TSV format)'
+    )
+    parser.add_argument(
+        '--outdir',
+        required=True,
+        help='Output directory for BAM files and metrics'
+    )
+    parser.add_argument(
+        '--sequencing_center',
+        default='Broad',
+        help='Sequencing center name (default: Broad)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_splitcode_demux_fastqs, split_args=True)
+    return parser
+
+
+def main_splitcode_demux_fastqs(args):
+    """
+    Main entry point for splitcode_demux_fastqs command.
+    """
+    output_files = splitcode_demux_fastqs(
+        fastq_r1=args.fastq_r1,
+        fastq_r2=args.fastq_r2,
+        samplesheet=args.samplesheet,
+        outdir=args.outdir,
+        sequencing_center=args.sequencing_center
+    )
+
+    log.info(f"Generated {len(output_files)} output file(s):")
+    for key, path in output_files.items():
+        log.info(f"  {key}: {path}")
+
+__commands__.append(('splitcode_demux_fastqs', parser_splitcode_demux_fastqs))
+
+
 # =========================
 # ***  illumina_demux   ***
 # =========================
@@ -627,26 +1070,24 @@ def main_illumina_demux(args):
         )
 
     if args.out_runinfo:
+        # Use build_run_info_json() utility function (eliminates code duplication)
+        run_info_dict = build_run_info_json(
+            sequencing_center=picardOpts["sequencing_center"],
+            run_start_date=runinfo.get_rundate_iso(),
+            read_structure=picardOpts["read_structure"],
+            indexes=str(samples.indexes),
+            run_id=runinfo.get_run_id(),
+            lane=str(args.lane),
+            flowcell=str(runinfo.get_flowcell()),
+            lane_count=runinfo.get_lane_count(),
+            surface_count=runinfo.get_surface_count(),
+            swath_count=runinfo.get_swath_count(),
+            tile_count=runinfo.get_tile_count(),
+            total_tile_count=runinfo.tile_count(),
+            sequencer_model=runinfo.get_machine_model()
+        )
         with open(args.out_runinfo, "wt") as outf:
-            json.dump(
-                {
-                    "sequencing_center" : picardOpts["sequencing_center"],
-                    "run_start_date"    : runinfo.get_rundate_iso(),
-                    "read_structure"    : picardOpts["read_structure"],
-                    "indexes"           : str(samples.indexes),
-                    "run_id"            : runinfo.get_run_id(),
-                    "lane"              : str(args.lane),
-                    "flowcell"          : str(runinfo.get_flowcell()),
-                    "lane_count"        : str(runinfo.get_lane_count()),
-                    "surface_count"     : str(runinfo.get_surface_count()),
-                    "swath_count"       : str(runinfo.get_swath_count()),
-                    "tile_count"        : str(runinfo.get_tile_count()),
-                    "total_tile_count"  : str(runinfo.tile_count()),
-                    "sequencer_model"   : runinfo.get_machine_model(),
-                },
-                outf,
-                indent=2,
-            )
+            json.dump(run_info_dict, outf, indent=2)
 
     # manually garbage collect to make sure we have as much RAM free as possible
     gc.collect()
@@ -3739,26 +4180,24 @@ def splitcode_demux(
     os.makedirs(out_demux_dir_path, exist_ok=True)
 
     if out_runinfo:
+        # Use build_run_info_json() utility function (eliminates code duplication)
+        run_info_dict = build_run_info_json(
+            sequencing_center=sequencing_center,
+            run_start_date=runinfo.get_rundate_iso(),
+            read_structure=read_structure,
+            indexes=str(samples.indexes),
+            run_id=runinfo.get_run_id(),
+            lane=str(lane),
+            flowcell=str(runinfo.get_flowcell()),
+            lane_count=runinfo.get_lane_count(),
+            surface_count=runinfo.get_surface_count(),
+            swath_count=runinfo.get_swath_count(),
+            tile_count=runinfo.get_tile_count(),
+            total_tile_count=runinfo.tile_count(),
+            sequencer_model=runinfo.get_machine_model()
+        )
         with open(out_runinfo, "wt") as outf:
-            json.dump(
-                {
-                    "sequencing_center" : sequencing_center,
-                    "run_start_date"    : runinfo.get_rundate_iso(),
-                    "read_structure"    : read_structure,
-                    "indexes"           : str(samples.indexes),
-                    "run_id"            : runinfo.get_run_id(),
-                    "lane"              : str(lane),
-                    "flowcell"          : str(runinfo.get_flowcell()),
-                    "lane_count"        : str(runinfo.get_lane_count()),
-                    "surface_count"     : str(runinfo.get_surface_count()),
-                    "swath_count"       : str(runinfo.get_swath_count()),
-                    "tile_count"        : str(runinfo.get_tile_count()),
-                    "total_tile_count"  : str(runinfo.tile_count()),
-                    "sequencer_model"   : runinfo.get_machine_model(),
-                },
-                outf,
-                indent=2,
-            )
+            json.dump(run_info_dict, outf, indent=2)
 
     # Load samplesheet into dataframe
     barcodes_df = pd.json_normalize(samples.get_rows()).astype(str).fillna("")
