@@ -559,7 +559,7 @@ def splitcode_demux_fastqs(
     metadata_field = header_parts[-1]  # e.g., "1:N:0:ATCGATCG+GCTAGCTA"
     metadata_parts = metadata_field.split(':')
     if len(metadata_parts) < 4:
-        raise ValueError(f"Invalid FASTQ metadata format: {metadata_field}")
+        raise ValueError(f"Invalid FASTQ metadata format: {metadata_field}. Expected format: READ:FILTERED:CONTROL:BARCODE")
 
     barcode_field = metadata_parts[3]  # e.g., "ATCGATCG+GCTAGCTA"
     if '+' in barcode_field:
