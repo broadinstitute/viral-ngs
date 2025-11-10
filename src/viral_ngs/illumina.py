@@ -639,15 +639,19 @@ def splitcode_demux_fastqs(
 
         output_files['bam'] = output_bam
 
-        # Generate simple metrics
+        # Generate metrics with consistent schema (nested samples dict)
         samtools = tools.samtools.SamtoolsTool()
         total_reads = samtools.count(output_bam)
         read_pairs = total_reads // 2
 
         metrics = {
-            'sample': sample_name,
-            'read_count': read_pairs,
-            'demux_type': '2-barcode (no splitcode)'
+            'demux_type': '2-barcode (no splitcode)',
+            'samples': {
+                sample_name: {
+                    'sample_library_id': sample_library_id,
+                    'read_count': read_pairs
+                }
+            }
         }
 
         metrics_file = os.path.join(outdir, 'demux_metrics.json')
