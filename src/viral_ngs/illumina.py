@@ -3855,7 +3855,7 @@ def splitcode_demux(
 
             string_to_log = f"creating splitcode process {pool_idx+1} for: {pool_id}"
             future = executor.submit(
-                                        run_splitcode_on_pool,
+                                        tools.splitcode.run_splitcode_on_pool,
                                         pool_id,
                                         pool_bam_file,
                                         splitcode_config,
