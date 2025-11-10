@@ -659,10 +659,21 @@ def splitcode_demux_fastqs(
         # 3-barcode samples → run splitcode demux
         log.info("3-barcode samples detected - running splitcode demultiplexing")
 
-        # Check if samplesheet can be collapsed (outer barcodes are collapsible)
-        if not samples.can_be_collapsed:
+        # Check if the FILTERED samples can be collapsed (outer barcodes are collapsible)
+        # We need to check only the filtered sample_rows, not the entire samplesheet
+        # Create a temporary dataframe from filtered sample_rows to check collapsibility
+        sample_rows_df = pd.DataFrame(sample_rows)
+
+        # Group by outer barcodes to verify all samples in this pool share the same outer barcodes
+        grouping_cols = ["barcode_1"]
+        if "barcode_2" in sample_rows_df.columns:
+            grouping_cols.append("barcode_2")
+
+        # For 3-barcode demux, all samples must share the same outer barcodes (be collapsible)
+        duplicated_mask = sample_rows_df.duplicated(subset=grouping_cols, keep=False)
+        if not duplicated_mask.any():
             raise ValueError(
-                "The outer (barcode_1, barcode_2) sequences in the sample sheet do not appear to be collapsible. "
+                "The outer (barcode_1, barcode_2) sequences in the filtered sample rows do not appear to be collapsible. "
                 "For 3-barcode demux, all samples in a pool must share the same outer barcodes."
             )
 
@@ -747,10 +758,10 @@ def splitcode_demux_fastqs(
 
         # Convert splitcode FASTQs to BAMs
         # Build mapping from sample_library_id to sample name
+        # Note: inner_demux_barcode_map_df is already filtered to this pool, so no need to check pool_id
         sample_library_to_sample = {}
         for sample_name, row in inner_demux_barcode_map_df.iterrows():
-            if row['muxed_run'] == pool_id:
-                sample_library_to_sample[row['run']] = sample_name
+            sample_library_to_sample[row['run']] = sample_name
 
         picard = tools.picard.FastqToSamTool()
         samtools = tools.samtools.SamtoolsTool()
