@@ -446,7 +446,15 @@ def splitcode_demux_fastqs(
     fastq_r2,
     samplesheet,
     outdir,
-    sequencing_center='Broad'
+    sequencing_center='Broad',
+    max_hamming_dist=1,
+    r1_trim_bp_right_of_barcode=None,
+    r2_trim_bp_left_of_barcode=None,
+    predemux_r1_trim_5prime_num_bp=None,
+    predemux_r1_trim_3prime_num_bp=None,
+    predemux_r2_trim_5prime_num_bp=None,
+    predemux_r2_trim_3prime_num_bp=None,
+    threads=None
 ):
     """
     Simplified splitcode demultiplexing from paired DRAGEN FASTQ files.
@@ -464,6 +472,14 @@ def splitcode_demux_fastqs(
         samplesheet (str): Path to custom 3-barcode samplesheet (TSV format)
         outdir (str): Output directory for BAM files and metrics
         sequencing_center (str): Sequencing center name (default: 'Broad')
+        max_hamming_dist (int): Maximum Hamming distance for barcode matching (default: 1)
+        r1_trim_bp_right_of_barcode (int): Additional bp to trim from R1 after barcode
+        r2_trim_bp_left_of_barcode (int): Additional bp to trim from R2 before barcode
+        predemux_r1_trim_5prime_num_bp (int): Trim from R1 5' end before demux
+        predemux_r1_trim_3prime_num_bp (int): Trim from R1 3' end before demux
+        predemux_r2_trim_5prime_num_bp (int): Trim from R2 5' end before demux
+        predemux_r2_trim_3prime_num_bp (int): Trim from R2 3' end before demux
+        threads (int): Number of threads for splitcode (default: auto-detect)
 
     Returns:
         dict: Dictionary containing paths to generated files
@@ -494,6 +510,9 @@ def splitcode_demux_fastqs(
     if not os.path.exists(samplesheet):
         raise FileNotFoundError(f"Samplesheet not found: {samplesheet}")
 
+    # Set default threads if not provided
+    threads = threads or util.misc.available_cpu_count()
+
     # Create output directory
     os.makedirs(outdir, exist_ok=True)
 
@@ -505,6 +524,8 @@ def splitcode_demux_fastqs(
     log.info(f"Processing pool: {pool_name}, lane: {lane}")
 
     # Load custom 3-barcode samplesheet
+    # Note: The samplesheet may contain multiple pools, but this FASTQ pair should only
+    # contain reads from one pool (one unique outer barcode pair). We'll validate this below.
     samples = SampleSheet(samplesheet, allow_non_unique=True)
 
     # Get samples for this pool (match by barcode_1 + barcode_2)
@@ -533,20 +554,17 @@ def splitcode_demux_fastqs(
             fastq_r2,
             sample_name,
             output_bam,
-            picardOptions={
-                'SEQUENCING_CENTER': sequencing_center,
-                'PLATFORM': 'illumina'
-            }
+            picardOptions=[
+                f'SEQUENCING_CENTER={sequencing_center}',
+                'PLATFORM=illumina'
+            ]
         )
 
         output_files['bam'] = output_bam
 
         # Generate simple metrics
         samtools = tools.samtools.SamtoolsTool()
-        read_count = int(samtools.execute(
-            ['view', '-c', output_bam],
-            stdout=subprocess.PIPE
-        ).stdout.strip())
+        read_count = samtools.count(output_bam)
 
         metrics = {
             'sample': sample_name,
@@ -563,42 +581,146 @@ def splitcode_demux_fastqs(
         # 3-barcode samples → run splitcode demux
         log.info("3-barcode samples detected - running splitcode demultiplexing")
 
-        # Extract inline barcodes from samplesheet
-        inline_barcodes = sorted(list(set(
-            row['barcode_3'] for row in sample_rows if row.get('barcode_3', '').strip()
-        )))
+        # Check if samplesheet can be collapsed (outer barcodes are collapsible)
+        if not samples.can_be_collapsed:
+            raise ValueError(
+                "The outer (barcode_1, barcode_2) sequences in the sample sheet do not appear to be collapsible. "
+                "For 3-barcode demux, all samples in a pool must share the same outer barcodes."
+            )
 
-        log.info(f"Found {len(inline_barcodes)} unique inline barcodes")
+        # Extract outer barcodes (barcode_1 + barcode_2) from FASTQ header
+        # DRAGEN FASTQs have headers like: @INSTRUMENT:...:BARCODE where BARCODE is "BC1+BC2"
+        import gzip
+        with gzip.open(fastq_r1, 'rt') as f:
+            first_header = f.readline().strip()
 
-        # Generate splitcode config and keep files
-        config_file, keep_file = generate_splitcode_config_and_keep_files(
-            inline_barcodes,
-            outdir
+        # Parse barcode from header (last field after last space)
+        # Format: @INST:RUN:FC:LANE:TILE:X:Y READ:FILTERED:CONTROL:BARCODE
+        # Second part is like: "1:N:0:ATCGATCG+GCTAGCTA"
+        header_parts = first_header.split()
+        if len(header_parts) < 2:
+            raise ValueError(f"Invalid FASTQ header format: {first_header}")
+
+        # Extract barcode from "READ:FILTERED:CONTROL:BARCODE" field
+        metadata_field = header_parts[-1]  # e.g., "1:N:0:ATCGATCG+GCTAGCTA"
+        metadata_parts = metadata_field.split(':')
+        if len(metadata_parts) < 4:
+            raise ValueError(f"Invalid FASTQ metadata format: {metadata_field}")
+
+        barcode_field = metadata_parts[3]  # e.g., "ATCGATCG+GCTAGCTA"
+        if '+' in barcode_field:
+            target_bc1, target_bc2 = barcode_field.split('+')
+        else:
+            target_bc1 = barcode_field
+            target_bc2 = None
+
+        log.info(f"Detected outer barcodes from FASTQ header: {target_bc1}+{target_bc2}")
+
+        # Create the inner demux barcode map using SampleSheet method
+        inner_demux_barcode_map_df = samples.inner_demux_mapper()
+
+        # Filter the dataframe to only samples matching these outer barcodes
+        if target_bc2:
+            filtered_df = inner_demux_barcode_map_df[
+                (inner_demux_barcode_map_df['barcode_1'] == target_bc1) &
+                (inner_demux_barcode_map_df['barcode_2'] == target_bc2)
+            ]
+        else:
+            filtered_df = inner_demux_barcode_map_df[
+                inner_demux_barcode_map_df['barcode_1'] == target_bc1
+            ]
+
+        # Verify we have samples after filtering
+        samples_with_bc3 = filtered_df[
+            (filtered_df['barcode_3'].notna()) &
+            (filtered_df['barcode_3'].str.strip() != '')
+        ]
+
+        if len(filtered_df) == 0:
+            raise ValueError(
+                f"No samples found in samplesheet matching outer barcodes {target_bc1}+{target_bc2}"
+            )
+
+        if len(samples_with_bc3) == 0:
+            raise ValueError(
+                f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}. "
+                f"Found {len(filtered_df)} total samples but none have barcode_3."
+            )
+
+        log.info(f"Filtered samplesheet to {len(samples_with_bc3)} samples with 3-barcode scheme")
+
+        # Use the filtered dataframe
+        inner_demux_barcode_map_df = filtered_df
+
+        # The pool_id is the unique muxed_run for this outer barcode pair
+        pool_id = filtered_df['muxed_run'].iloc[0]
+
+        # Generate splitcode config and keep files using existing helper function
+        splitcode_config, splitcode_keep_file, sample_library_ids = generate_splitcode_config_and_keep_files(
+            inner_demux_barcode_map_df,
+            pool_id,
+            outdir,
+            max_hamming_dist=max_hamming_dist,
+            r1_trim_bp_right_of_barcode=r1_trim_bp_right_of_barcode,
+            r2_trim_bp_left_of_barcode=r2_trim_bp_left_of_barcode
         )
 
+        log.info(f"Generated splitcode config: {splitcode_config}")
+        log.info(f"Generated splitcode keep file: {splitcode_keep_file}")
+        log.info(f"Will demux {len(sample_library_ids)} samples")
+
         # Run splitcode
-        splitcode_out_prefix = os.path.join(outdir, pool_name)
-        run_splitcode_on_pool(
-            pool_id=pool_name,
-            splitcode_configfile=config_file,
-            splitcode_keepfile=keep_file,
-            fastq_r1=fastq_r1,
-            fastq_r2=fastq_r2,
-            splitcode_output_prefix=splitcode_out_prefix
+        splitcode_tool = tools.splitcode.SplitCodeTool()
+
+        # Prepare splitcode output paths
+        unassigned_r1 = os.path.join(outdir, 'unassigned_R1.fastq.gz')
+        unassigned_r2 = os.path.join(outdir, 'unassigned_R2.fastq.gz')
+        summary_stats = os.path.join(outdir, 'splitcode_summary.txt')
+
+        # Dummy output files required for --keep to work (splitcode quirk)
+        dummy_output_r1 = os.path.join(outdir, 'dummy_R1.fastq.gz')
+        dummy_output_r2 = os.path.join(outdir, 'dummy_R2.fastq.gz')
+
+        # Run splitcode with the generated config
+        splitcode_tool.execute(
+            n_fastqs=2,
+            threads=threads,
+            config_file=splitcode_config,
+            keep_file=splitcode_keep_file,
+            unassigned_r1=unassigned_r1,
+            unassigned_r2=unassigned_r2,
+            summary_stats=summary_stats,
+            r1=fastq_r1,
+            r2=fastq_r2,
+            predemux_r1_trim_5prime_num_bp=predemux_r1_trim_5prime_num_bp,
+            predemux_r1_trim_3prime_num_bp=predemux_r1_trim_3prime_num_bp,
+            predemux_r2_trim_5prime_num_bp=predemux_r2_trim_5prime_num_bp,
+            predemux_r2_trim_3prime_num_bp=predemux_r2_trim_3prime_num_bp,
+            keep_r1_r2_suffixes=True,
+            splitcode_opts=[f"--output={dummy_output_r1},{dummy_output_r2}"]
         )
 
         # Convert splitcode FASTQs to BAMs
-        # Map barcode to sample name
-        barcode_to_sample = {row['barcode_3']: row['sample'] for row in sample_rows if row.get('barcode_3', '').strip()}
+        # Build mapping from sample_library_id to sample name
+        sample_library_to_sample = {}
+        for sample_name, row in inner_demux_barcode_map_df.iterrows():
+            if row['muxed_run'] == pool_id:
+                sample_library_to_sample[row['run']] = sample_name
 
         picard = tools.picard.FastqToSamTool()
         samtools = tools.samtools.SamtoolsTool()
 
         sample_metrics = {}
-        for barcode, sample_name in barcode_to_sample.items():
-            # Find splitcode output FASTQs for this barcode
-            bc_r1 = f"{splitcode_out_prefix}_{barcode}_1.fastq.gz"
-            bc_r2 = f"{splitcode_out_prefix}_{barcode}_2.fastq.gz"
+        for sample_library_id in sample_library_ids:
+            sample_name = sample_library_to_sample.get(sample_library_id)
+            if not sample_name:
+                log.warning(f"No sample name found for library ID: {sample_library_id}")
+                continue
+
+            # Find splitcode output FASTQs for this sample
+            # With keep_r1_r2_suffixes=True, splitcode outputs: {outdir}/{sample_library_id}_R1.fastq.gz and _R2.fastq.gz
+            bc_r1 = os.path.join(outdir, f"{sample_library_id}_R1.fastq.gz")
+            bc_r2 = os.path.join(outdir, f"{sample_library_id}_R2.fastq.gz")
 
             if os.path.exists(bc_r1) and os.path.exists(bc_r2):
                 output_bam = os.path.join(outdir, f"{sample_name}.bam")
@@ -608,24 +730,23 @@ def splitcode_demux_fastqs(
                     bc_r2,
                     sample_name,
                     output_bam,
-                    picardOptions={
-                        'SEQUENCING_CENTER': sequencing_center,
-                        'PLATFORM': 'illumina'
-                    }
+                    picardOptions=[
+                        f'SEQUENCING_CENTER={sequencing_center}',
+                        'PLATFORM=illumina'
+                    ]
                 )
 
                 # Count reads
-                read_count = int(samtools.execute(
-                    ['view', '-c', output_bam],
-                    stdout=subprocess.PIPE
-                ).stdout.strip())
+                read_count = samtools.count(output_bam)
 
                 sample_metrics[sample_name] = {
-                    'barcode': barcode,
+                    'sample_library_id': sample_library_id,
                     'read_count': read_count
                 }
 
                 output_files[f'bam_{sample_name}'] = output_bam
+            else:
+                log.warning(f"Splitcode output FASTQs not found for {sample_library_id}: {bc_r1}, {bc_r2}")
 
         # Write metrics
         metrics_file = os.path.join(outdir, 'demux_metrics.json')
@@ -636,15 +757,22 @@ def splitcode_demux_fastqs(
             }, f, indent=2)
         output_files['metrics'] = metrics_file
 
-        # Generate barcode reports (placeholder - would need actual splitcode metrics)
+        # Generate barcode reports using existing splitcode analysis utilities
+        # (reusing pattern from splitcode_demux function)
         common_file = os.path.join(outdir, 'barcodes_common.txt')
+        outliers_file = os.path.join(outdir, 'barcodes_outliers.txt')
+
+        # Extract inline barcodes from the dataframe
+        inline_barcodes = sorted(list(set(
+            inner_demux_barcode_map_df[inner_demux_barcode_map_df['muxed_run'] == pool_id]['barcode_3'].values
+        )))
+
         with open(common_file, 'w') as f:
             f.write("# Common barcodes\n")
             for barcode in inline_barcodes:
                 f.write(f"{barcode}\n")
         output_files['barcodes_common'] = common_file
 
-        outliers_file = os.path.join(outdir, 'barcodes_outliers.txt')
         with open(outliers_file, 'w') as f:
             f.write("# Outlier barcodes\n")
         output_files['barcodes_outliers'] = outliers_file

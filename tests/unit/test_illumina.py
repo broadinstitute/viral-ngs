@@ -3107,7 +3107,8 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r1=self.r1_fastq,
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
-            outdir=out_dir
+            outdir=out_dir,
+            threads=1
         )
 
         # Verify expected output BAMs exist
@@ -3147,7 +3148,8 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r1=self.r1_fastq,
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
-            outdir=out_dir
+            outdir=out_dir,
+            threads=1
         )
 
         # Use samtools to count reads in each output BAM
@@ -3157,10 +3159,10 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         sample2_bam = os.path.join(out_dir, 'TestSample2.bam')
         sample3_bam = os.path.join(out_dir, 'TestSample3.bam')
 
-        # Count reads using samtools view -c
-        sample1_count = int(samtools.execute(['view', '-c', sample1_bam], stdout=subprocess.PIPE).stdout.strip())
-        sample2_count = int(samtools.execute(['view', '-c', sample2_bam], stdout=subprocess.PIPE).stdout.strip())
-        sample3_count = int(samtools.execute(['view', '-c', sample3_bam], stdout=subprocess.PIPE).stdout.strip())
+        # Count reads using samtools count
+        sample1_count = samtools.count(sample1_bam)
+        sample2_count = samtools.count(sample2_bam)
+        sample3_count = samtools.count(sample3_bam)
 
         self.assertEqual(sample1_count, 100, "TestSample1 should have exactly 100 reads")
         self.assertEqual(sample2_count, 75, "TestSample2 should have exactly 75 reads")
@@ -3182,7 +3184,8 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r1=self.r1_fastq,
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
-            outdir=out_dir
+            outdir=out_dir,
+            threads=1
         )
 
         # Check barcodes_outliers.txt for unmatched barcode
@@ -3222,7 +3225,8 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r1=self.r1_fastq,
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
-            outdir=out_dir
+            outdir=out_dir,
+            threads=1
         )
 
         # Empty sample should either:
@@ -3261,7 +3265,8 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r1=self.r1_fastq,
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
-            outdir=out_dir
+            outdir=out_dir,
+            threads=1
         )
 
         # Check demux_metrics.json has expected structure
@@ -3295,7 +3300,8 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r1=self.r1_fastq,
             fastq_r2=self.r2_fastq,
             samplesheet=self.samples_3bc,
-            outdir=out_dir
+            outdir=out_dir,
+            threads=1
         )
 
         # Metadata extracted from FASTQ filename should be used in output
@@ -3340,7 +3346,8 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             fastq_r1=r1_fastq,
             fastq_r2=r2_fastq,
             samplesheet=self.samples_3bc,
-            outdir=out_dir
+            outdir=out_dir,
+            threads=1
         )
 
         # For 2-barcode sample, should produce exactly one BAM file
