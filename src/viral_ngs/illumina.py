@@ -97,7 +97,7 @@ def parse_illumina_fastq_filename(filename):
     # DRAGEN pattern: we know the last 4 fields are always S#_L00#_R#_chunk
     # and the first 3 fields are flowcell_lane_numeric_id
     # Everything in between is the sample name
-    dragen_pattern = r'^([A-Z0-9]{9})_(\d)_(\d{10})_(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    dragen_pattern = r'^([A-Z0-9]{5,15})_(\d)_(\d{10})_(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
     match = re.match(dragen_pattern, basename)
 
     if match:
