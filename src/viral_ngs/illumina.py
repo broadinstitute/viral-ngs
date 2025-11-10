@@ -563,10 +563,14 @@ def splitcode_demux_fastqs(
 
     barcode_field = metadata_parts[3]  # e.g., "ATCGATCG+GCTAGCTA"
     if '+' in barcode_field:
-        target_bc1, target_bc2 = barcode_field.split('+')
+        target_bc1_raw, target_bc2_raw = barcode_field.split('+')
     else:
-        target_bc1 = barcode_field
-        target_bc2 = None
+        target_bc1_raw = barcode_field
+        target_bc2_raw = None
+
+    # Normalize barcodes from FASTQ header (handle lowercase, whitespace, etc.)
+    target_bc1 = normalize_barcode(target_bc1_raw)
+    target_bc2 = normalize_barcode(target_bc2_raw) if target_bc2_raw else None
 
     log.info(f"Detected outer barcodes from FASTQ header: {target_bc1}+{target_bc2}")
 
@@ -575,10 +579,12 @@ def splitcode_demux_fastqs(
     samples = SampleSheet(samplesheet, allow_non_unique=True)
 
     # Filter sample_rows to only those matching the outer barcodes from the FASTQ
+    # Normalize samplesheet barcodes during comparison to handle case/whitespace differences
     all_sample_rows = list(samples.get_rows())
     sample_rows = [
         row for row in all_sample_rows
-        if row.get('barcode_1') == target_bc1 and row.get('barcode_2') == target_bc2
+        if (normalize_barcode(row.get('barcode_1', '')) == target_bc1 and
+            normalize_barcode(row.get('barcode_2', '')) == target_bc2)
     ]
 
     if len(sample_rows) == 0:
