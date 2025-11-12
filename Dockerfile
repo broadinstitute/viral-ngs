@@ -33,12 +33,12 @@ ENV \
 # Set it up so that this slow & heavy build layer is cached
 # unless the requirements* files or the install scripts actually change
 WORKDIR $INSTALL_PATH
-
-#RUN hash -r
+RUN mamba create -n $CONDA_DEFAULT_ENV python=3.12
+RUN echo "source activate $CONDA_DEFAULT_ENV" > ~/.bashrc
+RUN hash -r
 COPY docker $VIRAL_NGS_PATH/docker/
 COPY requirements-conda.txt requirements-conda-tests.txt $VIRAL_NGS_PATH/
-RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt $VIRAL_NGS_PATH/requirements-conda-tests.txt && \
-	echo "source activate $CONDA_PREFIX" >> ~/.bashrc
+RUN $VIRAL_NGS_PATH/docker/install-conda-dependencies.sh $VIRAL_NGS_PATH/requirements-conda.txt $VIRAL_NGS_PATH/requirements-conda-tests.txt
 RUN $VIRAL_NGS_PATH/docker/install-gatk.sh
 
 RUN hash -r

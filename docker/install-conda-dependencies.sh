@@ -102,9 +102,9 @@ trap stop_keepalive EXIT SIGINT SIGQUIT SIGTERM
 # setup/install viral-ngs directory tree and conda dependencies
 sync
 
-REQUIREMENT_FILE_PATHS_STR=""
+REQUIREMENTS=""
 for condafile in $*; do
-	REQUIREMENT_FILE_PATHS_STR="$REQUIREMENT_FILE_PATHS_STR --file $condafile"
+	REQUIREMENTS="$REQUIREMENTS --file $condafile"
 
     # print dependency tree for all packages in file
     [[ $DEBUG == 1 ]] && grep -vE '^#' "${condafile}" | xargs -I {} mamba repoquery depends $CONDA_CHANNEL_STRING --quiet --pretty --recursive --tree "{}";
@@ -113,15 +113,8 @@ done
 # run conda install with keepalive subshell process running in background
 # to keep travis build going. Enforce a hard timeout via timeout GNU coreutil
 start_keepalive
-mamba create -y -q $MAMBA_DEBUG_LEVEL $CONDA_PACKAGE_INSTALL_OPTS $CONDA_CHANNEL_STRING --prefix ${CONDA_PREFIX} $REQUIREMENT_FILE_PATHS_STR
+mamba install -y $MAMBA_DEBUG_LEVEL -q $CONDA_CHANNEL_STRING -p "${CONDA_PREFIX}" $REQUIREMENTS
 stop_keepalive
-
-source "${MINICONDA_PATH}/etc/profile.d/conda.sh"
-source "${MINICONDA_PATH}/etc/profile.d/mamba.sh"
-hash -r
-conda init --quiet --all --system
-
-source ${MINICONDA_PATH}/bin/activate ${CONDA_PREFIX}
 
 mamba list
 
