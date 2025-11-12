@@ -11,6 +11,7 @@ import concurrent.futures
 import csv
 import gc
 import glob
+import gzip
 import itertools
 import json
 import logging
@@ -39,6 +40,963 @@ import util.misc
 from util.illumina_indices import IlluminaIndexReference, IlluminaBarcodeHelper
 
 log = logging.getLogger(__name__)
+
+
+# =============================
+# ***  Utility Functions   ***
+# =============================
+
+
+def parse_illumina_fastq_filename(filename):
+    """Parse Illumina FASTQ filename to extract metadata.
+
+    Supports two filename formats:
+    1. DRAGEN format (with flowcell ID):
+       {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
+       Example: 22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
+
+    2. Simple bcl2fastq format (without flowcell ID):
+       {sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
+       Example: mebv-48-5_S17_L001_R1_001.fastq.gz
+
+    Args:
+        filename (str): FASTQ filename (with or without path)
+
+    Returns:
+        dict: Dictionary with extracted metadata fields:
+            For DRAGEN format:
+                - flowcell (str): Flowcell ID (typically 9 alphanumeric characters)
+                - lane_short (int): Short lane number (1-8)
+                - numeric_id (str): Numeric identifier
+                - sample_name (str): Sample name (may contain underscores)
+                - sample_number (int): Sample number (from S#)
+                - lane (int): Full lane number (from L00#)
+                - read (int): Read number (1 or 2)
+                - chunk (int): Chunk number (typically 001)
+            For simple format:
+                - sample_name (str): Sample name
+                - sample_number (int): Sample number (from S#)
+                - lane (int): Lane number (from L00#)
+                - read (int): Read number (1 or 2)
+                - chunk (int): Chunk number (typically 001)
+
+    Raises:
+        ValueError: If filename doesn't match expected format
+    """
+    if not filename:
+        raise ValueError("Filename cannot be empty")
+
+    # Extract basename and remove extensions
+    basename = os.path.basename(filename)
+    basename = basename.replace('.fastq.gz', '').replace('.fastq', '')
+
+    # Try DRAGEN format first (with flowcell ID)
+    # Pattern: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}
+    # The tricky part: sample_name can contain underscores!
+    # Strategy: Match from both ends and extract the middle as sample_name
+
+    # DRAGEN pattern: we know the last 4 fields are always S#_L00#_R#_chunk
+    # and the first 3 fields are flowcell_lane_numeric_id
+    # Everything in between is the sample name
+    dragen_pattern = r'^([A-Z0-9]{5,15})_(\d)_(\d{10})_(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    match = re.match(dragen_pattern, basename)
+
+    if match:
+        return {
+            'flowcell': match.group(1),
+            'lane_short': int(match.group(2)),
+            'numeric_id': match.group(3),
+            'sample_name': match.group(4),
+            'sample_number': int(match.group(5)),
+            'lane': int(match.group(6)),
+            'read': int(match.group(8)),
+            'chunk': int(match.group(9)),
+            'is_index': match.group(7) == 'I'
+        }
+
+    # Try simple bcl2fastq format (without flowcell ID)
+    # Pattern: {sample_name}_{S#}_{L00#}_{R#}_{chunk}
+    # Sample name cannot contain underscores followed by S# pattern
+    simple_pattern = r'^(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    match = re.match(simple_pattern, basename)
+
+    if match:
+        return {
+            'sample_name': match.group(1),
+            'sample_number': int(match.group(2)),
+            'lane': int(match.group(3)),
+            'read': int(match.group(5)),
+            'chunk': int(match.group(6)),
+            'is_index': match.group(4) == 'I'
+        }
+
+    # If neither pattern matches, raise an error
+    raise ValueError(
+        f"Filename '{basename}' does not match expected Illumina FASTQ format. "
+        f"Expected formats:\n"
+        f"  DRAGEN: {{flowcell}}_{{lane}}_{{numeric_id}}_{{sample_name}}_S#_L00#_R#_###.fastq[.gz]\n"
+        f"  Simple: {{sample_name}}_S#_L00#_R#_###.fastq[.gz]"
+    )
+
+
+def normalize_barcode(barcode):
+    """Normalize an Illumina barcode sequence.
+
+    Performs the following normalizations:
+    1. Converts to uppercase
+    2. Strips leading and trailing whitespace
+    3. Validates that only ACGTN characters are present
+
+    Args:
+        barcode (str): Barcode sequence to normalize
+
+    Returns:
+        str: Normalized barcode (uppercase, no whitespace)
+
+    Raises:
+        ValueError: If barcode contains invalid characters (not ACGTN)
+        TypeError: If barcode is not a string
+
+    Examples:
+        >>> normalize_barcode("acgt")
+        'ACGT'
+        >>> normalize_barcode(" CTGATCGT ")
+        'CTGATCGT'
+        >>> normalize_barcode("acgtn")
+        'ACGTN'
+    """
+    if not isinstance(barcode, str):
+        raise TypeError(f"Barcode must be a string, got {type(barcode).__name__}")
+
+    # Strip whitespace and convert to uppercase
+    normalized = barcode.strip().upper()
+
+    # Empty string is valid (allows for missing barcodes)
+    if not normalized:
+        return normalized
+
+    # Validate characters (only ACGTN allowed)
+    valid_chars = set('ACGTN')
+    invalid_chars = set(normalized) - valid_chars
+
+    if invalid_chars:
+        raise ValueError(
+            f"Barcode contains invalid characters: {sorted(invalid_chars)}. "
+            f"Only ACGTN characters are allowed. Got: '{barcode}'"
+        )
+
+    return normalized
+
+
+def build_run_info_json(
+    sequencing_center,
+    run_start_date,
+    read_structure,
+    indexes,
+    run_id,
+    lane,
+    flowcell,
+    lane_count=None,
+    surface_count=None,
+    swath_count=None,
+    tile_count=None,
+    total_tile_count=None,
+    sequencer_model=None
+):
+    """Build a run_info.json dictionary with standardized schema.
+
+    This function consolidates run info JSON construction logic used by
+    illumina_demux, splitcode_demux, and other demultiplexing functions.
+
+    Args:
+        sequencing_center (str): Sequencing center name
+        run_start_date (str): Run start date in ISO format (YYYY-MM-DD)
+        read_structure (str): Picard-style read structure (e.g., "76T8B8B76T")
+        indexes (int): Number of index reads
+        run_id (str): Run identifier (often flowcell.lane)
+        lane (int): Lane number
+        flowcell (str): Flowcell identifier
+        lane_count (int, optional): Number of lanes in the flowcell
+        surface_count (int, optional): Number of surfaces
+        swath_count (int, optional): Number of swaths
+        tile_count (int, optional): Number of tiles per lane
+        total_tile_count (int, optional): Total number of tiles
+        sequencer_model (str, optional): Sequencer model name
+
+    Returns:
+        dict: Dictionary with run metadata matching the standard schema.
+            All numeric fields are converted to strings for JSON consistency.
+
+    Examples:
+        >>> info = build_run_info_json(
+        ...     sequencing_center="BROAD",
+        ...     run_start_date="2024-01-15",
+        ...     read_structure="76T8B76T",
+        ...     indexes=1,
+        ...     run_id="FC123.1",
+        ...     lane=1,
+        ...     flowcell="FC123"
+        ... )
+        >>> info['flowcell']
+        'FC123'
+    """
+    run_info_data = {
+        "sequencing_center": sequencing_center,
+        "run_start_date": run_start_date,
+        "read_structure": read_structure,
+        "indexes": str(indexes),
+        "run_id": run_id,
+        "lane": str(lane),
+        "flowcell": str(flowcell),
+    }
+
+    # Add optional fields if provided
+    if lane_count is not None:
+        run_info_data["lane_count"] = str(lane_count)
+    if surface_count is not None:
+        run_info_data["surface_count"] = str(surface_count)
+    if swath_count is not None:
+        run_info_data["swath_count"] = str(swath_count)
+    if tile_count is not None:
+        run_info_data["tile_count"] = str(tile_count)
+    if total_tile_count is not None:
+        run_info_data["total_tile_count"] = str(total_tile_count)
+    if sequencer_model is not None:
+        run_info_data["sequencer_model"] = sequencer_model
+
+    return run_info_data
+
+
+# ==============================
+# ***  illumina_metadata     ***
+# ==============================
+
+
+def illumina_metadata(
+    runinfo,
+    samplesheet,
+    lane,
+    sequencing_center='Broad',
+    out_runinfo=None,
+    out_meta_by_sample=None,
+    out_meta_by_filename=None
+):
+    """
+    Generate metadata JSON files from Illumina run files without processing reads.
+
+    This function extracts metadata from RunInfo.xml and SampleSheet, generating
+    standardized JSON output files. It is designed to be run once per sequencing run
+    to create metadata that's shared across all parallel demux jobs.
+
+    Args:
+        runinfo (str): Path to RunInfo.xml file
+        samplesheet (str): Path to Illumina SampleSheet.csv file
+        lane (int): Lane number to process
+        sequencing_center (str): Sequencing center name (default: 'Broad')
+        out_runinfo (str, optional): Output path for run_info.json
+        out_meta_by_sample (str, optional): Output path for meta_by_sample.json
+        out_meta_by_filename (str, optional): Output path for meta_by_filename.json
+
+    Returns:
+        dict: Dictionary containing paths to generated files
+
+    Raises:
+        FileNotFoundError: If runinfo or samplesheet files don't exist
+        IOError: If there are issues reading input files or writing output files
+
+    Example:
+        >>> illumina_metadata(
+        ...     runinfo='RunInfo.xml',
+        ...     samplesheet='SampleSheet.csv',
+        ...     lane=1,
+        ...     out_runinfo='run_info.json',
+        ...     out_meta_by_sample='meta_by_sample.json',
+        ...     out_meta_by_filename='meta_by_filename.json'
+        ... )
+    """
+    # Validate input files exist
+    if not os.path.exists(runinfo):
+        raise FileNotFoundError(f"RunInfo.xml not found: {runinfo}")
+    if not os.path.exists(samplesheet):
+        raise FileNotFoundError(f"SampleSheet not found: {samplesheet}")
+
+    # Parse RunInfo.xml
+    runinfo_obj = RunInfo(runinfo)
+
+    # Parse SampleSheet
+    samples = SampleSheet(
+        samplesheet,
+        only_lane=lane,
+        allow_non_unique=False
+    )
+
+    output_files = {}
+
+    # Generate run_info.json using utility function
+    if out_runinfo:
+        run_info_dict = build_run_info_json(
+            sequencing_center=sequencing_center,
+            run_start_date=runinfo_obj.get_rundate_iso(),
+            read_structure=runinfo_obj.get_read_structure(),
+            indexes=str(samples.indexes),
+            run_id=runinfo_obj.get_run_id(),
+            lane=str(lane),
+            flowcell=str(runinfo_obj.get_flowcell()),
+            lane_count=runinfo_obj.get_lane_count(),
+            surface_count=runinfo_obj.get_surface_count(),
+            swath_count=runinfo_obj.get_swath_count(),
+            tile_count=runinfo_obj.get_tile_count(),
+            total_tile_count=runinfo_obj.tile_count(),
+            sequencer_model=runinfo_obj.get_machine_model()
+        )
+
+        with open(out_runinfo, 'wt') as outf:
+            json.dump(run_info_dict, outf, indent=2)
+        output_files['run_info'] = out_runinfo
+
+    # Generate sample metadata JSONs
+    if out_meta_by_sample or out_meta_by_filename:
+        # Get sample metadata and add lane
+        sample_meta = list(samples.get_rows())
+        for row in sample_meta:
+            row["lane"] = str(lane)
+
+        if out_meta_by_sample:
+            with open(out_meta_by_sample, 'wt') as outf:
+                json.dump(dict((r["sample"], r) for r in sample_meta), outf, indent=2)
+            output_files['meta_by_sample'] = out_meta_by_sample
+
+        if out_meta_by_filename:
+            with open(out_meta_by_filename, 'wt') as outf:
+                json.dump(dict((r["run"], r) for r in sample_meta), outf, indent=2)
+            output_files['meta_by_filename'] = out_meta_by_filename
+
+    return output_files
+
+
+def parser_illumina_metadata(parser=argparse.ArgumentParser()):
+    """
+    Argument parser for illumina_metadata entry point.
+    """
+    parser.add_argument(
+        '--runinfo',
+        required=True,
+        help='Path to RunInfo.xml file'
+    )
+    parser.add_argument(
+        '--samplesheet',
+        required=True,
+        help='Path to Illumina SampleSheet.csv file'
+    )
+    parser.add_argument(
+        '--lane',
+        required=True,
+        type=int,
+        help='Lane number to process'
+    )
+    parser.add_argument(
+        '--sequencing_center',
+        default='Broad',
+        help='Sequencing center name (default: Broad)'
+    )
+    parser.add_argument(
+        '--out_runinfo',
+        help='Output path for run_info.json'
+    )
+    parser.add_argument(
+        '--out_meta_by_sample',
+        help='Output path for meta_by_sample.json (sample metadata indexed by sample name)'
+    )
+    parser.add_argument(
+        '--out_meta_by_filename',
+        help='Output path for meta_by_filename.json (sample metadata indexed by library ID)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_illumina_metadata, split_args=True)
+    return parser
+
+
+def main_illumina_metadata(args):
+    """
+    Main entry point for illumina_metadata command.
+    """
+    output_files = illumina_metadata(
+        runinfo=args.runinfo,
+        samplesheet=args.samplesheet,
+        lane=args.lane,
+        sequencing_center=args.sequencing_center,
+        out_runinfo=args.out_runinfo,
+        out_meta_by_sample=args.out_meta_by_sample,
+        out_meta_by_filename=args.out_meta_by_filename
+    )
+
+    log.info(f"Generated {len(output_files)} metadata file(s):")
+    for key, path in output_files.items():
+        log.info(f"  {key}: {path}")
+
+__commands__.append(('illumina_metadata', parser_illumina_metadata))
+
+
+# ===================================
+# ***  splitcode_demux_fastqs     ***
+# ===================================
+
+
+def splitcode_demux_fastqs(
+    fastq_r1,
+    fastq_r2,
+    samplesheet,
+    outdir,
+    runinfo=None,
+    sequencing_center=None,
+    max_hamming_dist=1,
+    r1_trim_bp_right_of_barcode=None,
+    r2_trim_bp_left_of_barcode=None,
+    predemux_r1_trim_5prime_num_bp=None,
+    predemux_r1_trim_3prime_num_bp=None,
+    predemux_r2_trim_5prime_num_bp=None,
+    predemux_r2_trim_3prime_num_bp=None,
+    threads=None
+):
+    """
+    Simplified splitcode demultiplexing from paired DRAGEN FASTQ files.
+
+    This function performs 3-barcode demultiplexing directly from paired FASTQ files.
+    It's designed to run in parallel across multiple FASTQ pairs.
+
+    For samples with empty barcode_3 (2-barcode samples), it skips splitcode and
+    performs direct FASTQ → BAM conversion.
+
+    Args:
+        fastq_r1 (str): Path to R1 FASTQ file
+        fastq_r2 (str): Path to R2 FASTQ file
+        samplesheet (str): Path to custom 3-barcode samplesheet (TSV format)
+        outdir (str): Output directory for BAM files and metrics
+        runinfo (str): Path to RunInfo.xml (optional, but recommended for richer BAM metadata
+            including RUN_DATE, SEQUENCING_CENTER, and PLATFORM_UNIT)
+        sequencing_center (str): Sequencing center name (default: None, uses runinfo.get_machine() if available)
+        max_hamming_dist (int): Maximum Hamming distance for barcode matching (default: 1)
+        r1_trim_bp_right_of_barcode (int): Additional bp to trim from R1 after barcode
+        r2_trim_bp_left_of_barcode (int): Additional bp to trim from R2 before barcode
+        predemux_r1_trim_5prime_num_bp (int): Trim from R1 5' end before demux
+        predemux_r1_trim_3prime_num_bp (int): Trim from R1 3' end before demux
+        predemux_r2_trim_5prime_num_bp (int): Trim from R2 5' end before demux
+        predemux_r2_trim_3prime_num_bp (int): Trim from R2 3' end before demux
+        threads (int): Number of threads for splitcode (default: auto-detect)
+
+    Returns:
+        dict: Dictionary containing paths to generated files
+
+    Raises:
+        FileNotFoundError: If FASTQ or samplesheet files don't exist
+        ValueError: If samplesheet format is invalid
+
+    Example:
+        >>> splitcode_demux_fastqs(
+        ...     fastq_r1='Pool1_R1.fastq.gz',
+        ...     fastq_r2='Pool1_R2.fastq.gz',
+        ...     samplesheet='samples_3bc.tsv',
+        ...     outdir='demux_out'
+        ... )
+
+    Outputs:
+        - Per-sample unaligned BAMs
+        - demux_metrics.json: Read counts per sample
+
+    Note:
+        This simplified function does NOT generate barcodes_common.txt or barcodes_outliers.txt.
+        For comprehensive barcode reporting, use illumina_demux or splitcode_demux instead.
+    """
+    # Validate inputs
+    if not os.path.exists(fastq_r1):
+        raise FileNotFoundError(f"R1 FASTQ not found: {fastq_r1}")
+    if not os.path.exists(fastq_r2):
+        raise FileNotFoundError(f"R2 FASTQ not found: {fastq_r2}")
+    if not os.path.exists(samplesheet):
+        raise FileNotFoundError(f"Samplesheet not found: {samplesheet}")
+
+    # Parse RunInfo.xml if provided
+    runinfo_obj = None
+    flowcell = None
+    run_date = None
+    if runinfo:
+        if not os.path.exists(runinfo):
+            raise FileNotFoundError(f"RunInfo.xml not found: {runinfo}")
+        runinfo_obj = RunInfo(runinfo)
+        flowcell = runinfo_obj.get_flowcell()
+        run_date = runinfo_obj.get_rundate_iso()
+
+        # Use machine as sequencing_center if not specified
+        if sequencing_center is None:
+            sequencing_center = runinfo_obj.get_machine()
+            log.info(f"Using sequencing center from RunInfo: {sequencing_center}")
+
+    # Set default threads if not provided
+    threads = threads or util.misc.available_cpu_count()
+
+    # Create output directory
+    os.makedirs(outdir, exist_ok=True)
+
+    # Parse FASTQ filename to extract metadata
+    fastq_metadata = parse_illumina_fastq_filename(fastq_r1)
+    pool_name = fastq_metadata['sample_name']
+    lane = fastq_metadata['lane']
+
+    log.info(f"Processing pool: {pool_name}, lane: {lane}")
+
+    # Extract outer barcodes (barcode_1 + barcode_2) from FASTQ header
+    # DRAGEN FASTQs have headers like: @INSTRUMENT:...:BARCODE where BARCODE is "BC1+BC2"
+    with gzip.open(fastq_r1, 'rt') as f:
+        first_header = f.readline().strip()
+
+    # Parse barcode from header (last field after last space)
+    # Format: @INST:RUN:FC:LANE:TILE:X:Y READ:FILTERED:CONTROL:BARCODE
+    # Second part is like: "1:N:0:ATCGATCG+GCTAGCTA"
+    header_parts = first_header.split()
+    if len(header_parts) < 2:
+        raise ValueError(f"Invalid FASTQ header format: {first_header}")
+
+    # Extract barcode from "READ:FILTERED:CONTROL:BARCODE" field
+    metadata_field = header_parts[-1]  # e.g., "1:N:0:ATCGATCG+GCTAGCTA"
+    metadata_parts = metadata_field.split(':')
+    if len(metadata_parts) < 4:
+        raise ValueError(f"Invalid FASTQ metadata format: {metadata_field}. Expected format: READ:FILTERED:CONTROL:BARCODE")
+
+    barcode_field = metadata_parts[3]  # e.g., "ATCGATCG+GCTAGCTA"
+    if '+' in barcode_field:
+        target_bc1_raw, target_bc2_raw = barcode_field.split('+')
+    else:
+        target_bc1_raw = barcode_field
+        target_bc2_raw = None
+
+    # Normalize barcodes from FASTQ header (handle lowercase, whitespace, etc.)
+    target_bc1 = normalize_barcode(target_bc1_raw)
+    target_bc2 = normalize_barcode(target_bc2_raw) if target_bc2_raw else None
+
+    log.info(f"Detected outer barcodes from FASTQ header: {target_bc1}+{target_bc2}")
+
+    # Load custom 3-barcode samplesheet
+    # Note: The samplesheet may contain multiple pools, filter to only this pool's outer barcodes
+    samples = SampleSheet(samplesheet, allow_non_unique=True)
+
+    # Filter sample_rows to only those matching the outer barcodes from the FASTQ
+    # Normalize samplesheet barcodes during comparison to handle case/whitespace differences
+    all_sample_rows = list(samples.get_rows())
+    sample_rows = [
+        row for row in all_sample_rows
+        if (normalize_barcode(row.get('barcode_1', '')) == target_bc1 and
+            normalize_barcode(row.get('barcode_2', '')) == target_bc2)
+    ]
+
+    if len(sample_rows) == 0:
+        raise ValueError(
+            f"No samples found in samplesheet matching outer barcodes {target_bc1}+{target_bc2}"
+        )
+
+    log.info(f"Filtered samplesheet to {len(sample_rows)} samples matching outer barcodes")
+
+    # Now check if the FILTERED samples are 2-barcode or 3-barcode
+    has_3bc_samples = any(row.get('barcode_3', '').strip() for row in sample_rows)
+    has_2bc_samples = any(not row.get('barcode_3', '').strip() for row in sample_rows)
+
+    output_files = {}
+
+    if has_2bc_samples and not has_3bc_samples:
+        # All samples are 2-barcode → skip splitcode, do direct FASTQ→BAM
+        log.info("2-barcode sample detected - bypassing splitcode, performing direct FASTQ→BAM conversion")
+
+        # Get the single sample name and library ID
+        sample_name = sample_rows[0]['sample']
+        sample_library_id = sample_rows[0].get('library', sample_name)
+        output_bam = os.path.join(outdir, f"{sample_name}.bam")
+
+        # Build Picard options dict with richer metadata
+        picard_opts = {
+            'PLATFORM': 'illumina',
+            'LIBRARY_NAME': sample_library_id,
+            'VERBOSITY': 'WARNING',
+            'QUIET': 'TRUE'
+        }
+
+        # Add run date from RunInfo
+        if run_date:
+            picard_opts['RUN_DATE'] = run_date
+
+        # Add sequencing center
+        if sequencing_center:
+            picard_opts['SEQUENCING_CENTER'] = sequencing_center
+
+        # Add platform unit: <flowcell>.<lane>.<barcode>
+        if flowcell and target_bc1:
+            if target_bc2:
+                barcode_str = f"{target_bc1}-{target_bc2}"
+            else:
+                barcode_str = target_bc1
+            picard_opts['PLATFORM_UNIT'] = f"{flowcell}.{lane}.{barcode_str}"
+
+        # Use Picard FastqToSam for conversion
+        picard = tools.picard.FastqToSamTool()
+        picard.execute(
+            fastq_r1,
+            fastq_r2,
+            sample_name,
+            output_bam,
+            picardOptions=picard.dict_to_picard_opts(picard_opts)
+        )
+
+        output_files['bam'] = output_bam
+
+        # Generate metrics with consistent schema (nested samples dict)
+        samtools = tools.samtools.SamtoolsTool()
+        total_reads = samtools.count(output_bam)
+        # Divide by 2 because samtools.count() returns total reads (R1+R2),
+        # but we want to report read pairs
+        read_pairs = total_reads // 2
+
+        metrics = {
+            'demux_type': '2-barcode (no splitcode)',
+            'samples': {
+                sample_name: {
+                    'sample_library_id': sample_library_id,
+                    'read_count': read_pairs
+                }
+            }
+        }
+
+        metrics_file = os.path.join(outdir, 'demux_metrics.json')
+        with open(metrics_file, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        output_files['metrics'] = metrics_file
+
+        # Generate Picard-style TSV metrics for 2-barcode case
+        # Create a simple single-row metrics file
+        picard_style_metrics_path = os.path.join(outdir, 'demux_metrics_picard-style.txt')
+        try:
+            with open(picard_style_metrics_path, 'w') as f:
+                # Write Picard-style header
+                f.write("## METRICS CLASS\tviral-core.splitcode_demux_fastqs.dragen\n")
+
+                # Column headers
+                columns = [
+                    "BARCODE", "BARCODE_WITHOUT_DELIMITER", "BARCODE_NAME", "LIBRARY_NAME",
+                    "READS", "PF_READS", "PERFECT_MATCHES", "PF_PERFECT_MATCHES",
+                    "ONE_MISMATCH_MATCHES", "PF_ONE_MISMATCH_MATCHES", "PCT_MATCHES",
+                    "RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_PCT_MATCHES",
+                    "PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_NORMALIZED_MATCHES",
+                    "DEMUX_TYPE"
+                ]
+                f.write("\t".join(columns) + "\n")
+
+                # Data row - for 2-barcode case, all reads belong to this one sample (100%)
+                barcode_str = f"{target_bc1}-{target_bc2}" if target_bc2 else target_bc1
+                values = [
+                    barcode_str,  # BARCODE
+                    barcode_str.replace('-', ''),  # BARCODE_WITHOUT_DELIMITER
+                    sample_name,  # BARCODE_NAME
+                    sample_library_id,  # LIBRARY_NAME
+                    str(read_pairs),  # READS
+                    str(read_pairs),  # PF_READS (assume all pass filter)
+                    str(read_pairs),  # PERFECT_MATCHES (assume all reads match perfectly)
+                    str(read_pairs),  # PF_PERFECT_MATCHES
+                    "0",  # ONE_MISMATCH_MATCHES (none, since all are perfect)
+                    "0",  # PF_ONE_MISMATCH_MATCHES
+                    "1.0",  # PCT_MATCHES (100%)
+                    "1.0",  # RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT (100%, it's the only one)
+                    "1.0",  # PF_PCT_MATCHES (100%)
+                    "1.0",  # PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT (100%)
+                    "1.0",  # PF_NORMALIZED_MATCHES
+                    "dragen"  # DEMUX_TYPE
+                ]
+                f.write("\t".join(values) + "\n")
+
+            output_files['metrics_picard'] = picard_style_metrics_path
+            log.info(f"Generated Picard-style metrics: {picard_style_metrics_path}")
+
+        except Exception as e:
+            log.warning(f"Failed to generate Picard-style metrics for 2-barcode case: {e}")
+
+    elif has_3bc_samples:
+        # 3-barcode samples → run splitcode demux
+        log.info("3-barcode samples detected - running splitcode demultiplexing")
+
+        # Check if the FILTERED samples can be collapsed (outer barcodes are collapsible)
+        # We need to check only the filtered sample_rows, not the entire samplesheet
+        # Create a temporary dataframe from filtered sample_rows to check collapsibility
+        sample_rows_df = pd.DataFrame(sample_rows)
+
+        # Group by outer barcodes to verify all samples in this pool share the same outer barcodes
+        grouping_cols = ["barcode_1"]
+        if "barcode_2" in sample_rows_df.columns:
+            grouping_cols.append("barcode_2")
+
+        # For 3-barcode demux, all samples must share the same outer barcodes (be collapsible)
+        duplicated_mask = sample_rows_df.duplicated(subset=grouping_cols, keep=False)
+        if not duplicated_mask.any():
+            raise ValueError(
+                "The outer (barcode_1, barcode_2) sequences in the filtered sample rows do not appear to be collapsible. "
+                "For 3-barcode demux, all samples in a pool must share the same outer barcodes."
+            )
+
+        # Create the inner demux barcode map using SampleSheet method
+        # This creates a dataframe with all samples from the samplesheet
+        inner_demux_barcode_map_df = samples.inner_demux_mapper()
+
+        # Filter the dataframe to only samples matching the outer barcodes from FASTQ header
+        if target_bc2:
+            filtered_df = inner_demux_barcode_map_df[
+                (inner_demux_barcode_map_df['barcode_1'] == target_bc1) &
+                (inner_demux_barcode_map_df['barcode_2'] == target_bc2)
+            ]
+        else:
+            filtered_df = inner_demux_barcode_map_df[
+                inner_demux_barcode_map_df['barcode_1'] == target_bc1
+            ]
+
+        # Verify we have 3-barcode samples after filtering
+        samples_with_bc3 = filtered_df[
+            (filtered_df['barcode_3'].notna()) &
+            (filtered_df['barcode_3'].str.strip() != '')
+        ]
+
+        if len(samples_with_bc3) == 0:
+            raise ValueError(
+                f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}"
+            )
+
+        log.info(f"Filtered to {len(samples_with_bc3)} samples with 3-barcode scheme")
+
+        # Use the filtered dataframe
+        inner_demux_barcode_map_df = filtered_df
+
+        # The pool_id is the unique muxed_run for this outer barcode pair
+        pool_id = filtered_df['muxed_run'].iloc[0]
+
+        # Generate splitcode config and keep files using existing helper function
+        splitcode_config, splitcode_keep_file, sample_library_ids = tools.splitcode.generate_splitcode_config_and_keep_files(
+            inner_demux_barcode_map_df,
+            pool_id,
+            outdir,
+            max_hamming_dist=max_hamming_dist,
+            r1_trim_bp_right_of_barcode=r1_trim_bp_right_of_barcode,
+            r2_trim_bp_left_of_barcode=r2_trim_bp_left_of_barcode
+        )
+
+        log.info(f"Generated splitcode config: {splitcode_config}")
+        log.info(f"Generated splitcode keep file: {splitcode_keep_file}")
+        log.info(f"Will demux {len(sample_library_ids)} samples")
+
+        # Run splitcode
+        splitcode_tool = tools.splitcode.SplitCodeTool()
+
+        # Prepare splitcode output paths
+        unassigned_r1 = os.path.join(outdir, 'unassigned_R1.fastq.gz')
+        unassigned_r2 = os.path.join(outdir, 'unassigned_R2.fastq.gz')
+        # Name the summary file with pool_id to match create_splitcode_lookup_table() expectations
+        summary_stats = os.path.join(outdir, f'{pool_id}_summary.json')
+
+        # Dummy output files required for --keep to work (splitcode quirk)
+        dummy_output_r1 = os.path.join(outdir, 'dummy_R1.fastq.gz')
+        dummy_output_r2 = os.path.join(outdir, 'dummy_R2.fastq.gz')
+
+        # Run splitcode with the generated config
+        splitcode_tool.execute(
+            n_fastqs=2,
+            threads=threads,
+            config_file=splitcode_config,
+            keep_file=splitcode_keep_file,
+            unassigned_r1=unassigned_r1,
+            unassigned_r2=unassigned_r2,
+            summary_stats=summary_stats,
+            r1=fastq_r1,
+            r2=fastq_r2,
+            predemux_r1_trim_5prime_num_bp=predemux_r1_trim_5prime_num_bp,
+            predemux_r1_trim_3prime_num_bp=predemux_r1_trim_3prime_num_bp,
+            predemux_r2_trim_5prime_num_bp=predemux_r2_trim_5prime_num_bp,
+            predemux_r2_trim_3prime_num_bp=predemux_r2_trim_3prime_num_bp,
+            keep_r1_r2_suffixes=True,
+            splitcode_opts=[f"--output={dummy_output_r1},{dummy_output_r2}"]
+        )
+
+        # Convert splitcode FASTQs to BAMs
+        # Build mapping from sample_library_id to sample name
+        # Note: inner_demux_barcode_map_df is already filtered to this pool, so no need to check pool_id
+        sample_library_to_sample = {}
+        for sample_name, row in inner_demux_barcode_map_df.iterrows():
+            sample_library_to_sample[row['run']] = sample_name
+
+        picard = tools.picard.FastqToSamTool()
+        samtools = tools.samtools.SamtoolsTool()
+
+        sample_metrics = {}
+        for sample_library_id in sample_library_ids:
+            sample_name = sample_library_to_sample.get(sample_library_id)
+            if not sample_name:
+                log.warning(f"No sample name found for library ID: {sample_library_id}")
+                continue
+
+            # Find splitcode output FASTQs for this sample
+            # With keep_r1_r2_suffixes=True, splitcode outputs: {outdir}/{sample_library_id}_R1.fastq.gz and _R2.fastq.gz
+            bc_r1 = os.path.join(outdir, f"{sample_library_id}_R1.fastq.gz")
+            bc_r2 = os.path.join(outdir, f"{sample_library_id}_R2.fastq.gz")
+
+            if os.path.exists(bc_r1) and os.path.exists(bc_r2):
+                output_bam = os.path.join(outdir, f"{sample_name}.bam")
+
+                # Get inline barcode for this sample from the dataframe
+                sample_row = inner_demux_barcode_map_df.loc[sample_name]
+                inline_barcode = sample_row.get('barcode_3', '')
+
+                # Build Picard options dict with richer metadata
+                picard_opts = {
+                    'PLATFORM': 'illumina',
+                    'LIBRARY_NAME': sample_library_id,
+                    'VERBOSITY': 'WARNING',
+                    'QUIET': 'TRUE'
+                }
+
+                # Add run date from RunInfo
+                if run_date:
+                    picard_opts['RUN_DATE'] = run_date
+
+                # Add sequencing center
+                if sequencing_center:
+                    picard_opts['SEQUENCING_CENTER'] = sequencing_center
+
+                # Add platform unit: <flowcell>.<lane>.<barcode>
+                # For 3-barcode samples, include all three barcodes
+                if flowcell and target_bc1:
+                    if target_bc2:
+                        barcode_str = f"{target_bc1}-{target_bc2}-{inline_barcode}"
+                    else:
+                        barcode_str = f"{target_bc1}-{inline_barcode}"
+                    picard_opts['PLATFORM_UNIT'] = f"{flowcell}.{lane}.{barcode_str}"
+
+                picard.execute(
+                    bc_r1,
+                    bc_r2,
+                    sample_name,
+                    output_bam,
+                    picardOptions=picard.dict_to_picard_opts(picard_opts)
+                )
+
+                # Count read pairs (samtools.count returns total reads, divide by 2 for pairs)
+                total_reads = samtools.count(output_bam)
+                read_pairs = total_reads // 2
+
+                sample_metrics[sample_name] = {
+                    'sample_library_id': sample_library_id,
+                    'read_count': read_pairs
+                }
+
+                output_files[f'bam_{sample_name}'] = output_bam
+            else:
+                log.warning(f"Splitcode output FASTQs not found for {sample_library_id}: {bc_r1}, {bc_r2}")
+
+        # Write JSON metrics (backward compatibility)
+        metrics_file = os.path.join(outdir, 'demux_metrics.json')
+        with open(metrics_file, 'w') as f:
+            json.dump({
+                'demux_type': '3-barcode (splitcode)',
+                'samples': sample_metrics
+            }, f, indent=2)
+        output_files['metrics'] = metrics_file
+
+        # Generate Picard-style TSV metrics using existing helper functions
+        # Use tools.splitcode.create_splitcode_lookup_table() to parse splitcode JSON summary and create CSV
+        splitcode_csv_path = os.path.join(outdir, 'splitcode_metrics.csv')
+        try:
+            tools.splitcode.create_splitcode_lookup_table(
+                sample_sheet_or_dataframe=inner_demux_barcode_map_df,
+                csv_out=splitcode_csv_path,
+                unmatched_name='unmatched',
+                pool_ids=[pool_id],  # Only process this single pool
+                check_sample_sheet_consistency=False
+            )
+
+            # Convert CSV to Picard-style TSV
+            picard_style_metrics_path = os.path.join(outdir, 'demux_metrics_picard-style.txt')
+            tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+                splitcode_csv_path,
+                picard_style_metrics_path,
+                demux_function="viral-core.splitcode_demux_fastqs",
+                report_within_pools=False  # Global stats since we're processing one pool
+            )
+            output_files['metrics_picard'] = picard_style_metrics_path
+            log.info(f"Generated Picard-style metrics: {picard_style_metrics_path}")
+
+        except Exception as e:
+            log.warning(f"Failed to generate Picard-style metrics from splitcode summary: {e}")
+            log.warning("Continuing with JSON metrics only")
+
+        # Note: We don't generate barcodes_common.txt or barcodes_outliers.txt here.
+        # Those files require full barcode analysis which is handled by illumina_demux
+        # or splitcode_demux workflows. The simplified splitcode_demux_fastqs is designed
+        # for quick per-FASTQ-pair demux without comprehensive barcode reporting.
+
+    else:
+        raise ValueError("Samplesheet contains no valid samples (all barcode_3 values are empty)")
+
+    log.info(f"Demultiplexing complete. Generated {len(output_files)} output files.")
+    return output_files
+
+
+def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
+    """
+    Argument parser for splitcode_demux_fastqs entry point.
+    """
+    parser.add_argument(
+        '--fastq_r1',
+        required=True,
+        help='Path to R1 FASTQ file'
+    )
+    parser.add_argument(
+        '--fastq_r2',
+        required=True,
+        help='Path to R2 FASTQ file'
+    )
+    parser.add_argument(
+        '--samplesheet',
+        required=True,
+        help='Path to custom 3-barcode samplesheet (TSV format)'
+    )
+    parser.add_argument(
+        '--outdir',
+        required=True,
+        help='Output directory for BAM files and metrics'
+    )
+    parser.add_argument(
+        '--runinfo',
+        default=None,
+        help='Path to RunInfo.xml (optional, for richer BAM metadata)'
+    )
+    parser.add_argument(
+        '--sequencing_center',
+        default=None,
+        help='Sequencing center name (default: None, uses runinfo.get_machine() if RunInfo.xml provided)'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_splitcode_demux_fastqs, split_args=True)
+    return parser
+
+
+def main_splitcode_demux_fastqs(args):
+    """
+    Main entry point for splitcode_demux_fastqs command.
+    """
+    output_files = splitcode_demux_fastqs(
+        fastq_r1=args.fastq_r1,
+        fastq_r2=args.fastq_r2,
+        samplesheet=args.samplesheet,
+        outdir=args.outdir,
+        runinfo=args.runinfo,
+        sequencing_center=args.sequencing_center
+    )
+
+    log.info(f"Generated {len(output_files)} output file(s):")
+    for key, path in output_files.items():
+        log.info(f"  {key}: {path}")
+
+__commands__.append(('splitcode_demux_fastqs', parser_splitcode_demux_fastqs))
 
 
 # =========================
@@ -352,6 +1310,9 @@ def main_illumina_demux(args):
             JVMmemory=args.JVMmemory,
         )
 
+        # Add DEMUX_TYPE column to Picard metrics file
+        add_constant_column_to_metrics(out_metrics, 'DEMUX_TYPE', 'picard')
+
         if args.commonBarcodes:
             barcode_lengths = re.findall(r"(\d+)B", read_structure)
             try:
@@ -402,26 +1363,24 @@ def main_illumina_demux(args):
         )
 
     if args.out_runinfo:
+        # Use build_run_info_json() utility function (eliminates code duplication)
+        run_info_dict = build_run_info_json(
+            sequencing_center=picardOpts["sequencing_center"],
+            run_start_date=runinfo.get_rundate_iso(),
+            read_structure=picardOpts["read_structure"],
+            indexes=str(samples.indexes),
+            run_id=runinfo.get_run_id(),
+            lane=str(args.lane),
+            flowcell=str(runinfo.get_flowcell()),
+            lane_count=runinfo.get_lane_count(),
+            surface_count=runinfo.get_surface_count(),
+            swath_count=runinfo.get_swath_count(),
+            tile_count=runinfo.get_tile_count(),
+            total_tile_count=runinfo.tile_count(),
+            sequencer_model=runinfo.get_machine_model()
+        )
         with open(args.out_runinfo, "wt") as outf:
-            json.dump(
-                {
-                    "sequencing_center" : picardOpts["sequencing_center"],
-                    "run_start_date"    : runinfo.get_rundate_iso(),
-                    "read_structure"    : picardOpts["read_structure"],
-                    "indexes"           : str(samples.indexes),
-                    "run_id"            : runinfo.get_run_id(),
-                    "lane"              : str(args.lane),
-                    "flowcell"          : str(runinfo.get_flowcell()),
-                    "lane_count"        : str(runinfo.get_lane_count()),
-                    "surface_count"     : str(runinfo.get_surface_count()),
-                    "swath_count"       : str(runinfo.get_swath_count()),
-                    "tile_count"        : str(runinfo.get_tile_count()),
-                    "total_tile_count"  : str(runinfo.tile_count()),
-                    "sequencer_model"   : runinfo.get_machine_model(),
-                },
-                outf,
-                indent=2,
-            )
+            json.dump(run_info_dict, outf, indent=2)
 
     # manually garbage collect to make sure we have as much RAM free as possible
     gc.collect()
@@ -2426,466 +3385,6 @@ __commands__.append(("extract_fc_metadata", parser_extract_fc_metadata))
 # ==================
 
 
-def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
-    """
-    Create a lookup table (LUT) consolidating splitcode demux results with sample metadata.
-
-    After splitcode demultiplexes pooled samples by inner barcodes (barcode_3), this function
-    reads the splitcode summary JSON files, joins them with the sample sheet, and creates a
-    unified CSV mapping samples to barcodes to read counts. This LUT is used by downstream
-    plotting and metrics functions.
-
-    The function performs 3-barcode demux integration by:
-    1. Loading sample sheet with all barcode mappings (barcode_1, barcode_2, barcode_3)
-    2. Building pool identifiers from outer barcode pairs (barcode_1 + barcode_2)
-    3. Loading splitcode summary JSONs for each pool
-    4. Extracting read counts at Hamming distance 0 (perfect match) and 1 (1-mismatch)
-    5. Joining splitcode counts with sample metadata based on run identifiers
-    6. Creating unmatched read entries for reads that didn't match any barcode
-    7. Outputting a CSV with unified sample-to-barcode-to-count mappings
-
-    Parameters
-    ----------
-    sample_sheet_or_dataframe : str or pd.DataFrame
-        Either:
-        - Path to TSV file with barcode mappings (str), OR
-        - DataFrame from SampleSheet.inner_demux_mapper() (pd.DataFrame)
-
-        If DataFrame, must already contain columns:
-        - barcode_1, barcode_2, barcode_3, sample, library_id_per_sample
-        - run: Sample run identifier (sample.lLibrary[.FlowcellID])
-        - muxed_run: Pool identifier (barcode_1-barcode_2.lLibrary[.FlowcellID])
-
-        If str (file path), must be TSV with columns:
-        - barcode_1, barcode_2, barcode_3, sample, library_id_per_sample
-    csv_out : str
-        Output path for the lookup table CSV file
-    unmatched_name : str
-        Name prefix for unmatched/unassigned reads (e.g., "Unmatched")
-    pool_ids : list, optional
-        List of pool IDs to process. If None/empty, processes all pools found.
-    append_run_id : str, optional
-        Suffix to append to run identifiers (typically flowcell ID).
-        Only used when sample_sheet_or_dataframe is a file path (str).
-        Ignored when a DataFrame is provided (which already has run/muxed_run).
-    check_sample_sheet_consistency : bool, optional
-        If True, validates sample sheet for duplicate barcode combinations
-
-    Returns
-    -------
-    str
-        Path to the output CSV file containing the lookup table
-
-    Output CSV Schema
-    -----------------
-    The output CSV contains columns:
-    - sample: Sample identifier
-    - library_id: Library/pool identifier
-    - barcode_1: Outer barcode (i7 index)
-    - barcode_2: Outer barcode (i5 index)
-    - inline_barcode: Inner barcode (barcode_3)
-    - run: Sample run identifier (sample.lLibrary[.FlowcellID])
-    - muxed_pool: Pool identifier (barcode_1-barcode_2.lLibrary)
-    - num_reads_hdistance0: Read count with perfect barcode match
-    - num_reads_hdistance1: Read count with 1-mismatch to barcode
-    - num_reads_total: Total reads (hdistance0 + hdistance1)
-
-    Notes
-    -----
-    - Expects splitcode summary JSON files named "{pool}_summary.json" in csv_out directory
-    - Validates that (barcode_1, barcode_2) pairs don't have duplicate barcode_3 values
-    - Handles pools with 0 reads gracefully by creating empty metrics
-    - Unmatched reads get barcode_3 set to all "N"s matching expected barcode length
-    """
-    pool_ids = pool_ids or []
-
-    outDir=os.path.dirname(csv_out)
-
-    # Load or reuse barcode data
-    # If we receive a DataFrame (from SampleSheet.inner_demux_mapper()), use it directly
-    # This ensures pool IDs match exactly what was used to create summary JSON files
-    if isinstance(sample_sheet_or_dataframe, pd.DataFrame):
-        log.debug("Using provided DataFrame for barcode lookup table")
-        barcodes_df = sample_sheet_or_dataframe.copy()
-        # Reset index to make 'sample' a regular column (inner_demux_mapper sets it as index)
-        barcodes_df.reset_index(inplace=True)
-
-        # Rename 'muxed_run' to 'muxed_pool' for consistency with legacy code
-        # The inner_demux_mapper() creates 'muxed_run' column, but this function expects 'muxed_pool'
-        if 'muxed_run' in barcodes_df.columns and 'muxed_pool' not in barcodes_df.columns:
-            barcodes_df['muxed_pool'] = barcodes_df['muxed_run']
-    else:
-        # Legacy path: read from file and build columns
-        log.debug("Reading sample sheet from file: %s", sample_sheet_or_dataframe)
-        barcodes_df = pd.read_csv(sample_sheet_or_dataframe, sep="\t", dtype=str)
-
-        # Build "run" column = "<sample>.l<library_id_per_sample>[.<append_run_id>]"
-        def build_sample_library_id_string(row):
-            sample_val = row.get("sample", "")
-            lib_val    = row.get("library_id_per_sample", "")
-            run_str = f"{sample_val}.l{lib_val}"
-            if append_run_id:
-                run_str += f".{append_run_id}"
-            return run_str
-        barcodes_df["run"] = barcodes_df.apply(build_sample_library_id_string, axis=1)
-
-        def build_muxed_run_string(row):
-            b1 = row.get("barcode_1", "")
-            b2 = row.get("barcode_2", None)
-            if b2 and b2.strip():
-                muxed_sample = f"{b1}-{b2}"
-            else:
-                muxed_sample = b1
-
-            lib_val = row.get("library_id_per_sample", "")
-            muxed_run_str = f"{muxed_sample}.l{lib_val}"
-            if append_run_id:
-                muxed_run_str += f".{append_run_id}"
-            return muxed_run_str
-        barcodes_df["muxed_pool"] = barcodes_df.apply(build_muxed_run_string, axis=1)
-
-    df_csv_out = f"{csv_out}"
-
-    i7_barcodes = list(set(barcodes_df["barcode_1"].values))
-    barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
-
-    def duplication_check(df, primary_cols, secondary_col, error_message_header=None, error_message=None):
-        default_error_message_header = "Error: More than one '{column_to_check_for_duplicates}' value present for distinct combinations of the columns {affected_column_names}:"
-        default_error_message        = "'{duplicated_values}' appears {duplicate_count} times, for {affected_values}."
-
-        error_message_header = error_message_header or default_error_message_header
-        error_message        = error_message        or default_error_message
-
-        # Check which placeholders are actually present in the template
-        err_header_has_dup_check_col         = '{column_to_check_for_duplicates}' in error_message_header
-        err_header_has_affected_column_names = '{affected_column_names}' in error_message_header
-
-        err_msg_has_affected_values          = '{affected_values}' in error_message
-        err_msg_has_dup_val                  = '{duplicated_values}' in error_message
-        err_msg_has_count                    = '{duplicate_count}' in error_message
-        
-
-        # To store all generated error messages
-        errors = []
-
-        # Group the dataframe by the primary columns
-        grouped = df.groupby(primary_cols, dropna=False)
-
-        error_header_out=None
-        for group_key, subdf in grouped:
-            # If there's only one primary column, group_key is a single value
-            # Otherwise, it's a tuple of values
-            if isinstance(group_key, tuple):
-                # E.g.: ("North", "A")
-                group_str = ','.join(
-                    f"{col}={val}" for col, val in zip(primary_cols, group_key)
-                )
-            else:
-                # E.g.: "North" when there's only one primary column
-                group_str = f"{primary_cols[0]}={group_key}"
-
-            # Count occurrences of each value in secondary_col
-            value_counts = subdf[secondary_col].value_counts(dropna=True)
-            # Identify duplicates: values with count > 1
-            duplicates = value_counts[value_counts > 1]
-
-            
-            # Build a separate message for each duplicated value
-            for val, count_ in duplicates.items():
-                msg_dict        = {}
-                header_msg_dict = {}
-                
-                if err_msg_has_affected_values:
-                    msg_dict['affected_values'] = group_str
-                if err_msg_has_dup_val:
-                    msg_dict['duplicated_values'] = val
-                if err_msg_has_count:
-                    msg_dict['duplicate_count'] = count_
-                if err_header_has_dup_check_col:
-                    header_msg_dict['column_to_check_for_duplicates'] = secondary_col
-                if err_header_has_affected_column_names:
-                    header_msg_dict['affected_column_names'] = f"{'+'.join([f'{chr(39)+c+chr(39)}' for c in primary_cols])}"
-
-                if error_header_out is None:
-                    error_header_out = error_message_header.format(**header_msg_dict)
-                message = error_message.format(**msg_dict)
-                errors.append(message)
-        return (error_header_out, errors)
-
-
-    duplication_check_conditions = [
-        {
-            "columns": ["barcode_1","barcode_2"],
-            "column_to_check_for_duplicates": "barcode_3",
-        }
-    ]
-
-    for dup_condition in duplication_check_conditions:
-        
-        problem_header, problems = duplication_check( barcodes_df,
-                                                        dup_condition["columns"],
-                                                        dup_condition["column_to_check_for_duplicates"],
-                                                        dup_condition.get("error_message_header", None),
-                                                        dup_condition.get("error_message", None) )
-        problem_found = False
-        if len(problems):
-            log.warning(problem_header)
-            for problem in problems:
-                log.warning(f"\t{problem}")
-            problem_found = True
-        if problem_found:
-            raise ValueError("Problem(s) found in sample sheet; see above for details.")
-
-    pool_dfs      = []
-    unmatched_dfs = []
-
-    for pool in barcodes_df["muxed_pool"].unique():
-        # Get and load splitcode stats report json
-        # Use the full pool name (including run suffix) to match the JSON filename created by splitcode
-        pool_for_file_lookup = pool
-
-        # Try to find and load the splitcode summary JSON file
-        # Add robust error handling since missing/misplaced JSON files are a common issue
-        try:
-            summary_pattern = f"{outDir}/{pool_for_file_lookup}_summary.json"
-            matching_files = glob.glob(summary_pattern)
-
-            if not matching_files:
-                # JSON file not found - list directory contents for debugging
-                log.error(f"Splitcode summary JSON not found for pool '{pool_for_file_lookup}'")
-                log.error(f"  Expected pattern: {summary_pattern}")
-                log.error(f"  Searching in directory: {outDir}")
-
-                # List all files in the output directory to help debug
-                try:
-                    dir_contents = os.listdir(outDir)
-                    log.error(f"  Directory contents ({len(dir_contents)} files):")
-                    # List JSON files first (most relevant)
-                    json_files = [f for f in dir_contents if f.endswith('.json')]
-                    if json_files:
-                        log.error(f"    JSON files found ({len(json_files)}):")
-                        for f in sorted(json_files):
-                            log.error(f"      - {f}")
-                    else:
-                        log.error(f"    No JSON files found in directory")
-
-                    # List first 20 other files for context
-                    other_files = [f for f in dir_contents if not f.endswith('.json')]
-                    if other_files:
-                        log.error(f"    Other files (showing first 20 of {len(other_files)}):")
-                        for f in sorted(other_files)[:20]:
-                            log.error(f"      - {f}")
-                except OSError as list_err:
-                    log.error(f"  Could not list directory contents: {list_err}")
-
-                raise FileNotFoundError(
-                    f"Splitcode summary JSON not found for pool '{pool_for_file_lookup}'. "
-                    f"Expected file: {summary_pattern}. "
-                    f"Check logs above for directory contents."
-                )
-
-            splitcode_summary_file = matching_files[0]
-
-            # Warn if multiple matches found (shouldn't happen but good to catch)
-            if len(matching_files) > 1:
-                log.warning(f"Multiple summary JSON files match pattern '{summary_pattern}':")
-                for f in matching_files:
-                    log.warning(f"  - {f}")
-                log.warning(f"Using first match: {splitcode_summary_file}")
-
-            log.debug(f"Loading splitcode summary from: {splitcode_summary_file}")
-
-            with open(splitcode_summary_file, "r") as f:
-                splitcode_summary = json.load(f)
-
-        except (FileNotFoundError, IndexError) as e:
-            # Re-raise with more context (directory listing already logged above)
-            raise
-        except json.JSONDecodeError as e:
-            log.error(f"Failed to parse JSON from {splitcode_summary_file}")
-            log.error(f"  JSON decode error: {e}")
-            # Try to show first few lines of the file for debugging
-            try:
-                with open(splitcode_summary_file, "r") as f:
-                    lines = f.readlines()
-                    log.error(f"  File contents (first 10 lines):")
-                    for i, line in enumerate(lines[:10], 1):
-                        log.error(f"    {i}: {line.rstrip()}")
-                    if len(lines) > 10:
-                        log.error(f"    ... ({len(lines) - 10} more lines)")
-            except Exception as read_err:
-                log.error(f"  Could not read file for debugging: {read_err}")
-            raise
-        except Exception as e:
-            log.error(f"Unexpected error loading splitcode summary for pool '{pool_for_file_lookup}'")
-            log.error(f"  File: {splitcode_summary_file if 'splitcode_summary_file' in locals() else 'not determined'}")
-            log.error(f"  Error type: {type(e).__name__}")
-            log.error(f"  Error message: {e}")
-            raise
-
-        samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["muxed_pool"] == pool]
-
-        # Parse splitcode summary JSON
-        # IMPORTANT: The tag_qc array has MULTIPLE entries per barcode tag!
-        # Each barcode appears once for each hamming distance level (0, 1, 2, 3).
-        # Example tag_qc structure:
-        #   [
-        #     {"tag": "Sample1_R1", "distance": 0, "count": 5},   # Perfect matches
-        #     {"tag": "Sample1_R1", "distance": 1, "count": 2},   # 1 mismatch
-        #     {"tag": "Sample1_R1", "distance": 2, "count": 0},   # 2 mismatches
-        #     {"tag": "Sample1_R1", "distance": 3, "count": 0},   # 3 mismatches
-        #     {"tag": "Sample2_R1", "distance": 0, "count": 3},
-        #     ...
-        #   ]
-        #
-        # Here we filter to distance=0 (perfect matches) and distance=1 (1-mismatch) separately
-        # for downstream metrics and QC analysis.
-        if len(splitcode_summary.get("tag_qc", [])) > 0:
-            splitcode_summary_df = pd.DataFrame.from_records(splitcode_summary["tag_qc"])
-            # Convert only the tag column to string, keep count/distance as numeric
-            splitcode_summary_df['tag'] = splitcode_summary_df['tag'].astype(str)
-
-            splitcode_summary_df['run'] = splitcode_summary_df['tag'].copy()
-            splitcode_summary_df['run'] = splitcode_summary_df['run'].str.removesuffix('_R1')
-
-            # Extract perfect matches (hamming distance = 0)
-            splitcode_summary_df_h0_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 0]
-            # Extract 1-mismatch reads (hamming distance = 1)
-            splitcode_summary_df_h1_df  = splitcode_summary_df[splitcode_summary_df["distance"] == 1].copy()
-
-            splitcode_summary_df_h1_df  = splitcode_summary_df_h1_df.rename(columns={"count": "count_h1"})
-
-            samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_df.join(
-                                                splitcode_summary_df_h0_df.set_index('run'),
-                                                on='run')
-
-            samplesheet_rows_for_pool_hx_df = pd.merge(samplesheet_rows_for_pool_hx_df,
-                                                splitcode_summary_df_h1_df[['run','count_h1']].rename(columns={'run':'run_h1'}),
-                                                 left_on  = 'run',
-                                                 right_on = 'run_h1',
-                                                 how      = 'left')
-            samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_hx_df.drop(columns=['run_h1','distance','tag']) # dropping distance since we've added a col with different distance (as indicated by _h1 suffix)
-            # fil NA values in 'count_h1' and cast to int
-            samplesheet_rows_for_pool_hx_df["count_h1"] = samplesheet_rows_for_pool_hx_df["count_h1"].fillna(0).astype(int)
-        else:
-            # No reads were processed by splitcode for this pool
-            # Create a dataframe with the expected schema but all counts set to 0
-            log.warning(f"Pool {pool} has 0 reads processed by splitcode. Creating empty metrics.")
-            samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_df.copy()
-            samplesheet_rows_for_pool_hx_df['count'] = 0
-            samplesheet_rows_for_pool_hx_df['count_h1'] = 0
-
-        pool_dfs.append(samplesheet_rows_for_pool_hx_df)
-
-        unmatched_dict = {
-            "sample"                : f"{unmatched_name}.{pool}",
-            "library_id_per_sample" : list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
-            "run"                   : f"{unmatched_name}.{pool}",
-            "muxed_pool"            : pool,
-            "count"                 : splitcode_summary["n_processed"] - splitcode_summary["n_assigned"],
-            "count_h1"              : 0,
-            "barcode_1"             : list(samplesheet_rows_for_pool_hx_df["barcode_1"])[0],
-            "barcode_2"             : list(samplesheet_rows_for_pool_hx_df["barcode_2"])[0],
-            "barcode_3"             : "N" * len(list(samplesheet_rows_for_pool_hx_df["barcode_3"])[0]),
-        }
-        unmatched_df = pd.DataFrame.from_dict([unmatched_dict], dtype=str)
-        unmatched_dfs.append(unmatched_df)
-
-    all_pools_and_unmatched_df = pd.concat(pool_dfs + unmatched_dfs, ignore_index=True)
-    
-    df_lut = all_pools_and_unmatched_df.copy()
-    # rename columns to values expected by downstream plotting code
-    df_lut = df_lut.rename(columns={
-                                    "count": "num_reads_hdistance0", 
-                                    "count_h1": "num_reads_hdistance1",
-                                    "barcode_3":"inline_barcode",
-                                    "library_id_per_sample":"library_id"
-                                    })
-
-    df_lut["num_reads_total"] = (
-        df_lut["num_reads_hdistance0"] + df_lut["num_reads_hdistance1"]
-    )
-
-    # TO-DO: Adjust the table outputted by this function to match Picard output
-
-    df_lut.to_csv(df_csv_out, index=False)
-
-    return df_csv_out
-
-def plot_read_counts(df_csv_path, outDir):
-    df_lut = pd.read_csv(df_csv_path, dtype=str)
-    # Convert numeric columns explicitly
-    numeric_cols = ['num_reads_total', 'num_reads_hdistance0', 'num_reads_hdistance1']
-    for col in numeric_cols:
-        if col in df_lut.columns:
-            df_lut[col] = pd.to_numeric(df_lut[col], errors='coerce').fillna(0)
-
-    fig, axs = plt.subplots(figsize=(10, 10), nrows=3, sharex=True)
-    fontsize = 14
-
-    df_grouped = (
-        df_lut.groupby(["inline_barcode", "library_id"])["num_reads_total"]
-        .sum()
-        .unstack(fill_value=0)
-    )
-    df_grouped_fracs = df_grouped.div(df_grouped.sum(axis=0), axis=1)
-
-    bar_width = 0.2
-    bar_positions = np.arange(len(df_grouped))
-
-    # Define colors
-    unique_library_ids = df_lut["library_id"].nunique()
-    tab20_colors = plt.cm.tab20.colors
-    pool_colors = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
-
-    for i, pool in enumerate(df_grouped.columns):
-        axs[0].bar(
-            bar_positions + i * bar_width,
-            df_grouped[pool],
-            width=bar_width,
-            label=f'{pool.split("_")[-1]}',
-            color=pool_colors[i],
-        )
-        axs[1].bar(
-            bar_positions + i * bar_width,
-            df_grouped[pool],
-            width=bar_width,
-            color=pool_colors[i],
-        )
-        axs[2].bar(
-            bar_positions + i * bar_width,
-            df_grouped_fracs[pool],
-            width=bar_width,
-            color=pool_colors[i],
-        )
-
-    # Only set log scale if there are positive values
-    if df_grouped.values.max() > 0:
-        axs[1].set_yscale("log")
-    else:
-        log.warning("All read counts are zero; skipping log scale for plot")
-
-    for ax in axs[:2]:
-        ax.set_ylabel("# Reads", fontsize=fontsize)
-    axs[2].set_ylabel("Fraction of Reads", fontsize=fontsize)
-
-    for ax in axs:
-        ax.set_xticks(bar_positions + 1.5 * bar_width)
-        ax.set_xticklabels(df_grouped.index, rotation=45, ha="right")
-        ax.tick_params(axis="both", labelsize=fontsize - 2)
-        ax.grid(True, axis="y", linestyle="--", alpha=0.7)
-        ax.margins(x=0.01)
-
-    axs[0].legend(title="Pool", fontsize=fontsize - 2, title_fontsize=fontsize)
-    axs[0].set_title("# Reads per inline barcode", fontsize=fontsize)
-    axs[2].set_xlabel("Inline Barcode", fontsize=fontsize)
-
-    plt.tight_layout()
-
-    fig.savefig(f"{outDir}/reads_per_pool.pdf", bbox_inches="tight", dpi=300)
-    fig.savefig(f"{outDir}/reads_per_pool.png", bbox_inches="tight", dpi=300)
-
-
 def write_barcode_metrics_for_pools(input_csv_path, 
                                     out_dir, 
                                     out_basename=None, 
@@ -2985,198 +3484,6 @@ def write_barcode_metrics_for_pools(input_csv_path,
     
     return result_df
 
-def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
-    out_basename = out_basename or "reads_per_pool_sorted_curve"
-
-    df_lut = pd.read_csv(df_csv_path, dtype=str)
-    # Convert numeric columns explicitly
-    numeric_cols = ['num_reads_total', 'num_reads_hdistance0', 'num_reads_hdistance1']
-    for col in numeric_cols:
-        if col in df_lut.columns:
-            df_lut[col] = pd.to_numeric(df_lut[col], errors='coerce').fillna(0)
-
-    log.debug(f"Reading in metrics file for plotting barcode read counts per pool: {df_csv_path}")
-    log.debug(f"unmatched_name: {unmatched_name}")
-
-    fig, axs = plt.subplots(figsize=(10, 10), nrows=4, sharex=True)
-    fontsize = 14
-
-    # Define colors
-    unique_library_ids = df_lut["library_id"].nunique()
-    log.debug(f"Number of distinct library_id values (pools) present: {unique_library_ids}")
-    log.debug(f"library_id values (pools): {", ".join(sorted(list(set(df_lut['library_id'].astype(str)))))}")
-
-    tab20_colors = plt.cm.tab20.colors
-    pool_colors  = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
-
-    for i, pool in enumerate(sorted(df_lut["library_id"].unique())):
-        log.debug(f"Processing read counts to plot for library_id (pool): {pool}")
-        # pool_metrics = df_lut[
-        #     (df_lut["library_id"] == str(pool))
-        #     & (df_lut["inline_barcode"] != unmatched_name)
-        # ]
-        pool_metrics = df_lut[
-            (df_lut["library_id"] == pool)
-            & (~df_lut['inline_barcode'].str.match(r'^N+$', na=False))
-        ]
-        num_reads = pool_metrics["num_reads_total"]
-        num_reads = sorted(num_reads, reverse=True)
-        for ax in axs[:2]:
-            ax.scatter(
-                np.arange(len(num_reads)),
-                num_reads,
-                label=f'{pool.split("_")[-1]}',
-                color=pool_colors[i],
-            )
-            ax.plot(np.arange(len(num_reads)), num_reads, color=pool_colors[i])
-
-        # Calculate total and fractions (handle division by zero)
-        total_reads = sum(num_reads)
-        if total_reads > 0:
-            fractions = np.array([read / total_reads for read in num_reads])
-        else:
-            fractions = np.zeros(len(num_reads))
-            log.warning(f"Pool {pool} has 0 total reads; setting all fractions to 0")
-
-        for ax in axs[2:]:
-            ax.scatter(np.arange(len(fractions)), fractions * 100, color=pool_colors[i])
-            ax.plot(np.arange(len(fractions)), fractions * 100, color=pool_colors[i])
-
-    axs[1].set_yscale("symlog")
-    axs[1].set_ylim(bottom=0)
-    axs[3].set_ylim(bottom=0, top=0.5)
-    axs[3].set_xlabel("Inline Barcode", fontsize=fontsize)
-    axs[0].set_title("Reads per Inline Barcode (Sorted Curve)", fontsize=fontsize)
-    axs[0].legend(title="Pool", fontsize=fontsize - 2, title_fontsize=fontsize)
-
-    for ax in axs[:2]:
-        ax.set_ylabel("# Reads", fontsize=fontsize)
-
-    for ax in axs[2:]:
-        ax.set_ylabel("% Reads", fontsize=fontsize)
-
-    for ax in axs:
-        ax.tick_params(axis="both", labelsize=fontsize - 2)
-        ax.grid(True, axis="y", linestyle="--", alpha=0.7)
-        ax.margins(x=0.01)
-
-    plt.tight_layout()
-
-    fig.savefig(
-        f"{out_dir}/{out_basename}.pdf", bbox_inches="tight", dpi=300
-    )
-    fig.savefig(
-        f"{out_dir}/{out_basename}.png", bbox_inches="tight", dpi=300
-    )
-
-# this function is called in new processes
-# and must remain at the top level (global scope) of this file
-# to be picklable and thus compatible
-# with concurrent.futures.ProcessPoolExecutor()
-# see: https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor
-#      https://stackoverflow.com/a/72776044
-def run_splitcode_on_pool(  pool_id,
-                            pool_bam_file,
-                            splitcode_config,
-                            splitcode_keepfile,
-                            out_demux_dir_path,
-                            unmatched_name         = "unmatched",
-                            threads_per_worker     = None,
-                            out_dir_path           = None,
-                            out_demux_dir_path_tmp = None,
-                            string_to_log          = None,
-                            predemux_r1_trim_5prime_num_bp=None,
-                            predemux_r1_trim_3prime_num_bp=None,
-                            predemux_r2_trim_5prime_num_bp=None,
-                            predemux_r2_trim_3prime_num_bp=None
-                            ):
-    """
-    Execute splitcode demultiplexing on a single BAM pool.
-
-    This function converts the input BAM to FASTQ, runs splitcode to demultiplex based on
-    inline barcodes, and generates a summary JSON with barcode matching statistics.
-
-    Args:
-        pool_id: Identifier for this pool (used in output filenames)
-        pool_bam_file: Path to input BAM file containing multiplexed reads
-        splitcode_config: Path to splitcode config file (TSV format with columns:
-                         tag, id, locations, distance, left, right)
-        splitcode_keepfile: Path to keep file (TSV: barcode_id<tab>output_prefix)
-        out_demux_dir_path: Directory for demultiplexed output FASTQs
-        unmatched_name: Prefix for unmatched/unassigned reads output
-        out_dir_path: Directory for summary JSON (defaults to out_demux_dir_path)
-        out_demux_dir_path_tmp: Temporary directory for intermediate files
-
-    Returns:
-        tuple: (return_code, pool_id) where return_code is 0 on success
-
-    Output files:
-        - Summary JSON: {out_dir_path}/{pool_id}_summary.json
-          Contains 'tag_qc' array with barcode matching statistics. Each barcode has
-          multiple entries (one per hamming distance level 0-3) with 'tag', 'distance',
-          and 'count' fields.
-        - Demuxed FASTQs: {output_prefix}_R1.fastq, {output_prefix}_R2.fastq
-          (output_prefix comes from keepfile, one pair per barcode)
-        - Unmatched FASTQs: {unmatched_name}.{pool_id}_R1.fastq, {unmatched_name}.{pool_id}_R2.fastq
-
-    Notes:
-        - Splitcode config locations format: FILE_NUMBER:START_BP:END_BP
-          Example: "0:0:8" means file 0 (R1), positions 0-8 (8bp barcode)
-        - The 'id' column in config file must match the first column in keepfile
-        - By convention, we use f"{sample_library_id}_R1" as the ID
-        - tag_qc in summary JSON has multiple entries per tag (one for each distance level),
-          so downstream code must sum counts across all distance levels if needed
-
-    See test/unit/test_illumina_splitcode.py for detailed examples and validation of
-    splitcode behavior assumptions.
-    """
-    with tools.samtools.SamtoolsTool().bam2fq_tmp(pool_bam_file) as (fqin1, fqin2):
-        n_fastqs = 2
-        splitcode_tool = tools.splitcode.SplitCodeTool()
-
-        # output args
-        unmapped_r1   = f"{out_demux_dir_path_tmp}/{unmatched_name}.{pool_id}_R1.fastq"
-        unmapped_r2   = f"{out_demux_dir_path_tmp}/{unmatched_name}.{pool_id}_R2.fastq"
-        # write the stats to the output directory rather than tmp
-        summary_stats = f"{out_dir_path}/{pool_id}_summary.json"
-
-        # Dummy output files for --output parameter
-        # Note: --no-output flag prevents --keep files from being written, so we must
-        # provide --output even though we don't use these files
-        dummy_output_r1 = f"{out_demux_dir_path_tmp}/_dummy_main_output_{pool_id}_R1.fastq"
-        dummy_output_r2 = f"{out_demux_dir_path_tmp}/_dummy_main_output_{pool_id}_R2.fastq"
-
-        # Optional: Pass 'predemux_r2_trim_3prime_num_bp':8 for '--trim-3 0,8'
-        # to remove 8 bases from end of R2 read
-        # (note: trimming happens before demuxing)
-        # valid options:
-        #   predemux_r1_trim_5prime_num_bp
-        #   predemux_r1_trim_3prime_num_bp
-        #   predemux_r2_trim_5prime_num_bp
-        #   predemux_r2_trim_3prime_num_bp
-        # see splitcode.py wrapper for more details, and also:
-        #   https://splitcode.readthedocs.io/en/latest/reference_guide.html#command-line-config-optional
-        splitcode_kwargs={
-            "n_fastqs"                       : n_fastqs,
-            "threads"                        : threads_per_worker,
-            "config_file"                    : splitcode_config,
-            "keep_file"                      : splitcode_keepfile,
-            "unassigned_r1"                  : unmapped_r1,
-            "unassigned_r2"                  : unmapped_r2,
-            "summary_stats"                  : summary_stats,
-            "r1"                             : fqin1,
-            "r2"                             : fqin2,
-            "predemux_r1_trim_5prime_num_bp" : predemux_r1_trim_5prime_num_bp,
-            "predemux_r1_trim_3prime_num_bp" : predemux_r1_trim_3prime_num_bp,
-            "predemux_r2_trim_5prime_num_bp" : predemux_r2_trim_5prime_num_bp,
-            "predemux_r2_trim_3prime_num_bp" : predemux_r2_trim_3prime_num_bp,
-            "keep_r1_r2_suffixes"            : True,  # Add --keep-r1-r2 flag for _R1/_R2 suffixes
-            "splitcode_opts"                 : [f"--output={dummy_output_r1},{dummy_output_r2}"],  # Required for --keep to work
-        }
-        if string_to_log:
-            log.info(string_to_log)
-        return (splitcode_tool.execute(**splitcode_kwargs), pool_id)
-
 # this function is called in new processes
 # and must remain at the top level (global scope) of this file
 # to be picklable and thus compatible
@@ -3205,161 +3512,6 @@ def run_picard_fastq_to_ubam(fq1,
                                             picardOptions = picardOptions,
                                             JVMmemory     = jvm_memory)
     return (sample_name, out_bam)
-
-def generate_splitcode_config_and_keep_files(
-    inner_demux_barcode_map_df,
-    pool_id,
-    output_dir,
-    max_hamming_dist=1,
-    r1_trim_bp_right_of_barcode=None,
-    r2_trim_bp_left_of_barcode=None
-):
-    """
-    Generate splitcode config and keep files for a single pool.
-
-    This function creates the TSV files needed by splitcode to demultiplex reads
-    based on inline barcodes (barcode_3). It takes sample metadata from a DataFrame
-    and generates both the config file (which specifies barcode sequences and matching
-    parameters) and the keep file (which maps barcodes to output file prefixes).
-
-    Args:
-        inner_demux_barcode_map_df (pd.DataFrame): DataFrame with sample metadata.
-            Required columns:
-            - 'barcode_3': Inline barcode sequence
-            - 'run': Sample library ID (e.g., "Sample1.lLib1.FLOWCELL.1")
-            - 'muxed_run': Pool ID for grouping samples
-            Index: sample names
-        pool_id (str): Pool identifier to filter samples and name output files
-        output_dir (str): Directory where demultiplexed FASTQs will be written
-        max_hamming_dist (int): Maximum Hamming distance for fuzzy barcode matching.
-            Default: 1 (allows 1 mismatch)
-        r1_trim_bp_right_of_barcode (int, optional): Additional bases to trim from R1
-            after removing the barcode. If None, only the barcode is trimmed.
-        r2_trim_bp_left_of_barcode (int, optional): Bases to trim from R2 left side
-            (currently unused - R2 barcodes not implemented)
-
-    Returns:
-        tuple: (config_file_path, keep_file_path, sample_library_ids)
-            - config_file_path (str): Path to generated splitcode config TSV
-            - keep_file_path (str): Path to generated splitcode keep TSV
-            - sample_library_ids (list): List of sample_library_id values for this pool
-
-    Config file format (TSV with header):
-        tag        - Barcode sequence (e.g., "AAAAAAAA")
-        id         - Barcode identifier (e.g., "Sample1_R1") - MUST match keep file
-        locations  - FILE_NUMBER:START_BP:END_BP (e.g., "0:0:8" for R1 positions 0-8)
-        distance   - Max hamming distance for fuzzy matching (0=exact, 1=1 mismatch, etc.)
-        left       - Trim from left: "1" removes barcode, "1:N" removes barcode + N more bp
-        right      - Trim from right (typically "0" for R1 barcodes)
-
-    Keep file format (TSV, NO header):
-        Column 1: barcode_id - MUST match "id" from config file
-        Column 2: output_prefix - Path prefix for output FASTQs (without _R1/_R2.fastq)
-
-    Example:
-        >>> df = pd.DataFrame({
-        ...     'barcode_3': ['AAAAAAAA', 'CCCCCCCC'],
-        ...     'run': ['Sample1.lLib1', 'Sample2.lLib1'],
-        ...     'muxed_run': ['Pool1', 'Pool1']
-        ... }, index=['Sample1', 'Sample2'])
-        >>> config, keep, ids = generate_splitcode_config_and_keep_files(
-        ...     df, 'Pool1', '/output', max_hamming_dist=1
-        ... )
-        >>> # config file contains:
-        >>> # tag  id  locations  distance  left  right
-        >>> # AAAAAAAA  Sample1.lLib1_R1  0:0:8  1  1  0
-        >>> # CCCCCCCC  Sample2.lLib1_R1  0:0:8  1  1  0
-        >>> # keep file contains:
-        >>> # Sample1.lLib1_R1  /output/Sample1.lLib1
-        >>> # Sample2.lLib1_R1  /output/Sample2.lLib1
-
-    See test/unit/test_illumina_splitcode.py for validation of splitcode's behavior
-    with these file formats.
-    """
-    import csv
-
-    # Filter DataFrame to only samples in this pool
-    pool_samples_df = inner_demux_barcode_map_df[
-        inner_demux_barcode_map_df['muxed_run'] == pool_id
-    ]
-
-    if len(pool_samples_df) == 0:
-        raise ValueError(f"No samples found for pool_id '{pool_id}'")
-
-    # ======== Create splitcode config file ========
-    # For more information on config format and parameters see:
-    #   https://splitcode.readthedocs.io/en/latest/reference_guide.html#table-options
-    #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#locations
-    #   https://splitcode.readthedocs.io/en/latest/user_guide_tags.html#left-and-right-trimming
-
-    config_file = util.file.mkstempfname(f'splitcode_{pool_id}_config.txt')
-
-    with open(config_file, "w") as config_fh:
-        config_tsv_writer = csv.writer(config_fh, delimiter="\t", lineterminator='\n')
-
-        # Write header columns
-        config_header = [
-            "tag",        # Barcode sequence
-            "id",         # Barcode identifier (must match keep file)
-            "locations",  # FILE:START:END format
-            "distance",   # Max hamming distance
-            "left",       # Trim from left
-            "right"       # Trim from right
-        ]
-        config_tsv_writer.writerow(config_header)
-
-        # Write config lines for each sample in this pool
-        for sample_name, sample_row in pool_samples_df.iterrows():
-            barcode_sequence = sample_row["barcode_3"]
-            barcode_len = len(barcode_sequence)
-            sample_library_id = sample_row["run"]
-
-            # R1 barcode configuration
-            # The "left" column controls trimming from the left side of R1
-            # Format: "1" (trim barcode only) or "1:N" (trim barcode + N more bp)
-            left_trim = "1" if r1_trim_bp_right_of_barcode is None else f"1:{r1_trim_bp_right_of_barcode}"
-
-            # When using --keep-r1-r2 flag, splitcode automatically adds _R1/_R2 suffixes
-            # to output filenames, so the ID should NOT include _R1 suffix
-            config_line_r1 = [
-                barcode_sequence,              # The barcode sequence to search for
-                sample_library_id,             # ID (MUST match keep file column 1)
-                f"0:0:{barcode_len}",          # locations: FILE:START:END (0=R1, 0-barcode_len)
-                str(max_hamming_dist),         # Maximum hamming distance
-                left_trim,                     # Trim from left (barcode + optional extra bp)
-                "0"                            # Trim from right (not used for R1)
-            ]
-            config_tsv_writer.writerow(config_line_r1)
-
-            # TODO: R2 barcode support (currently commented out in splitcode_demux)
-            # If needed, would add config_line_r2 here using r2_trim_bp_left_of_barcode
-
-    # ======== Create splitcode keep file ========
-    # Keep file maps barcode IDs to output file prefixes
-    # NO header row (unlike config file)
-
-    keep_file = util.file.mkstempfname(f"splitcode_{pool_id}_keepfile.txt")
-    sample_library_ids = []
-
-    with open(keep_file, "w") as keep_fh:
-        keep_tsv_writer = csv.writer(keep_fh, delimiter="\t", lineterminator='\n')
-
-        for sample_name, sample_row in pool_samples_df.iterrows():
-            sample_library_id = sample_row["run"]
-            sample_library_ids.append(sample_library_id)
-
-            # Output prefix: /output/dir/Sample1.lLib1
-            # When using --keep-r1-r2, splitcode will create:
-            #   /output/dir/Sample1.lLib1_R1.fastq, ...R2.fastq
-            sample_output_prefix = f"{output_dir}/{sample_library_id}"
-
-            keep_row = [
-                sample_library_id,       # MUST match config file "id" column (no _R1 suffix)
-                sample_output_prefix,    # Output prefix (without _R1/_R2.fastq)
-            ]
-            keep_tsv_writer.writerow(keep_row)
-
-    return (config_file, keep_file, sample_library_ids)
 
 def splitcode_demux(
     inDir,
@@ -3514,26 +3666,24 @@ def splitcode_demux(
     os.makedirs(out_demux_dir_path, exist_ok=True)
 
     if out_runinfo:
+        # Use build_run_info_json() utility function (eliminates code duplication)
+        run_info_dict = build_run_info_json(
+            sequencing_center=sequencing_center,
+            run_start_date=runinfo.get_rundate_iso(),
+            read_structure=read_structure,
+            indexes=str(samples.indexes),
+            run_id=runinfo.get_run_id(),
+            lane=str(lane),
+            flowcell=str(runinfo.get_flowcell()),
+            lane_count=runinfo.get_lane_count(),
+            surface_count=runinfo.get_surface_count(),
+            swath_count=runinfo.get_swath_count(),
+            tile_count=runinfo.get_tile_count(),
+            total_tile_count=runinfo.tile_count(),
+            sequencer_model=runinfo.get_machine_model()
+        )
         with open(out_runinfo, "wt") as outf:
-            json.dump(
-                {
-                    "sequencing_center" : sequencing_center,
-                    "run_start_date"    : runinfo.get_rundate_iso(),
-                    "read_structure"    : read_structure,
-                    "indexes"           : str(samples.indexes),
-                    "run_id"            : runinfo.get_run_id(),
-                    "lane"              : str(lane),
-                    "flowcell"          : str(runinfo.get_flowcell()),
-                    "lane_count"        : str(runinfo.get_lane_count()),
-                    "surface_count"     : str(runinfo.get_surface_count()),
-                    "swath_count"       : str(runinfo.get_swath_count()),
-                    "tile_count"        : str(runinfo.get_tile_count()),
-                    "total_tile_count"  : str(runinfo.tile_count()),
-                    "sequencer_model"   : runinfo.get_machine_model(),
-                },
-                outf,
-                indent=2,
-            )
+            json.dump(run_info_dict, outf, indent=2)
 
     # Load samplesheet into dataframe
     barcodes_df = pd.json_normalize(samples.get_rows()).astype(str).fillna("")
@@ -3645,7 +3795,7 @@ def splitcode_demux(
         log.info(f"pool to demux with splitcode: {pool_id} containing {len(sample_libraries)} libraries")
 
         # Use the extracted function to generate config/keep files
-        splitcode_config, splitcode_sample_keep_file, returned_sample_ids = generate_splitcode_config_and_keep_files(
+        splitcode_config, splitcode_sample_keep_file, returned_sample_ids = tools.splitcode.generate_splitcode_config_and_keep_files(
             inner_demux_barcode_map_df,
             pool_id,
             splitcode_out_tmp_dir,
@@ -3705,7 +3855,7 @@ def splitcode_demux(
 
             string_to_log = f"creating splitcode process {pool_idx+1} for: {pool_id}"
             future = executor.submit(
-                                        run_splitcode_on_pool,
+                                        tools.splitcode.run_splitcode_on_pool,
                                         pool_id,
                                         pool_bam_file,
                                         splitcode_config,
@@ -3742,8 +3892,8 @@ def splitcode_demux(
     splitcode_csv_metrics_out = f"{outDir}/bc2sample_lut.csv"
     # Pass the inner_demux_barcode_map_df directly instead of re-reading the sample sheet
     # This ensures pool IDs match exactly what was used to create summary JSON files
-    # (avoiding mismatch between SampleSheet.inner_demux_mapper() and create_splitcode_lookup_table())
-    df_csv_out_path = create_splitcode_lookup_table(
+    # (avoiding mismatch between SampleSheet.inner_demux_mapper() and tools.splitcode.create_splitcode_lookup_table())
+    df_csv_out_path = tools.splitcode.create_splitcode_lookup_table(
         inner_demux_barcode_map_df,  # Pass DataFrame directly (not file path)
         splitcode_csv_metrics_out,
         unmatched_name,
@@ -3753,15 +3903,15 @@ def splitcode_demux(
     log.info("splitcode demux metrics written to %s", splitcode_csv_metrics_out)
 
     picard_style_splitcode_metrics_path = os.path.splitext(df_csv_out_path)[0] + "_picard-style.txt"
-    convert_splitcode_demux_metrics_to_picard_style(df_csv_out_path, picard_style_splitcode_metrics_path)
+    tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(df_csv_out_path, picard_style_splitcode_metrics_path)
     log.info("picard-style splitcode demux metrics written to %s", picard_style_splitcode_metrics_path)
 
     # ----- splitcode metrics plotting -----
     log.info("plotting splitcode demux metrics...")
     # Plot number and fraction of reads per inline barcode per pool
-    plot_read_counts(df_csv_out_path, outDir)
+    tools.splitcode.plot_read_counts(df_csv_out_path, outDir)
     # Plot a sorted curve per pool and save csv file with sorted read numbers and fractions for QC
-    plot_sorted_curve(df_csv_out_path, outDir, unmatched_name)
+    tools.splitcode.plot_sorted_curve(df_csv_out_path, outDir, unmatched_name)
     # Write metrics for barcode-pool pairs
     write_barcode_metrics_for_pools(df_csv_out_path, outDir)
     # --- end splitcode metrics plotting ---
@@ -4086,258 +4236,236 @@ def parser_splitcode_demux(parser=None):
 
 __commands__.append(("splitcode_demux", parser_splitcode_demux))
 
-def convert_splitcode_demux_metrics_to_picard_style(
-    in_splitcode_csv_path,
-    out_splitcode_tsv_metrics_path,
-    demux_function                 = "viral-core.SplitcodeMetrics",
-    catchall_name                  = "unmatched",
-    combine_innerbarcode_unmatched = False,
-    report_within_pools            = True
+def add_constant_column_to_metrics(
+    metrics_file,
+    column_name,
+    column_value,
+    output_file=None
 ):
     """
-    Convert a custom Splitcode demux CSV file into a Picard-style
-    ExtractIlluminaBarcodes.BarcodeMetric TSV file.
+    Add a constant-value column to a Picard-style metrics file.
 
-    :param in_splitcode_csv_path: Path to the Splitcode-format CSV input
-    :param out_splitcode_tsv_metrics_path: Path to the desired Picard-style metrics TSV output
-    :param demux_function: The string to insert after 'ExtractIlluminaBarcodes$' in
-                           the '## METRICS CLASS' comment line
-    :param catchall_name: A placeholder name for collapsed 'N' rows (not strictly used here)
-    :param combine_innerbarcode_unmatched: If True, we collapse "all-N" rows into one single row.
-                                           If False, we leave them as-is (no collapsing).
-    :param report_within_pools: If True, the ratio/percentage columns are computed for each unique
-                                (barcode_1, barcode_2) group. If False, they are computed globally.
-                                Also, if True, we check only the *last* barcode segment for 'N's.
-                                If False, we check the entire combined barcode for 'N's.
+    Reads a tab-delimited Picard metrics file and adds a new column as the last column,
+    with all data rows receiving the specified constant value.
+
+    Args:
+        metrics_file (str): Path to input metrics file (TSV format)
+        column_name (str): Name of the new column (appears in header)
+        column_value (str): Value to set for all rows in the new column
+        output_file (str, optional): Path to output file. If None, overwrites input file.
+
+    Returns:
+        str: Path to the output file
+
+    Raises:
+        FileNotFoundError: If metrics_file doesn't exist
+
+    Example:
+        >>> add_constant_column_to_metrics('demux_metrics.txt', 'DEMUX_TYPE', 'picard')
+        'demux_metrics.txt'
+        >>> add_constant_column_to_metrics('metrics.txt', 'BATCH', 'batch_1', 'metrics_with_batch.txt')
+        'metrics_with_batch.txt'
     """
+    import os
 
-    # Required columns for the first set of metrics
-    required_cols = [
-        "sample",                    # -> BARCODE_NAME
-        "barcode_1",                 # -> part of BARCODE
-        "barcode_2",                 # -> part of BARCODE
-        "num_reads_hdistance0",      # -> PERFECT_MATCHES, PF_PERFECT_MATCHES
-        "num_reads_hdistance1",      # -> ONE_MISMATCH_MATCHES, PF_ONE_MISMATCH_MATCHES
-        "num_reads_total"            # -> READS, PF_READS
-    ]
+    if not os.path.exists(metrics_file):
+        raise FileNotFoundError(f"Metrics file not found: {metrics_file}")
 
-    # Read the CSV
-    df = pd.read_csv(in_splitcode_csv_path, dtype=str)
+    if output_file is None:
+        output_file = metrics_file
 
-    # Check for presence of required columns
-    for col in required_cols:
-        if col not in df.columns:
-            raise ValueError(f"Required column '{col}' is missing in the input file.")
-    # Also check that these columns are not all empty
-    for col in required_cols:
-        if df[col].dropna().empty:
-            raise ValueError(
-                f"Required column '{col}' is present but entirely empty (no usable data)."
-            )
+    # Read the file, modify it, write to temp, then move to output
+    temp_file = output_file + '.tmp'
 
-    # Convert numeric columns from string to numeric
-    # These columns are read as strings but need to be numeric for calculations
-    numeric_cols = ["num_reads_hdistance0", "num_reads_hdistance1", "num_reads_total"]
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+    with open(metrics_file, 'r') as inf, open(temp_file, 'w') as outf:
+        for line in inf:
+            # Preserve comment lines as-is
+            if line.startswith('##'):
+                outf.write(line)
+                continue
 
-    # If 'inline_barcode' is present, treat it as a potential "third" barcode
-    barcode_3_col = "inline_barcode" if "inline_barcode" in df.columns else None
+            # Skip empty lines
+            stripped = line.rstrip('\n\r')
+            if not stripped or stripped.isspace():
+                outf.write(line)
+                continue
 
-    # Combine up to 3 barcodes into 'BARCODE' (with '-') and 'BARCODE_WITHOUT_DELIMITER' (concatenated)
-    def combine_barcodes(row):
-        bcs = []
-        for bc_col in ["barcode_1", "barcode_2"]:
-            val = row.get(bc_col, "")
-            if pd.notnull(val) and val != "":
-                bcs.append(val)
-        if barcode_3_col and pd.notnull(row.get(barcode_3_col, "")) and row[barcode_3_col] != "":
-            bcs.append(row[barcode_3_col])
-        barcode = "-".join(bcs)
-        barcode_no_delim = "".join(bcs)
-        return pd.Series([barcode, barcode_no_delim])
+            # Check if this is a header line
+            is_header = any(stripped.startswith(col) for col in [
+                'BARCODE', 'SAMPLE_ALIAS', 'OUTPUT', 'LIBRARY_NAME'
+            ])
 
-    df[["BARCODE", "BARCODE_WITHOUT_DELIMITER"]] = df.apply(combine_barcodes, axis=1)
+            if is_header:
+                # Add column_name to header
+                outf.write(f"{stripped}\t{column_name}\n")
+            else:
+                # Add column_value to data row
+                outf.write(f"{stripped}\t{column_value}\n")
 
-    # Assign 'BARCODE_NAME' and 'LIBRARY_NAME'
-    df["BARCODE_NAME"] = df["sample"]
-    if "run" in df.columns and not df["run"].dropna().empty:
-        df["LIBRARY_NAME"] = df["run"]
-    elif "library_id" in df.columns and not df["library_id"].dropna().empty:
-        df["LIBRARY_NAME"] = df["library_id"]
-    else:
-        df["LIBRARY_NAME"] = df["BARCODE_NAME"]
+    # Move temp file to output file
+    os.replace(temp_file, output_file)
 
-    # Fill the first set of columns (READS, PF_READS, etc.)
-    df["READS"]                   = df["num_reads_total"]
-    df["PF_READS"]                = df["num_reads_total"]
-    df["PERFECT_MATCHES"]         = df["num_reads_hdistance0"]
-    df["PF_PERFECT_MATCHES"]      = df["num_reads_hdistance0"]
-    df["ONE_MISMATCH_MATCHES"]    = df["num_reads_hdistance1"]
-    df["PF_ONE_MISMATCH_MATCHES"] = df["num_reads_hdistance1"]
+    log.info(f"Added column '{column_name}' (value: '{column_value}') to {output_file}")
+    return output_file
 
-    # Define the "all N" checkers
-    def is_all_N(barcode_str: str) -> bool:
-        """
-        Return True if the entire (combined) barcode is all 'N' and non-empty.
-        Ignores delimiter characters ('-').
-        """
-        if not isinstance(barcode_str, str):
-            return False
-        # Remove delimiters before checking
-        barcode_no_delim = barcode_str.replace('-', '')
-        return len(barcode_no_delim) > 0 and all(ch == 'N' for ch in barcode_no_delim)
 
-    def last_barcode_is_all_N(barcode_str: str) -> bool:
-        """
-        Return True if the final piece (e.g. inline barcode) is non-empty and all 'N'.
-        For example, 'ACTGATCG-NNNNNNNNN' => True for that last piece.
-        """
-        if not isinstance(barcode_str, str):
-            return False
-        parts = barcode_str.split("-")
-        if not parts:
-            return False
-        return is_all_N(parts[-1])
+def merge_demux_metrics(
+    input_metrics_files,
+    output_metrics_file,
+    skip_header_merge_check=False
+):
+    """
+    Merge multiple Picard-style demux metrics tab files into a single file.
 
-    # Row Collapsing for "all-N" if combine_innerbarcode_unmatched == True
-    if combine_innerbarcode_unmatched:
-        # The definition of "all-N" changes depending on report_within_pools:
-        #  - If report_within_pools=True => check ONLY the last barcode piece
-        #  - Otherwise => check entire combined barcode
-        check_all_n_func = last_barcode_is_all_N if report_within_pools else is_all_N
+    This function takes multiple tab-delimited metrics files (e.g., from Illumina/Picard demux
+    and splitcode demux) and combines them into a single output file. It preserves comment lines
+    from the first file and combines data rows from all files.
 
-        # Identify any rows that are "all N" by that definition
-        df["IS_ALL_N"] = df["BARCODE"].apply(check_all_n_func)
+    The function expects all input files to have the same column structure (same columns in the
+    same order), and will raise an error if headers don't match (unless skip_header_merge_check=True).
 
-        # Separate them out
-        df_all_n     = df[df["IS_ALL_N"]]
-        df_not_all_n = df[~df["IS_ALL_N"]]
+    Args:
+        input_metrics_files (list): List of paths to input metrics files (TSV format).
+            Each file should be in Picard-style format with:
+            - Optional comment lines starting with '##'
+            - A header line with tab-separated column names
+            - Data rows with tab-separated values
+        output_metrics_file (str): Path to the output merged metrics file.
+        skip_header_merge_check (bool): If True, skips validation that all files have
+            matching headers. Use with caution - mismatched columns will produce invalid output.
+            Default: False
 
-        if not df_all_n.empty:
-            # Sum their metric columns
-            sum_reads               = df_all_n["READS"].sum()
-            sum_pf_reads            = df_all_n["PF_READS"].sum()
-            sum_perfect_matches     = df_all_n["PERFECT_MATCHES"].sum()
-            sum_pf_perfect_matches  = df_all_n["PF_PERFECT_MATCHES"].sum()
-            sum_one_mismatch        = df_all_n["ONE_MISMATCH_MATCHES"].sum()
-            sum_pf_one_mismatch     = df_all_n["PF_ONE_MISMATCH_MATCHES"].sum()
+    Returns:
+        str: Path to the output metrics file
 
-            collapsed = df_all_n.iloc[0].copy()
-            collapsed["BARCODE"]                   = "N"
-            collapsed["BARCODE_WITHOUT_DELIMITER"] = "N"
-            collapsed["BARCODE_NAME"]              = ""
-            collapsed["LIBRARY_NAME"]              = ""
-            collapsed["READS"]                     = sum_reads
-            collapsed["PF_READS"]                  = sum_pf_reads
-            collapsed["PERFECT_MATCHES"]           = sum_perfect_matches
-            collapsed["PF_PERFECT_MATCHES"]        = sum_pf_perfect_matches
-            collapsed["ONE_MISMATCH_MATCHES"]      = sum_one_mismatch
-            collapsed["PF_ONE_MISMATCH_MATCHES"]   = sum_pf_one_mismatch
+    Raises:
+        ValueError: If input_metrics_files is empty or if headers don't match (when
+            skip_header_merge_check=False)
+        FileNotFoundError: If any input file doesn't exist
 
-            # Recombine the "not all-N" rows plus this one collapsed row
-            df = pd.concat([df_not_all_n, pd.DataFrame([collapsed], dtype=str)], ignore_index=True)
+    Example:
+        >>> merge_demux_metrics(
+        ...     input_metrics_files=[
+        ...         'illumina_demux_metrics.txt',
+        ...         'splitcode_demux_metrics_picard-style.txt'
+        ...     ],
+        ...     output_metrics_file='merged_demux_metrics.txt'
+        ... )
+        'merged_demux_metrics.txt'
 
-            # After concat with dtype=str, re-convert numeric columns
-            numeric_cols_to_reconvert = [
-                "READS", "PF_READS", "PERFECT_MATCHES", "PF_PERFECT_MATCHES",
-                "ONE_MISMATCH_MATCHES", "PF_ONE_MISMATCH_MATCHES"
-            ]
-            for col in numeric_cols_to_reconvert:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+    Output format:
+        The output file will have:
+        - Comment lines from the first file (lines starting with '##')
+        - The header line from the first file
+        - All data rows from all input files (in order of input_metrics_files)
 
-        # Drop helper column
-        df.drop(columns=["IS_ALL_N"], inplace=True, errors="ignore")
+    Notes:
+        - Skips empty lines and whitespace-only lines
+        - Preserves all comment lines from the first file only
+        - The DEMUX_TYPE column (if present) should differentiate rows from different sources
+        - Files are processed in the order provided in input_metrics_files
+    """
+    import os
 
-    #
-    # Now define how we compute the ratio/percentage columns
-    #
-    # Because you specifically want "if report_within_pools=True, only the last barcode is considered
-    # for 'N's in the PF_NORMALIZED_MATCHES exclusion," we will conditionally pick which function
-    # to use in that step too.
-    #
-    exclude_for_mean_func = last_barcode_is_all_N if report_within_pools else is_all_N
+    # Validate inputs
+    if not input_metrics_files:
+        raise ValueError("input_metrics_files cannot be empty")
 
-    def compute_stats_per_group(group: pd.DataFrame) -> pd.DataFrame:
-        # Compute sums, maxima, etc. *within* the group, fill ratio/percentage columns.
-        sum_of_reads    = group["READS"].sum()
-        max_of_reads    = group["READS"].max() if len(group) > 0 else 1
-        sum_of_pf_reads = group["PF_READS"].sum()
-        max_of_pf_reads = group["PF_READS"].max() if len(group) > 0 else 1
+    # Check all input files exist
+    for f in input_metrics_files:
+        if not os.path.exists(f):
+            raise FileNotFoundError(f"Input metrics file not found: {f}")
 
-        # For PF_NORMALIZED_MATCHES, exclude rows that pass `exclude_for_mean_func`
-        # (which is either last_barcode_is_all_N or is_all_N, depending on 'report_within_pools').
-        group_for_mean = group[~group["BARCODE"].apply(exclude_for_mean_func)]
-        mean_pf_reads = group_for_mean["PF_READS"].mean() if len(group_for_mean) > 0 else 1
+    reference_header = None
+    first_file = True
 
-        out = group.copy()
-        if sum_of_reads == 0:
-            out["PCT_MATCHES"] = 0
-        else:
-            out["PCT_MATCHES"] = out["PERFECT_MATCHES"] / sum_of_reads
+    with open(output_metrics_file, 'w') as outf:
+        for file_idx, metrics_file in enumerate(input_metrics_files):
+            with open(metrics_file, 'r') as inf:
+                current_file_header = None
 
-        if max_of_reads == 0:
-            out["RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT"] = 0
-        else:
-            out["RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT"] = out["READS"] / max_of_reads
+                for line in inf:
+                    # Preserve comment lines from first file only
+                    if line.startswith('##'):
+                        if first_file:
+                            outf.write(line)
+                        continue
 
-        if sum_of_pf_reads == 0:
-            out["PF_PCT_MATCHES"] = 0
-        else:
-            out["PF_PCT_MATCHES"] = out["PF_PERFECT_MATCHES"] / sum_of_pf_reads
+                    # Skip empty lines
+                    stripped = line.rstrip('\n\r')
+                    if not stripped or stripped.isspace():
+                        continue
 
-        if max_of_pf_reads == 0:
-            out["PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT"] = 0
-        else:
-            out["PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT"] = out["PF_READS"] / max_of_pf_reads
+                    # Detect header line (contains common column names)
+                    is_header = any(stripped.startswith(col) for col in [
+                        'BARCODE', 'SAMPLE_ALIAS', 'OUTPUT', 'LIBRARY_NAME'
+                    ])
 
-        if mean_pf_reads == 0:
-            out["PF_NORMALIZED_MATCHES"] = 0
-        else:
-            out["PF_NORMALIZED_MATCHES"] = out["PF_PERFECT_MATCHES"] / mean_pf_reads
+                    if is_header:
+                        current_file_header = stripped
+                        if reference_header is None:
+                            # First header - write it and set as reference
+                            reference_header = stripped
+                            outf.write(f"{stripped}\n")
+                        else:
+                            # Subsequent headers - validate they match
+                            if not skip_header_merge_check and current_file_header != reference_header:
+                                raise ValueError(
+                                    f"Header mismatch in file '{metrics_file}'.\n"
+                                    f"Expected: {reference_header}\n"
+                                    f"Got:      {current_file_header}\n"
+                                    f"Use skip_header_merge_check=True to bypass this check."
+                                )
+                        # Don't write duplicate headers
+                        continue
 
-        return out
+                    # Data line - write it
+                    outf.write(f"{stripped}\n")
 
-    # Perform the group-based or global stats
-    if report_within_pools:
-        # Group by (barcode_1, barcode_2)
-        grouped = df.groupby(["barcode_1", "barcode_2"], group_keys=False)
-        df = grouped[df.columns].apply(compute_stats_per_group)
-    else:
-        # Global
-        df = compute_stats_per_group(df)
+                first_file = False
 
-    # Prepare the output
-    columns_out = [
-        "BARCODE",
-        "BARCODE_WITHOUT_DELIMITER",
-        "BARCODE_NAME",
-        "LIBRARY_NAME",
-        "READS",
-        "PF_READS",
-        "PERFECT_MATCHES",
-        "PF_PERFECT_MATCHES",
-        "ONE_MISMATCH_MATCHES",
-        "PF_ONE_MISMATCH_MATCHES",
-        "PCT_MATCHES",
-        "RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT",
-        "PF_PCT_MATCHES",
-        "PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT",
-        "PF_NORMALIZED_MATCHES",
-    ]
+    log.info(f"Merged {len(input_metrics_files)} demux metrics files into {output_metrics_file}")
+    return output_metrics_file
 
-    with open(out_splitcode_tsv_metrics_path, "w") as f:
-        # Write the Picard-style "## METRICS CLASS" header line
-        f.write(f"## METRICS CLASS\t{demux_function}\n")
-        # Write column header
-        f.write("\t".join(columns_out) + "\n")
 
-        # Write data rows
-        for _, row in df.iterrows():
-            row_values = [str(row.get(col, "")) for col in columns_out]
-            f.write("\t".join(row_values) + "\n")
+def parser_merge_demux_metrics(parser=argparse.ArgumentParser()):
+    """
+    Argument parser for merge_demux_metrics entry point.
+    """
+    parser.add_argument(
+        'input_metrics_files',
+        nargs='+',
+        help='Input Picard-style demux metrics files to merge (TSV format). Specify multiple files separated by spaces.'
+    )
+    parser.add_argument(
+        'output_metrics_file',
+        help='Output path for merged demux metrics file'
+    )
+    parser.add_argument(
+        '--skip_header_merge_check',
+        action='store_true',
+        help='Skip validation that all input files have matching column headers. Use with caution.'
+    )
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_merge_demux_metrics, split_args=True)
+    return parser
+
+
+def main_merge_demux_metrics(args):
+    """
+    Main entry point for merge_demux_metrics command.
+    """
+    output_file = merge_demux_metrics(
+        input_metrics_files=args.input_metrics_files,
+        output_metrics_file=args.output_metrics_file,
+        skip_header_merge_check=args.skip_header_merge_check
+    )
+
+    log.info(f"Successfully merged {len(args.input_metrics_files)} files into {output_file}")
+
+
+__commands__.append(('merge_demux_metrics', parser_merge_demux_metrics))
+
 
 # =======================
 def full_parser():

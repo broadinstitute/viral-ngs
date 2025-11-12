@@ -39,3 +39,11 @@ Each commit on any branch, and any pull request, will trigger a build. Branch co
 
 ### Building documentation
 Documentation is built automatically for master branches of viral-core by [Read the Docs](http://viral-core.readthedocs.io/en/latest/). The documentation template files reside within `viral-core/docs`, and are formatted in standard docutils [reStructuredText format](http://docutils.sourceforge.net/rst.html). [Pandoc](http://pandoc.org/) may be used for converting from other formats (such as Markdown) to reStructuredText. The `sphinx-argparse` module is used to automatically generate documentation for the argparse parsers used in viral-ngs.
+
+### SwiftSeq Demultiplexing Support
+viral-core includes support for demultiplexing SwiftSeq data (DRAGEN FASTQ format with barcodes in headers). Two new commands are available in `illumina.py`:
+
+- `illumina_metadata`: Extracts metadata from DRAGEN FASTQ headers and identifies barcode sequences
+- `splitcode_demux_fastqs`: Performs 2-barcode or 3-barcode demultiplexing using splitcode, with support for RunInfo.xml to populate rich BAM metadata (RUN_DATE, SEQUENCING_CENTER, PLATFORM_UNIT, LIBRARY_NAME)
+
+These commands handle DRAGEN FASTQ format where barcodes appear in read headers rather than in separate index files. The implementation supports both dual-index (2-barcode) and triple-index (3-barcode with inline UMI) configurations.

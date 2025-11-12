@@ -246,7 +246,8 @@ class FastqToSamTool(PicardTools):
             return False
 
         # Small files: check if they contain only whitespace
-        with open(fastq_file, 'r') as f:
+        # Handle both gzipped and plain text files
+        with util.file.open_or_gzopen(fastq_file, 'r') as f:
             return len(f.read().strip()) == 0
 
     def execute(
