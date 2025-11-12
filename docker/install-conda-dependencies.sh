@@ -7,7 +7,7 @@
 # A miniconda install must exist at $CONDA_DEFAULT_ENV
 # and $CONDA_DEFAULT_ENV/bin must be in the PATH
 
-set -e -o pipefail -x
+set -e -o pipefail
 
 DEBUG=0 # set DEBUG=1 for more verbose output
 CONDA_INSTALL_TIMEOUT="90m"
