@@ -324,10 +324,13 @@ def illumina_metadata(
     runinfo_obj = RunInfo(runinfo)
 
     # Parse SampleSheet
+    # Note: allow_non_unique=True is needed for 3-barcode samplesheets where
+    # multiple samples share outer barcodes (barcode_1 + barcode_2) and differ
+    # only in inner barcodes (barcode_3)
     samples = SampleSheet(
         samplesheet,
         only_lane=lane,
-        allow_non_unique=False
+        allow_non_unique=True
     )
 
     output_files = {}
