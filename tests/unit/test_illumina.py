@@ -1376,6 +1376,52 @@ class TestIlluminaMetadata(TestCaseWithTmp):
                 lane=1
             )
 
+    def test_illumina_metadata_via_parser(self):
+        """
+        Test illumina_metadata command via argument parser.
+
+        This tests the full CLI code path including:
+        - Parser argument processing
+        - Argument validation
+        - Main function invocation
+
+        Regression test for issue #127 where split_args=True caused
+        TypeError with main_illumina_metadata(args) signature.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Output paths
+            out_runinfo = os.path.join(out_dir, 'run_info.json')
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            # Call via parser (like CLI does)
+            parser = illumina.parser_illumina_metadata(argparse.ArgumentParser())
+            args = parser.parse_args([
+                '--runinfo', self.runinfo_xml,
+                '--samplesheet', self.samplesheet_csv,
+                '--lane', '1',
+                '--sequencing_center', 'Broad',
+                '--out_runinfo', out_runinfo,
+                '--out_meta_by_sample', out_meta_by_sample,
+                '--out_meta_by_filename', out_meta_by_filename
+            ])
+            args.func_main(args)
+
+            # Verify all output files were created
+            self.assertTrue(os.path.exists(out_runinfo), "run_info.json not created")
+            self.assertTrue(os.path.exists(out_meta_by_sample), "meta_by_sample.json not created")
+            self.assertTrue(os.path.exists(out_meta_by_filename), "meta_by_filename.json not created")
+
+            # Basic validation that JSON files are valid
+            with open(out_runinfo, 'r') as f:
+                run_info = json.load(f)
+            self.assertEqual(run_info['sequencing_center'], 'Broad')
+
+        finally:
+            shutil.rmtree(out_dir)
+
 
 class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
     """
@@ -1804,3 +1850,87 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         self.assertFalse(os.path.exists(os.path.join(out_dir, 'run_info.json')))
         self.assertFalse(os.path.exists(os.path.join(out_dir, 'meta_by_sample.json')))
         self.assertFalse(os.path.exists(os.path.join(out_dir, 'meta_by_filename.json')))
+
+    def test_splitcode_demux_fastqs_via_parser(self):
+        """
+        Test splitcode_demux_fastqs command via argument parser.
+
+        This tests the full CLI code path including:
+        - Parser argument processing
+        - Argument validation
+        - Main function invocation
+
+        Regression test for issue #127 where split_args=True caused
+        TypeError with main_splitcode_demux_fastqs(args) signature.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Call via parser (like CLI does)
+            parser = illumina.parser_splitcode_demux_fastqs(argparse.ArgumentParser())
+            args = parser.parse_args([
+                '--fastq_r1', self.r1_fastq,
+                '--fastq_r2', self.r2_fastq,
+                '--samplesheet', self.samples_3bc,
+                '--runinfo', self.runinfo_xml,
+                '--outdir', out_dir
+            ])
+            args.func_main(args)
+
+            # Verify output files were created
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'demux_metrics.json')))
+
+            # Verify at least one BAM file was created
+            bam_files = [f for f in os.listdir(out_dir) if f.endswith('.bam')]
+            self.assertGreater(len(bam_files), 0, "Should produce at least one BAM file")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+
+class TestMergeDemuxMetrics(TestCaseWithTmp):
+    """
+    Test suite for merge_demux_metrics entry point.
+
+    Regression tests for issue #127 CLI argument parsing.
+    """
+
+    def test_merge_demux_metrics_via_parser(self):
+        """
+        Test merge_demux_metrics command via argument parser.
+
+        This tests the full CLI code path including:
+        - Parser argument processing
+        - Argument validation
+        - Main function invocation
+
+        Regression test for issue #127 where split_args=True caused
+        TypeError with main_merge_demux_metrics(args) signature.
+        """
+        # Get test input files
+        test_dir = util.file.get_test_path()
+        input1 = os.path.join(test_dir, 'input', 'TestIlluminaBarcodeHelper', 'single_index', 'metrics.txt')
+        input2 = os.path.join(test_dir, 'input', 'TestIlluminaBarcodeHelper', 'one_correction', 'metrics.txt')
+
+        self.assertTrue(os.path.exists(input1), f"Test input missing: {input1}")
+        self.assertTrue(os.path.exists(input2), f"Test input missing: {input2}")
+
+        out_file = util.file.mkstempfname('.txt')
+
+        try:
+            # Call via parser (like CLI does)
+            parser = illumina.parser_merge_demux_metrics(argparse.ArgumentParser())
+            args = parser.parse_args([input1, input2, out_file])
+            args.func_main(args)
+
+            # Verify output file was created
+            self.assertTrue(os.path.exists(out_file), "Merged metrics file should be created")
+
+            # Verify it has content
+            with open(out_file, 'r') as f:
+                content = f.read()
+                self.assertGreater(len(content), 0, "Merged file should have content")
+
+        finally:
+            if os.path.exists(out_file):
+                os.remove(out_file)
