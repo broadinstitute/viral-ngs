@@ -1422,6 +1422,195 @@ class TestIlluminaMetadata(TestCaseWithTmp):
         finally:
             shutil.rmtree(out_dir)
 
+    def test_three_barcode_samplesheet(self):
+        """
+        Test illumina_metadata with pure 3-barcode samplesheet.
+
+        This tests a samplesheet where all samples share outer barcodes (barcode_1 + barcode_2)
+        but differ in inner barcodes (barcode_3). This is the typical use case for
+        splitcode demultiplexing.
+
+        Expected behavior:
+        - Should handle samples with duplicate barcode_1+barcode_2 combinations
+        - barcode_3 column should be preserved in output metadata
+        - num_indexes should reflect the number of outer barcodes (2)
+        """
+        out_dir = tempfile.mkdtemp()
+
+        # Use the 3-barcode samplesheet
+        samples_3bc = os.path.join(self.input_dir, 'samples_3bc.tsv')
+        self.assertTrue(os.path.exists(samples_3bc), f"Test file missing: {samples_3bc}")
+
+        try:
+            # Output paths
+            out_runinfo = os.path.join(out_dir, 'run_info.json')
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+
+            # Call illumina_metadata with 3-barcode samplesheet
+            illumina.illumina_metadata(
+                runinfo=self.runinfo_xml,
+                samplesheet=samples_3bc,
+                lane=1,
+                sequencing_center='Broad',
+                out_runinfo=out_runinfo,
+                out_meta_by_sample=out_meta_by_sample
+            )
+
+            # Verify output files were created
+            self.assertTrue(os.path.exists(out_runinfo), "run_info.json not created")
+            self.assertTrue(os.path.exists(out_meta_by_sample), "meta_by_sample.json not created")
+
+            # Verify run_info.json has correct index count (should be 2, not 3)
+            with open(out_runinfo, 'r') as f:
+                run_info = json.load(f)
+            self.assertEqual(run_info['indexes'], '2',
+                           "num_indexes should be 2 (outer barcodes only)")
+
+            # Verify meta_by_sample.json includes all samples with barcode_3
+            with open(out_meta_by_sample, 'r') as f:
+                meta_by_sample = json.load(f)
+
+            # Should have samples from all three pools (7 samples total)
+            self.assertEqual(len(meta_by_sample), 7,
+                           "Should have all 7 samples from 3-barcode samplesheet")
+
+            # Verify 3-barcode samples have barcode_3 field
+            three_bc_samples = ['TestSample1', 'TestSample2', 'TestSample3',
+                               'TestSampleEmpty', 'TestSample5', 'TestSample6']
+            for sample_name in three_bc_samples:
+                self.assertIn(sample_name, meta_by_sample,
+                            f"Sample {sample_name} missing from metadata")
+                self.assertIn('barcode_3', meta_by_sample[sample_name],
+                            f"Sample {sample_name} should have barcode_3 field")
+                self.assertNotEqual(meta_by_sample[sample_name]['barcode_3'], '',
+                                  f"Sample {sample_name} should have non-empty barcode_3")
+
+            # Verify 2-barcode sample has empty barcode_3
+            self.assertIn('TestSampleNoSplitcode', meta_by_sample)
+            # barcode_3 should either be empty string or not present (both acceptable)
+            bc3 = meta_by_sample['TestSampleNoSplitcode'].get('barcode_3', '')
+            self.assertEqual(bc3, '',
+                           "2-barcode sample should have empty barcode_3")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_mixed_two_and_three_barcode_samplesheet(self):
+        """
+        Test illumina_metadata with mixed 2-barcode and 3-barcode samples.
+
+        This tests a samplesheet containing both:
+        - Samples with 3 barcodes (barcode_1 + barcode_2 + barcode_3)
+        - Samples with 2 barcodes (barcode_1 + barcode_2, empty barcode_3)
+
+        The same samplesheet is used for both scenarios since samples_3bc.tsv
+        already contains this mix.
+
+        Expected behavior:
+        - Should handle both types of samples in the same samplesheet
+        - All samples should be included in metadata output
+        - barcode_3 field should be present for all samples (empty for 2-barcode samples)
+        """
+        out_dir = tempfile.mkdtemp()
+
+        # Use the mixed barcode samplesheet
+        samples_3bc = os.path.join(self.input_dir, 'samples_3bc.tsv')
+
+        try:
+            # Output paths
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+
+            # Call illumina_metadata
+            illumina.illumina_metadata(
+                runinfo=self.runinfo_xml,
+                samplesheet=samples_3bc,
+                lane=1,
+                out_meta_by_sample=out_meta_by_sample
+            )
+
+            # Verify metadata includes both types of samples
+            with open(out_meta_by_sample, 'r') as f:
+                meta_by_sample = json.load(f)
+
+            # Count samples with and without barcode_3
+            samples_with_bc3 = []
+            samples_without_bc3 = []
+
+            for sample_name, metadata in meta_by_sample.items():
+                bc3 = metadata.get('barcode_3', '')
+                if bc3 and bc3.strip():
+                    samples_with_bc3.append(sample_name)
+                else:
+                    samples_without_bc3.append(sample_name)
+
+            # Should have 6 samples with barcode_3 (from Pool 1 and Pool 2)
+            self.assertEqual(len(samples_with_bc3), 6,
+                           f"Should have 6 samples with barcode_3, got: {samples_with_bc3}")
+
+            # Should have 1 sample without barcode_3 (from Pool 3)
+            self.assertEqual(len(samples_without_bc3), 1,
+                           f"Should have 1 sample without barcode_3, got: {samples_without_bc3}")
+            self.assertIn('TestSampleNoSplitcode', samples_without_bc3,
+                        "TestSampleNoSplitcode should have empty barcode_3")
+
+            # Verify specific samples are categorized correctly
+            self.assertIn('TestSample1', samples_with_bc3)
+            self.assertIn('TestSample2', samples_with_bc3)
+            self.assertIn('TestSample5', samples_with_bc3)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_three_barcode_barcode_uniqueness(self):
+        """
+        Test that illumina_metadata properly handles duplicate outer barcodes in 3-barcode sheets.
+
+        In 3-barcode samplesheets, multiple samples share the same barcode_1+barcode_2
+        combination (outer barcodes) and differ only in barcode_3 (inner barcode).
+
+        Expected behavior:
+        - Should NOT raise an error about non-unique barcodes
+        - Should successfully generate metadata for all samples
+        - The function should internally handle allow_non_unique=True for 3-barcode sheets
+
+        This is a regression test to ensure the function doesn't fail when samples
+        share outer barcodes.
+        """
+        out_dir = tempfile.mkdtemp()
+        samples_3bc = os.path.join(self.input_dir, 'samples_3bc.tsv')
+
+        try:
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+
+            # This should NOT raise an error even though Pool 1 has 4 samples
+            # sharing ATCGATCG+GCTAGCTA outer barcodes
+            illumina.illumina_metadata(
+                runinfo=self.runinfo_xml,
+                samplesheet=samples_3bc,
+                lane=1,
+                out_meta_by_sample=out_meta_by_sample
+            )
+
+            # Verify all Pool 1 samples are present (they share outer barcodes)
+            with open(out_meta_by_sample, 'r') as f:
+                meta_by_sample = json.load(f)
+
+            pool1_samples = ['TestSample1', 'TestSample2', 'TestSample3', 'TestSampleEmpty']
+            for sample in pool1_samples:
+                self.assertIn(sample, meta_by_sample,
+                            f"Pool 1 sample {sample} should be in metadata")
+                # All should have same outer barcodes
+                self.assertEqual(meta_by_sample[sample]['barcode_1'], 'ATCGATCG')
+                self.assertEqual(meta_by_sample[sample]['barcode_2'], 'GCTAGCTA')
+
+            # All Pool 1 samples should have different barcode_3
+            bc3_values = [meta_by_sample[s]['barcode_3'] for s in pool1_samples]
+            self.assertEqual(len(set(bc3_values)), len(bc3_values),
+                           "Pool 1 samples should have unique barcode_3 values")
+
+        finally:
+            shutil.rmtree(out_dir)
+
 
 class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
     """
