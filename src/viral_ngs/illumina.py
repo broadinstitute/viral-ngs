@@ -371,6 +371,11 @@ def illumina_metadata(
                 json.dump(dict((r["run"], r) for r in sample_meta), outf, indent=2)
             output_files['meta_by_filename'] = out_meta_by_filename
 
+    # Log generated files
+    log.info(f"Generated {len(output_files)} metadata file(s):")
+    for key, path in output_files.items():
+        log.info(f"  {key}: {path}")
+
     return output_files
 
 
@@ -412,27 +417,9 @@ def parser_illumina_metadata(parser=argparse.ArgumentParser()):
         help='Output path for meta_by_filename.json (sample metadata indexed by library ID)'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_illumina_metadata, split_args=True)
+    util.cmd.attach_main(parser, illumina_metadata, split_args=True)
     return parser
 
-
-def main_illumina_metadata(args):
-    """
-    Main entry point for illumina_metadata command.
-    """
-    output_files = illumina_metadata(
-        runinfo=args.runinfo,
-        samplesheet=args.samplesheet,
-        lane=args.lane,
-        sequencing_center=args.sequencing_center,
-        out_runinfo=args.out_runinfo,
-        out_meta_by_sample=args.out_meta_by_sample,
-        out_meta_by_filename=args.out_meta_by_filename
-    )
-
-    log.info(f"Generated {len(output_files)} metadata file(s):")
-    for key, path in output_files.items():
-        log.info(f"  {key}: {path}")
 
 __commands__.append(('illumina_metadata', parser_illumina_metadata))
 
@@ -449,6 +436,8 @@ def splitcode_demux_fastqs(
     outdir,
     runinfo=None,
     sequencing_center=None,
+    flowcell_id=None,
+    run_date=None,
     max_hamming_dist=1,
     r1_trim_bp_right_of_barcode=None,
     r2_trim_bp_left_of_barcode=None,
@@ -475,6 +464,8 @@ def splitcode_demux_fastqs(
         runinfo (str): Path to RunInfo.xml (optional, but recommended for richer BAM metadata
             including RUN_DATE, SEQUENCING_CENTER, and PLATFORM_UNIT)
         sequencing_center (str): Sequencing center name (default: None, uses runinfo.get_machine() if available)
+        flowcell_id (str): Override flowcell ID (default: None, extracted from FASTQ filename or RunInfo.xml)
+        run_date (str): Override run date in YYYY-MM-DD format (default: None, read from RunInfo.xml)
         max_hamming_dist (int): Maximum Hamming distance for barcode matching (default: 1)
         r1_trim_bp_right_of_barcode (int): Additional bp to trim from R1 after barcode
         r2_trim_bp_left_of_barcode (int): Additional bp to trim from R2 before barcode
@@ -515,21 +506,27 @@ def splitcode_demux_fastqs(
     if not os.path.exists(samplesheet):
         raise FileNotFoundError(f"Samplesheet not found: {samplesheet}")
 
-    # Parse RunInfo.xml if provided
+    # Parse RunInfo.xml if provided (unless flowcell_id and run_date both overridden)
     runinfo_obj = None
-    flowcell = None
-    run_date = None
-    if runinfo:
-        if not os.path.exists(runinfo):
-            raise FileNotFoundError(f"RunInfo.xml not found: {runinfo}")
-        runinfo_obj = RunInfo(runinfo)
-        flowcell = runinfo_obj.get_flowcell()
-        run_date = runinfo_obj.get_rundate_iso()
+    flowcell = flowcell_id  # Use CLI override if provided
+    run_date_val = run_date  # Use CLI override if provided
 
-        # Use machine as sequencing_center if not specified
-        if sequencing_center is None:
-            sequencing_center = runinfo_obj.get_machine()
-            log.info(f"Using sequencing center from RunInfo: {sequencing_center}")
+    if runinfo or flowcell is None or run_date_val is None or sequencing_center is None:
+        if runinfo:
+            if not os.path.exists(runinfo):
+                raise FileNotFoundError(f"RunInfo.xml not found: {runinfo}")
+            runinfo_obj = RunInfo(runinfo)
+
+            # Only extract from RunInfo if not provided via CLI
+            if flowcell is None:
+                flowcell = runinfo_obj.get_flowcell()
+            if run_date_val is None:
+                run_date_val = runinfo_obj.get_rundate_iso()
+
+            # Use machine as sequencing_center if not specified
+            if sequencing_center is None:
+                sequencing_center = runinfo_obj.get_machine()
+                log.info(f"Using sequencing center from RunInfo: {sequencing_center}")
 
     # Set default threads if not provided
     threads = threads or util.misc.available_cpu_count()
@@ -618,9 +615,9 @@ def splitcode_demux_fastqs(
             'QUIET': 'TRUE'
         }
 
-        # Add run date from RunInfo
-        if run_date:
-            picard_opts['RUN_DATE'] = run_date
+        # Add run date from RunInfo or CLI override
+        if run_date_val:
+            picard_opts['RUN_DATE'] = run_date_val
 
         # Add sequencing center
         if sequencing_center:
@@ -854,9 +851,9 @@ def splitcode_demux_fastqs(
                     'QUIET': 'TRUE'
                 }
 
-                # Add run date from RunInfo
-                if run_date:
-                    picard_opts['RUN_DATE'] = run_date
+                # Add run date from RunInfo or CLI override
+                if run_date_val:
+                    picard_opts['RUN_DATE'] = run_date_val
 
                 # Add sequencing center
                 if sequencing_center:
@@ -936,7 +933,9 @@ def splitcode_demux_fastqs(
     else:
         raise ValueError("Samplesheet contains no valid samples (all barcode_3 values are empty)")
 
-    log.info(f"Demultiplexing complete. Generated {len(output_files)} output files.")
+    log.info(f"Generated {len(output_files)} output file(s):")
+    for key, path in output_files.items():
+        log.info(f"  {key}: {path}")
     return output_files
 
 
@@ -974,27 +973,20 @@ def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
         default=None,
         help='Sequencing center name (default: None, uses runinfo.get_machine() if RunInfo.xml provided)'
     )
+    parser.add_argument(
+        '--flowcell_id',
+        default=None,
+        help='Override flowcell ID (default: extracted from FASTQ filename or RunInfo.xml)'
+    )
+    parser.add_argument(
+        '--run_date',
+        default=None,
+        help='Override run date in YYYY-MM-DD format (default: read from RunInfo.xml)'
+    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_splitcode_demux_fastqs, split_args=True)
+    util.cmd.attach_main(parser, splitcode_demux_fastqs, split_args=True)
     return parser
 
-
-def main_splitcode_demux_fastqs(args):
-    """
-    Main entry point for splitcode_demux_fastqs command.
-    """
-    output_files = splitcode_demux_fastqs(
-        fastq_r1=args.fastq_r1,
-        fastq_r2=args.fastq_r2,
-        samplesheet=args.samplesheet,
-        outdir=args.outdir,
-        runinfo=args.runinfo,
-        sequencing_center=args.sequencing_center
-    )
-
-    log.info(f"Generated {len(output_files)} output file(s):")
-    for key, path in output_files.items():
-        log.info(f"  {key}: {path}")
 
 __commands__.append(('splitcode_demux_fastqs', parser_splitcode_demux_fastqs))
 
@@ -4447,21 +4439,8 @@ def parser_merge_demux_metrics(parser=argparse.ArgumentParser()):
         help='Skip validation that all input files have matching column headers. Use with caution.'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_merge_demux_metrics, split_args=True)
+    util.cmd.attach_main(parser, merge_demux_metrics, split_args=True)
     return parser
-
-
-def main_merge_demux_metrics(args):
-    """
-    Main entry point for merge_demux_metrics command.
-    """
-    output_file = merge_demux_metrics(
-        input_metrics_files=args.input_metrics_files,
-        output_metrics_file=args.output_metrics_file,
-        skip_header_merge_check=args.skip_header_merge_check
-    )
-
-    log.info(f"Successfully merged {len(args.input_metrics_files)} files into {output_file}")
 
 
 __commands__.append(('merge_demux_metrics', parser_merge_demux_metrics))
