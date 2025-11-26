@@ -188,6 +188,61 @@ def normalize_barcode(barcode):
     return normalized
 
 
+def barcode_n_fraction(barcode):
+    """Calculate the fraction of N bases in a barcode.
+
+    Args:
+        barcode: Normalized barcode string
+
+    Returns:
+        float: Fraction of bases that are N (0.0 to 1.0)
+    """
+    if not barcode:
+        return 0.0
+    return barcode.count('N') / len(barcode)
+
+
+def barcode_matches_with_n(observed, expected):
+    """Check if an observed barcode matches expected, treating N as wildcard.
+
+    N bases in the observed barcode (from FASTQ header) are treated as wildcards
+    that match any base. This handles sequencer no-call bases where a position
+    couldn't be confidently determined.
+
+    Note: N in the expected barcode (from samplesheet) is NOT a wildcard -
+    it requires an exact N match in the observed barcode.
+
+    Args:
+        observed: Barcode from FASTQ header (may contain N wildcards)
+        expected: Barcode from samplesheet (N requires exact match)
+
+    Returns:
+        bool: True if barcodes match (accounting for N wildcards in observed)
+
+    Examples:
+        >>> barcode_matches_with_n('ATCGATCG', 'ATCGATCG')
+        True
+        >>> barcode_matches_with_n('ATCNATCG', 'ATCGATCG')  # N matches G
+        True
+        >>> barcode_matches_with_n('ATCGATCG', 'ATCNATCG')  # N in expected requires exact N
+        False
+        >>> barcode_matches_with_n('NNNNNNNN', 'ATCGATCG')  # All N matches anything
+        True
+    """
+    if len(observed) != len(expected):
+        return False
+
+    for obs_base, exp_base in zip(observed, expected):
+        # N in observed matches any base in expected
+        if obs_base == 'N':
+            continue
+        # Otherwise require exact match
+        if obs_base != exp_base:
+            return False
+
+    return True
+
+
 def match_barcodes_with_orientation(target_bc1, target_bc2, sample_rows, barcode_columns=('barcode_1', 'barcode_2')):
     """
     Match FASTQ barcodes against samplesheet with automatic i5 orientation detection.
@@ -195,6 +250,11 @@ def match_barcodes_with_orientation(target_bc1, target_bc2, sample_rows, barcode
     Due to Illumina chemistry changes over the years, the i5 index (barcode_2) may be
     written to FASTQ headers in either forward or reverse complement orientation
     depending on the sequencer model. This function automatically tries both orientations.
+
+    N bases in FASTQ barcodes are treated as wildcards (sequencer no-call bases).
+    However, barcodes with >50% N bases are rejected as too low confidence.
+    If N-wildcard matching produces multiple distinct barcode pairs, the match is
+    considered ambiguous and returns no results.
 
     Note: Only barcode_2 orientation is auto-detected. barcode_1 (i7) orientation is
     consistent across all Illumina platforms.
@@ -211,32 +271,87 @@ def match_barcodes_with_orientation(target_bc1, target_bc2, sample_rows, barcode
 
     Returns:
         tuple: (matched_rows, orientation_info)
-            matched_rows: List of matching sample rows
+            matched_rows: List of matching sample rows (empty if no match, ambiguous, or high N fraction)
             orientation_info: dict with keys:
                 - 'barcode_2_revcomp': bool (True if reverse complement was needed)
                 - 'matched_bc1': str (the barcode_1 value that matched)
                 - 'matched_bc2': str (the barcode_2 value that matched)
-
-    Raises:
-        ValueError: If no match found in either orientation
+                - 'skipped_reason': str (if empty results, why - 'high_n_fraction', 'ambiguous', or 'no_match')
     """
+    log = logging.getLogger(__name__)
     bc1_col, bc2_col = barcode_columns
 
     # Normalize input barcodes for case-insensitive matching
     target_bc1 = normalize_barcode(target_bc1) if target_bc1 else None
     target_bc2 = normalize_barcode(target_bc2) if target_bc2 else None
 
+    # Check if barcodes have too many N bases (>50% = low confidence)
+    bc1_n_frac = barcode_n_fraction(target_bc1) if target_bc1 else 0.0
+    bc2_n_frac = barcode_n_fraction(target_bc2) if target_bc2 else 0.0
+
+    if bc1_n_frac > 0.5 or bc2_n_frac > 0.5:
+        log.warning(f"Skipping barcode match: too many N bases (bc1={bc1_n_frac:.0%}, bc2={bc2_n_frac:.0%}). "
+                    f"Barcodes: {target_bc1}+{target_bc2}")
+        return [], {
+            'barcode_2_revcomp': False,
+            'matched_bc1': target_bc1,
+            'matched_bc2': target_bc2,
+            'skipped_reason': 'high_n_fraction',
+        }
+
     def try_match(check_bc1, check_bc2):
-        """Try matching with given barcode values."""
-        return [
-            row for row in sample_rows
-            if (normalize_barcode(row.get(bc1_col, '')) == check_bc1 and
-                (check_bc2 is None or normalize_barcode(row.get(bc2_col, '')) == check_bc2))
-        ]
+        """Try matching with given barcode values.
+
+        Uses barcode_matches_with_n() to handle N bases in FASTQ barcodes as wildcards.
+        This accommodates sequencer no-call bases that couldn't be confidently determined.
+        """
+        matched = []
+        for row in sample_rows:
+            sheet_bc1 = normalize_barcode(row.get(bc1_col, ''))
+            sheet_bc2 = normalize_barcode(row.get(bc2_col, ''))
+
+            # Match bc1 using N-wildcard matching (observed=check_bc1, expected=sheet_bc1)
+            if not barcode_matches_with_n(check_bc1, sheet_bc1):
+                continue
+
+            # Match bc2 if provided, also using N-wildcard matching
+            if check_bc2 is not None and not barcode_matches_with_n(check_bc2, sheet_bc2):
+                continue
+
+            matched.append(row)
+        return matched
+
+    def check_ambiguous(matched_rows, check_bc1, check_bc2):
+        """Check if N-wildcard matching produced ambiguous results.
+
+        Returns True if matched rows have multiple distinct barcode pairs,
+        meaning the N wildcards matched different actual barcodes.
+        """
+        if not matched_rows:
+            return False
+
+        # Get unique barcode pairs from matched rows
+        unique_pairs = set()
+        for row in matched_rows:
+            sheet_bc1 = normalize_barcode(row.get(bc1_col, ''))
+            sheet_bc2 = normalize_barcode(row.get(bc2_col, ''))
+            unique_pairs.add((sheet_bc1, sheet_bc2))
+
+        # If multiple distinct barcode pairs matched, it's ambiguous
+        return len(unique_pairs) > 1
 
     # Try direct match first
     matched = try_match(target_bc1, target_bc2)
     if matched:
+        if check_ambiguous(matched, target_bc1, target_bc2):
+            log.warning(f"Skipping barcode match: N-wildcard matching is ambiguous "
+                        f"(matched multiple distinct barcode pairs). Barcodes: {target_bc1}+{target_bc2}")
+            return [], {
+                'barcode_2_revcomp': False,
+                'matched_bc1': target_bc1,
+                'matched_bc2': target_bc2,
+                'skipped_reason': 'ambiguous',
+            }
         return matched, {
             'barcode_2_revcomp': False,
             'matched_bc1': target_bc1,
@@ -248,24 +363,39 @@ def match_barcodes_with_orientation(target_bc1, target_bc2, sample_rows, barcode
         target_bc2_rc = util.misc.reverse_complement(target_bc2)
         matched = try_match(target_bc1, target_bc2_rc)
         if matched:
+            if check_ambiguous(matched, target_bc1, target_bc2_rc):
+                log.warning(f"Skipping barcode match: N-wildcard matching is ambiguous "
+                            f"(matched multiple distinct barcode pairs). Barcodes: {target_bc1}+{target_bc2_rc}")
+                return [], {
+                    'barcode_2_revcomp': True,
+                    'matched_bc1': target_bc1,
+                    'matched_bc2': target_bc2_rc,
+                    'skipped_reason': 'ambiguous',
+                }
             return matched, {
                 'barcode_2_revcomp': True,
                 'matched_bc1': target_bc1,
                 'matched_bc2': target_bc2_rc,
             }
 
-    # No match found - build helpful error message
+    # No match found - return empty list with skipped_reason
     unique_bc_pairs = set()
     for row in sample_rows:
         bc1 = normalize_barcode(row.get(bc1_col, ''))
         bc2 = normalize_barcode(row.get(bc2_col, ''))
         unique_bc_pairs.add(f"{bc1}+{bc2}")
 
-    raise ValueError(
+    log.warning(
         f"No samples found matching barcodes {target_bc1}+{target_bc2} "
         f"(also tried reverse complement of barcode_2). "
         f"Samplesheet contains barcode pairs: {sorted(unique_bc_pairs)[:10]}..."
     )
+    return [], {
+        'barcode_2_revcomp': False,
+        'matched_bc1': target_bc1,
+        'matched_bc2': target_bc2,
+        'skipped_reason': 'no_match',
+    }
 
 
 def build_run_info_json(
@@ -736,11 +866,79 @@ def splitcode_demux_fastqs(
     )
 
     # Log if i5 orientation auto-detection was used
-    if orientation_info['barcode_2_revcomp']:
+    if orientation_info.get('barcode_2_revcomp'):
         log.info(f"Auto-detected i5 reverse complement orientation: "
                  f"FASTQ barcode_2 {target_bc2} matched samplesheet {orientation_info['matched_bc2']}")
 
     log.info(f"Filtered samplesheet to {len(sample_rows)} samples matching outer barcodes")
+
+    # Handle case where no samples matched the barcodes
+    # This can happen due to:
+    # - Barcodes not in samplesheet (e.g., contaminant reads, barcode hopping)
+    # - High N fraction in observed barcodes (low sequencer confidence)
+    # - Ambiguous N-wildcard matching (matched multiple distinct barcode pairs)
+    if not sample_rows:
+        skipped_reason = orientation_info.get('skipped_reason', 'no_match')
+        log.warning(f"No samples matched barcodes {target_bc1}+{target_bc2} (reason: {skipped_reason})")
+        log.info("Producing empty output files with zero read counts")
+
+        # Create output directory if needed
+        os.makedirs(outdir, exist_ok=True)
+
+        # Create an empty BAM file using the pool name as the sample name
+        output_bam = os.path.join(outdir, f"{pool_name}.bam")
+        picard = tools.picard.FastqToSamTool()
+        # Create a minimal empty BAM by using an empty FASTQ
+        with util.file.tempfname('.fastq') as empty_fq:
+            with open(empty_fq, 'w') as f:
+                pass  # Create empty file
+            picard.execute(
+                empty_fq,
+                None,  # No R2
+                pool_name,
+                output_bam,
+                picardOptions=[]
+            )
+
+        # Generate metrics showing 0 reads
+        metrics = {
+            'demux_type': f'no_barcode_match ({skipped_reason})',
+            'samples': {
+                pool_name: {
+                    'sample_library_id': pool_name,
+                    'read_count': 0
+                }
+            }
+        }
+        metrics_file = os.path.join(outdir, 'demux_metrics.json')
+        with open(metrics_file, 'w') as f:
+            json.dump(metrics, f, indent=2)
+
+        # Generate Picard-style metrics with 0 reads
+        picard_style_metrics_path = os.path.join(outdir, 'demux_metrics_picard-style.txt')
+        with open(picard_style_metrics_path, 'w') as f:
+            f.write(f"## METRICS CLASS\tviral-core.splitcode_demux_fastqs.no_match\n")
+            columns = [
+                "BARCODE", "BARCODE_WITHOUT_DELIMITER", "BARCODE_NAME", "LIBRARY_NAME",
+                "READS", "PF_READS", "PERFECT_MATCHES", "PF_PERFECT_MATCHES",
+                "ONE_MISMATCH_MATCHES", "PF_ONE_MISMATCH_MATCHES", "PCT_MATCHES",
+                "RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_PCT_MATCHES",
+                "PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_NORMALIZED_MATCHES",
+                "DEMUX_TYPE"
+            ]
+            f.write("\t".join(columns) + "\n")
+            barcode_str = f"{target_bc1}+{target_bc2}" if target_bc2 else target_bc1
+            values = [
+                barcode_str, barcode_str.replace('+', ''), pool_name, pool_name,
+                "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", skipped_reason
+            ]
+            f.write("\t".join(values) + "\n")
+
+        return {
+            'bam': output_bam,
+            'metrics': metrics_file,
+            'picard_metrics': picard_style_metrics_path
+        }
 
     # Now check if the FILTERED samples are 2-barcode or 3-barcode
     has_3bc_samples = any(row.get('barcode_3', '').strip() for row in sample_rows)
@@ -906,9 +1104,62 @@ def splitcode_demux_fastqs(
         ]
 
         if len(samples_with_bc3) == 0:
-            raise ValueError(
-                f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}"
-            )
+            log.warning(f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}")
+            log.info("Producing empty output files with zero read counts")
+
+            # Create an empty BAM file using the pool name as the sample name
+            output_bam = os.path.join(outdir, f"{pool_name}.bam")
+            picard = tools.picard.FastqToSamTool()
+            with util.file.tempfname('.fastq') as empty_fq:
+                with open(empty_fq, 'w') as f:
+                    pass  # Create empty file
+                picard.execute(
+                    empty_fq,
+                    None,  # No R2
+                    pool_name,
+                    output_bam,
+                    picardOptions=[]
+                )
+
+            # Generate metrics showing 0 reads
+            metrics = {
+                'demux_type': 'no_3bc_match',
+                'samples': {
+                    pool_name: {
+                        'sample_library_id': pool_name,
+                        'read_count': 0
+                    }
+                }
+            }
+            metrics_file = os.path.join(outdir, 'demux_metrics.json')
+            with open(metrics_file, 'w') as f:
+                json.dump(metrics, f, indent=2)
+
+            # Generate Picard-style metrics with 0 reads
+            picard_style_metrics_path = os.path.join(outdir, 'demux_metrics_picard-style.txt')
+            with open(picard_style_metrics_path, 'w') as f:
+                f.write("## METRICS CLASS\tviral-core.splitcode_demux_fastqs.no_3bc_match\n")
+                columns = [
+                    "BARCODE", "BARCODE_WITHOUT_DELIMITER", "BARCODE_NAME", "LIBRARY_NAME",
+                    "READS", "PF_READS", "PERFECT_MATCHES", "PF_PERFECT_MATCHES",
+                    "ONE_MISMATCH_MATCHES", "PF_ONE_MISMATCH_MATCHES", "PCT_MATCHES",
+                    "RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_PCT_MATCHES",
+                    "PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_NORMALIZED_MATCHES",
+                    "DEMUX_TYPE"
+                ]
+                f.write("\t".join(columns) + "\n")
+                barcode_str = f"{target_bc1}+{target_bc2}" if target_bc2 else target_bc1
+                values = [
+                    barcode_str, barcode_str.replace('+', ''), pool_name, pool_name,
+                    "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "no_3bc_match"
+                ]
+                f.write("\t".join(values) + "\n")
+
+            return {
+                'bam': output_bam,
+                'metrics': metrics_file,
+                'picard_metrics': picard_style_metrics_path
+            }
 
         log.info(f"Filtered to {len(samples_with_bc3)} samples with 3-barcode scheme")
 

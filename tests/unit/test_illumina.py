@@ -1079,16 +1079,17 @@ class TestBarcodeOrientationAutoDetection(unittest.TestCase):
         self.assertTrue(info['barcode_2_revcomp'])
         self.assertEqual(info['matched_bc2'], 'ACTGCAGCCG')
 
-    def test_no_match_raises_error(self):
-        """Test that ValueError is raised when no orientation matches."""
+    def test_no_match_returns_empty(self):
+        """Test that no match returns empty list with skipped_reason='no_match'."""
         sample_rows = [
             {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
         ]
-        with self.assertRaises(ValueError) as ctx:
-            illumina.match_barcodes_with_orientation(
-                'NNNNNNNN', 'NNNNNNNN', sample_rows
-            )
-        self.assertIn('No samples found matching', str(ctx.exception))
+        # Use completely different barcodes that won't match
+        matched, info = illumina.match_barcodes_with_orientation(
+            'GGGGGGGG', 'CCCCCCCC', sample_rows
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'no_match')
 
     def test_single_barcode_matching(self):
         """Test matching with only barcode_1 (barcode_2 is None)."""
@@ -1135,6 +1136,150 @@ class TestBarcodeOrientationAutoDetection(unittest.TestCase):
         )
         self.assertEqual(len(matched), 2)
         self.assertTrue(info['barcode_2_revcomp'])
+
+    def test_n_wildcard_in_fastq_barcode(self):
+        """Test that N bases in FASTQ barcodes match any base in samplesheet.
+
+        This handles sequencer no-call bases where a position couldn't be
+        confidently determined. The N should act as a wildcard.
+        """
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # FASTQ has N at position 3, samplesheet has G
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCNATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['sample'], 'S1')
+        self.assertFalse(info['barcode_2_revcomp'])
+
+    def test_n_wildcard_in_barcode2(self):
+        """Test N wildcard matching in barcode_2."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # FASTQ has N at position 2 of barcode_2
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCNAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['sample'], 'S1')
+
+    def test_n_wildcard_with_revcomp(self):
+        """Test N wildcard matching combined with i5 reverse complement detection.
+
+        This is the real-world case: FASTQ barcode_2 has N bases AND needs
+        reverse complement to match samplesheet.
+        """
+        # Samplesheet has TTCCGACATT, revcomp is AATGTCGGAA
+        sample_rows = [
+            {'sample': 'VGG_21775', 'barcode_1': 'TAAGGAGGAA', 'barcode_2': 'TTCCGACATT'},
+        ]
+        # FASTQ has AANGTCGGAA (N at position 2, should match T in revcomp AATGTCGGAA)
+        matched, info = illumina.match_barcodes_with_orientation(
+            'TAAGGAGGAA', 'AANGTCGGAA', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['sample'], 'VGG_21775')
+        self.assertTrue(info['barcode_2_revcomp'])
+
+    def test_multiple_n_wildcards(self):
+        """Test multiple N bases in a barcode (up to 50% N allowed)."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # FASTQ has N at positions 0 and 4 (2/8 = 25% N, under threshold)
+        matched, info = illumina.match_barcodes_with_orientation(
+            'NTCGNTCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+
+    def test_high_n_fraction_returns_empty(self):
+        """Test that barcodes with >50% N bases return empty (too low confidence)."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # FASTQ with >50% N bases should return empty, not raise error
+        matched, info = illumina.match_barcodes_with_orientation(
+            'NNNNNNNN', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'high_n_fraction')
+
+    def test_high_n_fraction_in_bc2_returns_empty(self):
+        """Test that barcode_2 with >50% N bases also returns empty."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # bc2 has >50% N
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'NNNNNNCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'high_n_fraction')
+
+    def test_exactly_50_percent_n_allowed(self):
+        """Test that exactly 50% N bases is allowed (boundary case)."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # 4/8 = exactly 50% N is allowed (threshold is >50%)
+        # NNNNATCG matches ATCGATCG at positions 4-7
+        matched, info = illumina.match_barcodes_with_orientation(
+            'NNNNATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertNotIn('skipped_reason', info)
+
+        # 5/8 = 62.5% > 50%, should be rejected
+        matched, info = illumina.match_barcodes_with_orientation(
+            'NNNNNTCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'high_n_fraction')
+
+    def test_ambiguous_n_match_returns_empty(self):
+        """Test that N-wildcard matching multiple distinct barcode pairs returns empty."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+            {'sample': 'S2', 'barcode_1': 'GTCGATCG', 'barcode_2': 'GCTAGCTA'},  # differs only in first base
+        ]
+        # FASTQ with N at position 0 matches both S1 (A) and S2 (G) - ambiguous!
+        matched, info = illumina.match_barcodes_with_orientation(
+            'NTCGATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'ambiguous')
+
+    def test_n_in_samplesheet_does_not_match_all(self):
+        """Test that N in samplesheet barcode does NOT act as wildcard.
+
+        Only N in the FASTQ (observed) barcode should be a wildcard.
+        N in samplesheet should require exact N match.
+        """
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCNATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # FASTQ has G where samplesheet has N - should not match
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'no_match')
+
+    def test_n_wildcard_no_false_positives(self):
+        """Test that N wildcard doesn't cause incorrect matches."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'AAAAAAAA', 'barcode_2': 'TTTTTTTT'},
+            {'sample': 'S2', 'barcode_1': 'CCCCCCCC', 'barcode_2': 'GGGGGGGG'},
+        ]
+        # FASTQ with 2 N bases (25%) should still only match one sample
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ANAAANNA', 'TTTTTTTT', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['sample'], 'S1')
 
 
 class TestBuildRunInfoJson(TestCaseWithTmp):
