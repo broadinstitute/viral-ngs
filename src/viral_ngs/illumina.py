@@ -271,15 +271,12 @@ def match_barcodes_with_orientation(target_bc1, target_bc2, sample_rows, barcode
 
     Returns:
         tuple: (matched_rows, orientation_info)
-            matched_rows: List of matching sample rows (empty if no match or ambiguous)
+            matched_rows: List of matching sample rows (empty if no match, ambiguous, or high N fraction)
             orientation_info: dict with keys:
                 - 'barcode_2_revcomp': bool (True if reverse complement was needed)
                 - 'matched_bc1': str (the barcode_1 value that matched)
                 - 'matched_bc2': str (the barcode_2 value that matched)
-                - 'skipped_reason': str (if empty results, why - 'high_n_fraction' or 'ambiguous')
-
-    Raises:
-        ValueError: If no match found in either orientation (for non-N barcodes)
+                - 'skipped_reason': str (if empty results, why - 'high_n_fraction', 'ambiguous', or 'no_match')
     """
     log = logging.getLogger(__name__)
     bc1_col, bc2_col = barcode_columns
@@ -381,18 +378,24 @@ def match_barcodes_with_orientation(target_bc1, target_bc2, sample_rows, barcode
                 'matched_bc2': target_bc2_rc,
             }
 
-    # No match found - build helpful error message
+    # No match found - return empty list with skipped_reason
     unique_bc_pairs = set()
     for row in sample_rows:
         bc1 = normalize_barcode(row.get(bc1_col, ''))
         bc2 = normalize_barcode(row.get(bc2_col, ''))
         unique_bc_pairs.add(f"{bc1}+{bc2}")
 
-    raise ValueError(
+    log.warning(
         f"No samples found matching barcodes {target_bc1}+{target_bc2} "
         f"(also tried reverse complement of barcode_2). "
         f"Samplesheet contains barcode pairs: {sorted(unique_bc_pairs)[:10]}..."
     )
+    return [], {
+        'barcode_2_revcomp': False,
+        'matched_bc1': target_bc1,
+        'matched_bc2': target_bc2,
+        'skipped_reason': 'no_match',
+    }
 
 
 def build_run_info_json(
@@ -863,11 +866,79 @@ def splitcode_demux_fastqs(
     )
 
     # Log if i5 orientation auto-detection was used
-    if orientation_info['barcode_2_revcomp']:
+    if orientation_info.get('barcode_2_revcomp'):
         log.info(f"Auto-detected i5 reverse complement orientation: "
                  f"FASTQ barcode_2 {target_bc2} matched samplesheet {orientation_info['matched_bc2']}")
 
     log.info(f"Filtered samplesheet to {len(sample_rows)} samples matching outer barcodes")
+
+    # Handle case where no samples matched the barcodes
+    # This can happen due to:
+    # - Barcodes not in samplesheet (e.g., contaminant reads, barcode hopping)
+    # - High N fraction in observed barcodes (low sequencer confidence)
+    # - Ambiguous N-wildcard matching (matched multiple distinct barcode pairs)
+    if not sample_rows:
+        skipped_reason = orientation_info.get('skipped_reason', 'no_match')
+        log.warning(f"No samples matched barcodes {target_bc1}+{target_bc2} (reason: {skipped_reason})")
+        log.info("Producing empty output files with zero read counts")
+
+        # Create output directory if needed
+        os.makedirs(outdir, exist_ok=True)
+
+        # Create an empty BAM file using the pool name as the sample name
+        output_bam = os.path.join(outdir, f"{pool_name}.bam")
+        picard = tools.picard.FastqToSamTool()
+        # Create a minimal empty BAM by using an empty FASTQ
+        with util.file.tempfname('.fastq') as empty_fq:
+            with open(empty_fq, 'w') as f:
+                pass  # Create empty file
+            picard.execute(
+                empty_fq,
+                None,  # No R2
+                pool_name,
+                output_bam,
+                picardOptions=[]
+            )
+
+        # Generate metrics showing 0 reads
+        metrics = {
+            'demux_type': f'no_barcode_match ({skipped_reason})',
+            'samples': {
+                pool_name: {
+                    'sample_library_id': pool_name,
+                    'read_count': 0
+                }
+            }
+        }
+        metrics_file = os.path.join(outdir, 'demux_metrics.json')
+        with open(metrics_file, 'w') as f:
+            json.dump(metrics, f, indent=2)
+
+        # Generate Picard-style metrics with 0 reads
+        picard_style_metrics_path = os.path.join(outdir, 'demux_metrics_picard-style.txt')
+        with open(picard_style_metrics_path, 'w') as f:
+            f.write(f"## METRICS CLASS\tviral-core.splitcode_demux_fastqs.no_match\n")
+            columns = [
+                "BARCODE", "BARCODE_WITHOUT_DELIMITER", "BARCODE_NAME", "LIBRARY_NAME",
+                "READS", "PF_READS", "PERFECT_MATCHES", "PF_PERFECT_MATCHES",
+                "ONE_MISMATCH_MATCHES", "PF_ONE_MISMATCH_MATCHES", "PCT_MATCHES",
+                "RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_PCT_MATCHES",
+                "PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_NORMALIZED_MATCHES",
+                "DEMUX_TYPE"
+            ]
+            f.write("\t".join(columns) + "\n")
+            barcode_str = f"{target_bc1}+{target_bc2}" if target_bc2 else target_bc1
+            values = [
+                barcode_str, barcode_str.replace('+', ''), pool_name, pool_name,
+                "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", skipped_reason
+            ]
+            f.write("\t".join(values) + "\n")
+
+        return {
+            'bam': output_bam,
+            'metrics': metrics_file,
+            'picard_metrics': picard_style_metrics_path
+        }
 
     # Now check if the FILTERED samples are 2-barcode or 3-barcode
     has_3bc_samples = any(row.get('barcode_3', '').strip() for row in sample_rows)
@@ -1033,9 +1104,62 @@ def splitcode_demux_fastqs(
         ]
 
         if len(samples_with_bc3) == 0:
-            raise ValueError(
-                f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}"
-            )
+            log.warning(f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}")
+            log.info("Producing empty output files with zero read counts")
+
+            # Create an empty BAM file using the pool name as the sample name
+            output_bam = os.path.join(outdir, f"{pool_name}.bam")
+            picard = tools.picard.FastqToSamTool()
+            with util.file.tempfname('.fastq') as empty_fq:
+                with open(empty_fq, 'w') as f:
+                    pass  # Create empty file
+                picard.execute(
+                    empty_fq,
+                    None,  # No R2
+                    pool_name,
+                    output_bam,
+                    picardOptions=[]
+                )
+
+            # Generate metrics showing 0 reads
+            metrics = {
+                'demux_type': 'no_3bc_match',
+                'samples': {
+                    pool_name: {
+                        'sample_library_id': pool_name,
+                        'read_count': 0
+                    }
+                }
+            }
+            metrics_file = os.path.join(outdir, 'demux_metrics.json')
+            with open(metrics_file, 'w') as f:
+                json.dump(metrics, f, indent=2)
+
+            # Generate Picard-style metrics with 0 reads
+            picard_style_metrics_path = os.path.join(outdir, 'demux_metrics_picard-style.txt')
+            with open(picard_style_metrics_path, 'w') as f:
+                f.write("## METRICS CLASS\tviral-core.splitcode_demux_fastqs.no_3bc_match\n")
+                columns = [
+                    "BARCODE", "BARCODE_WITHOUT_DELIMITER", "BARCODE_NAME", "LIBRARY_NAME",
+                    "READS", "PF_READS", "PERFECT_MATCHES", "PF_PERFECT_MATCHES",
+                    "ONE_MISMATCH_MATCHES", "PF_ONE_MISMATCH_MATCHES", "PCT_MATCHES",
+                    "RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_PCT_MATCHES",
+                    "PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_NORMALIZED_MATCHES",
+                    "DEMUX_TYPE"
+                ]
+                f.write("\t".join(columns) + "\n")
+                barcode_str = f"{target_bc1}+{target_bc2}" if target_bc2 else target_bc1
+                values = [
+                    barcode_str, barcode_str.replace('+', ''), pool_name, pool_name,
+                    "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "no_3bc_match"
+                ]
+                f.write("\t".join(values) + "\n")
+
+            return {
+                'bam': output_bam,
+                'metrics': metrics_file,
+                'picard_metrics': picard_style_metrics_path
+            }
 
         log.info(f"Filtered to {len(samples_with_bc3)} samples with 3-barcode scheme")
 

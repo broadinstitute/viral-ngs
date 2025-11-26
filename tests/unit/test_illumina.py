@@ -1079,17 +1079,17 @@ class TestBarcodeOrientationAutoDetection(unittest.TestCase):
         self.assertTrue(info['barcode_2_revcomp'])
         self.assertEqual(info['matched_bc2'], 'ACTGCAGCCG')
 
-    def test_no_match_raises_error(self):
-        """Test that ValueError is raised when no orientation matches."""
+    def test_no_match_returns_empty(self):
+        """Test that no match returns empty list with skipped_reason='no_match'."""
         sample_rows = [
             {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
         ]
         # Use completely different barcodes that won't match
-        with self.assertRaises(ValueError) as ctx:
-            illumina.match_barcodes_with_orientation(
-                'GGGGGGGG', 'CCCCCCCC', sample_rows
-            )
-        self.assertIn('No samples found matching', str(ctx.exception))
+        matched, info = illumina.match_barcodes_with_orientation(
+            'GGGGGGGG', 'CCCCCCCC', sample_rows
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'no_match')
 
     def test_single_barcode_matching(self):
         """Test matching with only barcode_1 (barcode_2 is None)."""
@@ -1262,10 +1262,11 @@ class TestBarcodeOrientationAutoDetection(unittest.TestCase):
             {'sample': 'S1', 'barcode_1': 'ATCNATCG', 'barcode_2': 'GCTAGCTA'},
         ]
         # FASTQ has G where samplesheet has N - should not match
-        with self.assertRaises(ValueError):
-            illumina.match_barcodes_with_orientation(
-                'ATCGATCG', 'GCTAGCTA', sample_rows
-            )
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'no_match')
 
     def test_n_wildcard_no_false_positives(self):
         """Test that N wildcard doesn't cause incorrect matches."""
