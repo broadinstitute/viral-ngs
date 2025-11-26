@@ -188,6 +188,86 @@ def normalize_barcode(barcode):
     return normalized
 
 
+def match_barcodes_with_orientation(target_bc1, target_bc2, sample_rows, barcode_columns=('barcode_1', 'barcode_2')):
+    """
+    Match FASTQ barcodes against samplesheet with automatic i5 orientation detection.
+
+    Due to Illumina chemistry changes over the years, the i5 index (barcode_2) may be
+    written to FASTQ headers in either forward or reverse complement orientation
+    depending on the sequencer model. This function automatically tries both orientations.
+
+    Note: Only barcode_2 orientation is auto-detected. barcode_1 (i7) orientation is
+    consistent across all Illumina platforms.
+
+    Tries matching in this order:
+    1. Direct match (both barcodes as-is)
+    2. Reverse complement barcode_2 only (i5 orientation difference)
+
+    Args:
+        target_bc1: Normalized barcode_1 from FASTQ header
+        target_bc2: Normalized barcode_2 from FASTQ header (or None)
+        sample_rows: List of sample row dicts from samplesheet
+        barcode_columns: Tuple of column names to match against
+
+    Returns:
+        tuple: (matched_rows, orientation_info)
+            matched_rows: List of matching sample rows
+            orientation_info: dict with keys:
+                - 'barcode_2_revcomp': bool (True if reverse complement was needed)
+                - 'matched_bc1': str (the barcode_1 value that matched)
+                - 'matched_bc2': str (the barcode_2 value that matched)
+
+    Raises:
+        ValueError: If no match found in either orientation
+    """
+    bc1_col, bc2_col = barcode_columns
+
+    # Normalize input barcodes for case-insensitive matching
+    target_bc1 = normalize_barcode(target_bc1) if target_bc1 else None
+    target_bc2 = normalize_barcode(target_bc2) if target_bc2 else None
+
+    def try_match(check_bc1, check_bc2):
+        """Try matching with given barcode values."""
+        return [
+            row for row in sample_rows
+            if (normalize_barcode(row.get(bc1_col, '')) == check_bc1 and
+                (check_bc2 is None or normalize_barcode(row.get(bc2_col, '')) == check_bc2))
+        ]
+
+    # Try direct match first
+    matched = try_match(target_bc1, target_bc2)
+    if matched:
+        return matched, {
+            'barcode_2_revcomp': False,
+            'matched_bc1': target_bc1,
+            'matched_bc2': target_bc2,
+        }
+
+    # Try reverse complement of barcode_2 (i5 orientation issue)
+    if target_bc2:
+        target_bc2_rc = util.misc.reverse_complement(target_bc2)
+        matched = try_match(target_bc1, target_bc2_rc)
+        if matched:
+            return matched, {
+                'barcode_2_revcomp': True,
+                'matched_bc1': target_bc1,
+                'matched_bc2': target_bc2_rc,
+            }
+
+    # No match found - build helpful error message
+    unique_bc_pairs = set()
+    for row in sample_rows:
+        bc1 = normalize_barcode(row.get(bc1_col, ''))
+        bc2 = normalize_barcode(row.get(bc2_col, ''))
+        unique_bc_pairs.add(f"{bc1}+{bc2}")
+
+    raise ValueError(
+        f"No samples found matching barcodes {target_bc1}+{target_bc2} "
+        f"(also tried reverse complement of barcode_2). "
+        f"Samplesheet contains barcode pairs: {sorted(unique_bc_pairs)[:10]}..."
+    )
+
+
 def build_run_info_json(
     sequencing_center,
     run_start_date,
@@ -276,7 +356,7 @@ def illumina_metadata(
     runinfo,
     samplesheet,
     lane,
-    sequencing_center='Broad',
+    sequencing_center=None,
     out_runinfo=None,
     out_meta_by_sample=None,
     out_meta_by_filename=None
@@ -292,7 +372,8 @@ def illumina_metadata(
         runinfo (str): Path to RunInfo.xml file
         samplesheet (str): Path to Illumina SampleSheet.csv file
         lane (int): Lane number to process
-        sequencing_center (str): Sequencing center name (default: 'Broad')
+        sequencing_center (str, optional): Sequencing center name. If not provided,
+            will be derived from the instrument ID in RunInfo.xml.
         out_runinfo (str, optional): Output path for run_info.json
         out_meta_by_sample (str, optional): Output path for meta_by_sample.json
         out_meta_by_filename (str, optional): Output path for meta_by_filename.json
@@ -322,6 +403,11 @@ def illumina_metadata(
 
     # Parse RunInfo.xml
     runinfo_obj = RunInfo(runinfo)
+
+    # Derive sequencing center from RunInfo if not provided
+    if sequencing_center is None:
+        sequencing_center = runinfo_obj.get_machine()
+        log.info(f"Using sequencing center from RunInfo.xml: {sequencing_center}")
 
     # Parse SampleSheet
     # Note: allow_non_unique=True is needed for 3-barcode samplesheets where
@@ -404,8 +490,8 @@ def parser_illumina_metadata(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--sequencing_center',
-        default='Broad',
-        help='Sequencing center name (default: Broad)'
+        default=None,
+        help='Sequencing center name (default: derived from instrument ID in RunInfo.xml)'
     )
     parser.add_argument(
         '--out_runinfo',
@@ -546,8 +632,71 @@ def splitcode_demux_fastqs(
 
     # Extract outer barcodes (barcode_1 + barcode_2) from FASTQ header
     # DRAGEN FASTQs have headers like: @INSTRUMENT:...:BARCODE where BARCODE is "BC1+BC2"
-    with gzip.open(fastq_r1, 'rt') as f:
+    with util.file.open_or_gzopen(fastq_r1, 'rt') as f:
         first_header = f.readline().strip()
+
+    # Handle empty FASTQ files (e.g., NTC samples with zero reads)
+    if not first_header:
+        log.warning(f"FASTQ file contains no reads: {fastq_r1}")
+        log.info("Producing empty output files with zero read counts")
+
+        # Create output directory if needed
+        os.makedirs(outdir, exist_ok=True)
+
+        # Create an empty BAM file using the pool name as the sample name
+        output_bam = os.path.join(outdir, f"{pool_name}.bam")
+        picard = tools.picard.FastqToSamTool()
+        # Create a minimal empty BAM by using an empty FASTQ
+        # We'll create a temp empty file for this
+        with util.file.tempfname('.fastq') as empty_fq:
+            with open(empty_fq, 'w') as f:
+                pass  # Create empty file
+            picard.execute(
+                empty_fq,
+                None,  # No R2
+                pool_name,
+                output_bam,
+                picardOptions=[]
+            )
+
+        # Generate metrics showing 0 reads
+        metrics = {
+            'demux_type': 'empty_input',
+            'samples': {
+                pool_name: {
+                    'sample_library_id': pool_name,
+                    'read_count': 0
+                }
+            }
+        }
+        metrics_file = os.path.join(outdir, 'demux_metrics.json')
+        with open(metrics_file, 'w') as f:
+            json.dump(metrics, f, indent=2)
+
+        # Generate Picard-style metrics with 0 reads
+        picard_style_metrics_path = os.path.join(outdir, 'demux_metrics_picard-style.txt')
+        with open(picard_style_metrics_path, 'w') as f:
+            f.write("## METRICS CLASS\tviral-core.splitcode_demux_fastqs.empty\n")
+            columns = [
+                "BARCODE", "BARCODE_WITHOUT_DELIMITER", "BARCODE_NAME", "LIBRARY_NAME",
+                "READS", "PF_READS", "PERFECT_MATCHES", "PF_PERFECT_MATCHES",
+                "ONE_MISMATCH_MATCHES", "PF_ONE_MISMATCH_MATCHES", "PCT_MATCHES",
+                "RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_PCT_MATCHES",
+                "PF_RATIO_THIS_BARCODE_TO_BEST_BARCODE_PCT", "PF_NORMALIZED_MATCHES",
+                "DEMUX_TYPE"
+            ]
+            f.write("\t".join(columns) + "\n")
+            values = [
+                "N/A", "N/A", pool_name, pool_name,
+                "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "empty_input"
+            ]
+            f.write("\t".join(values) + "\n")
+
+        return {
+            'bam': output_bam,
+            'metrics': metrics_file,
+            'picard_metrics': picard_style_metrics_path
+        }
 
     # Parse barcode from header (last field after last space)
     # Format: @INST:RUN:FC:LANE:TILE:X:Y READ:FILTERED:CONTROL:BARCODE
@@ -580,18 +729,16 @@ def splitcode_demux_fastqs(
     samples = SampleSheet(samplesheet, allow_non_unique=True)
 
     # Filter sample_rows to only those matching the outer barcodes from the FASTQ
-    # Normalize samplesheet barcodes during comparison to handle case/whitespace differences
+    # Uses auto-detection for i5 (barcode_2) orientation differences across Illumina platforms
     all_sample_rows = list(samples.get_rows())
-    sample_rows = [
-        row for row in all_sample_rows
-        if (normalize_barcode(row.get('barcode_1', '')) == target_bc1 and
-            normalize_barcode(row.get('barcode_2', '')) == target_bc2)
-    ]
+    sample_rows, orientation_info = match_barcodes_with_orientation(
+        target_bc1, target_bc2, all_sample_rows
+    )
 
-    if len(sample_rows) == 0:
-        raise ValueError(
-            f"No samples found in samplesheet matching outer barcodes {target_bc1}+{target_bc2}"
-        )
+    # Log if i5 orientation auto-detection was used
+    if orientation_info['barcode_2_revcomp']:
+        log.info(f"Auto-detected i5 reverse complement orientation: "
+                 f"FASTQ barcode_2 {target_bc2} matched samplesheet {orientation_info['matched_bc2']}")
 
     log.info(f"Filtered samplesheet to {len(sample_rows)} samples matching outer barcodes")
 
