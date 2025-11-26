@@ -1041,6 +1041,102 @@ class TestNormalizeBarcode(unittest.TestCase):
             illumina.normalize_barcode(['A', 'C', 'G', 'T'])
 
 
+class TestBarcodeOrientationAutoDetection(unittest.TestCase):
+    """
+    Test suite for automatic i5 (barcode_2) orientation detection.
+
+    Tests the match_barcodes_with_orientation() function which automatically
+    tries reverse complement of barcode_2 when direct matching fails.
+
+    Note: Only barcode_2 (i5) orientation is auto-detected because this is the
+    only barcode that varies in orientation across Illumina sequencer generations.
+    barcode_1 (i7) is consistent across all platforms.
+    """
+
+    def test_direct_match(self):
+        """Test that direct barcode match works without reverse complement."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+            {'sample': 'S2', 'barcode_1': 'AAAAAAAA', 'barcode_2': 'TTTTTTTT'},
+        ]
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['sample'], 'S1')
+        self.assertFalse(info['barcode_2_revcomp'])
+
+    def test_barcode2_revcomp_match(self):
+        """Test that reverse complement of barcode_2/i5 is auto-detected."""
+        # Samplesheet has ACTGCAGCCG, FASTQ has reverse complement CGGCTGCAGT
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'AGTTAATGCT', 'barcode_2': 'ACTGCAGCCG'},
+        ]
+        matched, info = illumina.match_barcodes_with_orientation(
+            'AGTTAATGCT', 'CGGCTGCAGT', sample_rows  # CGGCTGCAGT = revcomp(ACTGCAGCCG)
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertTrue(info['barcode_2_revcomp'])
+        self.assertEqual(info['matched_bc2'], 'ACTGCAGCCG')
+
+    def test_no_match_raises_error(self):
+        """Test that ValueError is raised when no orientation matches."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        with self.assertRaises(ValueError) as ctx:
+            illumina.match_barcodes_with_orientation(
+                'NNNNNNNN', 'NNNNNNNN', sample_rows
+            )
+        self.assertIn('No samples found matching', str(ctx.exception))
+
+    def test_single_barcode_matching(self):
+        """Test matching with only barcode_1 (barcode_2 is None)."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': ''},
+        ]
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', None, sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+
+    def test_case_insensitive_matching(self):
+        """Test that barcode matching is case-insensitive."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'atcgatcg', 'barcode_2': 'GCTAGCTA'},
+        ]
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'gctagcta', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+
+    def test_multiple_samples_same_outer_barcodes(self):
+        """Test matching returns all samples with same outer barcodes (3-barcode case)."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA', 'barcode_3': 'AAAAAAAA'},
+            {'sample': 'S2', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA', 'barcode_3': 'CCCCCCCC'},
+            {'sample': 'S3', 'barcode_1': 'GGGGGGGG', 'barcode_2': 'TTTTTTTT', 'barcode_3': 'AAAAAAAA'},
+        ]
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 2)
+        self.assertEqual({r['sample'] for r in matched}, {'S1', 'S2'})
+
+    def test_barcode2_revcomp_with_multiple_samples(self):
+        """Test i5 auto-detection works when multiple samples share outer barcodes."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA', 'barcode_3': 'AAAAAAAA'},
+            {'sample': 'S2', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA', 'barcode_3': 'CCCCCCCC'},
+        ]
+        # TAGCTAGC = revcomp(GCTAGCTA)
+        matched, info = illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'TAGCTAGC', sample_rows
+        )
+        self.assertEqual(len(matched), 2)
+        self.assertTrue(info['barcode_2_revcomp'])
+
+
 class TestBuildRunInfoJson(TestCaseWithTmp):
     """Test run_info.json construction."""
 
