@@ -2317,6 +2317,88 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         finally:
             shutil.rmtree(out_dir)
 
+    def test_i5_reverse_complement_3bc_demux(self):
+        """
+        Test 3-barcode demultiplexing when i5 barcode requires reverse complement.
+
+        This is a regression test for issue #133.
+
+        Scenario:
+        - Samplesheet has barcode_2 = GCTAGCTA (forward orientation)
+        - FASTQ headers have barcode_2 = TAGCTAGC (reverse complement)
+        - The function should auto-detect the i5 reverse complement orientation
+        - Demux should succeed using the corrected barcode values
+
+        Expected behavior:
+        - Auto-detection logs i5 reverse complement match
+        - 3-barcode demultiplexing succeeds
+        - Output BAMs created with correct read counts
+        - No "no_3bc_match" error
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Use test files with reverse complement i5
+            r1_fastq = os.path.join(self.input_dir, 'TestPool1_RC_S4_L001_R1_001.fastq.gz')
+            r2_fastq = os.path.join(self.input_dir, 'TestPool1_RC_S4_L001_R2_001.fastq.gz')
+            samples_rc = os.path.join(self.input_dir, 'samples_3bc_i5_revcomp.tsv')
+
+            # Verify test input files exist
+            self.assertTrue(os.path.exists(r1_fastq), f"Test FASTQ missing: {r1_fastq}")
+            self.assertTrue(os.path.exists(r2_fastq), f"Test FASTQ missing: {r2_fastq}")
+            self.assertTrue(os.path.exists(samples_rc), f"Test samplesheet missing: {samples_rc}")
+
+            # Run splitcode demux with i5 reverse complement scenario
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=r1_fastq,
+                fastq_r2=r2_fastq,
+                samplesheet=samples_rc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            # Verify expected output BAMs exist
+            expected_bams = [
+                os.path.join(out_dir, 'TestSample1_RC.bam'),
+                os.path.join(out_dir, 'TestSample2_RC.bam'),
+                os.path.join(out_dir, 'TestSample3_RC.bam')
+            ]
+
+            for bam in expected_bams:
+                self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+
+            # Verify read counts using samtools
+            # Note: samtools.count() returns total reads (R1 + R2 for paired-end)
+            samtools = tools.samtools.SamtoolsTool()
+
+            # TestSample1_RC (AAAAAAAA): should have 2 read pairs = 4 total reads
+            count1 = int(samtools.count(expected_bams[0]))
+            self.assertEqual(count1, 4, "TestSample1_RC should have 2 read pairs (4 total reads)")
+
+            # TestSample2_RC (CCCCCCCC): should have 2 read pairs = 4 total reads
+            count2 = int(samtools.count(expected_bams[1]))
+            self.assertEqual(count2, 4, "TestSample2_RC should have 2 read pairs (4 total reads)")
+
+            # TestSample3_RC (GGGGTTTT): should have 1 read pair = 2 total reads
+            count3 = int(samtools.count(expected_bams[2]))
+            self.assertEqual(count3, 2, "TestSample3_RC should have 1 read pair (2 total reads)")
+
+            # Verify demux metrics exist and indicate success (not "no_3bc_match")
+            metrics_file = os.path.join(out_dir, 'demux_metrics.json')
+            self.assertTrue(os.path.exists(metrics_file))
+
+            with open(metrics_file, 'r') as f:
+                metrics = json.load(f)
+
+            # Should NOT have demux_type of "no_3bc_match"
+            demux_type = metrics.get('demux_type', '')
+            self.assertNotEqual(demux_type, 'no_3bc_match',
+                              "Should successfully demux, not fail with no_3bc_match")
+
+        finally:
+            shutil.rmtree(out_dir)
+
 
 class TestMergeDemuxMetrics(TestCaseWithTmp):
     """

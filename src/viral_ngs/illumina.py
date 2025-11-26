@@ -1087,14 +1087,18 @@ def splitcode_demux_fastqs(
         inner_demux_barcode_map_df = samples.inner_demux_mapper()
 
         # Filter the dataframe to only samples matching the outer barcodes from FASTQ header
-        if target_bc2:
+        # Use orientation-corrected barcodes from match_barcodes_with_orientation (issue #133)
+        matched_bc1 = orientation_info.get('matched_bc1', target_bc1)
+        matched_bc2 = orientation_info.get('matched_bc2', target_bc2)
+
+        if matched_bc2:
             filtered_df = inner_demux_barcode_map_df[
-                (inner_demux_barcode_map_df['barcode_1'] == target_bc1) &
-                (inner_demux_barcode_map_df['barcode_2'] == target_bc2)
+                (inner_demux_barcode_map_df['barcode_1'] == matched_bc1) &
+                (inner_demux_barcode_map_df['barcode_2'] == matched_bc2)
             ]
         else:
             filtered_df = inner_demux_barcode_map_df[
-                inner_demux_barcode_map_df['barcode_1'] == target_bc1
+                inner_demux_barcode_map_df['barcode_1'] == matched_bc1
             ]
 
         # Verify we have 3-barcode samples after filtering
@@ -1104,7 +1108,7 @@ def splitcode_demux_fastqs(
         ]
 
         if len(samples_with_bc3) == 0:
-            log.warning(f"No 3-barcode samples found matching outer barcodes {target_bc1}+{target_bc2}")
+            log.warning(f"No 3-barcode samples found matching outer barcodes {matched_bc1}+{matched_bc2}")
             log.info("Producing empty output files with zero read counts")
 
             # Create an empty BAM file using the pool name as the sample name
