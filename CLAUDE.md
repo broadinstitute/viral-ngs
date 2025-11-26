@@ -174,3 +174,29 @@ The Dockerfile builds on a viral-baseimage (see `FROM` line in Dockerfile for cu
 - PYTHONPATH: `/opt/viral-ngs/source`
 
 Note: Container includes R/readline symlink workaround needed for Picard's CollectInsertSizeMetrics
+
+## Development Approach: Test-Driven Development (TDD)
+
+When planning and implementing new features or bug fixes, follow a **test-first** approach:
+
+1. **Write tests first**: Before implementing any new functionality, write unit tests that define the expected behavior
+2. **Run tests to confirm they fail**: Verify the tests fail as expected (since the feature doesn't exist yet)
+3. **Implement the feature**: Write the minimal code needed to make the tests pass
+4. **Run tests to confirm they pass**: Verify all tests now pass
+5. **Refactor if needed**: Clean up code while ensuring tests still pass
+
+### Planning Order
+
+When creating implementation plans, sequence tasks in this order:
+
+1. Define test cases and expected behavior
+2. Write unit tests (in `test/unit/`)
+3. Implement the feature/fix
+4. Run tests in docker to verify
+5. Add integration tests if applicable
+
+This ensures:
+- Clear specification of expected behavior before coding
+- Better test coverage
+- Fewer bugs from misunderstanding requirements
+- Tests serve as documentation of intended behavior
