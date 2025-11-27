@@ -11,6 +11,7 @@ import argparse
 import filecmp
 import shutil
 import json
+import pytest
 import util
 import util.file
 import illumina
@@ -2395,6 +2396,97 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             demux_type = metrics.get('demux_type', '')
             self.assertNotEqual(demux_type, 'no_3bc_match',
                               "Should successfully demux, not fail with no_3bc_match")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_splitcode_demux_3bc_with_n_bases_in_bc2_and_i5_rc(self):
+        """
+        Test 3-barcode demultiplexing with N bases in barcode_2 AND i5 reverse complement.
+
+        This is a regression test for a bug where N-wildcard matching failed in the
+        second filtering step for 3-barcode demux.
+
+        Scenario:
+        - Samplesheet has barcode_2 = ACGTTACGCA (forward orientation)
+        - FASTQ headers have barcode_2 = TGNGTAACGT (reverse complement with N base)
+        - After RC: TGNGTAACGT -> ACGTTACNCA
+        - Should match ACGTTACGCA via N wildcard (N at position 8, 10% N fraction < 50% threshold)
+
+        Expected behavior:
+        - Auto-detection logs i5 reverse complement match
+        - N-wildcard matching works in BOTH filtering steps (initial match + 3bc filter)
+        - 3-barcode demultiplexing succeeds
+        - Output BAMs created with correct read counts
+        - No "no_3bc_match" or "no_match" error
+
+        Bug being tested:
+        The code had TWO filtering steps for 3-barcode samples:
+        1. Initial match via match_barcodes_with_orientation() - uses N-wildcard matching ✓
+        2. DataFrame filtering at lines 1094-1098 - used exact match, failed with N ✗
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Use test files with N bases in barcode_2 + reverse complement i5
+            r1_fastq = os.path.join(self.input_dir, 'TestPool1_N_S5_L001_R1_001.fastq.gz')
+            r2_fastq = os.path.join(self.input_dir, 'TestPool1_N_S5_L001_R2_001.fastq.gz')
+            samples_n = os.path.join(self.input_dir, 'samples_3bc_i5_rc_with_n.tsv')
+
+            # Verify test input files exist
+            self.assertTrue(os.path.exists(r1_fastq), f"Test FASTQ missing: {r1_fastq}")
+            self.assertTrue(os.path.exists(r2_fastq), f"Test FASTQ missing: {r2_fastq}")
+            self.assertTrue(os.path.exists(samples_n), f"Test samplesheet missing: {samples_n}")
+
+            # Run splitcode demux with N bases + i5 reverse complement scenario
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=r1_fastq,
+                fastq_r2=r2_fastq,
+                samplesheet=samples_n,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            # Verify expected output BAMs exist
+            expected_bams = [
+                os.path.join(out_dir, 'TestSample1_N.bam'),
+                os.path.join(out_dir, 'TestSample2_N.bam'),
+                os.path.join(out_dir, 'TestSample3_N.bam')
+            ]
+
+            for bam in expected_bams:
+                self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+
+            # Verify read counts using samtools
+            # Note: samtools.count() returns total reads (R1 + R2 for paired-end)
+            samtools = tools.samtools.SamtoolsTool()
+
+            # TestSample1_N (AAAAAAAA): should have 2 read pairs = 4 total reads
+            count1 = int(samtools.count(expected_bams[0]))
+            self.assertEqual(count1, 4, "TestSample1_N should have 2 read pairs (4 total reads)")
+
+            # TestSample2_N (CCCCCCCC): should have 2 read pairs = 4 total reads
+            count2 = int(samtools.count(expected_bams[1]))
+            self.assertEqual(count2, 4, "TestSample2_N should have 2 read pairs (4 total reads)")
+
+            # TestSample3_N (GGGGTTTT): should have 1 read pair = 2 total reads
+            count3 = int(samtools.count(expected_bams[2]))
+            self.assertEqual(count3, 2, "TestSample3_N should have 1 read pair (2 total reads)")
+
+            # Verify demux metrics exist and indicate success (not "no_3bc_match" or "no_match")
+            metrics_file = os.path.join(out_dir, 'demux_metrics.json')
+            self.assertTrue(os.path.exists(metrics_file))
+
+            with open(metrics_file, 'r') as f:
+                metrics = json.load(f)
+
+            # Should NOT have demux_type indicating failure
+            demux_type = metrics.get('demux_type', '')
+            self.assertNotIn('no_3bc_match', demux_type,
+                           "Should successfully demux, not fail with no_3bc_match")
+            self.assertNotIn('no_match', demux_type,
+                           "Should successfully demux, not fail with no_match")
 
         finally:
             shutil.rmtree(out_dir)

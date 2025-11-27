@@ -1088,17 +1088,30 @@ def splitcode_demux_fastqs(
 
         # Filter the dataframe to only samples matching the outer barcodes from FASTQ header
         # Use orientation-corrected barcodes from match_barcodes_with_orientation (issue #133)
+        # AND use N-wildcard matching to handle N bases in observed barcodes
         matched_bc1 = orientation_info.get('matched_bc1', target_bc1)
         matched_bc2 = orientation_info.get('matched_bc2', target_bc2)
 
+        # Filter using N-wildcard aware matching (not exact string ==)
+        # This handles N bases in the FASTQ barcodes (sequencer no-calls)
         if matched_bc2:
+            # Use apply() with barcode_matches_with_n() for N-wildcard matching
+            # Note: observed barcode (from FASTQ) may have N, expected (from samplesheet) should not
             filtered_df = inner_demux_barcode_map_df[
-                (inner_demux_barcode_map_df['barcode_1'] == matched_bc1) &
-                (inner_demux_barcode_map_df['barcode_2'] == matched_bc2)
+                inner_demux_barcode_map_df.apply(
+                    lambda row: (
+                        barcode_matches_with_n(matched_bc1, normalize_barcode(row['barcode_1'])) and
+                        barcode_matches_with_n(matched_bc2, normalize_barcode(row['barcode_2']))
+                    ),
+                    axis=1
+                )
             ]
         else:
             filtered_df = inner_demux_barcode_map_df[
-                inner_demux_barcode_map_df['barcode_1'] == matched_bc1
+                inner_demux_barcode_map_df.apply(
+                    lambda row: barcode_matches_with_n(matched_bc1, normalize_barcode(row['barcode_1'])),
+                    axis=1
+                )
             ]
 
         # Verify we have 3-barcode samples after filtering
@@ -1108,6 +1121,9 @@ def splitcode_demux_fastqs(
         ]
 
         if len(samples_with_bc3) == 0:
+            # Get the matched barcodes for logging (with RC correction if applicable)
+            matched_bc1 = orientation_info.get('matched_bc1', target_bc1)
+            matched_bc2 = orientation_info.get('matched_bc2', target_bc2)
             log.warning(f"No 3-barcode samples found matching outer barcodes {matched_bc1}+{matched_bc2}")
             log.info("Producing empty output files with zero read counts")
 
