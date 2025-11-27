@@ -29,6 +29,13 @@ elif [ -n "$GITHUB_ACTIONS_PULL_REQUEST_BRANCH" ]; then
 	DOCKER_SHORT_TAG="$BRANCH_NAME-pull_request"
 	DOCKER_LONG_TAG="$(git describe --tags --always | sed s/^v//)-$(echo $DOCKER_SHORT_TAG)"
 	#DOCKER_LONG_TAG="$(git describe --tags --always | perl -lape 's/^v?(\S+)-(\d+)-g(\S+)/$1-beta$2-g$3/')-$(echo $BRANCH_NAME | sed 's/-/_/g')"
+elif [[ "$GITHUB_ACTIONS_BRANCH" == gh-readonly-queue/* ]]; then
+	# this is a merge queue commit (about to become master)
+	DOCKER_REPO=$DOCKER_REPO_DEV
+	# Extract PR number from branch name for tag clarity
+	PR_NUM=$(echo "$GITHUB_ACTIONS_BRANCH" | sed 's/.*pr-\([0-9]*\)-.*/\1/')
+	DOCKER_SHORT_TAG="merge-queue-pr-$PR_NUM"
+	DOCKER_LONG_TAG="$(git describe --tags --always | sed s/^v//)-merge-queue-pr-$PR_NUM"
 elif [[ "$GITHUB_ACTIONS_BRANCH" == "master" ]]; then
 	# this is a master branch commit (e.g. merged pull request)
 	DOCKER_REPO=$DOCKER_REPO_PROD
