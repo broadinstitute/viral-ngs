@@ -648,6 +648,81 @@ __commands__.append(('illumina_metadata', parser_illumina_metadata))
 # ===================================
 
 
+# This function is called in new processes and must remain at the top level
+# (global scope) of this file to be picklable and thus compatible with
+# concurrent.futures.ProcessPoolExecutor()
+# See: https://docs.python.org/3/library/concurrent.futures.html#processpoolexecutor
+def run_picard_fastq_to_sam_for_splitcode_demux(
+    sample_library_id,
+    sample_name,
+    bc_r1,
+    bc_r2,
+    outdir,
+    picard_opts_dict,
+    jvm_memory='2g',
+    string_to_log=None
+):
+    """
+    Convert a pair of splitcode-demuxed FASTQs to an unaligned BAM file.
+
+    This function is designed to be called in parallel worker processes via
+    ProcessPoolExecutor. It encapsulates all the logic for converting a single
+    sample's FASTQs to BAM.
+
+    Args:
+        sample_library_id (str): Library ID from samplesheet (used for logging)
+        sample_name (str): Sample name for BAM (SAMPLE field in @RG)
+        bc_r1 (str): Path to R1 FASTQ file
+        bc_r2 (str): Path to R2 FASTQ file
+        outdir (str): Output directory for BAM
+        picard_opts_dict (dict): Picard options as dict (will be converted to list)
+        jvm_memory (str): JVM memory allocation (e.g., '2g')
+        string_to_log (str): Optional message to log when starting
+
+    Returns:
+        tuple: (sample_name, output_bam, read_pairs, sample_library_id)
+            - sample_name: Sample name from input
+            - output_bam: Path to created BAM file
+            - read_pairs: Number of read pairs in the BAM
+            - sample_library_id: Library ID from input (for error tracking)
+
+    Raises:
+        FileNotFoundError: If input FASTQs don't exist
+        subprocess.CalledProcessError: If Picard or samtools fails
+    """
+    if string_to_log:
+        log.info(string_to_log)
+
+    # Verify input FASTQs exist
+    if not os.path.exists(bc_r1) or not os.path.exists(bc_r2):
+        raise FileNotFoundError(
+            f"Input FASTQs not found for {sample_library_id}: {bc_r1}, {bc_r2}"
+        )
+
+    output_bam = os.path.join(outdir, f"{sample_name}.bam")
+
+    # Convert dict to Picard options list
+    picard = tools.picard.FastqToSamTool()
+    picard_opts = picard.dict_to_picard_opts(picard_opts_dict)
+
+    # Execute Picard FastqToSam
+    picard.execute(
+        bc_r1,
+        bc_r2,
+        sample_name,
+        output_bam,
+        picardOptions=picard_opts,
+        JVMmemory=jvm_memory
+    )
+
+    # Count read pairs
+    samtools = tools.samtools.SamtoolsTool()
+    total_reads = samtools.count(output_bam)
+    read_pairs = total_reads // 2
+
+    return (sample_name, output_bam, read_pairs, sample_library_id)
+
+
 def splitcode_demux_fastqs(
     fastq_r1,
     fastq_r2,
@@ -664,7 +739,8 @@ def splitcode_demux_fastqs(
     predemux_r1_trim_3prime_num_bp=None,
     predemux_r2_trim_5prime_num_bp=None,
     predemux_r2_trim_3prime_num_bp=None,
-    threads=None
+    threads=None,
+    picard_jvm_memory='2g'
 ):
     """
     Simplified splitcode demultiplexing from paired DRAGEN FASTQ files.
@@ -674,6 +750,10 @@ def splitcode_demux_fastqs(
 
     For samples with empty barcode_3 (2-barcode samples), it skips splitcode and
     performs direct FASTQ → BAM conversion.
+
+    Picard FastqToSam conversions are parallelized using ProcessPoolExecutor with
+    the number of workers controlled by the 'threads' parameter. For optimal
+    performance with N samples, use threads=min(N, num_cpus).
 
     Args:
         fastq_r1 (str): Path to R1 FASTQ file
@@ -692,7 +772,9 @@ def splitcode_demux_fastqs(
         predemux_r1_trim_3prime_num_bp (int): Trim from R1 3' end before demux
         predemux_r2_trim_5prime_num_bp (int): Trim from R2 5' end before demux
         predemux_r2_trim_3prime_num_bp (int): Trim from R2 3' end before demux
-        threads (int): Number of threads for splitcode (default: auto-detect)
+        threads (int): Number of threads for splitcode and parallel Picard conversions
+            (default: auto-detect)
+        picard_jvm_memory (str): JVM memory allocation per Picard worker (default: '2g')
 
     Returns:
         dict: Dictionary containing paths to generated files
@@ -1235,17 +1317,15 @@ def splitcode_demux_fastqs(
             splitcode_opts=[f"--output={dummy_output_r1},{dummy_output_r2}"]
         )
 
-        # Convert splitcode FASTQs to BAMs
+        # Convert splitcode FASTQs to BAMs in parallel
         # Build mapping from sample_library_id to sample name
         # Note: inner_demux_barcode_map_df is already filtered to this pool, so no need to check pool_id
         sample_library_to_sample = {}
         for sample_name, row in inner_demux_barcode_map_df.iterrows():
             sample_library_to_sample[row['run']] = sample_name
 
-        picard = tools.picard.FastqToSamTool()
-        samtools = tools.samtools.SamtoolsTool()
-
-        sample_metrics = {}
+        # Build list of conversion jobs with all metadata
+        conversion_jobs = []
         for sample_library_id in sample_library_ids:
             sample_name = sample_library_to_sample.get(sample_library_id)
             if not sample_name:
@@ -1257,58 +1337,100 @@ def splitcode_demux_fastqs(
             bc_r1 = os.path.join(outdir, f"{sample_library_id}_R1.fastq.gz")
             bc_r2 = os.path.join(outdir, f"{sample_library_id}_R2.fastq.gz")
 
-            if os.path.exists(bc_r1) and os.path.exists(bc_r2):
-                output_bam = os.path.join(outdir, f"{sample_name}.bam")
-
-                # Get inline barcode for this sample from the dataframe
-                sample_row = inner_demux_barcode_map_df.loc[sample_name]
-                inline_barcode = sample_row.get('barcode_3', '')
-
-                # Build Picard options dict with richer metadata
-                picard_opts = {
-                    'PLATFORM': 'illumina',
-                    'LIBRARY_NAME': sample_library_id,
-                    'VERBOSITY': 'WARNING',
-                    'QUIET': 'TRUE'
-                }
-
-                # Add run date from RunInfo or CLI override
-                if run_date_val:
-                    picard_opts['RUN_DATE'] = run_date_val
-
-                # Add sequencing center
-                if sequencing_center:
-                    picard_opts['SEQUENCING_CENTER'] = sequencing_center
-
-                # Add platform unit: <flowcell>.<lane>.<barcode>
-                # For 3-barcode samples, include all three barcodes
-                if flowcell and target_bc1:
-                    if target_bc2:
-                        barcode_str = f"{target_bc1}-{target_bc2}-{inline_barcode}"
-                    else:
-                        barcode_str = f"{target_bc1}-{inline_barcode}"
-                    picard_opts['PLATFORM_UNIT'] = f"{flowcell}.{lane}.{barcode_str}"
-
-                picard.execute(
-                    bc_r1,
-                    bc_r2,
-                    sample_name,
-                    output_bam,
-                    picardOptions=picard.dict_to_picard_opts(picard_opts)
-                )
-
-                # Count read pairs (samtools.count returns total reads, divide by 2 for pairs)
-                total_reads = samtools.count(output_bam)
-                read_pairs = total_reads // 2
-
-                sample_metrics[sample_name] = {
-                    'sample_library_id': sample_library_id,
-                    'read_count': read_pairs
-                }
-
-                output_files[f'bam_{sample_name}'] = output_bam
-            else:
+            # Only queue jobs for samples that have FASTQ outputs
+            if not (os.path.exists(bc_r1) and os.path.exists(bc_r2)):
                 log.warning(f"Splitcode output FASTQs not found for {sample_library_id}: {bc_r1}, {bc_r2}")
+                continue
+
+            # Get inline barcode for this sample from the dataframe
+            sample_row = inner_demux_barcode_map_df.loc[sample_name]
+            inline_barcode = sample_row.get('barcode_3', '')
+
+            # Build Picard options dict with richer metadata
+            picard_opts = {
+                'PLATFORM': 'illumina',
+                'LIBRARY_NAME': sample_library_id,
+                'VERBOSITY': 'WARNING',
+                'QUIET': 'TRUE',
+                'COMPRESSION_LEVEL': '1'  # Faster BAM writes
+            }
+
+            # Add run date from RunInfo or CLI override
+            if run_date_val:
+                picard_opts['RUN_DATE'] = run_date_val
+
+            # Add sequencing center
+            if sequencing_center:
+                picard_opts['SEQUENCING_CENTER'] = sequencing_center
+
+            # Add platform unit: <flowcell>.<lane>.<barcode>
+            # For 3-barcode samples, include all three barcodes
+            if flowcell and target_bc1:
+                if target_bc2:
+                    barcode_str = f"{target_bc1}-{target_bc2}-{inline_barcode}"
+                else:
+                    barcode_str = f"{target_bc1}-{inline_barcode}"
+                picard_opts['PLATFORM_UNIT'] = f"{flowcell}.{lane}.{barcode_str}"
+
+            conversion_jobs.append({
+                'sample_library_id': sample_library_id,
+                'sample_name': sample_name,
+                'bc_r1': bc_r1,
+                'bc_r2': bc_r2,
+                'picard_opts': picard_opts
+            })
+
+        # Execute Picard conversions in parallel
+        workers = max(threads, 1)
+        log.info(f"Converting {len(conversion_jobs)} splitcode outputs to BAM using "
+                f"{workers} parallel worker{'s' if workers != 1 else ''}")
+
+        sample_metrics = {}
+
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            futures = []
+
+            # Submit all conversion jobs
+            for idx, job in enumerate(conversion_jobs):
+                string_to_log = (f"Processing sample {idx+1}/{len(conversion_jobs)}: "
+                               f"{job['sample_name']} (library: {job['sample_library_id']})")
+
+                future = executor.submit(
+                    run_picard_fastq_to_sam_for_splitcode_demux,
+                    job['sample_library_id'],
+                    job['sample_name'],
+                    job['bc_r1'],
+                    job['bc_r2'],
+                    outdir,
+                    job['picard_opts'],
+                    jvm_memory=picard_jvm_memory,
+                    string_to_log=string_to_log
+                )
+                futures.append(future)
+
+            # Collect results as they complete
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    sample_name, output_bam, read_pairs, sample_library_id = future.result()
+
+                    log.info(f"Conversion complete: {sample_name} -> {output_bam} "
+                           f"({read_pairs} read pairs)")
+
+                    # Store metrics
+                    sample_metrics[sample_name] = {
+                        'sample_library_id': sample_library_id,
+                        'read_count': read_pairs
+                    }
+
+                    # Store output file
+                    output_files[f'bam_{sample_name}'] = output_bam
+
+                except subprocess.CalledProcessError as e:
+                    log.error(f"Picard FastqToSam failed: {e}")
+                    raise
+                except Exception as e:
+                    log.error(f"Unexpected error during FASTQ to BAM conversion: {e}")
+                    raise
 
         # Write JSON metrics (backward compatibility)
         metrics_file = os.path.join(outdir, 'demux_metrics.json')
@@ -1404,7 +1526,12 @@ def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
         default=None,
         help='Override run date in YYYY-MM-DD format (default: read from RunInfo.xml)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    parser.add_argument(
+        '--picard_jvm_memory',
+        default='2g',
+        help='JVM memory allocation per Picard FastqToSam worker (default: %(default)s)'
+    )
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, splitcode_demux_fastqs, split_args=True)
     return parser
 
