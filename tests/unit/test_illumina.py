@@ -11,6 +11,7 @@ import argparse
 import filecmp
 import shutil
 import json
+import gzip
 import pytest
 import util
 import util.file
@@ -2487,6 +2488,77 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
                            "Should successfully demux, not fail with no_3bc_match")
             self.assertNotIn('no_match', demux_type,
                            "Should successfully demux, not fail with no_match")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_no_barcode_match_produces_zero_bams(self):
+        """
+        Test that when FASTQ barcodes don't match any samplesheet entry,
+        zero BAMs are produced but metrics files are still generated.
+
+        This tests the behavior change where we emit zero BAMs instead of
+        an empty BAM when there's no barcode match.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Create test FASTQ files with barcodes that don't match the samplesheet
+            # The samplesheet has entries for ATCGATCG+GCTAGCTA, CTGATCGT+TAGATCGC, GGAATTCC+CCGGAATT
+            # We'll use AAAAAAAA+TTTTTTTT which uses valid DNA chars but matches none of them
+            nonmatch_r1 = os.path.join(out_dir, 'NonMatch_S99_L001_R1_001.fastq.gz')
+            nonmatch_r2 = os.path.join(out_dir, 'NonMatch_S99_L001_R2_001.fastq.gz')
+
+            # Create R1 FASTQ with non-matching barcodes
+            with gzip.open(nonmatch_r1, 'wt') as f:
+                f.write("@TEST001:1:TESTFC01:1:1101:1000:2000 1:N:0:AAAAAAAA+TTTTTTTT\n")
+                f.write("ACGTACGTACGTACGT\n")
+                f.write("+\n")
+                f.write("IIIIIIIIIIIIIIII\n")
+
+            # Create R2 FASTQ
+            with gzip.open(nonmatch_r2, 'wt') as f:
+                f.write("@TEST001:1:TESTFC01:1:1101:1000:2000 2:N:0:AAAAAAAA+TTTTTTTT\n")
+                f.write("TGCATGCATGCATGCA\n")
+                f.write("+\n")
+                f.write("IIIIIIIIIIIIIIII\n")
+
+            # Run splitcode_demux_fastqs - should not raise an exception
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=nonmatch_r1,
+                fastq_r2=nonmatch_r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                threads=1
+            )
+
+            # Verify NO BAM files were created (zero BAMs for no match)
+            bam_files = [f for f in os.listdir(out_dir) if f.endswith('.bam')]
+            self.assertEqual(len(bam_files), 0,
+                           f"Expected zero BAM files for no barcode match, found: {bam_files}")
+
+            # Verify metrics files ARE created
+            metrics_file = os.path.join(out_dir, 'demux_metrics.json')
+            self.assertTrue(os.path.exists(metrics_file),
+                          "demux_metrics.json should be created even with no match")
+
+            picard_metrics_file = os.path.join(out_dir, 'demux_metrics_picard-style.txt')
+            self.assertTrue(os.path.exists(picard_metrics_file),
+                          "demux_metrics_picard-style.txt should be created even with no match")
+
+            # Verify metrics indicate no_barcode_match
+            with open(metrics_file, 'r') as f:
+                metrics = json.load(f)
+
+            demux_type = metrics.get('demux_type', '')
+            self.assertIn('no_barcode_match', demux_type,
+                        f"demux_type should indicate no_barcode_match, got: {demux_type}")
+
+            # Verify read_count is 0
+            samples = metrics.get('samples', {})
+            for sample_name, sample_info in samples.items():
+                self.assertEqual(sample_info.get('read_count'), 0,
+                               f"Sample {sample_name} should have 0 reads")
 
         finally:
             shutil.rmtree(out_dir)
