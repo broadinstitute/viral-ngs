@@ -776,9 +776,6 @@ def splitcode_demux_fastqs(
             (default: auto-detect)
         picard_jvm_memory (str): JVM memory allocation per Picard worker (default: '2g')
 
-    Returns:
-        dict: Dictionary containing paths to generated files
-
     Raises:
         FileNotFoundError: If FASTQ or samplesheet files don't exist
         ValueError: If samplesheet format is invalid
@@ -792,12 +789,17 @@ def splitcode_demux_fastqs(
         ... )
 
     Outputs:
-        - Per-sample unaligned BAMs
-        - demux_metrics.json: Read counts per sample
+        - Per-sample unaligned BAMs (zero to many, depending on samplesheet matches)
+        - demux_metrics.json: Read counts per sample (or reason for no output)
+        - demux_metrics_picard-style.txt: Picard-style metrics
 
     Note:
-        This simplified function does NOT generate barcodes_common.txt or barcodes_outliers.txt.
-        For comprehensive barcode reporting, use illumina_demux or splitcode_demux instead.
+        - If the input FASTQ is empty or its barcodes don't match the samplesheet,
+          zero BAMs are produced but metrics files are still generated to document
+          the reason (demux_type field).
+        - This simplified function does NOT generate barcodes_common.txt or
+          barcodes_outliers.txt. For comprehensive barcode reporting, use
+          illumina_demux or splitcode_demux instead.
     """
     # Validate inputs
     if not os.path.exists(fastq_r1):
@@ -848,28 +850,14 @@ def splitcode_demux_fastqs(
         first_header = f.readline().strip()
 
     # Handle empty FASTQ files (e.g., NTC samples with zero reads)
+    # Since we can't read barcode from an empty FASTQ, we emit zero BAMs but still
+    # generate metrics to document why no output was produced.
     if not first_header:
         log.warning(f"FASTQ file contains no reads: {fastq_r1}")
-        log.info("Producing empty output files with zero read counts")
+        log.info("Producing metrics files with zero read counts (no BAM output)")
 
         # Create output directory if needed
         os.makedirs(outdir, exist_ok=True)
-
-        # Create an empty BAM file using the pool name as the sample name
-        output_bam = os.path.join(outdir, f"{pool_name}.bam")
-        picard = tools.picard.FastqToSamTool()
-        # Create a minimal empty BAM by using an empty FASTQ
-        # We'll create a temp empty file for this
-        with util.file.tempfname('.fastq') as empty_fq:
-            with open(empty_fq, 'w') as f:
-                pass  # Create empty file
-            picard.execute(
-                empty_fq,
-                None,  # No R2
-                pool_name,
-                output_bam,
-                picardOptions=[]
-            )
 
         # Generate metrics showing 0 reads
         metrics = {
@@ -904,11 +892,7 @@ def splitcode_demux_fastqs(
             ]
             f.write("\t".join(values) + "\n")
 
-        return {
-            'bam': output_bam,
-            'metrics': metrics_file,
-            'picard_metrics': picard_style_metrics_path
-        }
+        return
 
     # Parse barcode from header (last field after last space)
     # Format: @INST:RUN:FC:LANE:TILE:X:Y READ:FILTERED:CONTROL:BARCODE
@@ -959,28 +943,14 @@ def splitcode_demux_fastqs(
     # - Barcodes not in samplesheet (e.g., contaminant reads, barcode hopping)
     # - High N fraction in observed barcodes (low sequencer confidence)
     # - Ambiguous N-wildcard matching (matched multiple distinct barcode pairs)
+    # We emit zero BAMs but still generate metrics to document why no output was produced.
     if not sample_rows:
         skipped_reason = orientation_info.get('skipped_reason', 'no_match')
         log.warning(f"No samples matched barcodes {target_bc1}+{target_bc2} (reason: {skipped_reason})")
-        log.info("Producing empty output files with zero read counts")
+        log.info("Producing metrics files with zero read counts (no BAM output)")
 
         # Create output directory if needed
         os.makedirs(outdir, exist_ok=True)
-
-        # Create an empty BAM file using the pool name as the sample name
-        output_bam = os.path.join(outdir, f"{pool_name}.bam")
-        picard = tools.picard.FastqToSamTool()
-        # Create a minimal empty BAM by using an empty FASTQ
-        with util.file.tempfname('.fastq') as empty_fq:
-            with open(empty_fq, 'w') as f:
-                pass  # Create empty file
-            picard.execute(
-                empty_fq,
-                None,  # No R2
-                pool_name,
-                output_bam,
-                picardOptions=[]
-            )
 
         # Generate metrics showing 0 reads
         metrics = {
@@ -1016,17 +986,11 @@ def splitcode_demux_fastqs(
             ]
             f.write("\t".join(values) + "\n")
 
-        return {
-            'bam': output_bam,
-            'metrics': metrics_file,
-            'picard_metrics': picard_style_metrics_path
-        }
+        return
 
     # Now check if the FILTERED samples are 2-barcode or 3-barcode
     has_3bc_samples = any(row.get('barcode_3', '').strip() for row in sample_rows)
     has_2bc_samples = any(not row.get('barcode_3', '').strip() for row in sample_rows)
-
-    output_files = {}
 
     if has_2bc_samples and not has_3bc_samples:
         # All samples are 2-barcode → skip splitcode, do direct FASTQ→BAM
@@ -1071,8 +1035,6 @@ def splitcode_demux_fastqs(
             picardOptions=picard.dict_to_picard_opts(picard_opts)
         )
 
-        output_files['bam'] = output_bam
-
         # Generate metrics with consistent schema (nested samples dict)
         samtools = tools.samtools.SamtoolsTool()
         total_reads = samtools.count(output_bam)
@@ -1093,7 +1055,6 @@ def splitcode_demux_fastqs(
         metrics_file = os.path.join(outdir, 'demux_metrics.json')
         with open(metrics_file, 'w') as f:
             json.dump(metrics, f, indent=2)
-        output_files['metrics'] = metrics_file
 
         # Generate Picard-style TSV metrics for 2-barcode case
         # Create a simple single-row metrics file
@@ -1136,7 +1097,6 @@ def splitcode_demux_fastqs(
                 ]
                 f.write("\t".join(values) + "\n")
 
-            output_files['metrics_picard'] = picard_style_metrics_path
             log.info(f"Generated Picard-style metrics: {picard_style_metrics_path}")
 
         except Exception as e:
@@ -1207,21 +1167,7 @@ def splitcode_demux_fastqs(
             matched_bc1 = orientation_info.get('matched_bc1', target_bc1)
             matched_bc2 = orientation_info.get('matched_bc2', target_bc2)
             log.warning(f"No 3-barcode samples found matching outer barcodes {matched_bc1}+{matched_bc2}")
-            log.info("Producing empty output files with zero read counts")
-
-            # Create an empty BAM file using the pool name as the sample name
-            output_bam = os.path.join(outdir, f"{pool_name}.bam")
-            picard = tools.picard.FastqToSamTool()
-            with util.file.tempfname('.fastq') as empty_fq:
-                with open(empty_fq, 'w') as f:
-                    pass  # Create empty file
-                picard.execute(
-                    empty_fq,
-                    None,  # No R2
-                    pool_name,
-                    output_bam,
-                    picardOptions=[]
-                )
+            log.info("Producing metrics files with zero read counts (no BAM output)")
 
             # Generate metrics showing 0 reads
             metrics = {
@@ -1257,11 +1203,7 @@ def splitcode_demux_fastqs(
                 ]
                 f.write("\t".join(values) + "\n")
 
-            return {
-                'bam': output_bam,
-                'metrics': metrics_file,
-                'picard_metrics': picard_style_metrics_path
-            }
+            return
 
         log.info(f"Filtered to {len(samples_with_bc3)} samples with 3-barcode scheme")
 
@@ -1422,9 +1364,6 @@ def splitcode_demux_fastqs(
                         'read_count': read_pairs
                     }
 
-                    # Store output file
-                    output_files[f'bam_{sample_name}'] = output_bam
-
                 except subprocess.CalledProcessError as e:
                     log.error(f"Picard FastqToSam failed: {e}")
                     raise
@@ -1439,7 +1378,6 @@ def splitcode_demux_fastqs(
                 'demux_type': '3-barcode (splitcode)',
                 'samples': sample_metrics
             }, f, indent=2)
-        output_files['metrics'] = metrics_file
 
         # Generate Picard-style TSV metrics using existing helper functions
         # Use tools.splitcode.create_splitcode_lookup_table() to parse splitcode JSON summary and create CSV
@@ -1461,7 +1399,6 @@ def splitcode_demux_fastqs(
                 demux_function="viral-core.splitcode_demux_fastqs",
                 report_within_pools=False  # Global stats since we're processing one pool
             )
-            output_files['metrics_picard'] = picard_style_metrics_path
             log.info(f"Generated Picard-style metrics: {picard_style_metrics_path}")
 
         except Exception as e:
@@ -1475,11 +1412,6 @@ def splitcode_demux_fastqs(
 
     else:
         raise ValueError("Samplesheet contains no valid samples (all barcode_3 values are empty)")
-
-    log.info(f"Generated {len(output_files)} output file(s):")
-    for key, path in output_files.items():
-        log.info(f"  {key}: {path}")
-    return output_files
 
 
 def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
