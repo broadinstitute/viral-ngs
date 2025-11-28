@@ -703,7 +703,7 @@ def run_picard_fastq_to_sam_for_splitcode_demux(
             f"Input FASTQs not found for {sample_library_id}: {bc_r1}, {bc_r2}"
         )
 
-    output_bam = os.path.join(outdir, f"{sample_name}.bam")
+    output_bam = os.path.join(outdir, f"{sample_library_id}.bam")
 
     # Convert dict to Picard options list
     picard = tools.picard.FastqToSamTool()
@@ -736,6 +736,7 @@ def splitcode_demux_fastqs(
     sequencing_center=None,
     flowcell_id=None,
     run_date=None,
+    append_run_id=False,
     max_hamming_dist=1,
     r1_trim_bp_right_of_barcode=None,
     r2_trim_bp_left_of_barcode=None,
@@ -769,6 +770,9 @@ def splitcode_demux_fastqs(
         sequencing_center (str): Sequencing center name (default: None, uses runinfo.get_machine() if available)
         flowcell_id (str): Override flowcell ID (default: None, extracted from FASTQ filename or RunInfo.xml)
         run_date (str): Override run date in YYYY-MM-DD format (default: None, read from RunInfo.xml)
+        append_run_id (bool): If True, output BAM filenames will include flowcell ID and lane
+            in the format: {sample}.l{library_id}.{flowcell}.{lane}.bam
+            If False (default): {sample}.l{library_id}.bam
         max_hamming_dist (int): Maximum Hamming distance for barcode matching (default: 1)
         r1_trim_bp_right_of_barcode (int): Additional bp to trim from R1 after barcode
         r2_trim_bp_left_of_barcode (int): Additional bp to trim from R2 before barcode
@@ -848,6 +852,14 @@ def splitcode_demux_fastqs(
 
     log.info(f"Processing pool: {pool_name}, lane: {lane}")
 
+    # Build run_id for BAM filenames if requested
+    if append_run_id:
+        if not flowcell:
+            raise ValueError("append_run_id=True requires flowcell (from RunInfo.xml or --flowcell_id)")
+        run_id_str = f"{flowcell}.{lane}"
+    else:
+        run_id_str = None
+
     # Extract outer barcodes (barcode_1 + barcode_2) from FASTQ header
     # DRAGEN FASTQs have headers like: @INSTRUMENT:...:BARCODE where BARCODE is "BC1+BC2"
     with util.file.open_or_gzopen(fastq_r1, 'rt') as f:
@@ -926,7 +938,7 @@ def splitcode_demux_fastqs(
 
     # Load custom 3-barcode samplesheet
     # Note: The samplesheet may contain multiple pools, filter to only this pool's outer barcodes
-    samples = SampleSheet(samplesheet, allow_non_unique=True)
+    samples = SampleSheet(samplesheet, allow_non_unique=True, append_run_id=run_id_str)
 
     # Filter sample_rows to only those matching the outer barcodes from the FASTQ
     # Uses auto-detection for i5 (barcode_2) orientation differences across Illumina platforms
@@ -1000,10 +1012,10 @@ def splitcode_demux_fastqs(
         # All samples are 2-barcode → skip splitcode, do direct FASTQ→BAM
         log.info("2-barcode sample detected - bypassing splitcode, performing direct FASTQ→BAM conversion")
 
-        # Get the single sample name and library ID
+        # Get the sample name and library ID from the 'run' column (includes run_id if append_run_id was set)
         sample_name = sample_rows[0]['sample']
-        sample_library_id = sample_rows[0].get('library', sample_name)
-        output_bam = os.path.join(outdir, f"{sample_name}.bam")
+        sample_library_id = sample_rows[0]['run']
+        output_bam = os.path.join(outdir, f"{sample_library_id}.bam")
 
         # Build Picard options dict with richer metadata
         picard_opts = {
@@ -1461,6 +1473,11 @@ def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
         '--run_date',
         default=None,
         help='Override run date in YYYY-MM-DD format (default: read from RunInfo.xml)'
+    )
+    parser.add_argument(
+        '--append_run_id',
+        action='store_true',
+        help='Append flowcell ID and lane to output BAM filenames for SRA compatibility'
     )
     parser.add_argument(
         '--picard_jvm_memory',

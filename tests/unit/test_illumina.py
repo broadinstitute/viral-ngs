@@ -2050,12 +2050,12 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             threads=1
         )
 
-        # Verify expected output BAMs exist
+        # Verify expected output BAMs exist (library name format: {sample}.l{library_id}.bam)
         expected_bams = [
-            os.path.join(out_dir, 'TestSample1.bam'),
-            os.path.join(out_dir, 'TestSample2.bam'),
-            os.path.join(out_dir, 'TestSample3.bam'),
-            os.path.join(out_dir, 'TestSampleEmpty.bam'),
+            os.path.join(out_dir, 'TestSample1.lL1.bam'),
+            os.path.join(out_dir, 'TestSample2.lL1.bam'),
+            os.path.join(out_dir, 'TestSample3.lL1.bam'),
+            os.path.join(out_dir, 'TestSampleEmpty.lL1.bam'),
         ]
 
         for bam in expected_bams:
@@ -2095,9 +2095,10 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         # Use samtools to count reads in each output BAM
         samtools = tools.samtools.SamtoolsTool()
 
-        sample1_bam = os.path.join(out_dir, 'TestSample1.bam')
-        sample2_bam = os.path.join(out_dir, 'TestSample2.bam')
-        sample3_bam = os.path.join(out_dir, 'TestSample3.bam')
+        # BAM filenames now use library name format: {sample}.l{library_id_per_sample}.bam
+        sample1_bam = os.path.join(out_dir, 'TestSample1.lL1.bam')
+        sample2_bam = os.path.join(out_dir, 'TestSample2.lL1.bam')
+        sample3_bam = os.path.join(out_dir, 'TestSample3.lL1.bam')
 
         # Count read pairs (samtools.count returns total reads, divide by 2 for pairs)
         sample1_pairs = samtools.count(sample1_bam) // 2
@@ -2174,7 +2175,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         # 1. Have an empty BAM file created, OR
         # 2. Be noted in metrics as having 0 reads
 
-        empty_bam = os.path.join(out_dir, 'TestSampleEmpty.bam')
+        empty_bam = os.path.join(out_dir, 'TestSampleEmpty.lL1.bam')
 
         if os.path.exists(empty_bam):
             # If BAM exists, it should have 0 reads
@@ -2268,11 +2269,12 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         )
 
         # Verify successful demux - BAMs should be created for Pool 1 samples
+        # (library name format: {sample}.l{library_id}.bam)
         expected_bams = [
-            os.path.join(out_dir, 'TestSample1.bam'),
-            os.path.join(out_dir, 'TestSample2.bam'),
-            os.path.join(out_dir, 'TestSample3.bam'),
-            os.path.join(out_dir, 'TestSampleEmpty.bam'),
+            os.path.join(out_dir, 'TestSample1.lL1.bam'),
+            os.path.join(out_dir, 'TestSample2.lL1.bam'),
+            os.path.join(out_dir, 'TestSample3.lL1.bam'),
+            os.path.join(out_dir, 'TestSampleEmpty.lL1.bam'),
         ]
 
         for bam in expected_bams:
@@ -2280,11 +2282,11 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
         # Pool 2 and Pool 3 samples should NOT be created (different outer barcodes)
         pool2_bams = [
-            os.path.join(out_dir, 'TestSample5.bam'),
-            os.path.join(out_dir, 'TestSample6.bam'),
+            os.path.join(out_dir, 'TestSample5.lL2.bam'),
+            os.path.join(out_dir, 'TestSample6.lL2.bam'),
         ]
         pool3_bams = [
-            os.path.join(out_dir, 'TestSampleNoSplitcode.bam'),
+            os.path.join(out_dir, 'TestSampleNoSplitcode.lL3.bam'),
         ]
 
         for bam in pool2_bams + pool3_bams:
@@ -2361,7 +2363,8 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
         # For 2-barcode sample, should produce exactly one BAM file
         # (the entire pool, no splitcode demux)
-        expected_bam = os.path.join(out_dir, 'TestSampleNoSplitcode.bam')
+        # BAM filename uses library name format: {sample}.l{library_id}.bam
+        expected_bam = os.path.join(out_dir, 'TestSampleNoSplitcode.lL3.bam')
         self.assertTrue(os.path.exists(expected_bam),
                        "2-barcode sample should produce a single BAM file")
 
@@ -2457,11 +2460,11 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
                 threads=1
             )
 
-            # Verify expected output BAMs exist
+            # Verify expected output BAMs exist (library name format: {sample}.l{library_id}.bam)
             expected_bams = [
-                os.path.join(out_dir, 'TestSample1_RC.bam'),
-                os.path.join(out_dir, 'TestSample2_RC.bam'),
-                os.path.join(out_dir, 'TestSample3_RC.bam')
+                os.path.join(out_dir, 'TestSample1_RC.lL1.bam'),
+                os.path.join(out_dir, 'TestSample2_RC.lL1.bam'),
+                os.path.join(out_dir, 'TestSample3_RC.lL1.bam')
             ]
 
             for bam in expected_bams:
@@ -2546,11 +2549,11 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
                 threads=1
             )
 
-            # Verify expected output BAMs exist
+            # Verify expected output BAMs exist (library name format: {sample}.l{library_id}.bam)
             expected_bams = [
-                os.path.join(out_dir, 'TestSample1_N.bam'),
-                os.path.join(out_dir, 'TestSample2_N.bam'),
-                os.path.join(out_dir, 'TestSample3_N.bam')
+                os.path.join(out_dir, 'TestSample1_N.lL1.bam'),
+                os.path.join(out_dir, 'TestSample2_N.lL1.bam'),
+                os.path.join(out_dir, 'TestSample3_N.lL1.bam')
             ]
 
             for bam in expected_bams:
@@ -2656,6 +2659,111 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
             for sample_name, sample_info in samples.items():
                 self.assertEqual(sample_info.get('read_count'), 0,
                                f"Sample {sample_name} should have 0 reads")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_append_run_id_3bc(self):
+        """
+        Test that append_run_id=True produces BAM filenames with flowcell and lane.
+
+        Expected output format: {sample}.l{library_id}.{flowcell}.{lane}.bam
+        Example: TestSample1.lL1.TESTFC01.1.bam
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            # Verify BAM filenames include flowcell and lane
+            # TESTFC01 is the flowcell from RunInfo.xml, lane 1 from FASTQ filename
+            expected_bams = [
+                os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.1.bam'),
+                os.path.join(out_dir, 'TestSample2.lL1.TESTFC01.1.bam'),
+                os.path.join(out_dir, 'TestSample3.lL1.TESTFC01.1.bam'),
+            ]
+
+            for bam in expected_bams:
+                self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+
+            # Verify read counts
+            samtools = tools.samtools.SamtoolsTool()
+            sample1_pairs = samtools.count(expected_bams[0]) // 2
+            sample2_pairs = samtools.count(expected_bams[1]) // 2
+            sample3_pairs = samtools.count(expected_bams[2]) // 2
+
+            self.assertEqual(sample1_pairs, 100, "TestSample1 should have 100 read pairs")
+            self.assertEqual(sample2_pairs, 75, "TestSample2 should have 75 read pairs")
+            self.assertEqual(sample3_pairs, 50, "TestSample3 should have 50 read pairs")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_append_run_id_2bc(self):
+        """
+        Test that append_run_id=True works for 2-barcode samples.
+
+        Expected output format: {sample}.l{library_id}.{flowcell}.{lane}.bam
+        Example: TestSampleNoSplitcode.lL3.TESTFC01.1.bam
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Use Pool 3 files which have 2-barcode sample (no barcode_3)
+            r1_fastq = os.path.join(self.input_dir, 'TestPool3_S3_L001_R1_001.fastq.gz')
+            r2_fastq = os.path.join(self.input_dir, 'TestPool3_S3_L001_R2_001.fastq.gz')
+
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=r1_fastq,
+                fastq_r2=r2_fastq,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            # Verify BAM filename includes flowcell and lane
+            expected_bam = os.path.join(out_dir, 'TestSampleNoSplitcode.lL3.TESTFC01.1.bam')
+            self.assertTrue(os.path.exists(expected_bam),
+                           f"Expected output BAM missing: {expected_bam}")
+
+            # Verify all 80 reads are in the output BAM
+            samtools = tools.samtools.SamtoolsTool()
+            read_pairs = samtools.count(expected_bam) // 2
+            self.assertEqual(read_pairs, 80, "All 80 read pairs should be present")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_append_run_id_requires_flowcell(self):
+        """
+        Test that append_run_id=True without flowcell raises ValueError.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            with self.assertRaises(ValueError) as context:
+                illumina.splitcode_demux_fastqs(
+                    fastq_r1=self.r1_fastq,
+                    fastq_r2=self.r2_fastq,
+                    samplesheet=self.samples_3bc,
+                    outdir=out_dir,
+                    # No runinfo and no flowcell_id
+                    append_run_id=True,
+                    threads=1
+                )
+
+            self.assertIn('flowcell', str(context.exception).lower(),
+                         "Error should mention flowcell requirement")
 
         finally:
             shutil.rmtree(out_dir)
