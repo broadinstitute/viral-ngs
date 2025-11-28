@@ -1854,6 +1854,103 @@ class TestIlluminaMetadata(TestCaseWithTmp):
         finally:
             shutil.rmtree(out_dir)
 
+    def test_optional_lane_parameter(self):
+        """
+        Test illumina_metadata with lane=None (optional lane parameter).
+
+        Verifies that:
+        1. lane=None is accepted as a valid input
+        2. run_info.json uses default lane value of "0"
+        3. Sample metadata preserves lane values from samplesheet when present
+        4. Sample metadata uses "0" when lane not in samplesheet
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Output paths
+            out_runinfo = os.path.join(out_dir, 'run_info.json')
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+
+            # Call illumina_metadata with lane=None
+            illumina.illumina_metadata(
+                runinfo=self.runinfo_xml,
+                samplesheet=self.samplesheet_csv,
+                lane=None,  # Test optional lane parameter
+                sequencing_center='Broad',
+                out_runinfo=out_runinfo,
+                out_meta_by_sample=out_meta_by_sample
+            )
+
+            # Verify outputs were created
+            self.assertTrue(os.path.exists(out_runinfo), "run_info.json not created")
+            self.assertTrue(os.path.exists(out_meta_by_sample), "meta_by_sample.json not created")
+
+            # Verify run_info.json uses default lane value of "0"
+            with open(out_runinfo, 'r') as f:
+                run_info = json.load(f)
+            self.assertEqual(run_info['lane'], "0",
+                           "run_info.json should use lane='0' when lane=None")
+
+            # Verify sample metadata has lane field
+            with open(out_meta_by_sample, 'r') as f:
+                meta_by_sample = json.load(f)
+
+            # All samples should have a lane value (either from samplesheet or default "0")
+            for sample_name, sample_meta in meta_by_sample.items():
+                self.assertIn('lane', sample_meta,
+                            f"Sample {sample_name} should have lane field")
+                # Lane should be a string
+                self.assertIsInstance(sample_meta['lane'], str,
+                                    f"Lane for {sample_name} should be a string")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_optional_lane_backwards_compatibility(self):
+        """
+        Test that existing code with explicit lane parameter still works.
+
+        Ensures backwards compatibility - explicitly providing lane should work
+        exactly as before.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Output paths
+            out_runinfo = os.path.join(out_dir, 'run_info.json')
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+
+            # Call illumina_metadata with explicit lane=1
+            illumina.illumina_metadata(
+                runinfo=self.runinfo_xml,
+                samplesheet=self.samplesheet_csv,
+                lane=1,  # Explicit lane value
+                sequencing_center='Broad',
+                out_runinfo=out_runinfo,
+                out_meta_by_sample=out_meta_by_sample
+            )
+
+            # Verify outputs were created
+            self.assertTrue(os.path.exists(out_runinfo))
+            self.assertTrue(os.path.exists(out_meta_by_sample))
+
+            # Verify run_info.json uses the specified lane
+            with open(out_runinfo, 'r') as f:
+                run_info = json.load(f)
+            self.assertEqual(run_info['lane'], "1",
+                           "run_info.json should use specified lane value")
+
+            # Verify all samples have the specified lane
+            with open(out_meta_by_sample, 'r') as f:
+                meta_by_sample = json.load(f)
+
+            for sample_name, sample_meta in meta_by_sample.items():
+                self.assertEqual(sample_meta['lane'], "1",
+                               f"Sample {sample_name} should have lane='1'")
+
+        finally:
+            shutil.rmtree(out_dir)
+
 
 class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
     """
