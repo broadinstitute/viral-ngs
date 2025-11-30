@@ -2752,6 +2752,9 @@ class RunInfo(object):
         elif tc == 38:
             log.info("Detected %s tiles, interpreting as MiSeq run.", tc)
             machine = {"machine": "Illumina MiSeq", "lane_count": 1}
+        elif tc == 32:
+            log.info("Detected %s tiles, interpreting as NextSeq 1000/2000 P1 run.", tc)
+            machine = {"machine": "NextSeq 1000/2000", "lane_count": 1}
         elif tc == 128:
             log.info("Detected %s tiles, interpreting as HiSeq2k run.", tc)
             machine = {"machine": "Illumina HiSeq 2500", "lane_count": 2}
