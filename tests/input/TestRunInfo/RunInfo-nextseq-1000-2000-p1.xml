@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<RunInfo Version="6">
+	<Run Id="240927_VH01619_75_AAG27M7M5" Number="75">
+		<Flowcell>AAG27M7M5</Flowcell>
+		<Instrument>VH01619</Instrument>
+		<Date>2024-09-27T14:48:52Z</Date>
+		<Reads>
+			<Read Number="1" NumCycles="151" IsIndexedRead="N" IsReverseComplement="N"/>
+			<Read Number="2" NumCycles="8" IsIndexedRead="Y" IsReverseComplement="N"/>
+			<Read Number="3" NumCycles="8" IsIndexedRead="Y" IsReverseComplement="Y"/>
+			<Read Number="4" NumCycles="151" IsIndexedRead="N" IsReverseComplement="N"/>
+		</Reads>
+		<FlowcellLayout LaneCount="1" SurfaceCount="2" SwathCount="4" TileCount="4">
+			<TileSet TileNamingConvention="FourDigit">
+				<Tiles>
+					<Tile>1_1101</Tile>
+					<Tile>1_1102</Tile>
+					<Tile>1_1103</Tile>
+					<Tile>1_1104</Tile>
+					<Tile>1_1201</Tile>
+					<Tile>1_1202</Tile>
+					<Tile>1_1203</Tile>
+					<Tile>1_1204</Tile>
+					<Tile>1_1301</Tile>
+					<Tile>1_1302</Tile>
+					<Tile>1_1303</Tile>
+					<Tile>1_1304</Tile>
+					<Tile>1_1401</Tile>
+					<Tile>1_1402</Tile>
+					<Tile>1_1403</Tile>
+					<Tile>1_1404</Tile>
+					<Tile>1_2101</Tile>
+					<Tile>1_2102</Tile>
+					<Tile>1_2103</Tile>
+					<Tile>1_2104</Tile>
+					<Tile>1_2201</Tile>
+					<Tile>1_2202</Tile>
+					<Tile>1_2203</Tile>
+					<Tile>1_2204</Tile>
+					<Tile>1_2301</Tile>
+					<Tile>1_2302</Tile>
+					<Tile>1_2303</Tile>
+					<Tile>1_2304</Tile>
+					<Tile>1_2401</Tile>
+					<Tile>1_2402</Tile>
+					<Tile>1_2403</Tile>
+					<Tile>1_2404</Tile>
+				</Tiles>
+			</TileSet>
+		</FlowcellLayout>
+		<ImageDimensions Width="8208" Height="5541"/>
+		<ImageChannels>
+			<Name>green</Name>
+			<Name>blue</Name>
+		</ImageChannels>
+	</Run>
+</RunInfo>
