@@ -268,6 +268,18 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_machine_model(), "NextSeq 550")
         self.assertEqual(runinfo.get_flowcell_lane_count(), 4)
 
+    def test_novaseq_x_plus(self):
+        inDir = util.file.get_test_input_path(self)
+        runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novaseq-x-plus.xml'))
+        self.assertEqual(runinfo.get_flowcell(), '22J5GLLT4')
+        self.assertEqual(runinfo.get_rundate_american(), '12/17/2024')
+        self.assertEqual(runinfo.get_rundate_iso(), '2024-12-17')
+        self.assertEqual(runinfo.get_machine(), 'LH00118')
+        self.assertEqual(runinfo.get_read_structure(), '151T10B10B151T')
+        self.assertEqual(runinfo.num_reads(), 2)
+        self.assertEqual(runinfo.get_machine_model(), "Illumina NovaSeq X Plus")
+        self.assertEqual(runinfo.get_flowcell_lane_count(), 8)
+
     def test_novel_tile_count_but_known_fcid(self):
         inDir = util.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novel-tile-count.xml'))

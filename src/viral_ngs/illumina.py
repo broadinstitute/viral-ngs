@@ -2800,7 +2800,10 @@ class RunInfo(object):
                 "Detected %s tiles, interpreting as Illumina NovaSeq 6000 run.", tc
             )
             machine = {"machine": "Illumina NovaSeq 6000", "lane_count": 4}
-        elif tc > 3744:
+        elif tc == 6272:
+            log.info("Detected %s tiles, interpreting as Illumina NovaSeq X Plus run.", tc)
+            machine = {"machine": "Illumina NovaSeq X Plus", "lane_count": 8}
+        else:
             log.info("Tile count: %s tiles (unknown instrument type).", tc)
         return machine
 
