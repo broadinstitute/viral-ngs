@@ -19,6 +19,7 @@ def kb_inputs():
     base = os.path.join(util.file.get_test_input_path(), 'TestKbPython')
     paths = {
         'fastq': os.path.join(base, 'SRR12340077.2.sample.fastq.gz'),
+        'bam': os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam'),
         'index': os.path.join(base, 'palmdb.corona.idx'),
         't2g': os.path.join(base, 'palmdb_clustered_t2g.txt'),
     }
@@ -72,7 +73,8 @@ def test_build_invokes_kb_ref_with_expected_arguments(mocker, kb_tool, kb_inputs
     assert args[-1] == kb_inputs['fastq']
 
 
-def test_classify_runs_kb_count_single_end(mocker, kb_tool, kb_inputs):
+def test_classify_runs_kb_count_single_end_from_bam(mocker, kb_tool, kb_inputs):
+    """Test classify with BAM input - should convert to FASTQ via Picard"""
     mkstemp_vals = ['single.1.fastq', 'single.2.fastq', 'single.s.fastq']
     mocks = _mock_common_io(mocker, mkstemp_vals)
 
@@ -82,7 +84,7 @@ def test_classify_runs_kb_count_single_end(mocker, kb_tool, kb_inputs):
     }
     mocker.patch('classify.kb.os.path.getsize', side_effect=lambda path: size_map[path])
 
-    kb_tool.classify(kb_inputs['fastq'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'], num_threads=3, loom=True)
+    kb_tool.classify(kb_inputs['bam'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'], num_threads=3, loom=True)
 
     args = mocks['popen'].call_args[0][0]
     assert ['kb', 'count'] == args[:2]
@@ -93,7 +95,7 @@ def test_classify_runs_kb_count_single_end(mocker, kb_tool, kb_inputs):
     expected_threads = str(util.misc.sanitize_thread_count(3))
     assert util.misc.list_contains(['--threads', expected_threads], args)
     mocks['picard_execute'].assert_called_once_with(
-        kb_inputs['fastq'],
+        kb_inputs['bam'],
         'single.1.fastq',
         'single.2.fastq',
         outFastq0='single.s.fastq',
@@ -102,11 +104,35 @@ def test_classify_runs_kb_count_single_end(mocker, kb_tool, kb_inputs):
     )
 
 
+def test_classify_runs_kb_count_with_fastq_input(mocker, kb_tool, kb_inputs):
+    """Test classify with FASTQ input - should skip Picard and use file directly"""
+    mocker.patch('classify.kb.os.path.exists', return_value=True)
+    
+    mock_popen = mocker.patch('classify.kb.subprocess.Popen', autospec=True)
+    mock_process = mock_popen.return_value
+    mock_process.communicate.return_value = ('', '')
+    mock_process.returncode = 0
+
+    samtools_cls = mocker.patch('classify.kb.tools.samtools.SamtoolsTool', autospec=True)
+    samtools = samtools_cls.return_value
+    samtools.isEmpty.return_value = False
+
+    kb_tool.classify(kb_inputs['fastq'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'], num_threads=3, h5ad=True)
+
+    args = mock_popen.call_args[0][0]
+    assert ['kb', 'count'] == args[:2]
+    assert args[-1] == kb_inputs['fastq']
+    assert util.misc.list_contains(['--parity', 'single'], args)
+    assert '--h5ad' in args
+    expected_threads = str(util.misc.sanitize_thread_count(3))
+    assert util.misc.list_contains(['--threads', expected_threads], args)
+
+
 def test_classify_returns_early_when_bam_is_empty(mocker, kb_tool, kb_inputs):
     mkstemp_vals = ['ignored.1.fastq', 'ignored.2.fastq', 'ignored.s.fastq']
     mocks = _mock_common_io(mocker, mkstemp_vals, is_empty=True)
 
-    kb_tool.classify(kb_inputs['fastq'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'])
+    kb_tool.classify(kb_inputs['bam'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'])
 
     mocks['popen'].assert_not_called()
     mocks['picard_execute'].assert_not_called()
