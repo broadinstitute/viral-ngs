@@ -93,7 +93,7 @@ def test_classify_runs_kb_count_single_end_from_bam(mocker, kb_tool, kb_inputs):
     assert '--loom' in args
     assert '--h5ad' not in args
     expected_threads = str(util.misc.sanitize_thread_count(3))
-    assert util.misc.list_contains(['--threads', expected_threads], args)
+    assert util.misc.list_contains(['-t', expected_threads], args)
     mocks['picard_execute'].assert_called_once_with(
         kb_inputs['bam'],
         'single.1.fastq',
@@ -125,7 +125,7 @@ def test_classify_runs_kb_count_with_fastq_input(mocker, kb_tool, kb_inputs):
     assert util.misc.list_contains(['--parity', 'single'], args)
     assert '--h5ad' in args
     expected_threads = str(util.misc.sanitize_thread_count(3))
-    assert util.misc.list_contains(['--threads', expected_threads], args)
+    assert util.misc.list_contains(['-t', expected_threads], args)
 
 
 def test_classify_returns_early_when_bam_is_empty(mocker, kb_tool, kb_inputs):
