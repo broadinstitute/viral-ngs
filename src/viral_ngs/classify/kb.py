@@ -8,6 +8,7 @@ import os
 import os.path
 import shutil
 import subprocess
+import tarfile
 
 import anndata
 import pandas as pd
@@ -154,23 +155,64 @@ class kb(tools.Tool):
             opts['--loom'] = None   
         if protein:
             opts['--aa'] = None
-            
-        tmp_fastq = util.file.mkstempfname('.1.fastq')
-        # Do not convert this to samtools bam2fq unless we can figure out how to replicate
-        # the clipping functionality of Picard SamToFastq
-        picard = tools.picard.SamToFastqTool()
-        picard_opts = {
-            'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
-            'CLIPPING_ACTION': 'X',
-            'INTERLEAVE': True
-        }
-        picard.execute(in_bam, tmp_fastq,
-                       picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
-                       JVMmemory=picard.jvmMemDefault)
+ 
+        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
+        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
+        tmp_fastq3 = util.file.mkstempfname('.s.fastq')
+        tmp_interleaved = None
+        try:
+            if in_bam.lower().endswith('.fastq') or in_bam.lower().endswith('.fq') or in_bam.lower().endswith('.fastq.gz') or in_bam.lower().endswith('.fq.gz'):
+                if not os.path.exists(in_bam):
+                    return
+                
+                # Input is already FASTQ, use it directly (don't delete it later)
+                self.execute('kb extract', out_dir, args=[in_bam], options=opts)
+            else:
+                if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+                    return
 
-        self.execute('kb count', out_dir, args=[tmp_fastq], options=opts)
-            
-        os.unlink(tmp_fastq)
+                # Do not convert this to samtools bam2fq unless we can figure out how to replicate
+                # the clipping functionality of Picard SamToFastq
+                picard = tools.picard.SamToFastqTool()
+                picard_opts = {
+                    'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                    'CLIPPING_ACTION': 'X'
+                }
+                picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
+                            picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                            JVMmemory=picard.jvmMemDefault)
+
+                # Detect if input bam was paired by checking fastq 2
+                if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
+                    self.execute('kb count', out_dir, args=[tmp_fastq3], options=opts)
+                else:
+                    tmp_interleaved = util.file.mkstempfname('.interleaved.fastq')
+                    with open(tmp_fastq1, 'rb') as fastq1, open(tmp_fastq2, 'rb') as fastq2, open(tmp_interleaved, 'wb') as interleaved:
+                        while True:
+                            read1 = [fastq1.readline() for _ in range(4)]
+                            if not read1[0]:
+                                break
+                            if any(line == b'' for line in read1[1:]):
+                                raise ValueError("Unexpected end of read 1 FASTQ while interleaving paired data")
+                            read2 = [fastq2.readline() for _ in range(4)]
+                            if any(line == b'' for line in read2):
+                                raise ValueError("Unexpected end of read 2 FASTQ while interleaving paired data")
+                            interleaved.writelines(read1)
+                            interleaved.writelines(read2)
+                        if fastq2.readline():
+                            raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
+
+                    self.execute('kb count', out_dir, args=[tmp_interleaved], options=opts)
+        except Exception as e:
+            log.error("Error during kb count: %s", e)
+            raise
+        finally:
+            for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_interleaved):
+                if path and os.path.exists(path):
+                    try:
+                        os.unlink(path)
+                    except OSError as e:
+                        log.warning("Failed to delete temporary file %s: %s", path, e)
 
     def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, protein=False, num_threads=None):
         """Extracts reads mapping to target ids from input reads (bam)
@@ -192,7 +234,6 @@ class kb(tools.Tool):
         }
         if protein:
             opts['--aa'] = None
-            
             
         tmp_fastq1 = util.file.mkstempfname('.1.fastq')
         tmp_fastq2 = util.file.mkstempfname('.2.fastq')
@@ -252,6 +293,28 @@ class kb(tools.Tool):
                     except OSError as e:
                         log.warning("Failed to delete temporary file %s: %s", path, e)
         
+
+    def _extract_h5ad_from_tarball_to_tmpdir(self, count_tar, tmp_dir):
+        """Helper function to extract h5ad file from a tarball into a temporary directory.
+        
+        Args:
+          count_tar: input kb count tarball file (tar.gz or tar.zst format)
+          tmp_dir: temporary directory to extract into
+          
+        Returns:
+          Path to the extracted h5ad file
+        """
+        util.file.extract_tarball(count_tar, tmp_dir)
+        
+        # Find h5ad file in counts_unfiltered folder
+        h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", "*.h5ad"))
+        log.debug(f"Found h5ad files in {count_tar}: {h5ad_files}")
+        if len(h5ad_files) == 0:
+            raise FileNotFoundError(f"No .h5ad file found in counts_unfiltered/ directory of {count_tar}")
+        if len(h5ad_files) > 1:
+            log.warning(f"Multiple .h5ad files found in {count_tar}, using first one: {h5ad_files[0]}")
+        
+        return h5ad_files[0]
         
     def merge_h5ads(self, in_count_tars, out_h5ad, tmp_dir_parent=None):
         """Merge multiple kb count output tarballs into a single h5ad file with sample metadata
@@ -269,13 +332,10 @@ class kb(tools.Tool):
         for count_tar in in_count_tars:
             # Extract tarball to temporary directory
             with util.file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
-                util.file.extract_tarball(count_tar, tmp_dir)
-
-                # Find h5ad file in counts_unfiltered folder
-                h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", "*.h5ad"))
-                assert len(h5ad_files) == 1, f"Expected exactly one .h5ad file in {count_tar}, found {len(h5ad_files)}"
-                h5ad_file = h5ad_files[0]
-
+                log.debug(f"Extracting {count_tar} to temporary directory {tmp_dir}")
+                h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(count_tar, tmp_dir)
+                log.debug(f"Extracted h5ad file: {h5ad_file}")
+                
                 # Read sample name from matrix.cells file
                 cells_file = os.path.join(tmp_dir, "matrix.cells")
                 if os.path.exists(cells_file):
@@ -350,13 +410,21 @@ class kb(tools.Tool):
         Assumes h5ad contains a single sample (single row).
 
         Args:
-          h5ad_file: path to h5ad file
+          h5ad_file: path to h5ad file or tarball containing h5ad file
           threshold: minimum count threshold to consider a target ID to return (default 1)
 
         Returns:
           List of target IDs (strings) with counts > 0
         """
-        adata = anndata.read_h5ad(h5ad_file)
+        ## Check if file passed in is a tarball, if so we need to grab the h5ad
+        if tarfile.is_tarfile(h5ad_file) or h5ad_file.endswith('.tar.zst'):
+            with util.file.tmp_dir() as tmp_dir:
+                h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(h5ad_file, tmp_dir)
+                log.debug(f"Reading h5ad file from tarball: {h5ad_file}")
+                adata = anndata.read_h5ad(h5ad_file)
+        else:
+            log.debug(f"Reading h5ad file: {h5ad_file}")
+            adata = anndata.read_h5ad(h5ad_file)
 
         # Get count matrix and sum across all observations (rows)
         counts_mtx = adata.X.toarray() if hasattr(adata.X, 'toarray') else adata.X
