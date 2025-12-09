@@ -166,7 +166,7 @@ class kb(tools.Tool):
                     return
                 
                 # Input is already FASTQ, use it directly (don't delete it later)
-                self.execute('kb extract', out_dir, args=[in_bam], options=opts)
+                self.execute('kb count', out_dir, args=[in_bam], options=opts)
             else:
                 if tools.samtools.SamtoolsTool().isEmpty(in_bam):
                     return
