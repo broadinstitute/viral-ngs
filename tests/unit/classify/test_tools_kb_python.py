@@ -42,20 +42,26 @@ def _mock_common_io(mocker, mkstemp_paths, *, is_empty=False):
     samtools = samtools_cls.return_value
     samtools.isEmpty.return_value = is_empty
 
-    check_call = mocker.patch('classify.kb.subprocess.check_call', autospec=True)
+    mock_popen = mocker.patch('classify.kb.subprocess.Popen', autospec=True)
+    mock_process = mock_popen.return_value
+    mock_process.communicate.return_value = ('', '')
+    mock_process.returncode = 0
     return {
-        'check_call': check_call,
+        'popen': mock_popen,
         'picard_execute': picard.execute,
         'samtools': samtools,
     }
 
 
 def test_build_invokes_kb_ref_with_expected_arguments(mocker, kb_tool, kb_inputs):
-    mock_check_call = mocker.patch('classify.kb.subprocess.check_call', autospec=True)
+    mock_popen = mocker.patch('classify.kb.subprocess.Popen', autospec=True)
+    mock_process = mock_popen.return_value
+    mock_process.communicate.return_value = ('', '')
+    mock_process.returncode = 0
 
     kb_tool.build(kb_inputs['fastq'], kb_inputs['index'], workflow='custom', kmer_len=27, protein=True, num_threads=9)
 
-    args = mock_check_call.call_args[0][0]
+    args = mock_popen.call_args[0][0]
     assert ['kb', 'ref'] == args[:2]
     assert util.misc.list_contains(['-i', kb_inputs['index']], args)
     assert util.misc.list_contains(['-k', '27'], args)
@@ -78,7 +84,7 @@ def test_classify_runs_kb_count_single_end(mocker, kb_tool, kb_inputs):
 
     kb_tool.classify(kb_inputs['fastq'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'], num_threads=3, loom=True)
 
-    args = mocks['check_call'].call_args[0][0]
+    args = mocks['popen'].call_args[0][0]
     assert ['kb', 'count'] == args[:2]
     assert args[-1] == 'single.s.fastq'
     assert util.misc.list_contains(['--parity', 'single'], args)
@@ -102,5 +108,5 @@ def test_classify_returns_early_when_bam_is_empty(mocker, kb_tool, kb_inputs):
 
     kb_tool.classify(kb_inputs['fastq'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'])
 
-    mocks['check_call'].assert_not_called()
+    mocks['popen'].assert_not_called()
     mocks['picard_execute'].assert_not_called()
