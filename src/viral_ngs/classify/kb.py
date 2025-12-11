@@ -214,6 +214,18 @@ class kb(tools.Tool):
                     except OSError as e:
                         log.warning("Failed to delete temporary file %s: %s", path, e)
 
+        # Add sample metadata to h5ad file if it was generated
+        if h5ad:
+            h5ad_files = glob.glob(os.path.join(out_dir, "counts_unfiltered", "*.h5ad"))
+            if h5ad_files:
+                for h5ad_file in h5ad_files:
+                    # Use the input bam filename (without extension) as sample name
+                    sample_name = os.path.splitext(os.path.basename(in_bam))[0]
+                    # Remove .bam if it's still there (handles .fastq.gz cases)
+                    if sample_name.endswith('.bam'):
+                        sample_name = os.path.splitext(sample_name)[0]
+                    self._add_sample_metadata_to_h5ad(h5ad_file, sample_name=sample_name)
+        
     def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, protein=False, num_threads=None):
         """Extracts reads mapping to target ids from input reads (bam)
         
@@ -315,9 +327,67 @@ class kb(tools.Tool):
             log.warning(f"Multiple .h5ad files found in {count_tar}, using first one: {h5ad_files[0]}")
         
         return h5ad_files[0]
+    
+    def _add_sample_metadata_to_h5ad(self, h5ad_or_tarball, sample_name=None, tmp_dir_parent=None):
+        """Add sample metadata to an h5ad file (in-place modification).
+        
+        Args:
+          h5ad_or_tarball: path to h5ad file or tarball containing h5ad file
+          sample_name: optional sample name to use. If not provided, will try to read from matrix.cells
+                       or use the filename as fallback
+          tmp_dir_parent: parent directory for temporary files (optional, only used for tarballs)
+        """
+        # Check if input is a tarball
+        if tarfile.is_tarfile(h5ad_or_tarball) or h5ad_or_tarball.endswith('.tar.zst'):
+            with util.file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
+                log.debug(f"Extracting {h5ad_or_tarball} to temporary directory {tmp_dir}")
+                h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(h5ad_or_tarball, tmp_dir)
+                
+                # Read sample name from matrix.cells file if not provided
+                if sample_name is None:
+                    cells_file = os.path.join(tmp_dir, "matrix.cells")
+                    if os.path.exists(cells_file):
+                        with open(cells_file, 'r') as f:
+                            sample_name = f.read().strip()
+                    else:
+                        # Fallback to tarball basename if matrix.cells doesn't exist
+                        sample_name = os.path.splitext(os.path.splitext(os.path.basename(h5ad_or_tarball))[0])[0]
+                        log.warning(f"matrix.cells not found in {h5ad_or_tarball}, using filename as sample name: {sample_name}")
+                
+                # Load h5ad file
+                adata = anndata.read_h5ad(h5ad_file)
+                
+                # Check if matrix.sample.barcodes exists and read barcodes
+                barcodes = None
+                barcodes_file = os.path.join(tmp_dir, "matrix.sample.barcodes")
+                if os.path.exists(barcodes_file):
+                    with open(barcodes_file, 'r') as f:
+                        barcodes = [line.strip() for line in f]
+        else:
+            # Direct h5ad file
+            h5ad_file = h5ad_or_tarball
+            if sample_name is None:
+                # Use filename as fallback
+                sample_name = os.path.splitext(os.path.basename(h5ad_file))[0]
+                log.warning(f"No sample name provided for {h5ad_file}, using filename as sample name: {sample_name}")
+            
+            adata = anndata.read_h5ad(h5ad_file)
+            barcodes = None
+        
+        # Add sample metadata to observations
+        adata.obs['sample'] = sample_name
+        adata.obs['batch_name'] = sample_name
+        
+        # Add barcode info if available
+        if barcodes is not None and len(barcodes) == adata.n_obs:
+            adata.obs['batch_barcode'] = barcodes
+        
+        # Write back to the h5ad file
+        adata.write_h5ad(h5ad_file)
+        log.debug(f"Added sample metadata to {h5ad_file}: sample={sample_name}")
         
     def merge_h5ads(self, in_count_tars, out_h5ad, tmp_dir_parent=None):
-        """Merge multiple kb count output tarballs into a single h5ad file with sample metadata
+        """Merge multiple kb count output tarballs into a single h5ad file.
 
         Args:
           in_count_tars: list of input kb count tarball files (tar.zst format)
@@ -336,31 +406,8 @@ class kb(tools.Tool):
                 h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(count_tar, tmp_dir)
                 log.debug(f"Extracted h5ad file: {h5ad_file}")
                 
-                # Read sample name from matrix.cells file
-                cells_file = os.path.join(tmp_dir, "matrix.cells")
-                if os.path.exists(cells_file):
-                    with open(cells_file, 'r') as f:
-                        sample_name = f.read().strip()
-                else:
-                    # Fallback to tarball basename if matrix.cells doesn't exist
-                    sample_name = os.path.splitext(os.path.splitext(os.path.basename(count_tar))[0])[0]
-                    log.warning(f"matrix.cells not found in {count_tar}, using filename as sample name: {sample_name}")
-
-                # Load h5ad file
+                # Load h5ad file without metadata
                 adata = anndata.read_h5ad(h5ad_file)
-
-                # Add sample metadata to observations
-                adata.obs['sample'] = sample_name
-                adata.obs['batch_name'] = sample_name
-
-                # Check if matrix.sample.barcodes exists and add barcode info
-                barcodes_file = os.path.join(tmp_dir, "matrix.sample.barcodes")
-                if os.path.exists(barcodes_file):
-                    with open(barcodes_file, 'r') as f:
-                        barcodes = [line.strip() for line in f]
-                    if len(barcodes) == adata.n_obs:
-                        adata.obs['batch_barcode'] = barcodes
-
                 adatas.append(adata)
 
         # Handle single file case
@@ -379,8 +426,8 @@ class kb(tools.Tool):
             if not adata.var_names.equals(var_names_ref):
                 raise ValueError(f"Variable names mismatch: file {in_count_tars[0]} and file {in_count_tars[i]} have different variable names")
 
-        # Merge all anndata objects
-        combined = anndata.concat(adatas, join='outer', axis=0, label='batch', fill_value=0)
+        # Straight merge of all anndata objects without metadata
+        combined = anndata.concat(adatas, join='outer', axis=0, fill_value=0)
         combined.write_h5ad(out_h5ad)
 
     def parse_h5ad_counts(self, h5ad_file):
