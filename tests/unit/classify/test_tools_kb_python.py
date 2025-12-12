@@ -82,7 +82,11 @@ def test_classify_runs_kb_count_single_end_from_bam(mocker, kb_tool, kb_inputs):
         'single.2.fastq': 1,
         'single.s.fastq': 10,
     }
-    mocker.patch('classify.kb.os.path.getsize', side_effect=lambda path: size_map[path])
+    # Use get() with a default value to handle files not in the map (e.g., /proc/self/status)
+    mocker.patch('classify.kb.os.path.getsize', side_effect=lambda path: size_map.get(path, 1000))
+    
+    # Mock glob to prevent h5ad metadata addition code from running
+    mocker.patch('classify.kb.glob.glob', return_value=[])
 
     kb_tool.classify(kb_inputs['bam'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'], num_threads=3, loom=True)
 
@@ -116,6 +120,9 @@ def test_classify_runs_kb_count_with_fastq_input(mocker, kb_tool, kb_inputs):
     samtools_cls = mocker.patch('classify.kb.tools.samtools.SamtoolsTool', autospec=True)
     samtools = samtools_cls.return_value
     samtools.isEmpty.return_value = False
+    
+    # Mock glob to prevent h5ad metadata addition code from running
+    mocker.patch('classify.kb.glob.glob', return_value=[])
 
     kb_tool.classify(kb_inputs['fastq'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'], num_threads=3, h5ad=True)
 
