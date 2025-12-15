@@ -120,6 +120,134 @@ class SamtoolsTool(tools.Tool):
             self.bam2fa(inBam, reads1, reads2)
             yield reads1, reads2
 
+    def samtools_import(self, inFastq1, inFastq2, outBam,
+                        sample_name, library_name=None, platform='illumina',
+                        read_group_id=None, platform_unit=None,
+                        sequencing_center=None, run_date=None,
+                        threads=None):
+        """
+        Convert paired FASTQ files to unaligned BAM using samtools import.
+
+        Multi-threaded alternative to Picard FastqToSam with 3-4x speedup.
+
+        Args:
+            inFastq1: R1 FASTQ file path
+            inFastq2: R2 FASTQ file path (can be None for single-end)
+            outBam: Output BAM file path
+            sample_name: Sample name (SM tag, required)
+            library_name: Library name (LB tag, defaults to sample_name)
+            platform: Sequencing platform (PL tag, default: 'illumina')
+            read_group_id: Read group ID (ID tag, defaults to 'A')
+            platform_unit: Platform unit (PU tag, e.g., flowcell.lane.barcode)
+            sequencing_center: Sequencing center (CN tag)
+            run_date: Run date in ISO format (DT tag)
+            threads: Number of threads for compression (default: auto)
+        """
+        # Handle empty FASTQ edge case
+        if self._is_fastq_empty(inFastq1):
+            log.warning("FASTQ1 file is empty; creating empty BAM file: %s", outBam)
+            self._create_empty_bam_with_header(
+                outBam, sample_name, library_name, platform,
+                read_group_id, platform_unit, sequencing_center, run_date
+            )
+            return
+
+        # Build read group string
+        rg_id = read_group_id or 'A'
+        lib_name = library_name or sample_name
+        rg_parts = [f'@RG', f'ID:{rg_id}', f'SM:{sample_name}', f'LB:{lib_name}', f'PL:{platform}']
+
+        if platform_unit:
+            rg_parts.append(f'PU:{platform_unit}')
+        if sequencing_center:
+            rg_parts.append(f'CN:{sequencing_center}')
+        if run_date:
+            rg_parts.append(f'DT:{run_date}')
+
+        rg_string = '\t'.join(rg_parts)
+
+        # Build command
+        args = ['-r', rg_string]
+
+        # Add threading if specified
+        if threads:
+            args.extend(['-@', str(threads)])
+
+        # Add input files
+        args.extend(['-1', inFastq1])
+        if inFastq2 and not self._is_fastq_empty(inFastq2):
+            args.extend(['-2', inFastq2])
+
+        # Add output
+        args.extend(['-o', outBam])
+
+        self.execute('import', args)
+
+    def _is_fastq_empty(self, fastq_file):
+        """
+        Check if a FASTQ file is semantically empty (contains no reads).
+
+        Args:
+            fastq_file: Path to FASTQ file
+
+        Returns:
+            bool: True if file is empty, False if it contains data
+        """
+        if not fastq_file or not os.path.exists(fastq_file):
+            return True
+
+        # Large files are assumed to be non-empty
+        if os.path.getsize(fastq_file) > 1024:
+            return False
+
+        # Small files: check if they contain only whitespace
+        with util.file.open_or_gzopen(fastq_file, 'r') as f:
+            return len(f.read().strip()) == 0
+
+    def _create_empty_bam_with_header(self, outBam, sample_name, library_name=None,
+                                       platform='illumina', read_group_id=None,
+                                       platform_unit=None, sequencing_center=None,
+                                       run_date=None):
+        """
+        Create an empty BAM file with a proper header including RG tags.
+
+        Args:
+            outBam: Output BAM file path
+            sample_name: Sample name (SM tag)
+            library_name: Library name (LB tag, defaults to sample_name)
+            platform: Sequencing platform (PL tag)
+            read_group_id: Read group ID (ID tag, defaults to 'A')
+            platform_unit: Platform unit (PU tag)
+            sequencing_center: Sequencing center (CN tag)
+            run_date: Run date in ISO format (DT tag)
+        """
+        rg_id = read_group_id or 'A'
+        lib_name = library_name or sample_name
+
+        header = {
+            'HD': {'VN': '1.6', 'SO': 'queryname'},
+            'RG': [{
+                'ID': rg_id,
+                'SM': sample_name,
+                'LB': lib_name,
+                'PL': platform,
+            }]
+        }
+
+        # Add optional fields if present
+        if platform_unit:
+            header['RG'][0]['PU'] = platform_unit
+        if sequencing_center:
+            header['RG'][0]['CN'] = sequencing_center
+        if run_date:
+            header['RG'][0]['DT'] = run_date
+
+        # Write empty BAM file with pysam
+        with pysam.AlignmentFile(outBam, 'wb', header=header) as outf:
+            pass  # No reads to write
+
+        log.info("Created empty BAM file with header: %s", outBam)
+
     def sort(self, inFile, outFile, args=None, threads=None):
         # inFile can be .sam, .bam, .cram
         # outFile can be .sam, .bam, .cram

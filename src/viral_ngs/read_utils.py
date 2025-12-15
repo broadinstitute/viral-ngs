@@ -561,11 +561,16 @@ def fastq_to_bam(
     outBam,
     sampleName=None,
     header=None,
-    JVMmemory=tools.picard.FastqToSamTool.jvmMemDefault,
-    picardOptions=None
+    JVMmemory=None,  # Kept for backwards compatibility, ignored (was for Picard)
+    picardOptions=None,  # Kept for backwards compatibility, parsed for RG tags
+    threads=None
 ):
     ''' Convert a pair of fastq paired-end read files and optional text header
         to a single bam file.
+
+        Uses samtools import for multi-threaded FASTQ to BAM conversion.
+        The JVMmemory parameter is kept for backwards compatibility but ignored.
+        The picardOptions parameter is parsed for Picard-style RG tag options.
     '''
     picardOptions = picardOptions or []
 
@@ -575,17 +580,33 @@ def fastq_to_bam(
         fastqToSamOut = outBam
     if sampleName is None:
         sampleName = 'Dummy'    # Will get overwritten by rehead command
-    if header:
-        # With the header option, rehead will be called after FastqToSam.
-        # This will invalidate any md5 file, which would be a slow to construct
-        # on our own, so just disallow and let the caller run md5sum if desired.
-        if any(opt.lower() == 'CREATE_MD5_FILE=True'.lower() for opt in picardOptions):
-            raise Exception("""CREATE_MD5_FILE is not allowed with '--header.'""")
-    tools.picard.FastqToSamTool().execute(
-        inFastq1, inFastq2,
-        sampleName, fastqToSamOut,
-        picardOptions=picardOptions,
-        JVMmemory=JVMmemory
+
+    # Parse picardOptions to extract RG tag values
+    # Supports Picard-style options like LIBRARY_NAME=Alexandria
+    opts_dict = {}
+    for opt in picardOptions:
+        if '=' in opt:
+            key, value = opt.split('=', 1)
+            opts_dict[key.upper()] = value
+
+    # Map Picard option names to samtools_import parameters
+    library_name = opts_dict.get('LIBRARY_NAME')
+    platform = opts_dict.get('PLATFORM', 'illumina')
+    platform_unit = opts_dict.get('PLATFORM_UNIT')
+    sequencing_center = opts_dict.get('SEQUENCING_CENTER')
+    run_date = opts_dict.get('RUN_DATE')
+    read_group_id = opts_dict.get('READ_GROUP_NAME')
+
+    tools.samtools.SamtoolsTool().samtools_import(
+        inFastq1, inFastq2, fastqToSamOut,
+        sample_name=sampleName,
+        library_name=library_name,
+        platform=platform,
+        read_group_id=read_group_id,
+        platform_unit=platform_unit,
+        sequencing_center=sequencing_center,
+        run_date=run_date,
+        threads=threads
     )
 
     if header:
@@ -603,16 +624,23 @@ def parser_fastq_to_bam(parser=argparse.ArgumentParser()):
     headerGroup.add_argument('--header', help='Optional text file containing header.')
     parser.add_argument(
         '--JVMmemory',
-        default=tools.picard.FastqToSamTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
+        default=None,
+        help='Deprecated: kept for backwards compatibility, ignored. (Was for Picard)'
     )
     parser.add_argument(
         '--picardOptions',
         default=[],
         nargs='*',
-        help='''Optional arguments to Picard\'s FastqToSam,
-                OPTIONNAME=value ...  Note that header-related options will be
+        help='''Read group options in Picard format (OPTIONNAME=value).
+                Supported: LIBRARY_NAME, PLATFORM, PLATFORM_UNIT, SEQUENCING_CENTER,
+                RUN_DATE, READ_GROUP_NAME. Note that header-related options will be
                 overwritten by HEADER if present.'''
+    )
+    parser.add_argument(
+        '--threads',
+        type=int,
+        default=None,
+        help='Number of threads for BAM compression (default: auto)'
     )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, fastq_to_bam, split_args=True)
