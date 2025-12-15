@@ -80,6 +80,8 @@ class TestFastqBam(TestCaseWithTmp):
     'Class for testing fastq <-> bam conversions'
 
     def test_fastq_bam(self):
+        import pysam
+
         myInputDir = util.file.get_test_input_path(self)
 
         # Define file names
@@ -87,18 +89,11 @@ class TestFastqBam(TestCaseWithTmp):
         inFastq2 = os.path.join(myInputDir, 'in2.fastq')
         inHeader = os.path.join(myInputDir, 'inHeader.txt')
         expected1_7Sam = os.path.join(myInputDir, 'expected.java1_7.sam')
-        expected1_8Sam = os.path.join(myInputDir, 'expected.java1_8.sam')
-        expected1_8Sam_v15 = os.path.join(myInputDir, 'expected.java1_8_v1.5.sam')
-        expectedFastq1 = os.path.join(myInputDir, 'expected.fastq1')
         outBamCmd = util.file.mkstempfname('.bam')
         outBamTxt = util.file.mkstempfname('.bam')
-        outSam = util.file.mkstempfname('.sam')
-        outFastq1 = util.file.mkstempfname('.fastq')
-        outFastq2 = util.file.mkstempfname('.fastq')
-        outHeader = util.file.mkstempfname('.txt')
-        outHeaderFix = util.file.mkstempfname('.fix.txt')
 
         # in1.fastq, in2.fastq -> out.bam; header params from command-line
+        # Note: --JVMmemory is kept for backwards compatibility but ignored with samtools
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1,
                                   inFastq2,
@@ -113,27 +108,47 @@ class TestFastqBam(TestCaseWithTmp):
                                   'SEQUENCING_CENTER=KareemAbdul-Jabbar',])
         args.func_main(args)
 
-        alternate_expected_vals = {
-            "VN":["1.4","1.5","1.6","1.7"]
-        }
-        self.assertEqualSamHeaders(outBamCmd, expected1_7Sam, other_allowed_values=alternate_expected_vals)
+        # Verify BAM was created with reads
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertEqual(samtools.count(outBamCmd), 2)
+
+        # Verify RG tags match expected values
+        with pysam.AlignmentFile(outBamCmd, 'rb', check_sq=False) as bam:
+            rg_list = bam.header.get('RG', [])
+            self.assertEqual(len(rg_list), 1)
+            rg = rg_list[0]
+            self.assertEqual(rg.get('SM'), 'FreeSample')
+            self.assertEqual(rg.get('LB'), 'Alexandria')
+            self.assertEqual(rg.get('PL'), '9.75')
+            self.assertEqual(rg.get('CN'), 'KareemAbdul-Jabbar')
+
+        # Verify reads match expected (flags and sequences)
         assert_equal_bam_reads(self, outBamCmd, expected1_7Sam)
 
+        # Test with header file
         parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1, inFastq2, outBamTxt, '--header', inHeader])
         args.func_main(args)
 
+        # Verify header was replaced correctly
+        with pysam.AlignmentFile(outBamTxt, 'rb', check_sq=False) as bam:
+            rg_list = bam.header.get('RG', [])
+            self.assertEqual(len(rg_list), 1)
+            rg = rg_list[0]
+            # Values should come from inHeader.txt
+            self.assertEqual(rg.get('SM'), 'txtSample')
+            self.assertEqual(rg.get('LB'), 'txtLib')
+            self.assertEqual(rg.get('PL'), 'txtPlatform')
+            self.assertEqual(rg.get('CN'), 'txtCenter')
+            self.assertEqual(rg.get('DT'), '2014-11-10')
+
     def test_fastq_to_bam_empty_inputs(self):
         """Test that fastq_to_bam handles empty FASTQ files correctly.
 
-        With defensive code added to FastqToSamTool.execute, empty FASTQ inputs
-        should now produce a valid BAM file with:
+        Empty FASTQ inputs should produce a valid BAM file with:
         - A proper BAM header (non-zero file size)
         - Zero reads (SamtoolsTool.isEmpty should return True)
         - Readable by samtools (no corruption)
-
-        This test verifies that the defensive code properly handles empty inputs
-        instead of letting Picard crash.
         """
         # Create empty FASTQ files
         emptyFastq1 = util.file.mkstempfname('.fastq')

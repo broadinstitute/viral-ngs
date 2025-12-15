@@ -1017,38 +1017,28 @@ def splitcode_demux_fastqs(
         sample_library_id = sample_rows[0]['run']
         output_bam = os.path.join(outdir, f"{sample_library_id}.bam")
 
-        # Build Picard options dict with richer metadata
-        picard_opts = {
-            'PLATFORM': 'illumina',
-            'LIBRARY_NAME': sample_library_id,
-            'VERBOSITY': 'WARNING',
-            'QUIET': 'TRUE'
-        }
-
-        # Add run date from RunInfo or CLI override
-        if run_date_val:
-            picard_opts['RUN_DATE'] = run_date_val
-
-        # Add sequencing center
-        if sequencing_center:
-            picard_opts['SEQUENCING_CENTER'] = sequencing_center
-
-        # Add platform unit: <flowcell>.<lane>.<barcode>
+        # Build platform unit: <flowcell>.<lane>.<barcode>
+        platform_unit = None
         if flowcell and target_bc1:
             if target_bc2:
                 barcode_str = f"{target_bc1}-{target_bc2}"
             else:
                 barcode_str = target_bc1
-            picard_opts['PLATFORM_UNIT'] = f"{flowcell}.{lane}.{barcode_str}"
+            platform_unit = f"{flowcell}.{lane}.{barcode_str}"
 
-        # Use Picard FastqToSam for conversion
-        picard = tools.picard.FastqToSamTool()
-        picard.execute(
+        # Use samtools import for multi-threaded FASTQ→BAM conversion
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.samtools_import(
             fastq_r1,
             fastq_r2,
-            sample_name,
             output_bam,
-            picardOptions=picard.dict_to_picard_opts(picard_opts)
+            sample_name=sample_name,
+            library_name=sample_library_id,
+            platform='illumina',
+            platform_unit=platform_unit,
+            sequencing_center=sequencing_center,
+            run_date=run_date_val,
+            threads=threads
         )
 
         # Generate metrics with consistent schema (nested samples dict)

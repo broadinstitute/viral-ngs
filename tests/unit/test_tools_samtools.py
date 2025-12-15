@@ -89,11 +89,187 @@ class TestToolSamtools(TestCaseWithTmp):
     def test_bam2fa(self):
         samtools = tools.samtools.SamtoolsTool()
         sam = os.path.join(util.file.get_test_input_path(self), 'simple.sam')
-        
+
         with samtools.bam2fa_tmp(sam) as (fa1, fa2):
             for fa in (fa1, fa2):
                 assert len(list(Bio.SeqIO.parse(fa, 'fasta')))==1
 
         assert not os.path.isfile(fa1) and not os.path.isfile(fa2)
 
+
+class TestSamtoolsImport(TestCaseWithTmp):
+    """Tests for samtools import (FASTQ to BAM conversion)"""
+
+    def test_import_paired_fastq_basic(self):
+        """Test basic paired FASTQ to BAM conversion with sample name only"""
+        # Use existing test FASTQ files from TestFastqBam
+        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.samtools_import(inFastq1, inFastq2, outBam, sample_name='TestSample')
+
+        # Verify BAM file was created and is non-empty
+        self.assertTrue(os.path.exists(outBam))
+        self.assertGreater(os.path.getsize(outBam), 0)
+
+        # Verify read count matches input (1 read pair = 2 reads)
+        self.assertEqual(samtools.count(outBam), 2)
+
+        # Verify BAM is not flagged as empty
+        self.assertFalse(samtools.isEmpty(outBam))
+
+    def test_import_with_full_read_group(self):
+        """Test that all RG tags are correctly set in BAM header"""
+        import pysam
+
+        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.samtools_import(
+            inFastq1, inFastq2, outBam,
+            sample_name='FreeSample',
+            library_name='Alexandria',
+            platform='illumina',
+            read_group_id='MyRG',
+            platform_unit='FC001.1.ATCG',
+            sequencing_center='BroadInstitute',
+            run_date='2024-12-14'
+        )
+
+        # Read BAM header and verify RG tags
+        with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
+            rg_list = bam.header.get('RG', [])
+            self.assertEqual(len(rg_list), 1)
+            rg = rg_list[0]
+
+            self.assertEqual(rg.get('ID'), 'MyRG')
+            self.assertEqual(rg.get('SM'), 'FreeSample')
+            self.assertEqual(rg.get('LB'), 'Alexandria')
+            self.assertEqual(rg.get('PL'), 'illumina')
+            self.assertEqual(rg.get('PU'), 'FC001.1.ATCG')
+            self.assertEqual(rg.get('CN'), 'BroadInstitute')
+            self.assertEqual(rg.get('DT'), '2024-12-14')
+
+    def test_import_rg_defaults(self):
+        """Test that RG defaults are applied correctly when optional params omitted"""
+        import pysam
+
+        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.samtools_import(inFastq1, inFastq2, outBam, sample_name='TestSample')
+
+        with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
+            rg_list = bam.header.get('RG', [])
+            self.assertEqual(len(rg_list), 1)
+            rg = rg_list[0]
+
+            # ID should default to 'A' (matching Picard default)
+            self.assertEqual(rg.get('ID'), 'A')
+            self.assertEqual(rg.get('SM'), 'TestSample')
+            # LB should default to sample_name if not specified
+            self.assertEqual(rg.get('LB'), 'TestSample')
+            # PL should default to 'illumina'
+            self.assertEqual(rg.get('PL'), 'illumina')
+            # Optional tags should not be present
+            self.assertIsNone(rg.get('PU'))
+            self.assertIsNone(rg.get('CN'))
+            self.assertIsNone(rg.get('DT'))
+
+    def test_import_read_flags(self):
+        """Test that paired-end read flags are set correctly (77/141 for unmapped pairs)"""
+        import pysam
+
+        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.samtools_import(inFastq1, inFastq2, outBam, sample_name='TestSample')
+
+        with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
+            reads = list(bam.fetch(until_eof=True))
+            self.assertEqual(len(reads), 2)
+
+            # First read should have flag 77 (paired, unmapped, mate unmapped, first in pair)
+            # Second read should have flag 141 (paired, unmapped, mate unmapped, second in pair)
+            flags = sorted([r.flag for r in reads])
+            self.assertEqual(flags, [77, 141])
+
+    def test_import_read_rg_tag(self):
+        """Test that reads have the RG tag set correctly"""
+        import pysam
+
+        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.samtools_import(
+            inFastq1, inFastq2, outBam,
+            sample_name='TestSample',
+            read_group_id='CustomRG'
+        )
+
+        with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
+            for read in bam.fetch(until_eof=True):
+                self.assertTrue(read.has_tag('RG'))
+                self.assertEqual(read.get_tag('RG'), 'CustomRG')
+
+    def test_import_empty_fastq(self):
+        """Test handling of empty FASTQ inputs - should create empty BAM with header"""
+        import pysam
+
+        # Create empty FASTQ files
+        emptyFastq1 = util.file.mkstempfname('.fastq')
+        emptyFastq2 = util.file.mkstempfname('.fastq')
+        outBam = util.file.mkstempfname('.bam')
+
+        open(emptyFastq1, 'w').close()
+        open(emptyFastq2, 'w').close()
+
+        samtools = tools.samtools.SamtoolsTool()
+        samtools.samtools_import(
+            emptyFastq1, emptyFastq2, outBam,
+            sample_name='EmptySample',
+            library_name='EmptyLib'
+        )
+
+        # Verify BAM was created
+        self.assertTrue(os.path.exists(outBam))
+        self.assertGreater(os.path.getsize(outBam), 0)
+
+        # Verify BAM is empty (no reads)
+        self.assertTrue(samtools.isEmpty(outBam))
+        self.assertEqual(samtools.count(outBam), 0)
+
+        # Verify header has RG
+        with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
+            rg_list = bam.header.get('RG', [])
+            self.assertEqual(len(rg_list), 1)
+            self.assertEqual(rg_list[0].get('SM'), 'EmptySample')
+            self.assertEqual(rg_list[0].get('LB'), 'EmptyLib')
+
+    def test_import_multithreaded(self):
+        """Test that threads parameter works without error"""
+        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        # Should work with explicit thread count
+        samtools.samtools_import(
+            inFastq1, inFastq2, outBam,
+            sample_name='TestSample',
+            threads=2
+        )
+
+        self.assertTrue(os.path.exists(outBam))
+        self.assertEqual(samtools.count(outBam), 2)
 
