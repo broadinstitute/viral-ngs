@@ -1028,7 +1028,7 @@ def splitcode_demux_fastqs(
 
         # Use samtools import for multi-threaded FASTQ→BAM conversion
         samtools = tools.samtools.SamtoolsTool()
-        samtools.samtools_import(
+        samtools.import_fastq(
             fastq_r1,
             fastq_r2,
             output_bam,

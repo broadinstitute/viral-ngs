@@ -589,7 +589,7 @@ def fastq_to_bam(
             key, value = opt.split('=', 1)
             opts_dict[key.upper()] = value
 
-    # Map Picard option names to samtools_import parameters
+    # Map Picard option names to import_fastq parameters
     library_name = opts_dict.get('LIBRARY_NAME')
     platform = opts_dict.get('PLATFORM', 'illumina')
     platform_unit = opts_dict.get('PLATFORM_UNIT')
@@ -597,7 +597,7 @@ def fastq_to_bam(
     run_date = opts_dict.get('RUN_DATE')
     read_group_id = opts_dict.get('READ_GROUP_NAME')
 
-    tools.samtools.SamtoolsTool().samtools_import(
+    tools.samtools.SamtoolsTool().import_fastq(
         inFastq1, inFastq2, fastqToSamOut,
         sample_name=sampleName,
         library_name=library_name,
@@ -1421,12 +1421,13 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
     if samtools.isEmpty(inBam):
         log.warning("The input bam file appears to have zero reads: %s", inBam)
 
-    mm2.align_bam(inBam, ref_indexed, bam_aligned)
-    
+    # Skip intermediate indexing if we're going to filter (the index would be discarded anyway)
+    mm2.align_bam(inBam, ref_indexed, bam_aligned, should_index=not filterReadsAfterAlignment)
+
     if filterReadsAfterAlignment:
-        samtools.filter_to_proper_primary_mapped_reads(bam_aligned, 
-                                                       bam_filtered, 
-                                                       require_pairs_to_be_proper=not doNotRequirePairsToBeProper, 
+        samtools.filter_to_proper_primary_mapped_reads(bam_aligned,
+                                                       bam_filtered,
+                                                       require_pairs_to_be_proper=not doNotRequirePairsToBeProper,
                                                        reject_singletons=not keepSingletons,
                                                        reject_duplicates=not keepDuplicates)
         os.unlink(bam_aligned)
@@ -1437,7 +1438,7 @@ def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
         # index the final bam before calling idxstats
         # but only if it is a bam or cram file (sam cannot be indexed)
         if (bam_filtered.endswith(".bam") or bam_filtered.endswith(".cram")):
-            samtools.index(bam_filtered)
+            samtools.index(bam_filtered, threads=util.misc.sanitize_thread_count())
         samtools.idxstats(bam_filtered, outStats)
 
     if outBam is None:
