@@ -108,7 +108,7 @@ class TestSamtoolsImport(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.bam')
 
         samtools = tools.samtools.SamtoolsTool()
-        samtools.samtools_import(inFastq1, inFastq2, outBam, sample_name='TestSample')
+        samtools.import_fastq(inFastq1, inFastq2, outBam, sample_name='TestSample')
 
         # Verify BAM file was created and is non-empty
         self.assertTrue(os.path.exists(outBam))
@@ -129,7 +129,7 @@ class TestSamtoolsImport(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.bam')
 
         samtools = tools.samtools.SamtoolsTool()
-        samtools.samtools_import(
+        samtools.import_fastq(
             inFastq1, inFastq2, outBam,
             sample_name='FreeSample',
             library_name='Alexandria',
@@ -163,7 +163,7 @@ class TestSamtoolsImport(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.bam')
 
         samtools = tools.samtools.SamtoolsTool()
-        samtools.samtools_import(inFastq1, inFastq2, outBam, sample_name='TestSample')
+        samtools.import_fastq(inFastq1, inFastq2, outBam, sample_name='TestSample')
 
         with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
             rg_list = bam.header.get('RG', [])
@@ -191,7 +191,7 @@ class TestSamtoolsImport(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.bam')
 
         samtools = tools.samtools.SamtoolsTool()
-        samtools.samtools_import(inFastq1, inFastq2, outBam, sample_name='TestSample')
+        samtools.import_fastq(inFastq1, inFastq2, outBam, sample_name='TestSample')
 
         with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
             reads = list(bam.fetch(until_eof=True))
@@ -211,7 +211,7 @@ class TestSamtoolsImport(TestCaseWithTmp):
         outBam = util.file.mkstempfname('.bam')
 
         samtools = tools.samtools.SamtoolsTool()
-        samtools.samtools_import(
+        samtools.import_fastq(
             inFastq1, inFastq2, outBam,
             sample_name='TestSample',
             read_group_id='CustomRG'
@@ -235,7 +235,7 @@ class TestSamtoolsImport(TestCaseWithTmp):
         open(emptyFastq2, 'w').close()
 
         samtools = tools.samtools.SamtoolsTool()
-        samtools.samtools_import(
+        samtools.import_fastq(
             emptyFastq1, emptyFastq2, outBam,
             sample_name='EmptySample',
             library_name='EmptyLib'
@@ -264,7 +264,7 @@ class TestSamtoolsImport(TestCaseWithTmp):
 
         samtools = tools.samtools.SamtoolsTool()
         # Should work with explicit thread count
-        samtools.samtools_import(
+        samtools.import_fastq(
             inFastq1, inFastq2, outBam,
             sample_name='TestSample',
             threads=2

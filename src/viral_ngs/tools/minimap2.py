@@ -44,7 +44,7 @@ class Minimap2(tools.Tool):
                 stdout.close()
 
     def align_bam(self, inBam, refDb, outBam, options=None,
-                      threads=None, JVMmemory=None):
+                      threads=None, JVMmemory=None, should_index=True):
         options = options or []
 
         samtools = tools.samtools.SamtoolsTool()
@@ -59,7 +59,7 @@ class Minimap2(tools.Tool):
 
         elif len(rgs) == 1:
             # Only one RG, keep it simple
-            self.align_one_rg(inBam, refDb, outBam, options=options, threads=threads)
+            self.align_one_rg(inBam, refDb, outBam, options=options, threads=threads, should_index=should_index)
 
         else:
             # Multiple RGs, align one at a time and merge
@@ -73,7 +73,8 @@ class Minimap2(tools.Tool):
                     tmp_bam,
                     rgid=rg,
                     options=options,
-                    threads=threads
+                    threads=threads,
+                    should_index=False  # Don't index intermediate BAMs that will be merged
                 )
                 if not samtools.isEmpty(tmp_bam):
                     align_bams.append(tmp_bam)
@@ -99,7 +100,7 @@ class Minimap2(tools.Tool):
                     os.unlink(bam)
 
     def align_one_rg(self, inBam, refDb, outBam, rgid=None, preset=None, options=None,
-                         threads=None, JVMmemory=None):
+                         threads=None, JVMmemory=None, should_index=True):
         """
             Performs an alignment of one read group in a bam file to a reference fasta file using minimap2.
             Emits alignments in sorted, index bam files.
@@ -187,9 +188,9 @@ class Minimap2(tools.Tool):
             log.warning("Input file %s appears to lack reads for RG '%s'", inBam, rgid)
             # minimap doesn't like empty inputs, so copy empty bam through
             # samtools.sort(one_rg_inBam, outBam)
-            self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads)
+            self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads, should_index=should_index)
         else:
-            self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads)
+            self.align_cmd(one_rg_inBam, refDb, outBam, options=options, threads=threads, should_index=should_index)
 
         # if there was more than one RG in the input, we had to create a temporary file with the one RG specified
         # and we can safely delete it this file
@@ -197,7 +198,7 @@ class Minimap2(tools.Tool):
         if removeInput:
             os.unlink(one_rg_inBam)
 
-    def align_cmd(self, inReads, refDb, outAlign, options=None, threads=None):
+    def align_cmd(self, inReads, refDb, outAlign, options=None, threads=None, should_index=True):
         options = [] if not options else options
 
         threads = util.misc.sanitize_thread_count(threads)
@@ -217,8 +218,8 @@ class Minimap2(tools.Tool):
             samtools.sort(aln_sam, outAlign, threads=threads)
 
         # cannot index sam files; only do so if a bam/cram is desired
-        if (outAlign.endswith(".bam") or outAlign.endswith(".cram")):
-            samtools.index(outAlign)
+        if should_index and (outAlign.endswith(".bam") or outAlign.endswith(".cram")):
+            samtools.index(outAlign, threads=threads)
 
     def scaffold(self, contigs_fasta, ref_fasta, outAlign, divergence=20, options=None, threads=None):
         options = [] if not options else options

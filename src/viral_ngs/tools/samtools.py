@@ -120,7 +120,7 @@ class SamtoolsTool(tools.Tool):
             self.bam2fa(inBam, reads1, reads2)
             yield reads1, reads2
 
-    def samtools_import(self, inFastq1, inFastq2, outBam,
+    def import_fastq(self, inFastq1, inFastq2, outBam,
                         sample_name, library_name=None, platform='illumina',
                         read_group_id=None, platform_unit=None,
                         sequencing_center=None, run_date=None,
@@ -269,9 +269,14 @@ class SamtoolsTool(tools.Tool):
         # When mkstempfname is fixed, we should remove the -f.
         self.execute('merge', options + [outFile] + inFiles)
 
-    def index(self, inBam):
+    def index(self, inBam, threads=None):
         # inBam can be .bam or .cram
-        self.execute('index', [inBam])
+        args = []
+        if threads:
+            threads = util.misc.sanitize_thread_count(threads)
+            args.extend(['-@', str(threads)])
+        args.append(inBam)
+        self.execute('index', args)
 
     def faidx(self, inFasta, overwrite=False):
         ''' Index reference genome for samtools '''
@@ -293,8 +298,13 @@ class SamtoolsTool(tools.Tool):
 
         self.execute('depth', options + [inBam], stdout=outFile)
 
-    def idxstats(self, inBam, statsFile):
-        self.execute('idxstats', [inBam], stdout=statsFile)
+    def idxstats(self, inBam, statsFile, threads=None):
+        args = []
+        if threads:
+            threads = util.misc.sanitize_thread_count(threads)
+            args.extend(['-@', str(threads)])
+        args.append(inBam)
+        self.execute('idxstats', args, stdout=statsFile)
 
     def reheader(self, inBam, headerFile, outBam):
         self.execute('reheader', [headerFile, inBam], stdout=outBam)
