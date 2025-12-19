@@ -3,11 +3,14 @@
 
 '''
 
+import collections
 import logging
 import os
 import os.path
 import shutil
 import subprocess
+
+from Bio import SeqIO
 
 import tools
 import tools.samtools
@@ -245,3 +248,127 @@ class Minimap2(tools.Tool):
         # cannot index sam files; only do so if a bam/cram is desired
         if (outAlign.endswith(".bam") or outAlign.endswith(".cram")):
             samtools.index(outAlign)
+
+    def idxstats(self, inReads, refDb, outIdxstats, outReadlist=None, threads=None):
+        """
+        Align reads and produce idxstats-like counts and optional read list.
+
+        This method is optimized for counting reads per reference by:
+        - Using PAF output (no -a flag) for faster alignment
+        - Streaming and parsing PAF directly without intermediate files
+        - Only counting primary alignments
+
+        Args:
+            inReads: Input reads (BAM format)
+            refDb: Reference database (FASTA format)
+            outIdxstats: Output file in samtools idxstats format (tab-separated:
+                         seq_name, seq_length, mapped_count, unmapped_count)
+                         Note: unmapped_count will always be 0 in this implementation
+            outReadlist: Optional output file listing all read IDs that mapped
+                         as primary alignments. If None, this output is skipped.
+            threads: Number of threads for minimap2 (default: auto-detect)
+        """
+        log.info("Starting idxstats: aligning %s to %s", inReads, refDb)
+
+        threads = util.misc.sanitize_thread_count(threads)
+        samtools = tools.samtools.SamtoolsTool()
+
+        # Parse reference FASTA for sequence lengths
+        ref_lengths = collections.OrderedDict()
+        for record in SeqIO.parse(refDb, 'fasta'):
+            ref_lengths[record.id] = len(record.seq)
+
+        # Handle empty reference case
+        if not ref_lengths:
+            log.warning("Reference FASTA %s contains no sequences", refDb)
+            with open(outIdxstats, 'wt') as outf:
+                pass  # write empty file
+            if outReadlist:
+                with open(outReadlist, 'wt') as outf:
+                    pass  # write empty file
+            return
+
+        # Initialize counter for reads per reference
+        reads_per_ref = collections.Counter()
+
+        # Build minimap2 command for PAF output (no -a flag)
+        options = ['-t', str(threads), '-2', '-x', 'sr', refDb, '-']
+
+        # Open readlist file for streaming if requested
+        readlist_file = open(outReadlist, 'wt') if outReadlist else None
+
+        try:
+            # Start samtools bam2fq pipe for input
+            fastq_pipe = samtools.bam2fq_pipe(inReads)
+
+            # Start minimap2 process with PAF output to stdout
+            tool_cmd = [self.install_and_get_path()] + options
+            log.debug(' '.join(tool_cmd))
+            mm2_proc = subprocess.Popen(
+                tool_cmd,
+                stdin=fastq_pipe.stdout,
+                stdout=subprocess.PIPE,
+                text=True
+            )
+
+            # Parse PAF output line by line
+            # Track recent read names to deduplicate paired-end reads (which share the same
+            # base name but have /1 and /2 suffixes from bam2fq). Use a small rolling buffer
+            # since pairs are adjacent in the output.
+            recent_reads = collections.deque(maxlen=4)
+            lines_processed = 0
+            primary_count = 0
+            for line in mm2_proc.stdout:
+                lines_processed += 1
+                if lines_processed % 100000 == 0:
+                    log.info("Processed %d PAF lines, %d unique reads so far", lines_processed, primary_count)
+
+                fields = line.rstrip('\n').split('\t')
+                if len(fields) < 12:
+                    continue
+
+                read_id = fields[0]
+                target_name = fields[5]
+
+                # Check for primary alignment tag (tp:A:P)
+                is_primary = False
+                for field in fields[12:]:
+                    if field == 'tp:A:P':
+                        is_primary = True
+                        break
+
+                if is_primary:
+                    primary_count += 1
+                    # Count this read for the reference (count R1 and R2 separately)
+                    reads_per_ref[target_name] += 1
+
+                    # For readlist, extract base read name by stripping /1 or /2 suffixes
+                    # bam2fq adds /1 or /2, and minimap2 may add another, resulting in /1/1 or /2/2
+                    # We only write unique base read IDs to the readlist (one per pair)
+                    if readlist_file:
+                        base_read_id = read_id
+                        while base_read_id.endswith('/1') or base_read_id.endswith('/2'):
+                            base_read_id = base_read_id[:-2]
+                        if base_read_id not in recent_reads:
+                            recent_reads.append(base_read_id)
+                            readlist_file.write(base_read_id + '\n')
+
+            # Wait for processes to complete
+            mm2_proc.wait()
+            if fastq_pipe.wait():
+                raise subprocess.CalledProcessError(
+                    fastq_pipe.returncode,
+                    "samtools.bam2fq_pipe() for {}".format(inReads)
+                )
+
+        finally:
+            if readlist_file:
+                readlist_file.close()
+
+        # Write idxstats output
+        with open(outIdxstats, 'wt') as outf:
+            for ref_name, ref_len in ref_lengths.items():
+                mapped_count = reads_per_ref.get(ref_name, 0)
+                outf.write('{}\t{}\t{}\t0\n'.format(ref_name, ref_len, mapped_count))
+
+        log.info("Completed idxstats: %d primary alignments from %d PAF lines", primary_count, lines_processed)

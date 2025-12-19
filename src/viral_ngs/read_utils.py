@@ -1398,82 +1398,31 @@ def parser_filter_bam_to_proper_primary_mapped_reads(parser=argparse.ArgumentPar
 # =========================
 
 
-def minimap2_idxstats(inBam, refFasta, outBam=None, outStats=None,
-                      filterReadsAfterAlignment=False, doNotRequirePairsToBeProper=False, keepSingletons=False, keepDuplicates=False):
-    ''' Take reads, align to reference with minimap2 and perform samtools idxstats.
-        Optionally filter reads after alignment, prior to reporting idxstats, to include only those flagged as properly paired.
+def minimap2_idxstats(inBam, refFasta, outStats, outReadlist=None, threads=None):
+    ''' Align reads to reference with minimap2 and produce idxstats-like counts.
+
+        This uses PAF output format (no SAM/BAM generation) for faster alignment
+        and streams the output directly without intermediate files.
+
+        Args:
+            inBam: Input reads (BAM format)
+            refFasta: Reference genome (FASTA format)
+            outStats: Output file in samtools idxstats format
+            outReadlist: Optional output file with read IDs that mapped (or None to skip)
+            threads: Number of threads for alignment (default: auto-detect)
     '''
-
-    assert outBam or outStats, "Either outBam or outStats must be specified"
-
-    bam_aligned = util.file.mkstempfname('.aligned.bam')
-    if outBam is None:
-        bam_filtered = mkstempfname('.filtered.bam')
-    else:
-        bam_filtered = outBam
-
-    samtools = tools.samtools.SamtoolsTool()
     mm2 = tools.minimap2.Minimap2()
-
-    ref_indexed = util.file.mkstempfname('.reference.fasta')
-    shutil.copyfile(refFasta, ref_indexed)
-
-    if samtools.isEmpty(inBam):
-        log.warning("The input bam file appears to have zero reads: %s", inBam)
-
-    # Skip intermediate indexing if we're going to filter (the index would be discarded anyway)
-    mm2.align_bam(inBam, ref_indexed, bam_aligned, should_index=not filterReadsAfterAlignment)
-
-    if filterReadsAfterAlignment:
-        samtools.filter_to_proper_primary_mapped_reads(bam_aligned,
-                                                       bam_filtered,
-                                                       require_pairs_to_be_proper=not doNotRequirePairsToBeProper,
-                                                       reject_singletons=not keepSingletons,
-                                                       reject_duplicates=not keepDuplicates)
-        os.unlink(bam_aligned)
-    else:
-        shutil.move(bam_aligned, bam_filtered)
-
-    if outStats is not None:
-        # index the final bam before calling idxstats
-        # but only if it is a bam or cram file (sam cannot be indexed)
-        if (bam_filtered.endswith(".bam") or bam_filtered.endswith(".cram")):
-            samtools.index(bam_filtered, threads=util.misc.sanitize_thread_count())
-        samtools.idxstats(bam_filtered, outStats)
-
-    if outBam is None:
-        os.unlink(bam_filtered)
+    mm2.idxstats(inBam, refFasta, outStats, outReadlist=outReadlist, threads=threads)
 
     
 
 def parser_minimap2_idxstats(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard and Novoalign.')
-    parser.add_argument(
-        '--filterReadsAfterAlignment',
-        help=("If specified, reads till be filtered after alignment to include only those flagged as properly paired."
-                "This excludes secondary and supplementary alignments."),
-        action='store_true'
-    )
-    parser.add_argument(
-        '--doNotRequirePairsToBeProper',
-        help='Do not require reads to be properly paired when filtering (default: %(default)s)',
-        action='store_true'
-    )
-    parser.add_argument(
-        '--keepSingletons',
-        help='Keep singleton reads when filtering (default: %(default)s)',
-        action='store_true'
-    )
-    parser.add_argument(
-        '--keepDuplicates',
-        help='When filtering, do not exclude reads due to being flagged as duplicates (default: %(default)s)',
-        action='store_true'
-    )
-    parser.add_argument('--outBam', help='Output aligned, indexed BAM file', default=None)
-    parser.add_argument('--outStats', help='Output idxstats file', default=None)
+    parser.add_argument('refFasta', help='Reference genome, FASTA format.')
+    parser.add_argument('outStats', help='Output idxstats file (tab-separated: ref_name, ref_length, mapped_count, 0).')
+    parser.add_argument('--outReadlist', help='Optional output file listing read IDs that mapped.', default=None)
 
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, minimap2_idxstats, split_args=True)
     return parser
 
