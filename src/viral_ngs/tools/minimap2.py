@@ -257,6 +257,9 @@ class Minimap2(tools.Tool):
         - Using PAF output (no -a flag) for faster alignment
         - Streaming and parsing PAF directly without intermediate files
         - Only counting primary alignments
+        - For paired-end reads: requiring both R1 and R2 to have primary alignments
+          (properly paired behavior)
+        - For single-end reads: counting any primary alignment
 
         Args:
             inReads: Input reads (BAM format)
@@ -312,16 +315,19 @@ class Minimap2(tools.Tool):
             )
 
             # Parse PAF output line by line
-            # Track recent read names to deduplicate paired-end reads (which share the same
-            # base name but have /1 and /2 suffixes from bam2fq). Use a small rolling buffer
-            # since pairs are adjacent in the output.
+            # For paired-end reads: require both R1 and R2 to have primary alignments
+            # (properly paired behavior). For single-end reads: count any primary alignment.
+            # Track recent read names to deduplicate readlist output.
             recent_reads = collections.deque(maxlen=4)
+            pending_alignment = None  # Tuple: (base_read_id, target_name, is_r1) for paired-end
             lines_processed = 0
-            primary_count = 0
+            paired_count = 0
+            single_count = 0
             for line in mm2_proc.stdout:
                 lines_processed += 1
                 if lines_processed % 100000 == 0:
-                    log.info("Processed %d PAF lines, %d unique reads so far", lines_processed, primary_count)
+                    log.info("Processed %d PAF lines, %d paired + %d single reads so far",
+                             lines_processed, paired_count, single_count)
 
                 fields = line.rstrip('\n').split('\t')
                 if len(fields) < 12:
@@ -337,21 +343,50 @@ class Minimap2(tools.Tool):
                         is_primary = True
                         break
 
-                if is_primary:
-                    primary_count += 1
-                    # Count this read for the reference (count R1 and R2 separately)
-                    reads_per_ref[target_name] += 1
+                if not is_primary:
+                    continue
 
-                    # For readlist, extract base read name by stripping /1 or /2 suffixes
-                    # bam2fq adds /1 or /2, and minimap2 may add another, resulting in /1/1 or /2/2
-                    # We only write unique base read IDs to the readlist (one per pair)
-                    if readlist_file:
-                        base_read_id = read_id
-                        while base_read_id.endswith('/1') or base_read_id.endswith('/2'):
-                            base_read_id = base_read_id[:-2]
-                        if base_read_id not in recent_reads:
-                            recent_reads.append(base_read_id)
-                            readlist_file.write(base_read_id + '\n')
+                # Detect if paired-end by checking for /1 or /2 suffix
+                # bam2fq -n adds these suffixes for paired-end reads
+                if read_id.endswith('/1'):
+                    is_paired = True
+                    is_r1 = True
+                    base_read_id = read_id[:-2]
+                elif read_id.endswith('/2'):
+                    is_paired = True
+                    is_r1 = False
+                    base_read_id = read_id[:-2]
+                else:
+                    is_paired = False
+                    base_read_id = read_id
+
+                if not is_paired:
+                    # SINGLE-END: count immediately
+                    single_count += 1
+                    reads_per_ref[target_name] += 1
+                    if readlist_file and base_read_id not in recent_reads:
+                        recent_reads.append(base_read_id)
+                        readlist_file.write(base_read_id + '\n')
+                else:
+                    # PAIRED-END: require both R1 and R2 to have primary alignments
+                    if pending_alignment is None:
+                        # First of pair: store it
+                        pending_alignment = (base_read_id, target_name, is_r1)
+                    else:
+                        pending_base, pending_target, pending_is_r1 = pending_alignment
+
+                        if base_read_id == pending_base and is_r1 != pending_is_r1:
+                            # Mate found! Both R1 and R2 aligned - count BOTH
+                            paired_count += 2
+                            reads_per_ref[pending_target] += 1
+                            reads_per_ref[target_name] += 1
+                            if readlist_file and base_read_id not in recent_reads:
+                                recent_reads.append(base_read_id)
+                                readlist_file.write(base_read_id + '\n')
+                            pending_alignment = None
+                        else:
+                            # Not a matching mate - discard pending (singleton), store current
+                            pending_alignment = (base_read_id, target_name, is_r1)
 
             # Wait for processes to complete
             mm2_proc.wait()
@@ -371,4 +406,5 @@ class Minimap2(tools.Tool):
                 mapped_count = reads_per_ref.get(ref_name, 0)
                 outf.write('{}\t{}\t{}\t0\n'.format(ref_name, ref_len, mapped_count))
 
-        log.info("Completed idxstats: %d primary alignments from %d PAF lines", primary_count, lines_processed)
+        log.info("Completed idxstats: %d paired + %d single-end reads counted from %d PAF lines",
+                 paired_count, single_count, lines_processed)
