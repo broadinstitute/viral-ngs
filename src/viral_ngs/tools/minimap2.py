@@ -284,10 +284,10 @@ class Minimap2(tools.Tool):
         # Handle empty reference case
         if not ref_lengths:
             log.warning("Reference FASTA %s contains no sequences", refDb)
-            with open(outIdxstats, 'wt') as outf:
+            with util.file.open_or_gzopen(outIdxstats, 'wt') as outf:
                 pass  # write empty file
             if outReadlist:
-                with open(outReadlist, 'wt') as outf:
+                with util.file.open_or_gzopen(outReadlist, 'wt') as outf:
                     pass  # write empty file
             return
 
@@ -298,11 +298,11 @@ class Minimap2(tools.Tool):
         options = ['-t', str(threads), '-2', '-x', 'sr', refDb, '-']
 
         # Open readlist file for streaming if requested
-        readlist_file = open(outReadlist, 'wt') if outReadlist else None
+        readlist_file = util.file.open_or_gzopen(outReadlist, 'wt') if outReadlist else None
 
         try:
-            # Start samtools bam2fq pipe for input
-            fastq_pipe = samtools.bam2fq_pipe(inReads)
+            # Start samtools bam2fq pipe for input (use 4 threads for BAM decompression)
+            fastq_pipe = samtools.bam2fq_pipe(inReads, threads=4)
 
             # Start minimap2 process with PAF output to stdout
             tool_cmd = [self.install_and_get_path()] + options
@@ -401,7 +401,7 @@ class Minimap2(tools.Tool):
                 readlist_file.close()
 
         # Write idxstats output
-        with open(outIdxstats, 'wt') as outf:
+        with util.file.open_or_gzopen(outIdxstats, 'wt') as outf:
             for ref_name, ref_len in ref_lengths.items():
                 mapped_count = reads_per_ref.get(ref_name, 0)
                 outf.write('{}\t{}\t{}\t0\n'.format(ref_name, ref_len, mapped_count))
