@@ -26,6 +26,7 @@ import util.cmd
 import util.file
 import util.misc
 import tools
+import tools.minimap2
 import tools.prinseq
 import tools.picard
 import tools.samtools
@@ -696,6 +697,67 @@ def main_deplete_bwa_bam(args):
         multi_db_deplete_bam(bamToDeplete, args.refDbs, deplete_bwa_bam, args.outBam, threads=args.threads, clear_tags=args.clear_tags, tags_to_clear=args.tags_to_clear, JVMmemory=args.JVMmemory)
     return 0
 __commands__.append(('deplete_bwa_bam', parser_deplete_bwa_bam))
+
+
+# ========================
+# ***  deplete_minimap2  ***
+# ========================
+
+def deplete_minimap2_bam(inBam, db, outBam, threads=None, JVMmemory=None):
+    '''Use minimap2 to remove reads that match the reference database.
+
+    inBam: input reads in BAM format.
+    db: reference database in FASTA format.
+    outBam: output BAM file with matching reads removed.
+    threads: number of threads for minimap2 alignment.
+    '''
+    with util.file.tempfname('.idxstats.txt') as idxstats_file:
+        with util.file.tempfname('.read_ids.txt') as hitList:
+            # Use minimap2 idxstats to get list of mapped read IDs
+            tools.minimap2.Minimap2().idxstats(
+                inBam, db, idxstats_file,
+                outReadlist=hitList,
+                threads=threads
+            )
+            # Filter out reads that matched the reference
+            tools.picard.FilterSamReadsTool().execute(inBam, True, hitList, outBam, JVMmemory=JVMmemory)
+
+
+def parser_deplete_minimap2_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input BAM file.')
+    parser.add_argument('refDbs', nargs='+', help='One or more reference FASTA files to deplete from input.')
+    parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size (default: %(default)s)'
+    )
+    parser = read_utils.parser_revert_sam_common(parser)
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_deplete_minimap2_bam)
+    return parser
+
+
+def main_deplete_minimap2_bam(args):
+    '''Use minimap2 to remove reads that match at least one of the specified databases.'''
+    with read_utils.revert_bam_if_aligned(
+            args.inBam,
+            clear_tags=args.clear_tags,
+            tags_to_clear=args.tags_to_clear,
+            picardOptions=['MAX_DISCARD_FRACTION=0.5'],
+            JVMmemory=args.JVMmemory,
+            sanitize=not args.do_not_sanitize) as bamToDeplete:
+        multi_db_deplete_bam(
+            bamToDeplete,
+            args.refDbs,
+            deplete_minimap2_bam,
+            args.outBam,
+            threads=args.threads,
+            JVMmemory=args.JVMmemory
+        )
+    return 0
+
+__commands__.append(('deplete_minimap2_bam', parser_deplete_minimap2_bam))
 
 
 # ========================

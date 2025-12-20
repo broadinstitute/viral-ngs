@@ -434,3 +434,52 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
             out_bam
         )
         self.assertEqual(0, tools.samtools.SamtoolsTool().count(out_bam))
+
+
+class TestDepleteMinimap2Bam(TestCaseWithTmp):
+    '''
+    Tests for minimap2-based read depletion.
+    Reuses test data from TestDepleteBlastnBam/TestBmtagger.
+    '''
+
+    def setUp(self):
+        TestCaseWithTmp.setUp(self)
+        self.tempDir = tempfile.mkdtemp()
+        commonInputDir = util.file.get_test_input_path()
+        # Reuse existing test reference fasta
+        self.ref_fasta = os.path.join(commonInputDir, '5kb_human_from_chr6.fasta')
+
+    def test_deplete_minimap2_bam(self):
+        '''Basic depletion test - remove human reads from mixed input'''
+        inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
+        outBam = util.file.mkstempfname('-out.bam')
+        args = taxon_filter.parser_deplete_minimap2_bam(argparse.ArgumentParser()).parse_args([
+            inBam, self.ref_fasta, outBam])
+        args.func_main(args)
+        # Should have fewer reads than input after depletion
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertLess(samtools.count(outBam), samtools.count(inBam))
+
+    def test_minimap2_empty_input(self):
+        '''Empty input BAM should produce empty output BAM'''
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        out_bam = util.file.mkstempfname('-out.bam')
+        taxon_filter.multi_db_deplete_bam(
+            empty_bam,
+            [self.ref_fasta],
+            taxon_filter.deplete_minimap2_bam,
+            out_bam
+        )
+        self.assertEqual(0, tools.samtools.SamtoolsTool().count(out_bam))
+
+    def test_minimap2_empty_output(self):
+        '''All-human input should result in empty output after depletion'''
+        in_bam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads-human.bam')
+        out_bam = util.file.mkstempfname('-out.bam')
+        taxon_filter.multi_db_deplete_bam(
+            in_bam,
+            [self.ref_fasta],
+            taxon_filter.deplete_minimap2_bam,
+            out_bam
+        )
+        self.assertEqual(0, tools.samtools.SamtoolsTool().count(out_bam))
