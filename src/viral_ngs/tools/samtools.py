@@ -83,8 +83,11 @@ class SamtoolsTool(tools.Tool):
         else:
             self.execute('bam2fq', ['-1', outFq1, '-2', outFq2, inBam])
 
-    def bam2fq_pipe(self, inBam):
-        tool_cmd = [self.install_and_get_path(), 'bam2fq', '-n', inBam]
+    def bam2fq_pipe(self, inBam, threads=None):
+        tool_cmd = [self.install_and_get_path(), 'bam2fq']
+        if threads is not None:
+            tool_cmd.extend(['-@', str(threads)])
+        tool_cmd.extend(['-n', inBam])
         log.debug(' '.join(tool_cmd) + ' |')
         p = subprocess.Popen(tool_cmd, stdout=subprocess.PIPE)
         return p
