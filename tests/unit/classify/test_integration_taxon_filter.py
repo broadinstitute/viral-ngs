@@ -50,6 +50,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 os.path.join(myInputDir, 'test-reads.bam'),
                 # output files
                 os.path.join(self.tempDir, 'test-reads.revert.bam'),
+                os.path.join(self.tempDir, 'test-reads.minimap.bam'),
                 os.path.join(self.tempDir, 'test-reads.bwa.bam'),
                 os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
                 os.path.join(self.tempDir, 'test-reads.blastn.bam'),
@@ -64,7 +65,7 @@ class TestDepleteHuman(TestCaseWithTmp):
 
         # Compare to expected
         for fname in [
-            'test-reads.revert.bam', 
+            'test-reads.revert.bam',
             'test-reads.bwa.bam',
             'test-reads.bmtagger.bam',
             'test-reads.blastn.bam'
@@ -80,6 +81,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 os.path.join(myInputDir, 'test-reads-aligned.bam'),
                 # output files
                 os.path.join(self.tempDir, 'test-reads.revert.bam'),
+                os.path.join(self.tempDir, 'test-reads.minimap.bam'),
                 os.path.join(self.tempDir, 'test-reads.bwa.bam'),
                 os.path.join(self.tempDir, 'test-reads.bmtagger.bam'),
                 os.path.join(self.tempDir, 'test-reads.blastn.bam'),
@@ -93,7 +95,7 @@ class TestDepleteHuman(TestCaseWithTmp):
 
         # Compare to expected
         for fname in [
-            'test-reads.revert.bam', 
+            'test-reads.revert.bam',
             'test-reads.bwa.bam',
             'test-reads.bmtagger.bam',
             'test-reads.blastn.bam'
@@ -109,6 +111,7 @@ class TestDepleteHuman(TestCaseWithTmp):
                 empty_bam,
                 # output files
                 os.path.join(self.tempDir, 'deplete-empty.revert.bam'),
+                os.path.join(self.tempDir, 'deplete-empty.minimap.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.bwa.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.bmtagger.bam'),
                 os.path.join(self.tempDir, 'deplete-empty.blastn.bam'),
