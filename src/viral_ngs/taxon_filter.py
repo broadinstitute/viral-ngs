@@ -138,13 +138,6 @@ def main_deplete(args):
         JVMmemory=args.JVMmemory
     )
 
-
-    if os.path.getsize(args.revertBam) == 0:
-        with util.file.tempfname('.empty.sam') as empty_sam:
-            samtools = tools.samtools.SamtoolsTool()
-            samtools.dumpHeader(args.inBam, empty_sam)
-            samtools.view(['-b'], empty_sam, args.revertBam)
-
     multi_db_deplete_bam(
         args.bmtaggerBam,
         args.blastDbs,
@@ -154,6 +147,13 @@ def main_deplete(args):
         threads=args.threads,
         JVMmemory=args.JVMmemory
     )
+
+    if os.path.getsize(args.revertBam) == 0:
+        with util.file.tempfname('.empty.sam') as empty_sam:
+            samtools = tools.samtools.SamtoolsTool()
+            samtools.dumpHeader(args.inBam, empty_sam)
+            samtools.view(['-b'], empty_sam, args.revertBam)
+
     return 0
 
 __commands__.append(('deplete', parser_deplete))
