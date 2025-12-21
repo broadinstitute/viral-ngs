@@ -58,16 +58,23 @@ log = logging.getLogger(__name__)
 def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument('revertBam', help='Output BAM: read markup reverted with Picard.')
+    parser.add_argument('minimapBam', help='Output BAM: depleted of reads with minimap2.')
     parser.add_argument('bwaBam', help='Output BAM: depleted of reads with BWA.')
     parser.add_argument('bmtaggerBam', help='Output BAM: depleted of reads with BMTagger.')
     parser.add_argument(
         'blastnBam', help='Output BAM: bmtaggerBam run through another depletion of reads with BLASTN.'
     )
     parser.add_argument(
+        '--minimapDbs',
+        nargs='*',
+        default=(),
+        help='Reference FASTA databases for minimap2 to deplete from input.'
+    )
+    parser.add_argument(
         '--bwaDbs',
         nargs='*',
         default=(),
-        help='Reference databases for blast to deplete from input.'
+        help='Reference databases for BWA to deplete from input.'
     )
     parser.add_argument(
         '--bmtaggerDbs',
@@ -81,7 +88,7 @@ def parser_deplete(parser=argparse.ArgumentParser()):
         '--blastDbs',
         nargs='*',
         default=(),
-        help='Reference databases for blast to deplete from input.'
+        help='Reference databases for BLASTN to deplete from input.'
     )
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
@@ -97,10 +104,10 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     return parser
 
 def main_deplete(args):
-    ''' Run the entire depletion pipeline: bwa, bmtagger, blastn.
+    ''' Run the entire depletion pipeline: minimap2, bwa, bmtagger, blastn.
     '''
 
-    assert len(args.bmtaggerDbs) + len(args.blastDbs) + len(args.bwaDbs) > 0
+    assert len(args.minimapDbs) + len(args.bmtaggerDbs) + len(args.blastDbs) + len(args.bwaDbs) > 0
 
     # only RevertSam if inBam is already aligned
     # Most of the time the input will be unaligned
@@ -121,6 +128,14 @@ def main_deplete(args):
                                         sanitize      = not args.do_not_sanitize) as bamToDeplete:
         multi_db_deplete_bam(
             bamToDeplete,
+            args.minimapDbs,
+            deplete_minimap2_bam,
+            args.minimapBam,
+            threads=args.threads,
+            JVMmemory=args.JVMmemory
+        )
+        multi_db_deplete_bam(
+            args.minimapBam,
             args.bwaDbs,
             deplete_bwa_bam,
             args.bwaBam,

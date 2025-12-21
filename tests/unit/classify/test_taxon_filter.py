@@ -483,3 +483,67 @@ class TestDepleteMinimap2Bam(TestCaseWithTmp):
             out_bam
         )
         self.assertEqual(0, tools.samtools.SamtoolsTool().count(out_bam))
+
+
+class TestDepletePipeline(TestCaseWithTmp):
+    '''
+    Tests for the full deplete pipeline (main_deplete) including minimap2 depletion.
+    '''
+
+    def setUp(self):
+        TestCaseWithTmp.setUp(self)
+        self.tempDir = tempfile.mkdtemp()
+        commonInputDir = util.file.get_test_input_path()
+        self.ref_fasta = os.path.join(commonInputDir, '5kb_human_from_chr6.fasta')
+
+    def test_deplete_pipeline_with_minimap(self):
+        '''Test full deplete pipeline with minimap2 depletion enabled'''
+        inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
+        revertBam = util.file.mkstempfname('-revert.bam')
+        minimapBam = util.file.mkstempfname('-minimap.bam')
+        bwaBam = util.file.mkstempfname('-bwa.bam')
+        bmtaggerBam = util.file.mkstempfname('-bmtagger.bam')
+        blastnBam = util.file.mkstempfname('-blastn.bam')
+
+        args = taxon_filter.parser_deplete(argparse.ArgumentParser()).parse_args([
+            inBam,
+            revertBam,
+            minimapBam,
+            bwaBam,
+            bmtaggerBam,
+            blastnBam,
+            '--minimapDbs', self.ref_fasta
+        ])
+        args.func_main(args)
+
+        samtools = tools.samtools.SamtoolsTool()
+        # Verify output files exist and have fewer reads than input
+        self.assertTrue(os.path.exists(minimapBam))
+        self.assertLess(samtools.count(minimapBam), samtools.count(inBam))
+
+    def test_deplete_pipeline_empty_minimap_dbs(self):
+        '''Test deplete pipeline with empty minimapDbs (default behavior)'''
+        inBam = os.path.join(util.file.get_test_input_path(), 'TestDepleteHuman', 'test-reads.bam')
+        revertBam = util.file.mkstempfname('-revert.bam')
+        minimapBam = util.file.mkstempfname('-minimap.bam')
+        bwaBam = util.file.mkstempfname('-bwa.bam')
+        bmtaggerBam = util.file.mkstempfname('-bmtagger.bam')
+        blastnBam = util.file.mkstempfname('-blastn.bam')
+
+        args = taxon_filter.parser_deplete(argparse.ArgumentParser()).parse_args([
+            inBam,
+            revertBam,
+            minimapBam,
+            bwaBam,
+            bmtaggerBam,
+            blastnBam,
+            '--bwaDbs', self.ref_fasta  # Use bwa instead of minimap
+        ])
+        args.func_main(args)
+
+        samtools = tools.samtools.SamtoolsTool()
+        # Verify minimap output exists (should be copy of input since no minimap dbs)
+        self.assertTrue(os.path.exists(minimapBam))
+        # With no minimap dbs, minimapBam should have same count as reverted input
+        # BWA depletion happens after, so bwaBam should have fewer reads
+        self.assertLess(samtools.count(bwaBam), samtools.count(inBam))
