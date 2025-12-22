@@ -1975,6 +1975,126 @@ class TestIlluminaMetadata(TestCaseWithTmp):
         finally:
             shutil.rmtree(out_dir)
 
+    def test_metadata_with_append_run_id(self):
+        """
+        Test illumina_metadata with --append_run_id flag.
+
+        When append_run_id=True, the 'run' field in metadata should include
+        the flowcell ID and lane suffix (e.g., 'sample.l1.TESTFC01.1').
+        This ensures metadata matches BAM filenames when demux commands
+        use --append_run_id.
+
+        Fixes GitHub issue #150.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            # Call illumina_metadata with append_run_id=True
+            illumina.illumina_metadata(
+                runinfo=self.runinfo_xml,
+                samplesheet=self.samplesheet_csv,
+                lane=1,
+                append_run_id=True,
+                out_meta_by_filename=out_meta_by_filename
+            )
+
+            # Verify output was created
+            self.assertTrue(os.path.exists(out_meta_by_filename))
+
+            # Verify run field includes flowcell.lane suffix
+            with open(out_meta_by_filename, 'r') as f:
+                meta = json.load(f)
+
+            # All keys (run values) should end with .TESTFC01.1 (flowcell.lane)
+            self.assertGreater(len(meta), 0, "Should have at least one sample")
+            for run_key in meta.keys():
+                self.assertTrue(
+                    run_key.endswith('.TESTFC01.1'),
+                    f"Expected run key to end with '.TESTFC01.1', got: {run_key}"
+                )
+                # Also verify the 'run' field in the metadata matches the key
+                self.assertEqual(meta[run_key]['run'], run_key)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_metadata_without_append_run_id(self):
+        """
+        Test illumina_metadata without --append_run_id flag (default behavior).
+
+        When append_run_id=False (default), the 'run' field should NOT include
+        the flowcell ID and lane suffix.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            # Call illumina_metadata without append_run_id (default=False)
+            illumina.illumina_metadata(
+                runinfo=self.runinfo_xml,
+                samplesheet=self.samplesheet_csv,
+                lane=1,
+                out_meta_by_filename=out_meta_by_filename
+            )
+
+            # Verify output was created
+            self.assertTrue(os.path.exists(out_meta_by_filename))
+
+            # Verify run field does NOT include flowcell.lane suffix
+            with open(out_meta_by_filename, 'r') as f:
+                meta = json.load(f)
+
+            self.assertGreater(len(meta), 0, "Should have at least one sample")
+            for run_key in meta.keys():
+                self.assertFalse(
+                    run_key.endswith('.TESTFC01.1'),
+                    f"Expected run key to NOT end with '.TESTFC01.1', got: {run_key}"
+                )
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_metadata_append_run_id_via_parser(self):
+        """
+        Test illumina_metadata --append_run_id via argument parser.
+
+        Verifies the argument is properly wired up through the parser.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            # Build args via parser
+            parser = illumina.parser_illumina_metadata(argparse.ArgumentParser())
+            args = parser.parse_args([
+                '--runinfo', self.runinfo_xml,
+                '--samplesheet', self.samplesheet_csv,
+                '--lane', '1',
+                '--append_run_id',
+                '--out_meta_by_filename', out_meta_by_filename
+            ])
+
+            # Call via main function attached to parser
+            args.func_main(args)
+
+            # Verify run field includes flowcell.lane suffix
+            with open(out_meta_by_filename, 'r') as f:
+                meta = json.load(f)
+
+            self.assertGreater(len(meta), 0, "Should have at least one sample")
+            for run_key in meta.keys():
+                self.assertTrue(
+                    run_key.endswith('.TESTFC01.1'),
+                    f"Expected run key to end with '.TESTFC01.1', got: {run_key}"
+                )
+
+        finally:
+            shutil.rmtree(out_dir)
+
 
 class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
     """

@@ -487,6 +487,7 @@ def illumina_metadata(
     samplesheet,
     lane=None,
     sequencing_center=None,
+    append_run_id=False,
     out_runinfo=None,
     out_meta_by_sample=None,
     out_meta_by_filename=None
@@ -507,6 +508,11 @@ def illumina_metadata(
             - Sample metadata will preserve lane values from samplesheet if present, else use "0"
         sequencing_center (str, optional): Sequencing center name. If not provided,
             will be derived from the instrument ID in RunInfo.xml.
+        append_run_id (bool, optional): If True, append flowcell ID and lane to
+            library IDs in the format: {sample}.l{library_id}.{flowcell}.{lane}
+            This matches the behavior of illumina_demux and splitcode_demux_fastqs
+            when using --append_run_id, ensuring metadata 'run' fields match BAM
+            filenames. Default: False.
         out_runinfo (str, optional): Output path for run_info.json
         out_meta_by_sample (str, optional): Output path for meta_by_sample.json
         out_meta_by_filename (str, optional): Output path for meta_by_filename.json
@@ -542,6 +548,13 @@ def illumina_metadata(
         sequencing_center = runinfo_obj.get_machine()
         log.info(f"Using sequencing center from RunInfo.xml: {sequencing_center}")
 
+    # Build run_id string for library IDs if requested (matches demux commands)
+    if append_run_id:
+        flowcell = runinfo_obj.get_flowcell()
+        run_id_str = f"{flowcell}.{lane if lane is not None else 0}"
+    else:
+        run_id_str = None
+
     # Parse SampleSheet
     # Note: allow_non_unique=True is needed for 3-barcode samplesheets where
     # multiple samples share outer barcodes (barcode_1 + barcode_2) and differ
@@ -549,7 +562,8 @@ def illumina_metadata(
     samples = SampleSheet(
         samplesheet,
         only_lane=lane,
-        allow_non_unique=True
+        allow_non_unique=True,
+        append_run_id=run_id_str
     )
 
     output_files = {}
@@ -626,6 +640,11 @@ def parser_illumina_metadata(parser=argparse.ArgumentParser()):
         '--sequencing_center',
         default=None,
         help='Sequencing center name (default: derived from instrument ID in RunInfo.xml)'
+    )
+    parser.add_argument(
+        '--append_run_id',
+        action='store_true',
+        help='Append flowcell ID and lane to library IDs (e.g., sample.l1.FLOWCELL.1) for SRA compatibility'
     )
     parser.add_argument(
         '--out_runinfo',
