@@ -2095,6 +2095,100 @@ class TestIlluminaMetadata(TestCaseWithTmp):
         finally:
             shutil.rmtree(out_dir)
 
+    def test_illumina_metadata_runinfo_only(self):
+        """
+        Test illumina_metadata with only --runinfo and --out_runinfo (no samplesheet).
+
+        This tests the run-info-only mode where samplesheet is optional.
+        The function should generate run_info.json without requiring a samplesheet.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_runinfo = os.path.join(out_dir, 'run_info.json')
+
+            # Call illumina_metadata with only runinfo (no samplesheet)
+            illumina.illumina_metadata(
+                runinfo=self.runinfo_xml,
+                samplesheet=None,  # No samplesheet
+                lane=1,
+                out_runinfo=out_runinfo
+            )
+
+            # Verify run_info.json is created
+            self.assertTrue(os.path.exists(out_runinfo),
+                           "run_info.json should be created without samplesheet")
+
+            # Verify run_info.json has valid structure
+            with open(out_runinfo, 'r') as f:
+                run_info = json.load(f)
+
+            self.assertIn('sequencing_center', run_info)
+            self.assertIn('flowcell', run_info)
+            self.assertIn('lane', run_info)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_illumina_metadata_sample_output_requires_samplesheet(self):
+        """
+        Test that illumina_metadata raises error when sample metadata is requested without samplesheet.
+
+        When --out_meta_by_sample or --out_meta_by_filename is provided,
+        the samplesheet parameter becomes required.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+
+            # Should raise ValueError when sample metadata requested without samplesheet
+            with self.assertRaises(ValueError) as context:
+                illumina.illumina_metadata(
+                    runinfo=self.runinfo_xml,
+                    samplesheet=None,  # No samplesheet
+                    lane=1,
+                    out_meta_by_sample=out_meta_by_sample  # But requesting sample metadata
+                )
+
+            self.assertIn('samplesheet', str(context.exception).lower(),
+                         "Error should mention samplesheet is required")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_illumina_metadata_optional_samplesheet_via_parser(self):
+        """
+        Test illumina_metadata optional samplesheet via argument parser.
+
+        Verifies the CLI correctly handles:
+        1. --runinfo alone with --out_runinfo (should work)
+        2. The samplesheet argument is optional
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_runinfo = os.path.join(out_dir, 'run_info.json')
+
+            # Build args via parser - only runinfo, no samplesheet
+            parser = illumina.parser_illumina_metadata(argparse.ArgumentParser())
+            args = parser.parse_args([
+                '--runinfo', self.runinfo_xml,
+                '--lane', '1',
+                '--out_runinfo', out_runinfo
+                # Note: no --samplesheet argument
+            ])
+
+            # Call via main function attached to parser
+            args.func_main(args)
+
+            # Verify run_info.json is created
+            self.assertTrue(os.path.exists(out_runinfo),
+                           "run_info.json should be created via parser without samplesheet")
+
+        finally:
+            shutil.rmtree(out_dir)
+
 
 class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
     """
@@ -2908,6 +3002,191 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
             self.assertIn('flowcell', str(context.exception).lower(),
                          "Error should mention flowcell requirement")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_splitcode_demux_fastqs_metadata_output(self):
+        """
+        Test that splitcode_demux_fastqs generates metadata JSON files when requested.
+
+        Verifies:
+        - meta_by_sample.json is created when --out_meta_by_sample is provided
+        - meta_by_filename.json is created when --out_meta_by_filename is provided
+        - Both JSONs contain the expected sample metadata structure
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                out_meta_by_sample=out_meta_by_sample,
+                out_meta_by_filename=out_meta_by_filename,
+                threads=1
+            )
+
+            # Verify both JSON files are created
+            self.assertTrue(os.path.exists(out_meta_by_sample),
+                           "meta_by_sample.json should be created")
+            self.assertTrue(os.path.exists(out_meta_by_filename),
+                           "meta_by_filename.json should be created")
+
+            # Verify meta_by_sample.json structure
+            with open(out_meta_by_sample, 'r') as f:
+                meta_by_sample = json.load(f)
+
+            # Should have entries for matched samples
+            self.assertIsInstance(meta_by_sample, dict)
+            self.assertGreater(len(meta_by_sample), 0, "meta_by_sample should have entries")
+
+            # Each entry should have required fields
+            for sample_name, metadata in meta_by_sample.items():
+                self.assertIn('sample', metadata)
+                self.assertIn('lane', metadata)
+                self.assertIn('run', metadata)
+
+            # Verify meta_by_filename.json structure
+            with open(out_meta_by_filename, 'r') as f:
+                meta_by_filename = json.load(f)
+
+            self.assertIsInstance(meta_by_filename, dict)
+            self.assertGreater(len(meta_by_filename), 0, "meta_by_filename should have entries")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_splitcode_demux_fastqs_metadata_lane_from_fastq(self):
+        """
+        Test that metadata lane field uses actual lane from FASTQ filename.
+
+        This is the critical fix: the lane value should come from the FASTQ filename
+        (e.g., L001 -> lane=1) and NOT be a default value like 0.
+
+        Test FASTQ: TestPool1_S1_L001_R1_001.fastq.gz (lane=1)
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,  # TestPool1_S1_L001_R1_001.fastq.gz
+                fastq_r2=self.r2_fastq,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                out_meta_by_sample=out_meta_by_sample,
+                threads=1
+            )
+
+            with open(out_meta_by_sample, 'r') as f:
+                meta_by_sample = json.load(f)
+
+            # All samples should have lane=1 (from L001 in filename)
+            for sample_name, metadata in meta_by_sample.items():
+                self.assertEqual(metadata['lane'], '1',
+                               f"Sample {sample_name} lane should be '1' from FASTQ filename, not '0'")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_splitcode_demux_fastqs_metadata_run_matches_bam(self):
+        """
+        Test that metadata 'run' field matches BAM filenames when append_run_id=True.
+
+        This is the core fix for the metadata mismatch bug:
+        - BAM filename: {sample}.l{library_id}.{flowcell}.{lane}.bam
+        - Metadata 'run' field should match: {sample}.l{library_id}.{flowcell}.{lane}
+
+        The metadata 'run' field is used as the key in meta_by_filename.json.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                out_meta_by_filename=out_meta_by_filename,
+                threads=1
+            )
+
+            with open(out_meta_by_filename, 'r') as f:
+                meta_by_filename = json.load(f)
+
+            # Get list of output BAMs
+            bam_files = [f for f in os.listdir(out_dir) if f.endswith('.bam')]
+            self.assertGreater(len(bam_files), 0, "Should have output BAMs")
+
+            # For each BAM, verify there's a matching metadata entry
+            for bam_file in bam_files:
+                bam_basename = bam_file.replace('.bam', '')
+                self.assertIn(bam_basename, meta_by_filename,
+                             f"meta_by_filename should have key matching BAM basename: {bam_basename}")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_splitcode_demux_fastqs_2bc_metadata(self):
+        """
+        Test metadata generation for 2-barcode samples (bypass splitcode path).
+
+        2-barcode samples skip splitcode and go directly to FASTQ→BAM conversion.
+        Metadata should still be generated correctly with proper lane values.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            # Use 2-barcode sample FASTQs
+            r1_fastq = os.path.join(self.input_dir, 'TestPool3_S3_L001_R1_001.fastq.gz')
+            r2_fastq = os.path.join(self.input_dir, 'TestPool3_S3_L001_R2_001.fastq.gz')
+
+            # Skip if test files don't exist
+            if not os.path.exists(r1_fastq) or not os.path.exists(r2_fastq):
+                self.skipTest("2-barcode test FASTQs not available")
+
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            illumina.splitcode_demux_fastqs(
+                fastq_r1=r1_fastq,
+                fastq_r2=r2_fastq,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                out_meta_by_sample=out_meta_by_sample,
+                out_meta_by_filename=out_meta_by_filename,
+                threads=1
+            )
+
+            # Verify metadata files are created for 2-barcode case
+            self.assertTrue(os.path.exists(out_meta_by_sample),
+                           "meta_by_sample.json should be created for 2-barcode samples")
+            self.assertTrue(os.path.exists(out_meta_by_filename),
+                           "meta_by_filename.json should be created for 2-barcode samples")
+
+            # Verify lane is correct
+            with open(out_meta_by_sample, 'r') as f:
+                meta_by_sample = json.load(f)
+
+            for sample_name, metadata in meta_by_sample.items():
+                self.assertEqual(metadata['lane'], '1',
+                               "Lane should be '1' from FASTQ filename")
 
         finally:
             shutil.rmtree(out_dir)

@@ -537,7 +537,15 @@ def illumina_metadata(
     # Validate input files exist
     if not os.path.exists(runinfo):
         raise FileNotFoundError(f"RunInfo.xml not found: {runinfo}")
-    if not os.path.exists(samplesheet):
+
+    # Samplesheet is only required when sample metadata is requested
+    if out_meta_by_sample or out_meta_by_filename:
+        if samplesheet is None:
+            raise ValueError("--samplesheet is required when generating sample metadata "
+                           "(--out_meta_by_sample or --out_meta_by_filename)")
+        if not os.path.exists(samplesheet):
+            raise FileNotFoundError(f"SampleSheet not found: {samplesheet}")
+    elif samplesheet is not None and not os.path.exists(samplesheet):
         raise FileNotFoundError(f"SampleSheet not found: {samplesheet}")
 
     # Parse RunInfo.xml
@@ -555,16 +563,18 @@ def illumina_metadata(
     else:
         run_id_str = None
 
-    # Parse SampleSheet
-    # Note: allow_non_unique=True is needed for 3-barcode samplesheets where
-    # multiple samples share outer barcodes (barcode_1 + barcode_2) and differ
-    # only in inner barcodes (barcode_3)
-    samples = SampleSheet(
-        samplesheet,
-        only_lane=lane,
-        allow_non_unique=True,
-        append_run_id=run_id_str
-    )
+    # Parse SampleSheet only when needed (sample metadata requested or provided)
+    samples = None
+    if samplesheet is not None:
+        # Note: allow_non_unique=True is needed for 3-barcode samplesheets where
+        # multiple samples share outer barcodes (barcode_1 + barcode_2) and differ
+        # only in inner barcodes (barcode_3)
+        samples = SampleSheet(
+            samplesheet,
+            only_lane=lane,
+            allow_non_unique=True,
+            append_run_id=run_id_str
+        )
 
     output_files = {}
 
@@ -574,7 +584,7 @@ def illumina_metadata(
             sequencing_center=sequencing_center,
             run_start_date=runinfo_obj.get_rundate_iso(),
             read_structure=runinfo_obj.get_read_structure(),
-            indexes=str(samples.indexes),
+            indexes=str(runinfo_obj.get_read_structure().count('B')),
             run_id=runinfo_obj.get_run_id(),
             lane=str(lane if lane is not None else 0),
             flowcell=str(runinfo_obj.get_flowcell()),
@@ -626,8 +636,9 @@ def parser_illumina_metadata(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--samplesheet',
-        required=True,
-        help='Path to Illumina SampleSheet.csv file'
+        required=False,
+        default=None,
+        help='Path to Illumina SampleSheet.csv file (required for --out_meta_by_sample and --out_meta_by_filename)'
     )
     parser.add_argument(
         '--lane',
@@ -764,7 +775,9 @@ def splitcode_demux_fastqs(
     predemux_r2_trim_5prime_num_bp=None,
     predemux_r2_trim_3prime_num_bp=None,
     threads=None,
-    picard_jvm_memory='2g'
+    picard_jvm_memory='2g',
+    out_meta_by_sample=None,
+    out_meta_by_filename=None
 ):
     """
     Simplified splitcode demultiplexing from paired DRAGEN FASTQ files.
@@ -802,6 +815,12 @@ def splitcode_demux_fastqs(
         threads (int): Number of threads for splitcode and parallel Picard conversions
             (default: auto-detect)
         picard_jvm_memory (str): JVM memory allocation per Picard worker (default: '2g')
+        out_meta_by_sample (str, optional): Output path for meta_by_sample.json.
+            Contains sample metadata keyed by sample name.
+        out_meta_by_filename (str, optional): Output path for meta_by_filename.json.
+            Contains sample metadata keyed by 'run' field (matches BAM basenames when
+            append_run_id=True). This is the critical output for fixing metadata/BAM
+            filename mismatches in Terra table insertion.
 
     Raises:
         FileNotFoundError: If FASTQ or samplesheet files don't exist
@@ -1127,6 +1146,26 @@ def splitcode_demux_fastqs(
         except Exception as e:
             log.warning(f"Failed to generate Picard-style metrics for 2-barcode case: {e}")
 
+        # Generate sample metadata JSONs if requested
+        # The sample_rows already have 'run' field set from SampleSheet with append_run_id
+        # We just need to update the 'lane' field to use actual lane from FASTQ filename
+        if out_meta_by_sample or out_meta_by_filename:
+            sample_meta = []
+            for row in sample_rows:
+                meta_row = dict(row)  # Copy all samplesheet columns
+                meta_row['lane'] = str(lane)  # Use actual lane from FASTQ filename (critical fix)
+                sample_meta.append(meta_row)
+
+            if out_meta_by_sample:
+                with open(out_meta_by_sample, 'wt') as outf:
+                    json.dump(dict((r['sample'], r) for r in sample_meta), outf, indent=2)
+                log.info(f"Generated meta_by_sample.json: {out_meta_by_sample}")
+
+            if out_meta_by_filename:
+                with open(out_meta_by_filename, 'wt') as outf:
+                    json.dump(dict((r['run'], r) for r in sample_meta), outf, indent=2)
+                log.info(f"Generated meta_by_filename.json: {out_meta_by_filename}")
+
     elif has_3bc_samples:
         # 3-barcode samples → run splitcode demux
         log.info("3-barcode samples detected - running splitcode demultiplexing")
@@ -1435,6 +1474,26 @@ def splitcode_demux_fastqs(
         # or splitcode_demux workflows. The simplified splitcode_demux_fastqs is designed
         # for quick per-FASTQ-pair demux without comprehensive barcode reporting.
 
+        # Generate sample metadata JSONs if requested
+        # The sample_rows already have 'run' field set from SampleSheet with append_run_id
+        # We just need to update the 'lane' field to use actual lane from FASTQ filename
+        if out_meta_by_sample or out_meta_by_filename:
+            sample_meta = []
+            for row in sample_rows:
+                meta_row = dict(row)  # Copy all samplesheet columns
+                meta_row['lane'] = str(lane)  # Use actual lane from FASTQ filename (critical fix)
+                sample_meta.append(meta_row)
+
+            if out_meta_by_sample:
+                with open(out_meta_by_sample, 'wt') as outf:
+                    json.dump(dict((r['sample'], r) for r in sample_meta), outf, indent=2)
+                log.info(f"Generated meta_by_sample.json: {out_meta_by_sample}")
+
+            if out_meta_by_filename:
+                with open(out_meta_by_filename, 'wt') as outf:
+                    json.dump(dict((r['run'], r) for r in sample_meta), outf, indent=2)
+                log.info(f"Generated meta_by_filename.json: {out_meta_by_filename}")
+
     else:
         raise ValueError("Samplesheet contains no valid samples (all barcode_3 values are empty)")
 
@@ -1492,6 +1551,16 @@ def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
         '--picard_jvm_memory',
         default='2g',
         help='JVM memory allocation per Picard FastqToSam worker (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--out_meta_by_sample',
+        default=None,
+        help='Output path for meta_by_sample.json (sample metadata indexed by sample name)'
+    )
+    parser.add_argument(
+        '--out_meta_by_filename',
+        default=None,
+        help='Output path for meta_by_filename.json (sample metadata indexed by run/library ID, matches BAM basenames)'
     )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, splitcode_demux_fastqs, split_args=True)
