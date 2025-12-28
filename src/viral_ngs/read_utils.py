@@ -981,6 +981,7 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None, threads=None):
                 per_lb_read_lists.append(readList)
             except Exception as exc:
                 log.error('mvicuna process call generated an exception: %s' % (exc))
+                raise
 
     # merge per-library read lists together
     util.file.concat(per_lb_read_lists, readListAll)
