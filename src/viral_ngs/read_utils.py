@@ -402,7 +402,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
         return downsample_target
 
     def downsample_bams(data_pairs, downsample_target, threads=None, JVMmemory=None):
-        workers = util.misc.sanitize_thread_count(threads)
+        workers = min(util.misc.sanitize_thread_count(threads), len(data_pairs))
         JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
         jvm_worker_memory_mb = str(int(util.misc.convert_size_str(JVMmemory,"m")[:-1])//workers)+"m"
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
@@ -416,7 +416,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
                     raise
 
     def dedup_bams(data_pairs, threads=None, JVMmemory=None):
-        workers = util.misc.sanitize_thread_count(threads)
+        workers = min(util.misc.sanitize_thread_count(threads), len(data_pairs))
         JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
         jvm_worker_memory_mb = str(int(util.misc.convert_size_str(JVMmemory,"m")[:-1])//workers)+"m"
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
