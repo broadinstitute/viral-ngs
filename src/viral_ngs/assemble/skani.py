@@ -20,6 +20,14 @@ TOOL_NAME = "skani"
 
 _log = logging.getLogger(__name__)
 
+# Standard output header for skani dist command
+SKANI_DIST_HEADER = ['Ref_file','Query_file','ANI','Align_fraction_ref','Align_fraction_query',
+                     'Ref_name','Query_name','Num_ref_contigs','Num_query_contigs',
+                     'ANI_5_percentile','ANI_95_percentile','Standard_deviation',
+                     'Ref_90_ctg_len','Ref_50_ctg_len','Ref_10_ctg_len',
+                     'Query_90_ctg_len','Query_50_ctg_len','Query_10_ctg_len',
+                     'Avg_chain_len','Total_bases_covered']
+
 class UndirectedGraph:
     ''' Simple utility class for finding clusters from pairwise relationships
     '''
@@ -84,9 +92,10 @@ class SkaniTool(tools.Tool):
             sorted_rows = sorted(reader, key=lambda row: float(row['ANI']) * float(row['Total_bases_covered']), reverse=True)
             fieldnames = reader.fieldnames  # Capture while file is still open
 
-        # Handle empty file case (no header, no data)
+        # Handle empty file case (no header, no data) - write header-only output
         if fieldnames is None:
-            open(out_tsv, 'w').close()
+            with open(out_tsv, 'w') as outf:
+                outf.write('\t'.join(SKANI_DIST_HEADER) + '\n')
             return
 
         with open(out_tsv, 'w') as outf:
@@ -120,7 +129,7 @@ class SkaniTool(tools.Tool):
         if self._is_fasta_basically_empty(query_fasta):
             _log.warning("Query fasta file is empty or contains only very short sequences. Skipping skani dist (which will fail in this scenario).")
             with open(outfile, 'w') as outf:
-                outf.write('\t'.join(['Ref_file','Query_file','ANI','Align_fraction_ref','Align_fraction_query','Ref_name','Query_name','Num_ref_contigs','Num_query_contigs','ANI_5_percentile','ANI_95_percentile','Standard_deviation','Ref_90_ctg_len','Ref_50_ctg_len','Ref_10_ctg_len','Query_90_ctg_len','Query_50_ctg_len','Query_10_ctg_len','Avg_chain_len','Total_bases_covered']) + '\n')
+                outf.write('\t'.join(SKANI_DIST_HEADER) + '\n')
         else:
             self.execute('dist', ['-q', query_fasta, '-r'] + list(ref_fastas) + list(other_args), outfile, threads=threads)
 
