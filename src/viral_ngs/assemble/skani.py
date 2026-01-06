@@ -82,9 +82,15 @@ class SkaniTool(tools.Tool):
         with open(in_tsv, 'r') as inf:
             reader = csv.DictReader(inf, delimiter='\t')
             sorted_rows = sorted(reader, key=lambda row: float(row['ANI']) * float(row['Total_bases_covered']), reverse=True)
+            fieldnames = reader.fieldnames  # Capture while file is still open
+
+        # Handle empty file case (no header, no data)
+        if fieldnames is None:
+            open(out_tsv, 'w').close()
+            return
 
         with open(out_tsv, 'w') as outf:
-            writer = csv.DictWriter(outf, fieldnames=reader.fieldnames, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
+            writer = csv.DictWriter(outf, fieldnames=fieldnames, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
             writer.writeheader()
             writer.writerows(sorted_rows)
 

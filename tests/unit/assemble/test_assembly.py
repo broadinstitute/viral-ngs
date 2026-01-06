@@ -711,6 +711,41 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             expected = ['FJ445177.1','L24917.1','FJ445116.1','DQ473501.1','DQ473496.1','DQ473507.1','DQ473499.1','FJ445140.1','DQ473498.1','GQ223229.1']
             self.assertEqual(hits, expected)
 
+    def test_sort_skani_table_empty_file(self):
+        """Test _sort_skani_table_by_product handles completely empty input file"""
+        skani = assemble.skani.SkaniTool()
+        with util.file.tempfnames(('.empty.tsv', '.out.tsv')) as (in_tsv, out_tsv):
+            # Create empty file (0 bytes)
+            open(in_tsv, 'w').close()
+
+            # Should not raise exception
+            skani._sort_skani_table_by_product(in_tsv, out_tsv)
+
+            # Output should exist and be empty
+            self.assertTrue(os.path.exists(out_tsv))
+            self.assertEqual(os.path.getsize(out_tsv), 0)
+
+    def test_sort_skani_table_header_only(self):
+        """Test _sort_skani_table_by_product handles header-only input file"""
+        skani = assemble.skani.SkaniTool()
+        header = 'Ref_file\tQuery_file\tANI\tAlign_fraction_ref\tAlign_fraction_query\t' \
+                 'Ref_name\tQuery_name\tNum_ref_contigs\tNum_query_contigs\tANI_5_percentile\t' \
+                 'ANI_95_percentile\tStandard_deviation\tRef_90_ctg_len\tRef_50_ctg_len\t' \
+                 'Ref_10_ctg_len\tQuery_90_ctg_len\tQuery_50_ctg_len\tQuery_10_ctg_len\t' \
+                 'Avg_chain_len\tTotal_bases_covered\n'
+
+        with util.file.tempfnames(('.header.tsv', '.out.tsv')) as (in_tsv, out_tsv):
+            with open(in_tsv, 'w') as f:
+                f.write(header)
+
+            skani._sort_skani_table_by_product(in_tsv, out_tsv)
+
+            # Output should have header only
+            with open(out_tsv) as f:
+                lines = f.readlines()
+            self.assertEqual(len(lines), 1)
+            self.assertTrue(lines[0].startswith('Ref_file'))
+
 
 class TestMutableSequence(unittest.TestCase):
     ''' Test the MutableSequence class '''
