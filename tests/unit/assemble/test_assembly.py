@@ -721,9 +721,12 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             # Should not raise exception
             skani._sort_skani_table_by_product(in_tsv, out_tsv)
 
-            # Output should exist and be empty
+            # Output should exist and have header only (not be empty)
             self.assertTrue(os.path.exists(out_tsv))
-            self.assertEqual(os.path.getsize(out_tsv), 0)
+            with open(out_tsv) as f:
+                lines = f.readlines()
+            self.assertEqual(len(lines), 1)
+            self.assertTrue(lines[0].startswith('Ref_file'))
 
     def test_sort_skani_table_header_only(self):
         """Test _sort_skani_table_by_product handles header-only input file"""
