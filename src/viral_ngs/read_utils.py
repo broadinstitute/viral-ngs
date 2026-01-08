@@ -11,6 +11,7 @@ import argparse
 import logging
 import math
 import os
+import random
 import tempfile
 import shutil
 import sys
@@ -25,6 +26,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
+import tools.bbmap
 import tools.bwa
 import tools.cdhit
 import tools.picard
@@ -1033,9 +1035,6 @@ def rmdup_bbnorm_bam(inBam, outBam,
         max_output_reads: Randomly downsample keep-list if larger than this
         JVMmemory: JVM memory for Picard FilterSamReads
     """
-    import random
-    import tools.bbmap
-
     samtools = tools.samtools.SamtoolsTool()
 
     # Count input reads
