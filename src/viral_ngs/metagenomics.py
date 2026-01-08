@@ -1121,20 +1121,24 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
     tax_ids_to_include = frozenset(tax_ids_to_include) # frozenset membership check slightly faster
     log.info("matching against {} taxa".format(len(tax_ids_to_include)))
 
+    def _matching_read_ids():
+        """Generator that yields read IDs matching the specified taxa."""
+        for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
+            assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
+            assert read_id_col<len(row), "read_id_col does not appear to be in range for number of columns present in mapping file"
+            read_id = row[read_id_col]
+            read_tax_id = int(row[tax_id_col])
+
+            # transform read ID to take read pairs into account
+            read_id_match = re.match(paired_read_base_pattern, read_id)
+            if (read_id_match and read_tax_id in tax_ids_to_include):
+                yield read_id_match.group(1)
+
     # Stream matching read IDs directly into ReadIdStore
     with util.file.tmp_dir(suffix='_filter_taxa') as tmpdir:
         db_path = os.path.join(tmpdir, 'read_ids.db')
         with read_utils.ReadIdStore(db_path) as store:
-            for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
-                assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
-                assert read_id_col<len(row), "read_id_col does not appear to be in range for number of columns present in mapping file"
-                read_id = row[read_id_col]
-                read_tax_id = int(row[tax_id_col])
-
-                # transform read ID to take read pairs into account
-                read_id_match = re.match(paired_read_base_pattern, read_id)
-                if (read_id_match and read_tax_id in tax_ids_to_include):
-                    store.add(read_id_match.group(1))
+            store.extend(_matching_read_ids())
 
             log.info("matched {} reads".format(len(store)))
 
