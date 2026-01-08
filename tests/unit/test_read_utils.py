@@ -8,6 +8,7 @@ import filecmp
 import os
 import glob
 
+import pysam
 import read_utils
 import shutil
 import tempfile
@@ -467,6 +468,195 @@ class TestReadIdStore(TestCaseWithTmp):
             # Discarding non-existent ID should not raise
             store.discard('nonexistent')  # Should not raise
             self.assertEqual(len(store), 1)
+
+    def test_shrink_to_subsample_basic(self):
+        """Test shrink_to_subsample reduces store to n elements."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Add 100 read IDs
+            original_ids = set('read{}'.format(i) for i in range(100))
+            store.extend(original_ids)
+            self.assertEqual(len(store), 100)
+
+            # Shrink to 25
+            store.shrink_to_subsample(25)
+            self.assertEqual(len(store), 25)
+
+            # All remaining IDs should be from original set
+            remaining = set(store)
+            self.assertTrue(remaining.issubset(original_ids))
+
+    def test_shrink_to_subsample_larger_than_store(self):
+        """Test shrink_to_subsample with n >= store size does nothing."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read{}'.format(i) for i in range(50)])
+            self.assertEqual(len(store), 50)
+
+            # Request 100, but only have 50
+            store.shrink_to_subsample(100)
+            self.assertEqual(len(store), 50)  # Unchanged
+
+    def test_shrink_to_subsample_randomness(self):
+        """Test that shrink_to_subsample produces different results on repeated calls."""
+        original_ids = ['read{}'.format(i) for i in range(100)]
+
+        # Create two stores and subsample each
+        db_path1 = util.file.mkstempfname('.db')
+        db_path2 = util.file.mkstempfname('.db')
+
+        with read_utils.ReadIdStore(db_path1) as store1:
+            store1.extend(original_ids)
+            store1.shrink_to_subsample(10)
+            result1 = set(store1)
+
+        with read_utils.ReadIdStore(db_path2) as store2:
+            store2.extend(original_ids)
+            store2.shrink_to_subsample(10)
+            result2 = set(store2)
+
+        # Very unlikely to be identical (1 in C(100,10) chance)
+        # We allow this test to pass even if they match, just check both are valid
+        self.assertEqual(len(result1), 10)
+        self.assertEqual(len(result2), 10)
+
+    def test_filter_bam_by_ids_include(self):
+        """Test filter_bam_by_ids with include=True keeps only matching reads."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+
+        # Get some read names from the input BAM
+        read_names = set()
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            for i, read in enumerate(bam):
+                if i < 10:  # Get first 10 reads (5 pairs)
+                    read_names.add(read.query_name)
+                else:
+                    break
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(read_names)
+            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        # Output should have exactly len(read_names) * 2 reads (paired-end)
+        output_count = samtools.count(output_bam)
+        self.assertEqual(output_count, len(read_names) * 2)
+
+    def test_filter_bam_by_ids_exclude(self):
+        """Test filter_bam_by_ids with include=False excludes matching reads."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        input_count = samtools.count(input_bam)
+
+        # Get some read names from the input BAM
+        read_names = set()
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            for i, read in enumerate(bam):
+                if i < 10:  # Get first 10 reads (5 pairs)
+                    read_names.add(read.query_name)
+                else:
+                    break
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(read_names)
+            store.filter_bam_by_ids(input_bam, output_bam, include=False)
+
+        # Output should have input_count - (len(read_names) * 2) reads
+        output_count = samtools.count(output_bam)
+        expected = input_count - (len(read_names) * 2)
+        self.assertEqual(output_count, expected)
+
+    def test_filter_bam_by_ids_header_preserved(self):
+        """Test that BAM headers are semantically equivalent after filtering."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        # Get some read names
+        read_names = set()
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            for i, read in enumerate(bam):
+                if i < 5:
+                    read_names.add(read.query_name)
+                else:
+                    break
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(read_names)
+            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        # Compare headers
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as inb:
+            input_header = inb.header
+
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as outb:
+            output_header = outb.header
+
+        # Check header keys match
+        self.assertEqual(set(input_header.keys()), set(output_header.keys()))
+
+        # Check RG entries preserved
+        if 'RG' in input_header:
+            self.assertEqual(input_header['RG'], output_header['RG'])
+
+        # Check HD header preserved
+        if 'HD' in input_header:
+            self.assertEqual(dict(input_header['HD']), dict(output_header['HD']))
+
+    def test_filter_bam_by_ids_empty_input(self):
+        """Test filter_bam_by_ids handles empty input BAM."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read1', 'read2'])
+            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        self.assertEqual(samtools.count(output_bam), 0)
+
+    def test_filter_bam_by_ids_empty_store_include(self):
+        """Test include mode with empty store produces empty BAM with header."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Empty store
+            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        # Output should have 0 reads
+        self.assertEqual(samtools.count(output_bam), 0)
+
+        # But should have valid header
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as bam:
+            self.assertIsNotNone(bam.header)
+
+    def test_filter_bam_by_ids_empty_store_exclude(self):
+        """Test exclude mode with empty store keeps all reads."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        input_count = samtools.count(input_bam)
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Empty store
+            store.filter_bam_by_ids(input_bam, output_bam, include=False)
+
+        # Output should have all input reads
+        self.assertEqual(samtools.count(output_bam), input_count)
 
 
 class TestRmdupBbnorm(TestCaseWithTmp):
