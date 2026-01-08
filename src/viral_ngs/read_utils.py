@@ -11,6 +11,7 @@ import argparse
 import logging
 import math
 import os
+import sqlite3
 import tempfile
 import shutil
 import sys
@@ -25,6 +26,7 @@ import util.cmd
 import util.file
 import util.misc
 from util.file import mkstempfname
+import tools.bbmap
 import tools.bwa
 import tools.cdhit
 import tools.picard
@@ -415,12 +417,10 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
                 except Exception as exc:
                     raise
 
-    def dedup_bams(data_pairs, threads=None, JVMmemory=None):
+    def dedup_bams(data_pairs, threads=None):
         workers = min(util.misc.sanitize_thread_count(threads), len(data_pairs))
-        JVMmemory = JVMmemory if JVMmemory else tools.picard.DownsampleSamTool.jvmMemDefault
-        jvm_worker_memory_mb = str(int(util.misc.convert_size_str(JVMmemory,"m")[:-1])//workers)+"m"
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp, JVMmemory=jvm_worker_memory_mb): fp[0] for fp in data_pairs}
+            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
@@ -432,7 +432,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
     if deduplicate_before:
         with util.file.tempfnames(suffixes=[ '{}.dedup.bam'.format(os.path.splitext(os.path.basename(x))[0]) for x in in_bams]) as deduped_bams:
             data_pairs = list(zip(in_bams, deduped_bams))
-            dedup_bams(data_pairs, threads=threads, JVMmemory=JVMmemory)
+            dedup_bams(data_pairs, threads=threads)
             downsample_target = get_downsample_target_count(deduped_bams, specified_read_count)
             
             if out_path:
@@ -454,7 +454,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
                     data_pairs = list(zip(downsampled_tmp_bams, [os.path.join(out_path, os.path.splitext(os.path.basename(x))[0]+".downsampled-{}.dedup.bam").format(downsample_target) for x in in_bams]))
                 else:
                     data_pairs = list(zip(downsampled_tmp_bams, [os.path.splitext(x)[0]+".downsampled-{}.dedup.bam".format(downsample_target) for x in in_bams]))
-                dedup_bams(data_pairs, threads=threads, JVMmemory=JVMmemory)
+                dedup_bams(data_pairs, threads=threads)
         else:
             if out_path:
                 util.file.mkdir_p(out_path)
@@ -517,17 +517,6 @@ def parser_filter_bam(parser=argparse.ArgumentParser()):
         action="store_true",
         dest="exclude"
     )
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
-    parser.add_argument(
-        '--picardOptions',
-        default=[],
-        nargs='*',
-        help='Optional arguments to Picard\'s FilterSamReads, OPTIONNAME=value ...'
-    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_filter_bam)
     return parser
@@ -535,14 +524,13 @@ def parser_filter_bam(parser=argparse.ArgumentParser()):
 
 def main_filter_bam(args):
     '''Filter BAM file by read name'''
-    tools.picard.FilterSamReadsTool().execute(
-        args.inBam,
-        args.exclude,
-        args.readList,
-        args.outBam,
-        picardOptions=args.picardOptions,
-        JVMmemory=args.JVMmemory
-    )
+    with util.file.tmp_dir(suffix='_filter_bam') as tmpdir:
+        db_path = os.path.join(tmpdir, 'read_ids.db')
+        with ReadIdStore(db_path) as store:
+            # Load read IDs from file
+            with open(args.readList, 'rt') as f:
+                store.extend(line.strip() for line in f if line.strip())
+            store.filter_bam_by_ids(args.inBam, args.outBam, include=not args.exclude)
     return 0
 
 
@@ -828,6 +816,298 @@ __commands__.append(('reheader_bams', parser_reheader_bams))
 # ============================
 
 
+class ReadIdStore:
+    """
+    SQLite-backed store for read IDs with O(1) memory footprint.
+
+    Uses SQLite for disk-based storage with automatic deduplication via
+    UNIQUE constraint. Supports random sampling for downsampling operations.
+    """
+
+    def __init__(self, db_path):
+        """
+        Initialize the read ID store.
+
+        Args:
+            db_path: Path to SQLite database file (typically in tmpdir)
+        """
+        self.db_path = db_path
+        self.conn = sqlite3.connect(db_path)
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS read_ids (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                read_id TEXT UNIQUE NOT NULL
+            )
+        ''')
+        self.conn.commit()
+
+    def add_from_fastq(self, fastq_path):
+        """
+        Extract read IDs from a FASTQ file and add to the store.
+
+        Handles paired-end reads by stripping /1 or /2 suffixes.
+        Duplicates are automatically ignored via INSERT OR IGNORE.
+
+        Args:
+            fastq_path: Path to FASTQ file (can be gzipped)
+
+        Returns:
+            Number of new read IDs added
+        """
+        cursor = self.conn.cursor()
+        count_before = len(self)
+
+        with util.file.open_or_gzopen(fastq_path, 'rt') as inf:
+            line_num = 0
+            batch = []
+            for line in inf:
+                if (line_num % 4) == 0:
+                    idVal = line.rstrip('\n')[1:]
+                    # Remove /1 or /2 suffix if present (paired-end reads)
+                    if idVal.endswith('/1') or idVal.endswith('/2'):
+                        idVal = idVal[:-2]
+                    batch.append((idVal,))
+
+                    # Batch inserts for performance
+                    if len(batch) >= 10000:
+                        cursor.executemany(
+                            'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                            batch
+                        )
+                        batch = []
+                line_num += 1
+
+            # Insert remaining batch
+            if batch:
+                cursor.executemany(
+                    'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                    batch
+                )
+
+        self.conn.commit()
+        return len(self) - count_before
+
+    def __len__(self):
+        """Return the number of unique read IDs in the store."""
+        cursor = self.conn.execute('SELECT COUNT(*) FROM read_ids')
+        return cursor.fetchone()[0]
+
+    def __iter__(self):
+        """Iterate over all read IDs in insertion order. O(1) memory."""
+        cursor = self.conn.execute('SELECT read_id FROM read_ids ORDER BY id')
+        for row in cursor:
+            yield row[0]
+
+    def __contains__(self, read_id):
+        """Check if a read ID exists in the store."""
+        cursor = self.conn.execute(
+            'SELECT 1 FROM read_ids WHERE read_id = ? LIMIT 1',
+            (read_id,)
+        )
+        return cursor.fetchone() is not None
+
+    def add(self, read_id):
+        """
+        Add a single read ID to the store.
+
+        Args:
+            read_id: The read ID string to add
+
+        Returns:
+            True if the read ID was added, False if it already existed
+        """
+        cursor = self.conn.execute(
+            'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+            (read_id,)
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def extend(self, read_ids):
+        """
+        Add multiple read IDs to the store efficiently.
+
+        Uses executemany for batch insertion. O(1) memory - processes
+        the input iterable in chunks.
+
+        Args:
+            read_ids: Iterable of read ID strings
+
+        Returns:
+            Number of new read IDs added
+        """
+        count_before = len(self)
+        cursor = self.conn.cursor()
+
+        # Process in batches for memory efficiency
+        batch = []
+        for read_id in read_ids:
+            batch.append((read_id,))
+            if len(batch) >= 10000:
+                cursor.executemany(
+                    'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                    batch
+                )
+                batch = []
+
+        # Insert remaining batch
+        if batch:
+            cursor.executemany(
+                'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                batch
+            )
+
+        self.conn.commit()
+        return len(self) - count_before
+
+    def __delitem__(self, read_id):
+        """
+        Delete a read ID from the store.
+
+        Args:
+            read_id: The read ID string to delete
+
+        Raises:
+            KeyError: If the read ID does not exist
+        """
+        cursor = self.conn.execute(
+            'DELETE FROM read_ids WHERE read_id = ?',
+            (read_id,)
+        )
+        self.conn.commit()
+        if cursor.rowcount == 0:
+            raise KeyError(read_id)
+
+    def discard(self, read_id):
+        """
+        Remove a read ID if it exists, without raising an error if absent.
+
+        Args:
+            read_id: The read ID string to remove
+        """
+        self.conn.execute(
+            'DELETE FROM read_ids WHERE read_id = ?',
+            (read_id,)
+        )
+        self.conn.commit()
+
+    def write_to_file(self, out_path, max_reads=None):
+        """
+        Write read IDs to a file.
+
+        Args:
+            out_path: Output file path
+            max_reads: If specified, randomly sample this many read IDs
+
+        Returns:
+            Number of read IDs written
+        """
+        if max_reads is not None and max_reads < len(self):
+            # Random sampling using ORDER BY RANDOM()
+            query = 'SELECT read_id FROM read_ids ORDER BY RANDOM() LIMIT ?'
+            cursor = self.conn.execute(query, (max_reads,))
+        else:
+            # Return all in insertion order
+            query = 'SELECT read_id FROM read_ids ORDER BY id'
+            cursor = self.conn.execute(query)
+
+        count = 0
+        with open(out_path, 'wt') as outf:
+            for row in cursor:
+                outf.write(row[0] + '\n')
+                count += 1
+
+        return count
+
+    def shrink_to_subsample(self, n):
+        """
+        Destructively shrink the store to a random subsample of n elements.
+
+        This modifies the store in-place, keeping exactly n randomly selected
+        read IDs and deleting all others. If the store has n or fewer elements,
+        no changes are made.
+
+        Args:
+            n: Number of read IDs to keep
+
+        Note:
+            Uses SQLite's ORDER BY RANDOM() for random selection. The operation
+            is O(N log N) where N is the current store size due to random sorting.
+        """
+        current_size = len(self)
+        if current_size <= n:
+            return  # Nothing to do
+
+        # Delete all rows except n randomly selected ones
+        self.conn.execute('''
+            DELETE FROM read_ids
+            WHERE id NOT IN (
+                SELECT id FROM read_ids
+                ORDER BY RANDOM()
+                LIMIT ?
+            )
+        ''', (n,))
+        self.conn.commit()
+
+    def filter_bam_by_ids(self, inBam, outBam, include=True):
+        """
+        Filter a BAM file to reads matching (or not matching) IDs in this store.
+
+        This is a faster, O(1) memory replacement for picard.FilterSamReadsTool.
+        Headers are fully preserved from input to output.
+
+        Args:
+            inBam: Input BAM file path
+            outBam: Output BAM file path
+            include: If True, keep only reads with IDs in the store (inclusion list).
+                     If False, keep only reads with IDs NOT in the store (exclusion list).
+
+        Note:
+            For paired-end reads, both mates share the same QNAME so both will be
+            kept or excluded together based on whether the QNAME is in the store.
+        """
+        # Handle empty input BAM
+        samtools = tools.samtools.SamtoolsTool()
+        if samtools.isEmpty(inBam):
+            shutil.copyfile(inBam, outBam)
+            return
+
+        # Handle empty read ID store
+        if len(self) == 0:
+            if include:
+                # Include mode with empty list = empty output (keep header only)
+                with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
+                    with pysam.AlignmentFile(outBam, 'wb', header=inb.header) as outf:
+                        pass  # Write header only, no reads
+            else:
+                # Exclude mode with empty list = keep all reads
+                shutil.copyfile(inBam, outBam)
+            return
+
+        # Stream through BAM, checking each read's QNAME against SQLite
+        with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
+            with pysam.AlignmentFile(outBam, 'wb', header=inb.header) as outf:
+                for read in inb:
+                    qname = read.query_name
+                    in_store = qname in self  # Uses __contains__ with O(1) lookup
+
+                    if include and in_store:
+                        outf.write(read)
+                    elif not include and not in_store:
+                        outf.write(read)
+
+    def close(self):
+        """Close the database connection."""
+        self.conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+
 def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     # Run M-Vicuna on FASTQ files
     outFastq1 = mkstempfname('.1.fastq')
@@ -951,7 +1231,7 @@ def _merge_fastqs_and_mvicuna(lb, files):
 
     return readList
 
-def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None, threads=None):
+def rmdup_mvicuna_bam(inBam, outBam, threads=None):
     ''' Remove duplicate reads from BAM file using M-Vicuna. The
         primary advantage to this approach over Picard's MarkDuplicates tool
         is that Picard requires that input reads are aligned to a reference,
@@ -960,7 +1240,7 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None, threads=None):
 
     # Convert BAM -> FASTQ pairs per read group and load all read groups
     tempDir = tempfile.mkdtemp()
-    tools.picard.SamToFastqTool().per_read_group(inBam, tempDir, picardOptions=['VALIDATION_STRINGENCY=LENIENT'], JVMmemory=JVMmemory)
+    tools.picard.SamToFastqTool().per_read_group(inBam, tempDir, picardOptions=['VALIDATION_STRINGENCY=LENIENT'])
     read_groups = [x[1:] for x in tools.samtools.SamtoolsTool().getHeader(inBam) if x[0] == '@RG']
     read_groups = [dict(pair.split(':', 1) for pair in rg) for rg in read_groups]
 
@@ -972,39 +1252,36 @@ def rmdup_mvicuna_bam(inBam, outBam, JVMmemory=None, threads=None):
         lb_to_files[rg.get('LB', 'none')].add(os.path.join(tempDir, fname))
     log.info("found %d distinct libraries and %d read groups", len(lb_to_files), len(read_groups))
 
-    # For each library, merge FASTQs and run rmdup for entire library
-    readListAll = mkstempfname('.keep_reads_all.txt')
-    per_lb_read_lists = []
-    with concurrent.futures.ProcessPoolExecutor(max_workers=threads or util.misc.available_cpu_count()) as executor:
-        futures = [executor.submit(_merge_fastqs_and_mvicuna, lb, files) for lb, files in lb_to_files.items()]
-        for future in concurrent.futures.as_completed(futures):
-            log.info("mvicuna finished processing library")
-            try:
-                readList = future.result()
-                per_lb_read_lists.append(readList)
-            except Exception as exc:
-                log.error('mvicuna process call generated an exception: %s' % (exc))
-                raise
+    # Create ReadIdStore and collect read IDs from all libraries
+    with util.file.tmp_dir(suffix='_mvicuna_filter') as filter_tmpdir:
+        db_path = os.path.join(filter_tmpdir, 'read_ids.db')
+        with ReadIdStore(db_path) as store:
+            # For each library, merge FASTQs and run M-Vicuna, collecting read IDs
+            with concurrent.futures.ProcessPoolExecutor(
+                    max_workers=threads or util.misc.available_cpu_count()) as executor:
+                futures = [executor.submit(_merge_fastqs_and_mvicuna, lb, files)
+                           for lb, files in lb_to_files.items()]
+                for future in concurrent.futures.as_completed(futures):
+                    log.info("mvicuna finished processing library")
+                    try:
+                        readList = future.result()
+                        # Stream read IDs directly into store (no intermediate concat)
+                        with open(readList, 'rt') as f:
+                            store.extend(line.strip() for line in f if line.strip())
+                        os.unlink(readList)  # Clean up per-library file immediately
+                    except Exception as exc:
+                        log.error('mvicuna process call generated an exception: %s' % (exc))
+                        raise
 
-    # merge per-library read lists together
-    util.file.concat(per_lb_read_lists, readListAll)
-    # remove per-library read lists
-    for fl in per_lb_read_lists:
-        os.unlink(fl)
+            # Filter original input BAM against keep-list
+            store.filter_bam_by_ids(inBam, outBam, include=True)
 
-    # Filter original input BAM against keep-list
-    tools.picard.FilterSamReadsTool().execute(inBam, False, readListAll, outBam, JVMmemory=JVMmemory)
     return 0
 
 
 def parser_rmdup_mvicuna_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, BAM format.')
     parser.add_argument('outBam', help='Output reads, BAM format.')
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
     util.cmd.common_args(parser, (('threads',None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, rmdup_mvicuna_bam, split_args=True)
     return parser
@@ -1012,6 +1289,129 @@ def parser_rmdup_mvicuna_bam(parser=argparse.ArgumentParser()):
 
 __commands__.append(('rmdup_mvicuna_bam', parser_rmdup_mvicuna_bam))
 
+
+def rmdup_bbnorm_bam(inBam, outBam,
+                      target=None, k=None, passes=None,
+                      memory=None, threads=None,
+                      min_input_reads=None, max_output_reads=None):
+    """
+    Remove duplicate/normalize reads from BAM file using BBNorm.
+
+    Convert BAM to interleaved FASTQ, run bbnorm, extract kept read IDs,
+    and filter original BAM to those IDs using pysam (O(1) memory).
+
+    Args:
+        inBam: Input BAM file
+        outBam: Output BAM file
+        target: BBNorm target normalization depth (default: bbnorm default of 100)
+        k: Kmer length (default: bbnorm default of 31)
+        passes: Number of passes (default: bbnorm default of 2)
+        memory: Java memory for bbnorm (e.g., "4g")
+        threads: Number of threads for bbnorm
+        min_input_reads: Skip processing if input has fewer reads (copy input to output)
+        max_output_reads: Randomly downsample keep-list if larger than this
+    """
+    samtools = tools.samtools.SamtoolsTool()
+
+    # Count input reads
+    input_read_count = samtools.count(inBam)
+    log.info("Input BAM has %d reads", input_read_count)
+
+    # Skip processing if empty or below min_input_reads threshold
+    min_threshold = min_input_reads if min_input_reads is not None else 1
+    if input_read_count < min_threshold:
+        if min_input_reads is not None:
+            log.info("Input read count %d below min_input_reads %d, copying input to output",
+                     input_read_count, min_input_reads)
+        else:
+            log.info("Input BAM is empty, copying to output")
+        shutil.copyfile(inBam, outBam)
+        return 0
+
+    with util.file.tmp_dir(suffix='_bbnorm') as tmpdir:
+        # Convert BAM to interleaved FASTQ using samtools bam2fq
+        inFastq = os.path.join(tmpdir, 'input.fastq')
+        samtools.bam2fq(inBam, inFastq)  # Single file = interleaved output
+
+        # Run bbnorm
+        outFastq = os.path.join(tmpdir, 'output.fastq')
+        tools.bbmap.BBMapTool().bbnorm(
+            inFastq, outFastq,
+            tmpdir=tmpdir, target=target, k=k, passes=passes,
+            mindepth=0, threads=threads, memory=memory
+        )
+
+        # Extract read IDs from bbnorm output FASTQ using SQLite for O(1) memory
+        db_path = os.path.join(tmpdir, 'read_ids.db')
+
+        with ReadIdStore(db_path) as store:
+            store.add_from_fastq(outFastq)
+            num_ids = len(store)
+            log.info("BBNorm retained %d read IDs", num_ids)
+
+            # Downsample if needed (modifies store in-place via SQL)
+            if max_output_reads is not None and num_ids > max_output_reads:
+                log.info("Downsampling from %d to %d read IDs", num_ids, max_output_reads)
+                store.shrink_to_subsample(max_output_reads)
+
+            # Filter original BAM directly using ReadIdStore
+            store.filter_bam_by_ids(inBam, outBam, include=True)
+
+    # Count output reads
+    output_read_count = samtools.count(outBam)
+    log.info("Output BAM has %d reads (%.1f%% of input)",
+             output_read_count, 100.0 * output_read_count / max(input_read_count, 1))
+
+    return 0
+
+
+def parser_rmdup_bbnorm_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument(
+        '--target',
+        type=int,
+        default=None,
+        help='BBNorm target normalization depth (default: bbnorm default of 100)'
+    )
+    parser.add_argument(
+        '--kmerLength',
+        dest='k',
+        type=int,
+        default=None,
+        help='Kmer length for bbnorm (default: bbnorm default of 31)'
+    )
+    parser.add_argument(
+        '--passes',
+        type=int,
+        default=None,
+        help='Number of bbnorm passes (default: bbnorm default of 2)'
+    )
+    parser.add_argument(
+        '--memory',
+        default=None,
+        help='Java memory for bbnorm (e.g., "4g", "8g")'
+    )
+    parser.add_argument(
+        '--minInputReads',
+        dest='min_input_reads',
+        type=int,
+        default=None,
+        help='Skip processing if input has fewer than this many reads'
+    )
+    parser.add_argument(
+        '--maxOutputReads',
+        dest='max_output_reads',
+        type=int,
+        default=None,
+        help='Randomly downsample output to at most this many read IDs'
+    )
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, rmdup_bbnorm_bam, split_args=True)
+    return parser
+
+
+__commands__.append(('rmdup_bbnorm_bam', parser_rmdup_bbnorm_bam))
 
 
 def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):

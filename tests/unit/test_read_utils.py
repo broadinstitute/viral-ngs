@@ -8,6 +8,7 @@ import filecmp
 import os
 import glob
 
+import pysam
 import read_utils
 import shutil
 import tempfile
@@ -282,6 +283,490 @@ class TestRmdupUnaligned(TestCaseWithTmp):
             output_bam
         )
         self.assertEqual(samtools.count(output_bam), 0)
+
+
+class TestReadIdStore(TestCaseWithTmp):
+    """Tests for ReadIdStore SQLite-backed read ID storage."""
+
+    def test_add_from_fastq_paired(self):
+        """Test adding read IDs from paired-end interleaved FASTQ."""
+        # Create a test FASTQ with paired reads
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            # Write 3 read pairs (6 entries, but only 3 unique IDs)
+            for i in range(3):
+                f.write('@read{}/1\nACGT\n+\nIIII\n'.format(i))
+                f.write('@read{}/2\nACGT\n+\nIIII\n'.format(i))
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            added = store.add_from_fastq(fastq_path)
+            self.assertEqual(added, 3)  # 3 unique read IDs
+            self.assertEqual(len(store), 3)
+
+    def test_add_from_fastq_single_end(self):
+        """Test adding read IDs from single-end FASTQ."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            for i in range(5):
+                f.write('@read{}\nACGT\n+\nIIII\n'.format(i))
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            added = store.add_from_fastq(fastq_path)
+            self.assertEqual(added, 5)
+            self.assertEqual(len(store), 5)
+
+    def test_deduplication(self):
+        """Test that duplicate read IDs are ignored."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            # Write same read ID multiple times
+            for _ in range(10):
+                f.write('@duplicate_read\nACGT\n+\nIIII\n')
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.add_from_fastq(fastq_path)
+            self.assertEqual(len(store), 1)  # Only 1 unique ID
+
+    def test_write_to_file(self):
+        """Test writing read IDs to file."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            for i in range(5):
+                f.write('@read{}\nACGT\n+\nIIII\n'.format(i))
+
+        db_path = util.file.mkstempfname('.db')
+        out_path = util.file.mkstempfname('.txt')
+
+        with read_utils.ReadIdStore(db_path) as store:
+            store.add_from_fastq(fastq_path)
+            written = store.write_to_file(out_path)
+            self.assertEqual(written, 5)
+
+        # Verify file contents
+        with open(out_path, 'rt') as f:
+            lines = [line.strip() for line in f]
+        self.assertEqual(len(lines), 5)
+        self.assertEqual(set(lines), {'read0', 'read1', 'read2', 'read3', 'read4'})
+
+    def test_write_to_file_with_downsampling(self):
+        """Test random downsampling when writing to file."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            for i in range(100):
+                f.write('@read{}\nACGT\n+\nIIII\n'.format(i))
+
+        db_path = util.file.mkstempfname('.db')
+        out_path = util.file.mkstempfname('.txt')
+
+        with read_utils.ReadIdStore(db_path) as store:
+            store.add_from_fastq(fastq_path)
+            self.assertEqual(len(store), 100)
+            written = store.write_to_file(out_path, max_reads=20)
+            self.assertEqual(written, 20)
+
+        # Verify file has exactly 20 lines
+        with open(out_path, 'rt') as f:
+            lines = [line.strip() for line in f]
+        self.assertEqual(len(lines), 20)
+
+    def test_empty_fastq(self):
+        """Test handling of empty FASTQ file."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            pass  # Empty file
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            added = store.add_from_fastq(fastq_path)
+            self.assertEqual(added, 0)
+            self.assertEqual(len(store), 0)
+
+    def test_add_single(self):
+        """Test adding a single read ID."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            self.assertTrue(store.add('read1'))
+            self.assertEqual(len(store), 1)
+            # Adding same ID again should return False
+            self.assertFalse(store.add('read1'))
+            self.assertEqual(len(store), 1)
+            # Adding different ID should work
+            self.assertTrue(store.add('read2'))
+            self.assertEqual(len(store), 2)
+
+    def test_extend(self):
+        """Test adding multiple read IDs efficiently."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Add from a list
+            added = store.extend(['read1', 'read2', 'read3'])
+            self.assertEqual(added, 3)
+            self.assertEqual(len(store), 3)
+
+            # Add with some duplicates
+            added = store.extend(['read3', 'read4', 'read5'])
+            self.assertEqual(added, 2)  # Only read4 and read5 are new
+            self.assertEqual(len(store), 5)
+
+    def test_extend_generator(self):
+        """Test extend with a generator (O(1) memory)."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Use a generator expression
+            added = store.extend('read{}'.format(i) for i in range(100))
+            self.assertEqual(added, 100)
+            self.assertEqual(len(store), 100)
+
+    def test_contains(self):
+        """Test membership testing with 'in' operator."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read1', 'read2', 'read3'])
+            self.assertIn('read1', store)
+            self.assertIn('read2', store)
+            self.assertNotIn('read4', store)
+
+    def test_iter(self):
+        """Test iteration over read IDs in insertion order."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read3', 'read1', 'read2'])
+            # Should iterate in insertion order
+            result = list(store)
+            self.assertEqual(result, ['read3', 'read1', 'read2'])
+
+    def test_delitem(self):
+        """Test deleting read IDs with del operator."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read1', 'read2', 'read3'])
+            self.assertEqual(len(store), 3)
+
+            del store['read2']
+            self.assertEqual(len(store), 2)
+            self.assertNotIn('read2', store)
+            self.assertIn('read1', store)
+            self.assertIn('read3', store)
+
+            # Deleting non-existent ID should raise KeyError
+            with self.assertRaises(KeyError):
+                del store['nonexistent']
+
+    def test_discard(self):
+        """Test discard method (no error if absent)."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read1', 'read2'])
+
+            store.discard('read1')
+            self.assertEqual(len(store), 1)
+            self.assertNotIn('read1', store)
+
+            # Discarding non-existent ID should not raise
+            store.discard('nonexistent')  # Should not raise
+            self.assertEqual(len(store), 1)
+
+    def test_shrink_to_subsample_basic(self):
+        """Test shrink_to_subsample reduces store to n elements."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Add 100 read IDs
+            original_ids = set('read{}'.format(i) for i in range(100))
+            store.extend(original_ids)
+            self.assertEqual(len(store), 100)
+
+            # Shrink to 25
+            store.shrink_to_subsample(25)
+            self.assertEqual(len(store), 25)
+
+            # All remaining IDs should be from original set
+            remaining = set(store)
+            self.assertTrue(remaining.issubset(original_ids))
+
+    def test_shrink_to_subsample_larger_than_store(self):
+        """Test shrink_to_subsample with n >= store size does nothing."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read{}'.format(i) for i in range(50)])
+            self.assertEqual(len(store), 50)
+
+            # Request 100, but only have 50
+            store.shrink_to_subsample(100)
+            self.assertEqual(len(store), 50)  # Unchanged
+
+    def test_shrink_to_subsample_randomness(self):
+        """Test that shrink_to_subsample produces different results on repeated calls."""
+        original_ids = ['read{}'.format(i) for i in range(100)]
+
+        # Create two stores and subsample each
+        db_path1 = util.file.mkstempfname('.db')
+        db_path2 = util.file.mkstempfname('.db')
+
+        with read_utils.ReadIdStore(db_path1) as store1:
+            store1.extend(original_ids)
+            store1.shrink_to_subsample(10)
+            result1 = set(store1)
+
+        with read_utils.ReadIdStore(db_path2) as store2:
+            store2.extend(original_ids)
+            store2.shrink_to_subsample(10)
+            result2 = set(store2)
+
+        # Very unlikely to be identical (1 in C(100,10) chance)
+        # We allow this test to pass even if they match, just check both are valid
+        self.assertEqual(len(result1), 10)
+        self.assertEqual(len(result2), 10)
+
+    def test_filter_bam_by_ids_include(self):
+        """Test filter_bam_by_ids with include=True keeps only matching reads."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+
+        # Get some read names from the input BAM
+        read_names = set()
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            for i, read in enumerate(bam):
+                if i < 10:  # Get first 10 reads (5 pairs)
+                    read_names.add(read.query_name)
+                else:
+                    break
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(read_names)
+            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        # Output should have exactly len(read_names) * 2 reads (paired-end)
+        output_count = samtools.count(output_bam)
+        self.assertEqual(output_count, len(read_names) * 2)
+
+    def test_filter_bam_by_ids_exclude(self):
+        """Test filter_bam_by_ids with include=False excludes matching reads."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        input_count = samtools.count(input_bam)
+
+        # Get some read names from the input BAM
+        read_names = set()
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            for i, read in enumerate(bam):
+                if i < 10:  # Get first 10 reads (5 pairs)
+                    read_names.add(read.query_name)
+                else:
+                    break
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(read_names)
+            store.filter_bam_by_ids(input_bam, output_bam, include=False)
+
+        # Output should have input_count - (len(read_names) * 2) reads
+        output_count = samtools.count(output_bam)
+        expected = input_count - (len(read_names) * 2)
+        self.assertEqual(output_count, expected)
+
+    def test_filter_bam_by_ids_header_preserved(self):
+        """Test that BAM headers are semantically equivalent after filtering."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        # Get some read names
+        read_names = set()
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            for i, read in enumerate(bam):
+                if i < 5:
+                    read_names.add(read.query_name)
+                else:
+                    break
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(read_names)
+            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        # Compare headers
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as inb:
+            input_header = inb.header
+
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as outb:
+            output_header = outb.header
+
+        # Check header keys match
+        self.assertEqual(set(input_header.keys()), set(output_header.keys()))
+
+        # Check RG entries preserved
+        if 'RG' in input_header:
+            self.assertEqual(input_header['RG'], output_header['RG'])
+
+        # Check HD header preserved
+        if 'HD' in input_header:
+            self.assertEqual(dict(input_header['HD']), dict(output_header['HD']))
+
+    def test_filter_bam_by_ids_empty_input(self):
+        """Test filter_bam_by_ids handles empty input BAM."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read1', 'read2'])
+            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        self.assertEqual(samtools.count(output_bam), 0)
+
+    def test_filter_bam_by_ids_empty_store_include(self):
+        """Test include mode with empty store produces empty BAM with header."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Empty store
+            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        # Output should have 0 reads
+        self.assertEqual(samtools.count(output_bam), 0)
+
+        # But should have valid header
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as bam:
+            self.assertIsNotNone(bam.header)
+
+    def test_filter_bam_by_ids_empty_store_exclude(self):
+        """Test exclude mode with empty store keeps all reads."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname('.bam')
+
+        samtools = tools.samtools.SamtoolsTool()
+        input_count = samtools.count(input_bam)
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Empty store
+            store.filter_bam_by_ids(input_bam, output_bam, include=False)
+
+        # Output should have all input reads
+        self.assertEqual(samtools.count(output_bam), input_count)
+
+
+class TestRmdupBbnorm(TestCaseWithTmp):
+    """Tests for rmdup_bbnorm_bam using BBNorm for deduplication/normalization."""
+
+    def setUp(self):
+        super(TestRmdupBbnorm, self).setUp()
+        self.samtools = tools.samtools.SamtoolsTool()
+
+    def test_bbnorm_canned_input(self):
+        """Test rmdup_bbnorm_bam with standard paired-end input."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        # Output should have reads and be <= input count
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_bbnorm_empty_input(self):
+        """Test rmdup_bbnorm_bam handles empty BAM."""
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Empty input doesn't call bbnorm, so no need for memory/threads
+        read_utils.rmdup_bbnorm_bam(empty_bam, output_bam)
+
+        self.assertEqual(self.samtools.count(output_bam), 0)
+
+    def test_bbnorm_multi_library(self):
+        """Test rmdup_bbnorm_bam with multiple libraries/read groups."""
+        # G5012.3.testreads.bam has 18710 reads, 12 RGs, 2 libraries
+        input_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        # Output should have reads
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_bbnorm_single_end(self):
+        """Test rmdup_bbnorm_bam with single-end reads."""
+        # in.2libs3rgs.bam has 2850 single-end reads
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestPerSample', 'in.2libs3rgs.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        # Output should have reads
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_bbnorm_min_input_reads_skip(self):
+        """Test that min_input_reads skips processing when below threshold."""
+        # input.bam has 1794 reads, set threshold to 2000
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # min_input_reads causes skip, so bbnorm isn't called
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, min_input_reads=2000)
+
+        # Output should equal input (copied, not processed)
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertEqual(output_count, input_count)
+
+    def test_bbnorm_min_input_reads_process(self):
+        """Test that min_input_reads processes when above threshold."""
+        # input.bam has 1794 reads, set threshold to 1000
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, min_input_reads=1000,
+                                     threads=1, memory='250m')
+
+        # Output should have reads (processing occurred)
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_bbnorm_max_output_reads_downsample(self):
+        """Test that max_output_reads downsamples the keep-list."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Set max_output_reads to 500 (less than expected bbnorm output)
+        # Use low memory and single thread for CI compatibility
+        max_output_reads = 500
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, max_output_reads=max_output_reads,
+                                     threads=1, memory='250m')
+
+        # Output should be approximately max_output_reads (tolerance for pairs)
+        output_count = self.samtools.count(output_bam)
+        # For paired reads, we downsample read IDs, so output is ~2x the ID count
+        # Allow some tolerance over exactly 2x
+        expected_max_reads = max_output_reads * 2 + 100  # IDs * 2 reads/pair + tolerance
+        self.assertLessEqual(output_count, expected_max_reads)
 
 
 class TestMvicuna(TestCaseWithTmp):

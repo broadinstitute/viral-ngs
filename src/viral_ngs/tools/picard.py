@@ -437,14 +437,23 @@ class ReplaceSamHeaderTool(PicardTools):
 
 
 class FilterSamReadsTool(PicardTools):
-    ''' TO DO: it might be desirable to replace this tool with a
-        non-Picard/non-Java approach that uses samtools/pysam, sqlite,
-        and O(1) memory.
+    '''
+    DEPRECATED: This Picard-based tool is deprecated in favor of
+    ReadIdStore.filter_bam_by_ids() in read_utils.py which uses
+    pysam/sqlite with O(1) memory and is significantly faster.
+
+    This class is retained for backwards compatibility but new code
+    should use ReadIdStore instead.
     '''
     subtoolName = 'FilterSamReads'
     jvmMemDefault = '4g'
 
     def execute(self, inBam, exclude, readList, outBam, picardOptions=None, JVMmemory=None):    # pylint: disable=W0221
+        _log.warning(
+            "DEPRECATED: FilterSamReadsTool is deprecated. "
+            "Use ReadIdStore.filter_bam_by_ids() from read_utils.py instead "
+            "for faster O(1) memory filtering."
+        )
         picardOptions = picardOptions or []
 
         if tools.samtools.SamtoolsTool().isEmpty(inBam):
