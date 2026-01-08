@@ -26,7 +26,10 @@ class TestToolBBMap(TestCaseWithTmp):
         shutil.copyfile(orig_ref, inRef)
         reads = os.path.join(util.file.get_test_input_path(self), 'ebov_reads.bam')
         outBam = util.file.mkstempfname('.bam')
-        self.bbmap.align(inBam=reads, refFasta=inRef, outBam=outBam)
+        # Use conservative memory and single thread for CI compatibility
+        # BBMap alignment needs more memory than bbnorm for index building
+        self.bbmap.align(inBam=reads, refFasta=inRef, outBam=outBam,
+                         threads=1, Xmx='1g')
         self.assertTrue(os.path.isfile(outBam))
         self.assertTrue(os.path.getsize(outBam))
 
