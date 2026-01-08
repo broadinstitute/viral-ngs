@@ -63,3 +63,46 @@ class BBMapTool(tools.Tool):
                 JVMmemory=JVMmemory
             )
 
+    def bbnorm(self, inFastq, outFastq, tmpdir=None, target=None, k=None,
+               passes=None, mindepth=0, threads=None, memory=None):
+        """
+        Run bbnorm for read normalization/deduplication.
+
+        Args:
+            inFastq: Input FASTQ file (interleaved for paired-end, or single-end)
+            outFastq: Output FASTQ file (same format as input)
+            tmpdir: Temporary directory for multipass processing
+            target: Target normalization depth (default: bbnorm default of 100)
+            k: Kmer length (default: bbnorm default of 31)
+            passes: Number of passes (default: bbnorm default of 2)
+            mindepth: Min kmer depth threshold (default: 0 to include all)
+            threads: Number of threads (default: auto)
+            memory: Java memory allocation string (e.g., "4g")
+
+        Note: bbnorm auto-detects interleaved vs single-end format.
+        """
+        tool_dir = os.path.dirname(self.install_and_get_path())
+        tool_cmd = [os.path.join(tool_dir, 'bbnorm.sh'), '-eoom']
+
+        if memory:
+            tool_cmd.append('-Xmx{}'.format(memory))
+
+        # Build arguments
+        tool_cmd.append('in={}'.format(inFastq))
+        tool_cmd.append('out={}'.format(outFastq))
+        tool_cmd.append('mindepth={}'.format(mindepth))
+
+        if tmpdir is not None:
+            tool_cmd.append('tmpdir={}'.format(tmpdir))
+        if target is not None:
+            tool_cmd.append('target={}'.format(target))
+        if k is not None:
+            tool_cmd.append('k={}'.format(k))
+        if passes is not None:
+            tool_cmd.append('passes={}'.format(passes))
+        if threads is not None:
+            tool_cmd.append('threads={}'.format(threads))
+
+        _log.debug('Running bbnorm: %s', ' '.join(tool_cmd))
+        subprocess.check_call(tool_cmd)
+

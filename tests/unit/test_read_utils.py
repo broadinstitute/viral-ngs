@@ -284,6 +284,114 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         self.assertEqual(samtools.count(output_bam), 0)
 
 
+class TestRmdupBbnorm(TestCaseWithTmp):
+    """Tests for rmdup_bbnorm_bam using BBNorm for deduplication/normalization."""
+
+    def setUp(self):
+        super(TestRmdupBbnorm, self).setUp()
+        self.samtools = tools.samtools.SamtoolsTool()
+
+    def test_bbnorm_canned_input(self):
+        """Test rmdup_bbnorm_bam with standard paired-end input."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        # Output should have reads and be <= input count
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_bbnorm_empty_input(self):
+        """Test rmdup_bbnorm_bam handles empty BAM."""
+        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Empty input doesn't call bbnorm, so no need for memory/threads
+        read_utils.rmdup_bbnorm_bam(empty_bam, output_bam)
+
+        self.assertEqual(self.samtools.count(output_bam), 0)
+
+    def test_bbnorm_multi_library(self):
+        """Test rmdup_bbnorm_bam with multiple libraries/read groups."""
+        # G5012.3.testreads.bam has 18710 reads, 12 RGs, 2 libraries
+        input_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        # Output should have reads
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_bbnorm_single_end(self):
+        """Test rmdup_bbnorm_bam with single-end reads."""
+        # in.2libs3rgs.bam has 2850 single-end reads
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestPerSample', 'in.2libs3rgs.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        # Output should have reads
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_bbnorm_min_input_reads_skip(self):
+        """Test that min_input_reads skips processing when below threshold."""
+        # input.bam has 1794 reads, set threshold to 2000
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # min_input_reads causes skip, so bbnorm isn't called
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, min_input_reads=2000)
+
+        # Output should equal input (copied, not processed)
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertEqual(output_count, input_count)
+
+    def test_bbnorm_min_input_reads_process(self):
+        """Test that min_input_reads processes when above threshold."""
+        # input.bam has 1794 reads, set threshold to 1000
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, min_input_reads=1000,
+                                     threads=1, memory='250m')
+
+        # Output should have reads (processing occurred)
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_bbnorm_max_output_reads_downsample(self):
+        """Test that max_output_reads downsamples the keep-list."""
+        input_bam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = util.file.mkstempfname("output.bam")
+
+        # Set max_output_reads to 500 (less than expected bbnorm output)
+        # Use low memory and single thread for CI compatibility
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, max_output_reads=500,
+                                     threads=1, memory='250m')
+
+        # Output should be approximately 500 reads (tolerance for pairs)
+        output_count = self.samtools.count(output_bam)
+        # For paired reads, we downsample read IDs, so output is ~2x the ID count
+        # Allow some tolerance
+        self.assertLessEqual(output_count, 1100)  # 500 IDs * 2 reads/pair + tolerance
+
+
 class TestMvicuna(TestCaseWithTmp):
     """
     Input consists of 3 read pairs.

@@ -1010,6 +1010,162 @@ def parser_rmdup_mvicuna_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('rmdup_mvicuna_bam', parser_rmdup_mvicuna_bam))
 
 
+def rmdup_bbnorm_bam(inBam, outBam,
+                      target=None, k=None, passes=None,
+                      memory=None, threads=None,
+                      min_input_reads=None, max_output_reads=None,
+                      JVMmemory=None):
+    """
+    Remove duplicate/normalize reads from BAM file using BBNorm.
+
+    Uses the FilterSamReadsTool approach: convert BAM to interleaved FASTQ,
+    run bbnorm, extract kept read IDs, filter original BAM to those IDs.
+
+    Args:
+        inBam: Input BAM file
+        outBam: Output BAM file
+        target: BBNorm target normalization depth (default: bbnorm default of 100)
+        k: Kmer length (default: bbnorm default of 31)
+        passes: Number of passes (default: bbnorm default of 2)
+        memory: Java memory for bbnorm (e.g., "4g")
+        threads: Number of threads for bbnorm
+        min_input_reads: Skip processing if input has fewer reads (copy input to output)
+        max_output_reads: Randomly downsample keep-list if larger than this
+        JVMmemory: JVM memory for Picard FilterSamReads
+    """
+    import random
+    import tools.bbmap
+
+    samtools = tools.samtools.SamtoolsTool()
+
+    # Count input reads
+    input_read_count = samtools.count(inBam)
+    log.info("Input BAM has %d reads", input_read_count)
+
+    # Skip processing if below min_input_reads threshold
+    if min_input_reads is not None and input_read_count < min_input_reads:
+        log.info("Input read count %d below min_input_reads %d, copying input to output",
+                 input_read_count, min_input_reads)
+        shutil.copyfile(inBam, outBam)
+        return 0
+
+    # Handle empty input
+    if samtools.isEmpty(inBam):
+        shutil.copyfile(inBam, outBam)
+        return 0
+
+    with util.file.tmp_dir(suffix='_bbnorm') as tmpdir:
+        # Convert BAM to interleaved FASTQ using samtools bam2fq
+        inFastq = os.path.join(tmpdir, 'input.fastq')
+        samtools.bam2fq(inBam, inFastq)  # Single file = interleaved output
+
+        # Run bbnorm
+        outFastq = os.path.join(tmpdir, 'output.fastq')
+        tools.bbmap.BBMapTool().bbnorm(
+            inFastq, outFastq,
+            tmpdir=tmpdir, target=target, k=k, passes=passes,
+            mindepth=0, threads=threads, memory=memory
+        )
+
+        # Extract read IDs from bbnorm output FASTQ
+        readListAll = mkstempfname('.keep_reads.txt')
+        seen_ids = set()
+        with open(readListAll, 'wt') as outf:
+            with util.file.open_or_gzopen(outFastq, 'rt') as inf:
+                line_num = 0
+                for line in inf:
+                    if (line_num % 4) == 0:
+                        idVal = line.rstrip('\n')[1:]
+                        # Remove /1 or /2 suffix if present
+                        if idVal.endswith('/1') or idVal.endswith('/2'):
+                            idVal = idVal[:-2]
+                        # Write each unique read ID once (paired reads share ID)
+                        if idVal not in seen_ids:
+                            outf.write(idVal + '\n')
+                            seen_ids.add(idVal)
+                    line_num += 1
+
+        log.info("BBNorm retained %d read IDs", len(seen_ids))
+
+        # Downsample if max_output_reads specified and exceeded
+        if max_output_reads is not None and len(seen_ids) > max_output_reads:
+            log.info("Downsampling from %d to %d read IDs",
+                     len(seen_ids), max_output_reads)
+            downsampled_ids = random.sample(list(seen_ids), max_output_reads)
+
+            # Rewrite the file with downsampled IDs
+            with open(readListAll, 'wt') as f:
+                for read_id in downsampled_ids:
+                    f.write(read_id + '\n')
+
+        # Filter original BAM against keep-list
+        tools.picard.FilterSamReadsTool().execute(
+            inBam, False, readListAll, outBam, JVMmemory=JVMmemory
+        )
+
+        os.unlink(readListAll)
+
+    # Count output reads
+    output_read_count = samtools.count(outBam)
+    log.info("Output BAM has %d reads (%.1f%% of input)",
+             output_read_count, 100.0 * output_read_count / max(input_read_count, 1))
+
+    return 0
+
+
+def parser_rmdup_bbnorm_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument(
+        '--target',
+        type=int,
+        default=None,
+        help='BBNorm target normalization depth (default: bbnorm default of 100)'
+    )
+    parser.add_argument(
+        '--kmerLength',
+        dest='k',
+        type=int,
+        default=None,
+        help='Kmer length for bbnorm (default: bbnorm default of 31)'
+    )
+    parser.add_argument(
+        '--passes',
+        type=int,
+        default=None,
+        help='Number of bbnorm passes (default: bbnorm default of 2)'
+    )
+    parser.add_argument(
+        '--memory',
+        default=None,
+        help='Java memory for bbnorm (e.g., "4g", "8g")'
+    )
+    parser.add_argument(
+        '--minInputReads',
+        dest='min_input_reads',
+        type=int,
+        default=None,
+        help='Skip processing if input has fewer than this many reads'
+    )
+    parser.add_argument(
+        '--maxOutputReads',
+        dest='max_output_reads',
+        type=int,
+        default=None,
+        help='Randomly downsample output to at most this many read IDs'
+    )
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
+        help='JVM virtual memory size for Picard (default: %(default)s)'
+    )
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, rmdup_bbnorm_bam, split_args=True)
+    return parser
+
+
+__commands__.append(('rmdup_bbnorm_bam', parser_rmdup_bbnorm_bam))
+
 
 def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
