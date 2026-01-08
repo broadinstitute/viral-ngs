@@ -30,7 +30,6 @@ import pysam
 import util.cmd
 import util.file
 import util.misc
-import tools.samtools
 import read_utils
 
 import classify.kaiju
@@ -1126,7 +1125,6 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
     with util.file.tmp_dir(suffix='_filter_taxa') as tmpdir:
         db_path = os.path.join(tmpdir, 'read_ids.db')
         with read_utils.ReadIdStore(db_path) as store:
-            read_ids_written = 0
             for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
                 assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
                 assert read_id_col<len(row), "read_id_col does not appear to be in range for number of columns present in mapping file"
@@ -1137,23 +1135,16 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
                 read_id_match = re.match(paired_read_base_pattern, read_id)
                 if (read_id_match and read_tax_id in tax_ids_to_include):
                     store.add(read_id_match.group(1))
-                    read_ids_written += 1
 
-            log.info("matched {} reads".format(read_ids_written))
+            log.info("matched {} reads".format(len(store)))
 
             # report count if desired
             if out_count:
                 with open(out_count, 'wt') as outf:
-                    outf.write("{}\n".format(read_ids_written))
+                    outf.write("{}\n".format(len(store)))
 
-            # if we found reads matching the taxNames requested,
-            if (read_ids_written > 0) or exclude:
-                # filter the input bam (include=True keeps matching, include=False removes matching)
-                store.filter_bam_by_ids(in_bam, out_bam, include=not exclude)
-            else:
-                # otherwise, "touch" the output bam to contain the
-                # header of the input bam (no matching reads)
-                tools.samtools.SamtoolsTool().dumpHeader(in_bam, out_bam)
+            # filter the input bam (include=True keeps matching, include=False removes matching)
+            store.filter_bam_by_ids(in_bam, out_bam, include=not exclude)
 __commands__.append(('filter_bam_to_taxa', parser_filter_bam_to_taxa))
 
 

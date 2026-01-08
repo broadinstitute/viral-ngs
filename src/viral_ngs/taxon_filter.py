@@ -203,24 +203,21 @@ def filter_lastal_bam(
         # Stream lastal hits directly into ReadIdStore
         db_path = os.path.join(tmp_db_dir, 'read_ids.db')
         with read_utils.ReadIdStore(db_path) as store:
-            number_of_hits = 0
-            for read_id in classify.last.Lastal().get_hits(
-                    inBam, db,
-                    max_gapless_alignments_per_position,
-                    min_length_for_initial_matches,
-                    max_length_for_initial_matches,
-                    max_initial_matches_per_position,
-                    threads=threads
-                ):
-                store.add(read_id)
-                number_of_hits += 1
+            store.extend(classify.last.Lastal().get_hits(
+                inBam, db,
+                max_gapless_alignments_per_position,
+                min_length_for_initial_matches,
+                max_length_for_initial_matches,
+                max_initial_matches_per_position,
+                threads=threads
+            ))
 
             if error_on_reads_in_neg_control:
                 sample_name=os.path.basename(inBam)
                 if any(sample_name.lower().startswith(prefix.lower()) for prefix in neg_control_prefixes):
-                    if number_of_hits > max(0,negative_control_reads_threshold):
+                    if len(store) > max(0,negative_control_reads_threshold):
                         log.warning("Error raised due to reads in negative control; re-run this without '--errorOnReadsInNegControl' if this execution should succeed.")
-                        raise QCError("The sample '{}' appears to be a negative control, but it contains {} reads after filtering to desired taxa.".format(sample_name,number_of_hits))
+                        raise QCError("The sample '{}' appears to be a negative control, but it contains {} reads after filtering to desired taxa.".format(sample_name, len(store)))
 
             # filter original BAM file against keep list
             store.filter_bam_by_ids(inBam, outBam, include=True)
