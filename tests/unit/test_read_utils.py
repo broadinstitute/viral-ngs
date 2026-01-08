@@ -383,6 +383,91 @@ class TestReadIdStore(TestCaseWithTmp):
             self.assertEqual(added, 0)
             self.assertEqual(len(store), 0)
 
+    def test_add_single(self):
+        """Test adding a single read ID."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            self.assertTrue(store.add('read1'))
+            self.assertEqual(len(store), 1)
+            # Adding same ID again should return False
+            self.assertFalse(store.add('read1'))
+            self.assertEqual(len(store), 1)
+            # Adding different ID should work
+            self.assertTrue(store.add('read2'))
+            self.assertEqual(len(store), 2)
+
+    def test_extend(self):
+        """Test adding multiple read IDs efficiently."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Add from a list
+            added = store.extend(['read1', 'read2', 'read3'])
+            self.assertEqual(added, 3)
+            self.assertEqual(len(store), 3)
+
+            # Add with some duplicates
+            added = store.extend(['read3', 'read4', 'read5'])
+            self.assertEqual(added, 2)  # Only read4 and read5 are new
+            self.assertEqual(len(store), 5)
+
+    def test_extend_generator(self):
+        """Test extend with a generator (O(1) memory)."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            # Use a generator expression
+            added = store.extend('read{}'.format(i) for i in range(100))
+            self.assertEqual(added, 100)
+            self.assertEqual(len(store), 100)
+
+    def test_contains(self):
+        """Test membership testing with 'in' operator."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read1', 'read2', 'read3'])
+            self.assertIn('read1', store)
+            self.assertIn('read2', store)
+            self.assertNotIn('read4', store)
+
+    def test_iter(self):
+        """Test iteration over read IDs in insertion order."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read3', 'read1', 'read2'])
+            # Should iterate in insertion order
+            result = list(store)
+            self.assertEqual(result, ['read3', 'read1', 'read2'])
+
+    def test_delitem(self):
+        """Test deleting read IDs with del operator."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read1', 'read2', 'read3'])
+            self.assertEqual(len(store), 3)
+
+            del store['read2']
+            self.assertEqual(len(store), 2)
+            self.assertNotIn('read2', store)
+            self.assertIn('read1', store)
+            self.assertIn('read3', store)
+
+            # Deleting non-existent ID should raise KeyError
+            with self.assertRaises(KeyError):
+                del store['nonexistent']
+
+    def test_discard(self):
+        """Test discard method (no error if absent)."""
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(['read1', 'read2'])
+
+            store.discard('read1')
+            self.assertEqual(len(store), 1)
+            self.assertNotIn('read1', store)
+
+            # Discarding non-existent ID should not raise
+            store.discard('nonexistent')  # Should not raise
+            self.assertEqual(len(store), 1)
+
 
 class TestRmdupBbnorm(TestCaseWithTmp):
     """Tests for rmdup_bbnorm_bam using BBNorm for deduplication/normalization."""

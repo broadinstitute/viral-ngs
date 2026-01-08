@@ -906,6 +906,105 @@ class ReadIdStore:
         cursor = self.conn.execute('SELECT COUNT(*) FROM read_ids')
         return cursor.fetchone()[0]
 
+    def __iter__(self):
+        """Iterate over all read IDs in insertion order. O(1) memory."""
+        cursor = self.conn.execute('SELECT read_id FROM read_ids ORDER BY id')
+        for row in cursor:
+            yield row[0]
+
+    def __contains__(self, read_id):
+        """Check if a read ID exists in the store."""
+        cursor = self.conn.execute(
+            'SELECT 1 FROM read_ids WHERE read_id = ? LIMIT 1',
+            (read_id,)
+        )
+        return cursor.fetchone() is not None
+
+    def add(self, read_id):
+        """
+        Add a single read ID to the store.
+
+        Args:
+            read_id: The read ID string to add
+
+        Returns:
+            True if the read ID was added, False if it already existed
+        """
+        cursor = self.conn.execute(
+            'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+            (read_id,)
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def extend(self, read_ids):
+        """
+        Add multiple read IDs to the store efficiently.
+
+        Uses executemany for batch insertion. O(1) memory - processes
+        the input iterable in chunks.
+
+        Args:
+            read_ids: Iterable of read ID strings
+
+        Returns:
+            Number of new read IDs added
+        """
+        count_before = len(self)
+        cursor = self.conn.cursor()
+
+        # Process in batches for memory efficiency
+        batch = []
+        for read_id in read_ids:
+            batch.append((read_id,))
+            if len(batch) >= 10000:
+                cursor.executemany(
+                    'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                    batch
+                )
+                batch = []
+
+        # Insert remaining batch
+        if batch:
+            cursor.executemany(
+                'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                batch
+            )
+
+        self.conn.commit()
+        return len(self) - count_before
+
+    def __delitem__(self, read_id):
+        """
+        Delete a read ID from the store.
+
+        Args:
+            read_id: The read ID string to delete
+
+        Raises:
+            KeyError: If the read ID does not exist
+        """
+        cursor = self.conn.execute(
+            'DELETE FROM read_ids WHERE read_id = ?',
+            (read_id,)
+        )
+        self.conn.commit()
+        if cursor.rowcount == 0:
+            raise KeyError(read_id)
+
+    def discard(self, read_id):
+        """
+        Remove a read ID if it exists, without raising an error if absent.
+
+        Args:
+            read_id: The read ID string to remove
+        """
+        self.conn.execute(
+            'DELETE FROM read_ids WHERE read_id = ?',
+            (read_id,)
+        )
+        self.conn.commit()
+
     def write_to_file(self, out_path, max_reads=None):
         """
         Write read IDs to a file.
