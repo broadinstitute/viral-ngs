@@ -11,7 +11,7 @@ import argparse
 import logging
 import math
 import os
-import random
+import sqlite3
 import tempfile
 import shutil
 import sys
@@ -830,6 +830,122 @@ __commands__.append(('reheader_bams', parser_reheader_bams))
 # ============================
 
 
+class ReadIdStore:
+    """
+    SQLite-backed store for read IDs with O(1) memory footprint.
+
+    Uses SQLite for disk-based storage with automatic deduplication via
+    UNIQUE constraint. Supports random sampling for downsampling operations.
+    """
+
+    def __init__(self, db_path):
+        """
+        Initialize the read ID store.
+
+        Args:
+            db_path: Path to SQLite database file (typically in tmpdir)
+        """
+        self.db_path = db_path
+        self.conn = sqlite3.connect(db_path)
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS read_ids (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                read_id TEXT UNIQUE NOT NULL
+            )
+        ''')
+        self.conn.commit()
+
+    def add_from_fastq(self, fastq_path):
+        """
+        Extract read IDs from a FASTQ file and add to the store.
+
+        Handles paired-end reads by stripping /1 or /2 suffixes.
+        Duplicates are automatically ignored via INSERT OR IGNORE.
+
+        Args:
+            fastq_path: Path to FASTQ file (can be gzipped)
+
+        Returns:
+            Number of new read IDs added
+        """
+        cursor = self.conn.cursor()
+        count_before = len(self)
+
+        with util.file.open_or_gzopen(fastq_path, 'rt') as inf:
+            line_num = 0
+            batch = []
+            for line in inf:
+                if (line_num % 4) == 0:
+                    idVal = line.rstrip('\n')[1:]
+                    # Remove /1 or /2 suffix if present (paired-end reads)
+                    if idVal.endswith('/1') or idVal.endswith('/2'):
+                        idVal = idVal[:-2]
+                    batch.append((idVal,))
+
+                    # Batch inserts for performance
+                    if len(batch) >= 10000:
+                        cursor.executemany(
+                            'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                            batch
+                        )
+                        batch = []
+                line_num += 1
+
+            # Insert remaining batch
+            if batch:
+                cursor.executemany(
+                    'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                    batch
+                )
+
+        self.conn.commit()
+        return len(self) - count_before
+
+    def __len__(self):
+        """Return the number of unique read IDs in the store."""
+        cursor = self.conn.execute('SELECT COUNT(*) FROM read_ids')
+        return cursor.fetchone()[0]
+
+    def write_to_file(self, out_path, max_reads=None):
+        """
+        Write read IDs to a file.
+
+        Args:
+            out_path: Output file path
+            max_reads: If specified, randomly sample this many read IDs
+
+        Returns:
+            Number of read IDs written
+        """
+        if max_reads is not None and max_reads < len(self):
+            # Random sampling using ORDER BY RANDOM()
+            query = 'SELECT read_id FROM read_ids ORDER BY RANDOM() LIMIT ?'
+            cursor = self.conn.execute(query, (max_reads,))
+        else:
+            # Return all in insertion order
+            query = 'SELECT read_id FROM read_ids ORDER BY id'
+            cursor = self.conn.execute(query)
+
+        count = 0
+        with open(out_path, 'wt') as outf:
+            for row in cursor:
+                outf.write(row[0] + '\n')
+                count += 1
+
+        return count
+
+    def close(self):
+        """Close the database connection."""
+        self.conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+
 def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
     # Run M-Vicuna on FASTQ files
     outFastq1 = mkstempfname('.1.fastq')
@@ -1041,15 +1157,14 @@ def rmdup_bbnorm_bam(inBam, outBam,
     input_read_count = samtools.count(inBam)
     log.info("Input BAM has %d reads", input_read_count)
 
-    # Skip processing if below min_input_reads threshold
-    if min_input_reads is not None and input_read_count < min_input_reads:
-        log.info("Input read count %d below min_input_reads %d, copying input to output",
-                 input_read_count, min_input_reads)
-        shutil.copyfile(inBam, outBam)
-        return 0
-
-    # Handle empty input
-    if samtools.isEmpty(inBam):
+    # Skip processing if empty or below min_input_reads threshold
+    min_threshold = min_input_reads if min_input_reads is not None else 1
+    if input_read_count < min_threshold:
+        if min_input_reads is not None:
+            log.info("Input read count %d below min_input_reads %d, copying input to output",
+                     input_read_count, min_input_reads)
+        else:
+            log.info("Input BAM is empty, copying to output")
         shutil.copyfile(inBam, outBam)
         return 0
 
@@ -1066,43 +1181,24 @@ def rmdup_bbnorm_bam(inBam, outBam,
             mindepth=0, threads=threads, memory=memory
         )
 
-        # Extract read IDs from bbnorm output FASTQ
-        readListAll = mkstempfname('.keep_reads.txt')
-        seen_ids = set()
-        with open(readListAll, 'wt') as outf:
-            with util.file.open_or_gzopen(outFastq, 'rt') as inf:
-                line_num = 0
-                for line in inf:
-                    if (line_num % 4) == 0:
-                        idVal = line.rstrip('\n')[1:]
-                        # Remove /1 or /2 suffix if present
-                        if idVal.endswith('/1') or idVal.endswith('/2'):
-                            idVal = idVal[:-2]
-                        # Write each unique read ID once (paired reads share ID)
-                        if idVal not in seen_ids:
-                            outf.write(idVal + '\n')
-                            seen_ids.add(idVal)
-                    line_num += 1
+        # Extract read IDs from bbnorm output FASTQ using SQLite for O(1) memory
+        db_path = os.path.join(tmpdir, 'read_ids.db')
+        readListFile = os.path.join(tmpdir, 'keep_read_ids.txt')
 
-        log.info("BBNorm retained %d read IDs", len(seen_ids))
+        with ReadIdStore(db_path) as store:
+            store.add_from_fastq(outFastq)
+            num_ids = len(store)
+            log.info("BBNorm retained %d read IDs", num_ids)
 
-        # Downsample if max_output_reads specified and exceeded
-        if max_output_reads is not None and len(seen_ids) > max_output_reads:
-            log.info("Downsampling from %d to %d read IDs",
-                     len(seen_ids), max_output_reads)
-            downsampled_ids = random.sample(list(seen_ids), max_output_reads)
-
-            # Rewrite the file with downsampled IDs
-            with open(readListAll, 'wt') as f:
-                for read_id in downsampled_ids:
-                    f.write(read_id + '\n')
+            # Write read IDs to file, with optional downsampling
+            if max_output_reads is not None and num_ids > max_output_reads:
+                log.info("Downsampling from %d to %d read IDs", num_ids, max_output_reads)
+            store.write_to_file(readListFile, max_reads=max_output_reads)
 
         # Filter original BAM against keep-list
         tools.picard.FilterSamReadsTool().execute(
-            inBam, False, readListAll, outBam, JVMmemory=JVMmemory
+            inBam, False, readListFile, outBam, JVMmemory=JVMmemory
         )
-
-        os.unlink(readListAll)
 
     # Count output reads
     output_read_count = samtools.count(outBam)

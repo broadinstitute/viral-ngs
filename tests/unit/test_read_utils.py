@@ -284,6 +284,106 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         self.assertEqual(samtools.count(output_bam), 0)
 
 
+class TestReadIdStore(TestCaseWithTmp):
+    """Tests for ReadIdStore SQLite-backed read ID storage."""
+
+    def test_add_from_fastq_paired(self):
+        """Test adding read IDs from paired-end interleaved FASTQ."""
+        # Create a test FASTQ with paired reads
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            # Write 3 read pairs (6 entries, but only 3 unique IDs)
+            for i in range(3):
+                f.write('@read{}/1\nACGT\n+\nIIII\n'.format(i))
+                f.write('@read{}/2\nACGT\n+\nIIII\n'.format(i))
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            added = store.add_from_fastq(fastq_path)
+            self.assertEqual(added, 3)  # 3 unique read IDs
+            self.assertEqual(len(store), 3)
+
+    def test_add_from_fastq_single_end(self):
+        """Test adding read IDs from single-end FASTQ."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            for i in range(5):
+                f.write('@read{}\nACGT\n+\nIIII\n'.format(i))
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            added = store.add_from_fastq(fastq_path)
+            self.assertEqual(added, 5)
+            self.assertEqual(len(store), 5)
+
+    def test_deduplication(self):
+        """Test that duplicate read IDs are ignored."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            # Write same read ID multiple times
+            for _ in range(10):
+                f.write('@duplicate_read\nACGT\n+\nIIII\n')
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.add_from_fastq(fastq_path)
+            self.assertEqual(len(store), 1)  # Only 1 unique ID
+
+    def test_write_to_file(self):
+        """Test writing read IDs to file."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            for i in range(5):
+                f.write('@read{}\nACGT\n+\nIIII\n'.format(i))
+
+        db_path = util.file.mkstempfname('.db')
+        out_path = util.file.mkstempfname('.txt')
+
+        with read_utils.ReadIdStore(db_path) as store:
+            store.add_from_fastq(fastq_path)
+            written = store.write_to_file(out_path)
+            self.assertEqual(written, 5)
+
+        # Verify file contents
+        with open(out_path, 'rt') as f:
+            lines = [line.strip() for line in f]
+        self.assertEqual(len(lines), 5)
+        self.assertEqual(set(lines), {'read0', 'read1', 'read2', 'read3', 'read4'})
+
+    def test_write_to_file_with_downsampling(self):
+        """Test random downsampling when writing to file."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            for i in range(100):
+                f.write('@read{}\nACGT\n+\nIIII\n'.format(i))
+
+        db_path = util.file.mkstempfname('.db')
+        out_path = util.file.mkstempfname('.txt')
+
+        with read_utils.ReadIdStore(db_path) as store:
+            store.add_from_fastq(fastq_path)
+            self.assertEqual(len(store), 100)
+            written = store.write_to_file(out_path, max_reads=20)
+            self.assertEqual(written, 20)
+
+        # Verify file has exactly 20 lines
+        with open(out_path, 'rt') as f:
+            lines = [line.strip() for line in f]
+        self.assertEqual(len(lines), 20)
+
+    def test_empty_fastq(self):
+        """Test handling of empty FASTQ file."""
+        fastq_path = util.file.mkstempfname('.fastq')
+        with open(fastq_path, 'wt') as f:
+            pass  # Empty file
+
+        db_path = util.file.mkstempfname('.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            added = store.add_from_fastq(fastq_path)
+            self.assertEqual(added, 0)
+            self.assertEqual(len(store), 0)
+
+
 class TestRmdupBbnorm(TestCaseWithTmp):
     """Tests for rmdup_bbnorm_bam using BBNorm for deduplication/normalization."""
 
@@ -382,14 +482,16 @@ class TestRmdupBbnorm(TestCaseWithTmp):
 
         # Set max_output_reads to 500 (less than expected bbnorm output)
         # Use low memory and single thread for CI compatibility
-        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, max_output_reads=500,
+        max_output_reads = 500
+        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, max_output_reads=max_output_reads,
                                      threads=1, memory='250m')
 
-        # Output should be approximately 500 reads (tolerance for pairs)
+        # Output should be approximately max_output_reads (tolerance for pairs)
         output_count = self.samtools.count(output_bam)
         # For paired reads, we downsample read IDs, so output is ~2x the ID count
-        # Allow some tolerance
-        self.assertLessEqual(output_count, 1100)  # 500 IDs * 2 reads/pair + tolerance
+        # Allow some tolerance over exactly 2x
+        expected_max_reads = max_output_reads * 2 + 100  # IDs * 2 reads/pair + tolerance
+        self.assertLessEqual(output_count, expected_max_reads)
 
 
 class TestMvicuna(TestCaseWithTmp):
