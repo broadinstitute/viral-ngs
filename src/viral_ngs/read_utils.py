@@ -892,7 +892,10 @@ def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
         # before FastqToSamTool tries to read them
         cdhit.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0], options=options, background=False)
 
-        tools.picard.FastqToSamTool().execute(out_fastqs[0], out_fastqs[1], f, out_bam, JVMmemory=jvm_memory)
+        tools.samtools.SamtoolsTool().import_fastq(
+            out_fastqs[0], out_fastqs[1], out_bam,
+            sample_name=f,
+        )
         for fn in in_fastqs:
             os.unlink(fn)
 
