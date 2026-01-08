@@ -94,8 +94,8 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size for Picard FilterSamReads (default: %(default)s)'
+        default=tools.picard.PicardTools.jvmMemDefault,
+        help='JVM virtual memory size for Picard RevertSam (default: %(default)s)'
     )
     parser = read_utils.parser_revert_sam_common(parser)
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -131,8 +131,7 @@ def main_deplete(args):
             args.minimapDbs,
             deplete_minimap2_bam,
             args.minimapBam,
-            threads=args.threads,
-            JVMmemory=args.JVMmemory
+            threads=args.threads
         )
         multi_db_deplete_bam(
             args.minimapBam,
@@ -142,15 +141,14 @@ def main_deplete(args):
             threads=args.threads
         )
 
-    def bmtagger_wrapper(inBam, db, outBam, JVMmemory=None):
-        return deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
+    def bmtagger_wrapper(inBam, db, outBam):
+        return deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=args.srprism_memory)
 
     multi_db_deplete_bam(
         args.bwaBam,
         args.bmtaggerDbs,
         bmtagger_wrapper,
-        args.bmtaggerBam,
-        JVMmemory=args.JVMmemory
+        args.bmtaggerBam
     )
 
     multi_db_deplete_bam(
@@ -159,8 +157,7 @@ def main_deplete(args):
         deplete_blastn_bam,
         args.blastnBam,
         chunkSize=args.chunkSize,
-        threads=args.threads,
-        JVMmemory=args.JVMmemory
+        threads=args.threads
     )
 
     if os.path.getsize(args.revertBam) == 0:
@@ -190,7 +187,7 @@ def filter_lastal_bam(
     error_on_reads_in_neg_control=False,
     neg_control_prefixes=None, #set below: "neg","water","NTC"
     negative_control_reads_threshold=0,
-    JVMmemory=None, threads=None
+    threads=None
 ):
     ''' Restrict input reads to those that align to the given
         reference database using LASTAL.
@@ -203,21 +200,20 @@ def filter_lastal_bam(
         if not lastdb.is_indexed(db):
             db = lastdb.build_database(db, os.path.join(tmp_db_dir, 'lastdb'))
 
-        with util.file.tempfname('.read_ids.txt') as hitList:
-            number_of_hits=0
-
-            # look for lastal hits in BAM and write to temp file
-            with open(hitList, 'wt') as outf:
-                for read_id in classify.last.Lastal().get_hits(
-                        inBam, db,
-                        max_gapless_alignments_per_position,
-                        min_length_for_initial_matches,
-                        max_length_for_initial_matches,
-                        max_initial_matches_per_position,
-                        threads=threads
-                    ):
-                    number_of_hits+=1
-                    outf.write(read_id + '\n')
+        # Stream lastal hits directly into ReadIdStore
+        db_path = os.path.join(tmp_db_dir, 'read_ids.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            number_of_hits = 0
+            for read_id in classify.last.Lastal().get_hits(
+                    inBam, db,
+                    max_gapless_alignments_per_position,
+                    min_length_for_initial_matches,
+                    max_length_for_initial_matches,
+                    max_initial_matches_per_position,
+                    threads=threads
+                ):
+                store.add(read_id)
+                number_of_hits += 1
 
             if error_on_reads_in_neg_control:
                 sample_name=os.path.basename(inBam)
@@ -227,7 +223,7 @@ def filter_lastal_bam(
                         raise QCError("The sample '{}' appears to be a negative control, but it contains {} reads after filtering to desired taxa.".format(sample_name,number_of_hits))
 
             # filter original BAM file against keep list
-            tools.picard.FilterSamReadsTool().execute(inBam, False, hitList, outBam, JVMmemory=JVMmemory)
+            store.filter_bam_by_ids(inBam, outBam, include=True)
 
 
 def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
@@ -282,11 +278,6 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
         nargs='*',
         help='Bam file name prefixes to interpret as negative controls, space-separated (default: %(default)s)'
     )
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_lastal_bam, split_args=True)
     return parser
@@ -300,7 +291,7 @@ __commands__.append(('filter_lastal_bam', parser_filter_lastal_bam))
 # ==============================
 
 
-def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None):
+def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168):
     """
     Use bmtagger to partition the input reads into ones that match at least one
         of the databases and ones that don't match any of the databases.
@@ -341,7 +332,14 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168, JVMmemory=None)
                 log.debug(' '.join(cmdline))
                 util.misc.run_and_print(cmdline, check=True)
 
-    tools.picard.FilterSamReadsTool().execute(inBam, True, matchesFile, outBam, JVMmemory=JVMmemory)
+                # Load matches into ReadIdStore and filter BAM (exclude matching reads)
+                with util.file.tmp_dir(suffix='_bmtagger_filter') as filter_tmpdir:
+                    db_path = os.path.join(filter_tmpdir, 'read_ids.db')
+                    with read_utils.ReadIdStore(db_path) as store:
+                        with open(matchesFile, 'rt') as f:
+                            store.extend(line.strip() for line in f if line.strip())
+                        store.filter_bam_by_ids(inBam, outBam, include=False)
+                os.unlink(matchesFile)
 
 def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
@@ -354,11 +352,6 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     )
     parser.add_argument('outBam', help='Output BAM file.')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
     parser = read_utils.parser_revert_sam_common(parser)
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_bam_bmtagger)
@@ -367,21 +360,19 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
 def main_deplete_bam_bmtagger(args):
     '''Use bmtagger to deplete input reads against several databases.'''
 
-    def bmtagger_wrapper(inBam, db, outBam, JVMmemory=None):
-        return deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=args.srprism_memory, JVMmemory=JVMmemory)
+    def bmtagger_wrapper(inBam, db, outBam):
+        return deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=args.srprism_memory)
 
     with read_utils.revert_bam_if_aligned(              args.inBam,
                                         clear_tags    = args.clear_tags,
                                         tags_to_clear = args.tags_to_clear,
                                         picardOptions = ['MAX_DISCARD_FRACTION=0.5'],
-                                        JVMmemory     = args.JVMmemory,
                                         sanitize      = not args.do_not_sanitize) as bamToDeplete:
         multi_db_deplete_bam(
-            args.inBam,
+            bamToDeplete,
             args.refDbs,
             bmtagger_wrapper,
-            args.outBam,
-            JVMmemory=args.JVMmemory
+            args.outBam
         )
 
 __commands__.append(('deplete_bam_bmtagger', parser_deplete_bam_bmtagger))
@@ -528,8 +519,7 @@ def blastn_chunked_fasta(fasta, db, out_hits, chunkSize=1000000, threads=None, t
         os.unlink(hits_files[i])
 
 
-def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMmemory=None):
-#def deplete_blastn_bam(inBam, db, outBam, threads, chunkSize=0, JVMmemory=None):
+def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000):
     'Use blastn to remove reads that match at least one of the databases.'
 
     blast_hits = mkstempfname('.blast_hits.txt')
@@ -548,8 +538,13 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000, JVMme
                 for read_id in classify.blast.BlastnTool().get_hits_bam(inBam, db_prefix, threads=threads):
                     outf.write(read_id + '\n')
 
-    # Deplete BAM of hits
-    tools.picard.FilterSamReadsTool().execute(inBam, True, blast_hits, outBam, JVMmemory=JVMmemory)
+    # Load blast hits into ReadIdStore and filter BAM (exclude matching reads)
+    with util.file.tmp_dir(suffix='_blastn_filter') as filter_tmpdir:
+        db_path = os.path.join(filter_tmpdir, 'read_ids.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            with open(blast_hits, 'rt') as f:
+                store.extend(line.strip() for line in f if line.strip())
+            store.filter_bam_by_ids(inBam, outBam, include=False)
     os.unlink(blast_hits)
 
 def chunk_blast_hits(inFasta, db, blast_hits_output, threads=None, chunkSize=1000000, task=None, outfmt='6', max_target_seqs=1, output_type= 'read_id'):
@@ -591,11 +586,6 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
                          'An ephemeral database will be created if a fasta file is provided.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
     parser = read_utils.parser_revert_sam_common(parser)
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_blastn_bam)
@@ -605,16 +595,15 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
 def main_deplete_blastn_bam(args):
     '''Use blastn to remove reads that match at least one of the specified databases.'''
 
-    def wrapper(inBam, db, outBam, threads, JVMmemory=None):
-        return deplete_blastn_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize, JVMmemory=JVMmemory)
+    def wrapper(inBam, db, outBam, threads):
+        return deplete_blastn_bam(inBam, db, outBam, threads=threads, chunkSize=args.chunkSize)
 
     with read_utils.revert_bam_if_aligned(              args.inBam,
                                         clear_tags    = args.clear_tags,
                                         tags_to_clear = args.tags_to_clear,
                                         picardOptions = ['MAX_DISCARD_FRACTION=0.5'],
-                                        JVMmemory     = args.JVMmemory,
                                         sanitize      = not args.do_not_sanitize) as bamToDeplete:
-        multi_db_deplete_bam(bamToDeplete, args.refDbs, wrapper, args.outBam, threads=args.threads, JVMmemory=args.JVMmemory)
+        multi_db_deplete_bam(bamToDeplete, args.refDbs, wrapper, args.outBam, threads=args.threads)
     return 0
 __commands__.append(('deplete_blastn_bam', parser_deplete_blastn_bam))
 
@@ -693,6 +682,11 @@ def parser_deplete_bwa_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('refDbs', nargs='+', help='One or more reference databases for bwa. '
                          'An ephemeral database will be created if a fasta file is provided.')
     parser.add_argument('outBam', help='Ouput BAM file with matching reads removed.')
+    parser.add_argument(
+        '--JVMmemory',
+        default=tools.picard.PicardTools.jvmMemDefault,
+        help='JVM virtual memory size for Picard RevertSam (default: %(default)s)'
+    )
     parser = read_utils.parser_revert_sam_common(parser)
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_bwa_bam)
@@ -718,7 +712,7 @@ __commands__.append(('deplete_bwa_bam', parser_deplete_bwa_bam))
 # ***  deplete_minimap2  ***
 # ========================
 
-def deplete_minimap2_bam(inBam, db, outBam, threads=None, JVMmemory=None):
+def deplete_minimap2_bam(inBam, db, outBam, threads=None):
     '''Use minimap2 to remove reads that match the reference database.
 
     inBam: input reads in BAM format.
@@ -726,27 +720,29 @@ def deplete_minimap2_bam(inBam, db, outBam, threads=None, JVMmemory=None):
     outBam: output BAM file with matching reads removed.
     threads: number of threads for minimap2 alignment.
     '''
-    with util.file.tempfname('.idxstats.txt') as idxstats_file:
-        with util.file.tempfname('.read_ids.txt') as hitList:
-            # Use minimap2 idxstats to get list of mapped read IDs
-            tools.minimap2.Minimap2().idxstats(
-                inBam, db, idxstats_file,
-                outReadlist=hitList,
-                threads=threads
-            )
-            # Filter out reads that matched the reference
-            tools.picard.FilterSamReadsTool().execute(inBam, True, hitList, outBam, JVMmemory=JVMmemory)
+    with util.file.tmp_dir(suffix='_minimap2_deplete') as tmpdir:
+        idxstats_file = os.path.join(tmpdir, 'idxstats.txt')
+        hitList = os.path.join(tmpdir, 'read_ids.txt')
+        db_path = os.path.join(tmpdir, 'read_ids.db')
+
+        # Use minimap2 idxstats to get list of mapped read IDs
+        tools.minimap2.Minimap2().idxstats(
+            inBam, db, idxstats_file,
+            outReadlist=hitList,
+            threads=threads
+        )
+
+        # Load hit list into ReadIdStore and filter BAM (exclude matching reads)
+        with read_utils.ReadIdStore(db_path) as store:
+            with open(hitList, 'rt') as f:
+                store.extend(line.strip() for line in f if line.strip())
+            store.filter_bam_by_ids(inBam, outBam, include=False)
 
 
 def parser_deplete_minimap2_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input BAM file.')
     parser.add_argument('refDbs', nargs='+', help='One or more reference FASTA files to deplete from input.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
     parser = read_utils.parser_revert_sam_common(parser)
     util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, main_deplete_minimap2_bam)
@@ -760,15 +756,13 @@ def main_deplete_minimap2_bam(args):
             clear_tags=args.clear_tags,
             tags_to_clear=args.tags_to_clear,
             picardOptions=['MAX_DISCARD_FRACTION=0.5'],
-            JVMmemory=args.JVMmemory,
             sanitize=not args.do_not_sanitize) as bamToDeplete:
         multi_db_deplete_bam(
             bamToDeplete,
             args.refDbs,
             deplete_minimap2_bam,
             args.outBam,
-            threads=args.threads,
-            JVMmemory=args.JVMmemory
+            threads=args.threads
         )
     return 0
 
