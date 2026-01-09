@@ -922,7 +922,7 @@ class ReadIdStore:
         )
         return cursor.fetchone() is not None
 
-    def contains_batch(self, read_ids, batch_size=50000):
+    def contains_batch(self, read_ids, batch_size=10000):
         """
         Check multiple read IDs for membership in batched queries.
 
@@ -1137,7 +1137,7 @@ class ReadIdStore:
         read_count = 0
         write_count = 0
         lookup_time = 0.0
-        batch_size = 100000
+        batch_size = 50000
 
         samtools_path = samtools.install_and_get_path()
 
