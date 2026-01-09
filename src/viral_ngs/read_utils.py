@@ -527,9 +527,7 @@ def main_filter_bam(args):
     with util.file.tmp_dir(suffix='_filter_bam') as tmpdir:
         db_path = os.path.join(tmpdir, 'read_ids.db')
         with ReadIdStore(db_path) as store:
-            # Load read IDs from file
-            with open(args.readList, 'rt') as f:
-                store.extend(line.strip() for line in f if line.strip())
+            store.add_from_readlist(args.readList)
             store.filter_bam_by_ids(args.inBam, args.outBam, include=not args.exclude)
     return 0
 
@@ -887,6 +885,17 @@ class ReadIdStore:
         self.conn.commit()
         return len(self) - count_before
 
+    def add_from_readlist(self, readlist_path):
+        """
+        Add read IDs from a text file (one ID per line).
+
+        Args:
+            readlist_path: Path to text file with one read ID per line.
+                           Empty lines and whitespace are stripped.
+        """
+        with util.file.open_or_gzopen(readlist_path, 'rt') as f:
+            self.extend(line.strip() for line in f if line.strip())
+
     def __len__(self):
         """Return the number of unique read IDs in the store."""
         cursor = self.conn.execute('SELECT COUNT(*) FROM read_ids')
@@ -905,6 +914,38 @@ class ReadIdStore:
             (read_id,)
         )
         return cursor.fetchone() is not None
+
+    def contains_batch(self, read_ids, batch_size=10000):
+        """
+        Check multiple read IDs for membership in batched queries.
+
+        Args:
+            read_ids: List of read ID strings to check
+            batch_size: Number of IDs to query at once (default 10000)
+
+        Returns:
+            Set of read IDs that exist in the store
+        """
+        found = set()
+        batch = []
+        for read_id in read_ids:
+            batch.append(read_id)
+            if len(batch) >= batch_size:
+                placeholders = ','.join('?' * len(batch))
+                cursor = self.conn.execute(
+                    f'SELECT read_id FROM read_ids WHERE read_id IN ({placeholders})',
+                    batch
+                )
+                found.update(row[0] for row in cursor)
+                batch = []
+        if batch:
+            placeholders = ','.join('?' * len(batch))
+            cursor = self.conn.execute(
+                f'SELECT read_id FROM read_ids WHERE read_id IN ({placeholders})',
+                batch
+            )
+            found.update(row[0] for row in cursor)
+        return found
 
     def add(self, read_id):
         """
@@ -1084,17 +1125,71 @@ class ReadIdStore:
                 shutil.copyfile(inBam, outBam)
             return
 
-        # Stream through BAM, checking each read's QNAME against SQLite
-        with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
-            with pysam.AlignmentFile(outBam, 'wb', header=inb.header) as outf:
-                for read in inb:
-                    qname = read.query_name
-                    in_store = qname in self  # Uses __contains__ with O(1) lookup
+        # Hybrid approach: samtools subprocess pipes + batched SQLite queries
+        import subprocess
+        import time
 
-                    if include and in_store:
-                        outf.write(read)
-                    elif not include and not in_store:
-                        outf.write(read)
+        start = time.time()
+        read_count = 0
+        write_count = 0
+        lookup_time = 0.0
+        batch_size = 50000
+
+        samtools_path = samtools.install_and_get_path()
+
+        # Read: samtools view -h input.bam -> SAM text (with header)
+        # Write: samtools view -b -o output.bam - (converts SAM to BAM)
+        read_proc = subprocess.Popen(
+            [samtools_path, 'view', '-h', inBam],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        write_proc = subprocess.Popen(
+            [samtools_path, 'view', '-b', '-o', outBam, '-'],
+            stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+        try:
+            batch = []  # [(line, qname), ...]
+            for line in read_proc.stdout:
+                # Header lines (start with @) are passed through unchanged
+                if line.startswith(b'@'):
+                    write_proc.stdin.write(line)
+                    continue
+
+                read_count += 1
+
+                # Parse only QNAME (first field before tab)
+                tab_pos = line.find(b'\t')
+                qname = line[:tab_pos].decode()
+                batch.append((line, qname))
+
+                if len(batch) >= batch_size:
+                    t0 = time.time()
+                    found = self.contains_batch([q for _, q in batch])
+                    lookup_time += time.time() - t0
+
+                    for ln, q in batch:
+                        if (include and q in found) or (not include and q not in found):
+                            write_proc.stdin.write(ln)
+                            write_count += 1
+                    batch = []
+
+            # Process remaining batch
+            if batch:
+                t0 = time.time()
+                found = self.contains_batch([q for _, q in batch])
+                lookup_time += time.time() - t0
+
+                for ln, q in batch:
+                    if (include and q in found) or (not include and q not in found):
+                        write_proc.stdin.write(ln)
+                        write_count += 1
+        finally:
+            write_proc.stdin.close()
+            write_proc.wait()
+            read_proc.wait()
+
+        elapsed = time.time() - start
+        log.info(f"PERF: filter_time={elapsed:.2f}s lookup_time={lookup_time:.2f}s "
+                 f"reads={read_count} written={write_count} batch_size={batch_size}")
 
     def close(self):
         """Close the database connection."""
