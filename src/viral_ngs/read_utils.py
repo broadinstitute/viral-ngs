@@ -12,7 +12,9 @@ import logging
 import math
 import os
 import sqlite3
+import subprocess
 import tempfile
+import time
 import shutil
 import sys
 import concurrent.futures
@@ -831,6 +833,11 @@ class ReadIdStore:
         """
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
+        # Performance pragmas (safe since db_path is in tmpdir)
+        self.conn.execute('PRAGMA synchronous = OFF')
+        self.conn.execute('PRAGMA journal_mode = OFF')
+        self.conn.execute('PRAGMA cache_size = -64000')  # 64MB cache (negative = KiB)
+        self.conn.execute('PRAGMA temp_store = MEMORY')
         self.conn.execute('''
             CREATE TABLE IF NOT EXISTS read_ids (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -915,7 +922,7 @@ class ReadIdStore:
         )
         return cursor.fetchone() is not None
 
-    def contains_batch(self, read_ids, batch_size=10000):
+    def contains_batch(self, read_ids, batch_size=50000):
         """
         Check multiple read IDs for membership in batched queries.
 
@@ -1126,14 +1133,11 @@ class ReadIdStore:
             return
 
         # Hybrid approach: samtools subprocess pipes + batched SQLite queries
-        import subprocess
-        import time
-
         start = time.time()
         read_count = 0
         write_count = 0
         lookup_time = 0.0
-        batch_size = 50000
+        batch_size = 100000
 
         samtools_path = samtools.install_and_get_path()
 
@@ -1141,10 +1145,10 @@ class ReadIdStore:
         # Write: samtools view -b --no-PG -o output.bam - (converts SAM to BAM, no PG added)
         read_proc = subprocess.Popen(
             [samtools_path, 'view', '-h', '--no-PG', inBam],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            stdout=subprocess.PIPE)
         write_proc = subprocess.Popen(
-            [samtools_path, 'view', '-b', '--no-PG', '-o', outBam, '-'],
-            stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            [samtools_path, 'view', '-b', '-@', '2', '--no-PG', '-o', outBam, '-'],
+            stdin=subprocess.PIPE)
 
         try:
             batch = []  # [(line, qname), ...]
@@ -1188,8 +1192,8 @@ class ReadIdStore:
             read_proc.wait()
 
         elapsed = time.time() - start
-        log.info(f"PERF: filter_time={elapsed:.2f}s lookup_time={lookup_time:.2f}s "
-                 f"reads={read_count} written={write_count} batch_size={batch_size}")
+        log.debug(f"PERF: filter_time={elapsed:.2f}s lookup_time={lookup_time:.2f}s "
+                  f"reads={read_count} written={write_count} batch_size={batch_size}")
 
     def close(self):
         """Close the database connection."""
