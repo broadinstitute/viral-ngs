@@ -333,8 +333,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168):
                 with util.file.tmp_dir(suffix='_bmtagger_filter') as filter_tmpdir:
                     db_path = os.path.join(filter_tmpdir, 'read_ids.db')
                     with read_utils.ReadIdStore(db_path) as store:
-                        with open(matchesFile, 'rt') as f:
-                            store.extend(line.strip() for line in f if line.strip())
+                        store.add_from_readlist(matchesFile)
                         store.filter_bam_by_ids(inBam, outBam, include=False)
                 os.unlink(matchesFile)
 
@@ -539,8 +538,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000):
     with util.file.tmp_dir(suffix='_blastn_filter') as filter_tmpdir:
         db_path = os.path.join(filter_tmpdir, 'read_ids.db')
         with read_utils.ReadIdStore(db_path) as store:
-            with open(blast_hits, 'rt') as f:
-                store.extend(line.strip() for line in f if line.strip())
+            store.add_from_readlist(blast_hits)
             store.filter_bam_by_ids(inBam, outBam, include=False)
     os.unlink(blast_hits)
 
@@ -731,8 +729,7 @@ def deplete_minimap2_bam(inBam, db, outBam, threads=None):
 
         # Load hit list into ReadIdStore and filter BAM (exclude matching reads)
         with read_utils.ReadIdStore(db_path) as store:
-            with open(hitList, 'rt') as f:
-                store.extend(line.strip() for line in f if line.strip())
+            store.add_from_readlist(hitList)
             store.filter_bam_by_ids(inBam, outBam, include=False)
 
 

@@ -277,8 +277,7 @@ class KmcTool(tools.Tool):
                 # Load passing read names into ReadIdStore and filter BAM (keep matching reads)
                 db_path = os.path.join(t_dir, 'read_ids.db')
                 with read_utils.ReadIdStore(db_path) as store:
-                    with open(passing_read_names, 'rt') as f:
-                        store.extend(line.strip() for line in f if line.strip())
+                    store.add_from_readlist(passing_read_names)
                     store.filter_bam_by_ids(in_reads, out_reads, include=True)
         # end: with util.file.tmp_dir(suffix='kmcfilt') as t_dir
     # end: def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32, ...)
