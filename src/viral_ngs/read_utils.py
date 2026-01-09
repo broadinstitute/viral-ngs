@@ -1137,10 +1137,10 @@ class ReadIdStore:
 
         samtools_path = samtools.install_and_get_path()
 
-        # Read: samtools view -h input.bam -> SAM text (with header)
-        # Write: samtools view -b --no-PG -o output.bam - (converts SAM to BAM, no PG record added)
+        # Read: samtools view -h --no-PG input.bam -> SAM text (with header, no PG added)
+        # Write: samtools view -b --no-PG -o output.bam - (converts SAM to BAM, no PG added)
         read_proc = subprocess.Popen(
-            [samtools_path, 'view', '-h', inBam],
+            [samtools_path, 'view', '-h', '--no-PG', inBam],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         write_proc = subprocess.Popen(
             [samtools_path, 'view', '-b', '--no-PG', '-o', outBam, '-'],
