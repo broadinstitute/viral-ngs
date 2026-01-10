@@ -39,6 +39,7 @@ import tools.picard
 import tools.samtools
 
 import classify.kaiju
+import classify.kma
 import classify.kraken
 import classify.kraken2
 import classify.krona
@@ -868,6 +869,38 @@ def kb_python(in_bam, index=None, t2g=None, kmer_len=31, parity='single', techno
         num_threads=threads
     )
 __commands__.append(('kb', parser_kb))
+
+def parser_kma(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='KMA database prefix.')
+    parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--outPrefixes', nargs='+', help='KMA output prefixes.')
+    parser.add_argument('--threads', type=int, help='Number of threads.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_kma, split_args=True)
+    return parser
+
+def main_kma(db, inBams, outPrefixes=None, threads=None):
+    if outPrefixes and len(inBams) != len(outPrefixes):
+        raise ValueError(f"Number of input BAMs ({len(inBams)}) must match number of output prefixes ({len(outPrefixes)})")
+    kma_tool = classify.kma.KMA()
+    for in_bam, out_prefix in itertools.zip_longest(inBams, outPrefixes):
+        kma_tool.classify(in_bam, db, out_prefix, num_threads=threads)
+
+__commands__.append(('kma', parser_kma))
+
+def parser_kma_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('ref_fasta', help='Reference FASTA file.')
+    parser.add_argument('db_prefix', help='Output database prefix.')
+    parser.add_argument('--threads', type=int, help='Number of threads.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_kma_build, split_args=True)
+    return parser
+
+def main_kma_build(ref_fasta, db_prefix, threads=None):
+    kma_tool = classify.kma.KMA()
+    kma_tool.build(ref_fasta, db_prefix, num_threads=threads)
+
+__commands__.append(('kma_build', parser_kma_build))
 
 def parser_krakenuniq(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
