@@ -147,6 +147,7 @@ class TestSambambaIndex(TestCaseWithTmp):
         self.assertTrue(os.path.exists(indexFile))
 
 
+@pytest.mark.skip(reason="sambamba merge is disabled due to segfault bug in sambamba 1.0.1")
 class TestSambambaMerge(TestCaseWithTmp):
     """Tests for sambamba merge functionality"""
 

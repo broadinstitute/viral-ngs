@@ -118,19 +118,21 @@ class SambambaTool(tools.Tool):
         """
         Merge multiple sorted BAM files into a single BAM file.
 
+        NOTE: This function is currently disabled due to a segfault bug in
+        sambamba 1.0.1 merge. Use samtools merge or Picard MergeSamFiles instead.
+
         Args:
             inBams: List of input BAM file paths (must be coordinate-sorted)
             outBam: Output merged BAM file path
             threads: Number of threads to use (default: auto)
+
+        Raises:
+            NotImplementedError: Always raised - sambamba merge has a known bug
         """
-        if not inBams or len(inBams) < 2:
-            raise ValueError("merge requires at least 2 input BAM files")
-
-        threads = util.misc.sanitize_thread_count(threads)
-
-        args = ['-t', str(threads), outBam] + list(inBams)
-
-        self.execute('merge', args)
+        raise NotImplementedError(
+            "sambamba merge is disabled due to a segfault bug in sambamba 1.0.1. "
+            "Use samtools merge or Picard MergeSamFiles instead."
+        )
 
     def flagstat(self, inBam, threads=None):
         """
