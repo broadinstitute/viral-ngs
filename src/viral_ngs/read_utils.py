@@ -38,6 +38,7 @@ import tools.mvicuna
 import tools.prinseq
 import tools.novoalign
 import tools.gatk
+import tools.sambamba
 
 log = logging.getLogger(__name__)
 
@@ -1714,12 +1715,14 @@ def align_and_fix(
     JVMmemory=None,
     threads=None,
     skip_mark_dupes=False,
+    skip_realign=False,
+    dup_marker='sambamba',
     gatk_path=None,
     novoalign_license_path=None
 ):
     ''' Take reads, align to reference with Novoalign, minimap2, or BWA-MEM.
-        Optionally mark duplicates with Picard, realign indels with GATK,
-        and optionally filters final file to mapped/non-dupe reads.
+        Optionally mark duplicates with Picard or sambamba, optionally realign
+        indels with GATK, and optionally filter final file to mapped/non-dupe reads.
     '''
     if not (outBamAll or outBamFiltered):
         log.warning("are you sure you meant to do nothing?")
@@ -1769,28 +1772,45 @@ def align_and_fix(
         mm2 = tools.minimap2.Minimap2()
         mm2.align_bam(inBam, refFastaCopy, bam_aligned, threads=threads, options=aligner_options.split())
 
+    # Mark duplicates with sambamba (default) or Picard
     if skip_mark_dupes:
         bam_marked = bam_aligned
     else:
         bam_marked = mkstempfname('.mkdup.bam')
-        tools.picard.MarkDuplicatesTool().execute(
-            [bam_aligned], bam_marked, picardOptions=['CREATE_INDEX=true'],
-            JVMmemory=JVMmemory
-        )
+        if dup_marker == 'sambamba':
+            tools.sambamba.SambambaTool().markdup(
+                bam_aligned, bam_marked, threads=threads
+            )
+        elif dup_marker == 'picard':
+            tools.picard.MarkDuplicatesTool().execute(
+                [bam_aligned], bam_marked, picardOptions=['CREATE_INDEX=true'],
+                JVMmemory=JVMmemory
+            )
+        else:
+            raise ValueError(f"Unknown dup_marker: {dup_marker}. Must be 'sambamba' or 'picard'")
         os.unlink(bam_aligned)
 
-    samtools.index(bam_marked)
+    # Index the marked BAM
+    if dup_marker == 'sambamba' and not skip_mark_dupes:
+        tools.sambamba.SambambaTool().index(bam_marked, threads=threads)
+    else:
+        samtools.index(bam_marked)
 
-    if samtools.isEmpty(bam_marked):
+    # Local realignment with GATK (optional)
+    if skip_realign or samtools.isEmpty(bam_marked):
         bam_realigned = bam_marked
     else:
         bam_realigned = mkstempfname('.realigned.bam')
         tools.gatk.GATKTool(path=gatk_path).local_realign(bam_marked, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
         os.unlink(bam_marked)
 
+    # Generate output files
     if outBamAll:
         shutil.copyfile(bam_realigned, outBamAll)
-        tools.picard.BuildBamIndexTool().execute(outBamAll, JVMmemory=JVMmemory)
+        if dup_marker == 'sambamba':
+            tools.sambamba.SambambaTool().index(outBamAll, threads=threads)
+        else:
+            tools.picard.BuildBamIndexTool().execute(outBamAll, JVMmemory=JVMmemory)
     if outBamFiltered:
         filtered_any_mapq = mkstempfname('.filtered_any_mapq.bam')
         # filter based on read flags
@@ -1798,7 +1818,10 @@ def align_and_fix(
         # remove reads with MAPQ <1
         samtools.view(['-b', '-q', '1'], filtered_any_mapq, outBamFiltered)
         os.unlink(filtered_any_mapq)
-        tools.picard.BuildBamIndexTool().execute(outBamFiltered, JVMmemory=JVMmemory)
+        if dup_marker == 'sambamba':
+            tools.sambamba.SambambaTool().index(outBamFiltered, threads=threads)
+        else:
+            tools.picard.BuildBamIndexTool().execute(outBamFiltered, JVMmemory=JVMmemory)
     os.unlink(bam_realigned)
 
 
@@ -1830,6 +1853,17 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
                         help='If specified, duplicate reads will not be marked in the resulting output file.',
                         dest="skip_mark_dupes",
                         action='store_true')
+    parser.add_argument('--skipRealign',
+                        help='If specified, GATK local realignment will be skipped. '
+                             'Recommended for viral genomes where indel realignment provides minimal benefit.',
+                        dest="skip_realign",
+                        action='store_true')
+    parser.add_argument('--dupMarker',
+                        choices=['sambamba', 'picard'],
+                        default='sambamba',
+                        dest="dup_marker",
+                        help='Tool to use for marking duplicates. Sambamba is multi-threaded and faster. '
+                             'Picard is the legacy option. (default: %(default)s)')
     parser.add_argument(
         '--GATK_PATH',
         default=None,
