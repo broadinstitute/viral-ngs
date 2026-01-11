@@ -22,6 +22,7 @@ pigz>=2.4
 prinseq>=0.20.4
 psutil>=6.1.0
 python=3.12.10
+sambamba>=1.0.1
 samtools>=1.21
 splitcode>=0.31.4
 trimmomatic>=0.38
