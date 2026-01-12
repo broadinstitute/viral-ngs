@@ -104,6 +104,10 @@ class SambambaTool(tools.Tool):
         """
         Create an index (.bai) for a coordinate-sorted BAM file.
 
+        Sambamba creates {inBam}.bai by default (e.g., sample.bam.bai).
+        We rename it to match the expected convention of {basename}.bai
+        (e.g., sample.bai) for compatibility with WDL workflows.
+
         Args:
             inBam: Input BAM file path (must be coordinate-sorted)
             threads: Number of threads to use (default: auto)
@@ -113,6 +117,12 @@ class SambambaTool(tools.Tool):
         args = ['-t', str(threads), inBam]
 
         self.execute('index', args)
+
+        # Sambamba creates .bam.bai, rename to .bai for compatibility
+        bam_bai = inBam + '.bai'
+        expected_bai = inBam[:-4] + '.bai'  # sample.bam -> sample.bai
+        if os.path.exists(bam_bai) and bam_bai != expected_bai:
+            shutil.move(bam_bai, expected_bai)
 
     def merge(self, inBams, outBam, threads=None):
         """

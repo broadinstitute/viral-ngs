@@ -106,7 +106,7 @@ class TestSambambaIndex(TestCaseWithTmp):
         self.samtools = tools.samtools.SamtoolsTool()
 
     def test_index_basic(self):
-        """Test creating .bai index file"""
+        """Test creating .bai index file (not .bam.bai)"""
         # First, sort the BAM (indexing requires coordinate-sorted BAM)
         inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
         sortedBam = util.file.mkstempfname('.sorted.bam')
@@ -115,10 +115,12 @@ class TestSambambaIndex(TestCaseWithTmp):
         # Now index it
         self.sambamba.index(sortedBam)
 
-        # Verify index file was created
-        indexFile = sortedBam + '.bai'
+        # Verify index file was created with .bai (not .bam.bai)
+        indexFile = sortedBam[:-4] + '.bai'  # sorted.bai, not sorted.bam.bai
         self.assertTrue(os.path.exists(indexFile))
         self.assertGreater(os.path.getsize(indexFile), 0)
+        # Verify the .bam.bai was NOT left behind
+        self.assertFalse(os.path.exists(sortedBam + '.bai'))
 
     def test_index_with_threads(self):
         """Test multi-threaded indexing"""
@@ -128,19 +130,21 @@ class TestSambambaIndex(TestCaseWithTmp):
 
         self.sambamba.index(sortedBam, threads=2)
 
-        indexFile = sortedBam + '.bai'
+        indexFile = sortedBam[:-4] + '.bai'  # sorted.bai, not sorted.bam.bai
         self.assertTrue(os.path.exists(indexFile))
 
     def test_index_file_exists(self):
-        """Verify .bai file is created in expected location"""
+        """Verify .bai file is created in expected location (not .bam.bai)"""
         inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
         sortedBam = util.file.mkstempfname('.sorted.bam')
         self.sambamba.sort(inBam, sortedBam)
 
-        # Remove any existing index
-        indexFile = sortedBam + '.bai'
+        # Remove any existing index files
+        indexFile = sortedBam[:-4] + '.bai'  # sorted.bai
         if os.path.exists(indexFile):
             os.unlink(indexFile)
+        if os.path.exists(sortedBam + '.bai'):  # sorted.bam.bai
+            os.unlink(sortedBam + '.bai')
 
         self.sambamba.index(sortedBam)
 
