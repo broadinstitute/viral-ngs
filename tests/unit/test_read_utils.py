@@ -835,6 +835,87 @@ class TestAlignAndFix(TestCaseWithTmp):
             '--outBamFiltered', util.file.mkstempfname('.outBamFiltered.bam')])
         args.func_main(args)
 
+    def test_skip_realign_flag(self):
+        """Test that --skipRealign skips GATK local realignment"""
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBamAll = util.file.mkstempfname('.outBamAll.bam')
+
+        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            [inBam, self.refFasta, '--outBamAll', outBamAll,
+             '--aligner', 'minimap2', '--skipRealign'])
+        args.func_main(args)
+
+        # Verify output exists and has reads
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertTrue(os.path.exists(outBamAll))
+        self.assertFalse(samtools.isEmpty(outBamAll))
+
+    def test_skip_realign_with_skip_mark_dupes(self):
+        """Test combining --skipRealign with --skipMarkDupes"""
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBamAll = util.file.mkstempfname('.outBamAll.bam')
+
+        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            [inBam, self.refFasta, '--outBamAll', outBamAll,
+             '--aligner', 'minimap2', '--skipRealign', '--skipMarkDupes'])
+        args.func_main(args)
+
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertTrue(os.path.exists(outBamAll))
+        self.assertFalse(samtools.isEmpty(outBamAll))
+
+    def test_dup_marker_sambamba(self):
+        """Test using sambamba for duplicate marking"""
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBamAll = util.file.mkstempfname('.outBamAll.bam')
+
+        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            [inBam, self.refFasta, '--outBamAll', outBamAll,
+             '--aligner', 'minimap2', '--dupMarker', 'sambamba', '--skipRealign'])
+        args.func_main(args)
+
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertTrue(os.path.exists(outBamAll))
+        self.assertFalse(samtools.isEmpty(outBamAll))
+
+    def test_dup_marker_picard_explicit(self):
+        """Test explicitly using Picard for duplicate marking"""
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBamAll = util.file.mkstempfname('.outBamAll.bam')
+
+        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            [inBam, self.refFasta, '--outBamAll', outBamAll,
+             '--aligner', 'minimap2', '--dupMarker', 'picard', '--skipRealign'])
+        args.func_main(args)
+
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertTrue(os.path.exists(outBamAll))
+        self.assertFalse(samtools.isEmpty(outBamAll))
+
+    def test_dup_marker_default_is_sambamba(self):
+        """Verify default duplicate marker is sambamba"""
+        parser = read_utils.parser_align_and_fix(argparse.ArgumentParser())
+        args = parser.parse_args(['in.bam', 'ref.fasta'])
+        self.assertEqual(args.dup_marker, 'sambamba')
+
+    def test_align_and_fix_full_sambamba_pipeline(self):
+        """End-to-end test with sambamba for markdup and indexing"""
+        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBamAll = util.file.mkstempfname('.outBamAll.bam')
+        outBamFiltered = util.file.mkstempfname('.outBamFiltered.bam')
+
+        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered,
+             '--aligner', 'minimap2', '--dupMarker', 'sambamba', '--skipRealign'])
+        args.func_main(args)
+
+        samtools = tools.samtools.SamtoolsTool()
+        self.assertTrue(os.path.exists(outBamAll))
+        self.assertTrue(os.path.exists(outBamFiltered))
+        self.assertFalse(samtools.isEmpty(outBamAll))
+        # Verify index files exist
+        self.assertTrue(os.path.exists(outBamAll + '.bai') or os.path.exists(outBamAll.replace('.bam', '.bai')))
+
 
 class TestDownsampleBams(TestCaseWithTmp):
     def setUp(self):
