@@ -39,6 +39,7 @@ import tools.prinseq
 import tools.novoalign
 import tools.gatk
 import tools.sambamba
+import tools.trimmomatic
 
 log = logging.getLogger(__name__)
 
@@ -2117,6 +2118,219 @@ def parser_read_names(parser=argparse.ArgumentParser()):
     return parser
 
 __commands__.append(('read_names', parser_read_names))
+
+
+# ================================
+# ***  trim_rmdup_subsamp      ***
+# ================================
+
+
+def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=None, threads=None):
+    '''Take reads through Trimmomatic, Prinseq, and subsampling.
+
+    This function performs three main operations:
+    1. Trimmomatic: adapter trimming and quality filtering
+    2. Prinseq: duplicate read removal
+    3. Subsampling: reduce to target read count
+
+    Args:
+        inBam: Input unaligned BAM file
+        clipDb: Trimmomatic adapter clip database (FASTA)
+        outBam: Output unaligned BAM file
+        n_reads: Target number of individual reads (default: 100000)
+        trim_opts: Optional dict of Trimmomatic options
+        threads: Number of threads for Trimmomatic (default: all available)
+
+    Returns:
+        Tuple of (n_input, n_trim, n_rmdup, n_output, n_paired_subsamp, n_unpaired_subsamp)
+        where all counts are individual reads (not pairs).
+    '''
+    threads = util.misc.sanitize_thread_count(threads)
+
+    downsamplesam = tools.picard.DownsampleSamTool()
+    samtools = tools.samtools.SamtoolsTool()
+    prinseq = tools.prinseq.PrinseqTool()
+
+    if n_reads < 1:
+        raise ValueError("n_reads must be >= 1")
+
+    # Use nested context managers for all temp files
+    with util.file.tempfnames(suffixes=['.in.1.fastq', '.in.2.fastq']) as infq, \
+         util.file.tempfnames(suffixes=['.trim.1.fastq', '.trim.2.fastq']) as trimfq, \
+         util.file.tempfnames(suffixes=['.trim.unpaired.1.fastq', '.trim.unpaired.2.fastq']) as trimfq_unpaired, \
+         util.file.tempfnames(suffixes=['.rmdup.1.fastq', '.rmdup.2.fastq']) as rmdupfq, \
+         util.file.tempfnames(suffixes=['.rmdup.unpaired.1.fastq', '.rmdup.unpaired.2.fastq']) as rmdupfq_unpaired_from_paired_rmdup, \
+         util.file.tempfname(suffix='.header.sam') as tmp_header, \
+         util.file.tempfname(suffix='.paired.bam') as tmp_bam_paired:
+
+        # BAM -> fastq
+        tools.picard.SamToFastqTool().execute(inBam, infq[0], infq[1])
+        n_input = util.file.count_fastq_reads(infq[0])
+
+        # --- Trimmomatic ---
+        if n_input == 0:
+            for i in range(2):
+                shutil.copyfile(infq[i], trimfq[i])
+        else:
+            tools.trimmomatic.TrimmomaticTool().execute(
+                infq[0],
+                infq[1],
+                trimfq[0],
+                trimfq[1],
+                clipDb,
+                unpairedOutFastq1=trimfq_unpaired[0],
+                unpairedOutFastq2=trimfq_unpaired[1],
+                threads=threads,
+                **(trim_opts or {})
+            )
+
+        n_trim = max(map(util.file.count_fastq_reads, trimfq))    # count is pairs
+        n_trim_unpaired = sum(map(util.file.count_fastq_reads, trimfq_unpaired))    # count is individual reads
+
+        # --- Prinseq duplicate removal ---
+        prinseq.rmdup_fastq_paired(
+            trimfq[0],
+            trimfq[1],
+            rmdupfq[0],
+            rmdupfq[1],
+            includeUnmated=False,
+            unpairedOutFastq1=rmdupfq_unpaired_from_paired_rmdup[0],
+            unpairedOutFastq2=rmdupfq_unpaired_from_paired_rmdup[1]
+        )
+
+        n_rmdup_paired = max(map(util.file.count_fastq_reads, rmdupfq))    # count is pairs
+        n_rmdup = n_rmdup_paired    # count is pairs
+
+        samtools.dumpHeader(inBam, tmp_header)
+
+        # convert paired reads to bam
+        # stub out an empty file if the input fastqs are empty
+        if all(os.path.getsize(x) > 0 for x in rmdupfq):
+            tools.picard.FastqToSamTool().execute(rmdupfq[0], rmdupfq[1], 'Dummy', tmp_bam_paired)
+        else:
+            opts = ['INPUT=' + tmp_header, 'OUTPUT=' + tmp_bam_paired, 'VERBOSITY=ERROR']
+            tools.picard.PicardTools().execute('SamFormatConverter', opts, JVMmemory='50m')
+
+        n_paired_subsamp = 0
+        n_unpaired_subsamp = 0
+        n_rmdup_unpaired = 0
+        did_include_subsampled_unpaired_reads = False
+
+        # --- subsampling ---
+
+        # if we have too few paired reads after trimming and de-duplication, we can incorporate unpaired reads
+        if n_rmdup_paired * 2 < n_reads:
+            # Need to include unpaired reads to reach target
+            with util.file.tempfname(suffix='.unpaired.fastq') as unpaired_concat, \
+                 util.file.tempfname(suffix='.unpaired.rmdup.fastq') as unpaired_concat_rmdup:
+
+                # merge unpaired reads from trimmomatic and singletons left over from paired-mode prinseq
+                util.file.cat(unpaired_concat, trimfq_unpaired + rmdupfq_unpaired_from_paired_rmdup)
+
+                prinseq.rmdup_fastq_single(unpaired_concat, unpaired_concat_rmdup)
+                n_rmdup_unpaired = util.file.count_fastq_reads(unpaired_concat_rmdup)
+
+                did_include_subsampled_unpaired_reads = True
+
+                # if there are no unpaired reads, simply output the paired reads
+                if n_rmdup_unpaired == 0:
+                    shutil.copyfile(tmp_bam_paired, outBam)
+                    n_output = samtools.count(outBam)
+                else:
+                    with util.file.tempfname(suffix='.unpaired.bam') as tmp_bam_unpaired, \
+                         util.file.tempfname(suffix='.unpaired.subsamp.bam') as tmp_bam_unpaired_subsamp, \
+                         util.file.tempfname(suffix='.merged.bam') as tmp_bam_merged:
+
+                        # take pooled unpaired reads and convert to bam
+                        tools.picard.FastqToSamTool().execute(unpaired_concat_rmdup, None, 'Dummy', tmp_bam_unpaired)
+
+                        reads_to_add = (n_reads - (n_rmdup_paired * 2))
+                        downsamplesam.downsample_to_approx_count(tmp_bam_unpaired, tmp_bam_unpaired_subsamp, reads_to_add)
+                        n_unpaired_subsamp = samtools.count(tmp_bam_unpaired_subsamp)
+
+                        # merge the subsampled unpaired reads into the bam
+                        tools.picard.MergeSamFilesTool().execute([tmp_bam_paired, tmp_bam_unpaired_subsamp], tmp_bam_merged)
+
+                        samtools.reheader(tmp_bam_merged, tmp_header, outBam)
+
+                        n_paired_subsamp = n_rmdup_paired    # count is pairs
+                        n_output = n_rmdup_paired * 2 + n_unpaired_subsamp    # count is individual reads
+
+        else:
+            did_include_subsampled_unpaired_reads = False
+            log.info("PRE-SUBSAMPLE COUNT: %s read pairs", n_rmdup_paired)
+
+            with util.file.tempfname(suffix='.paired.subsamp.bam') as tmp_bam_paired_subsamp:
+                downsamplesam.downsample_to_approx_count(tmp_bam_paired, tmp_bam_paired_subsamp, n_reads)
+                n_paired_subsamp = samtools.count(tmp_bam_paired_subsamp) // 2    # count is pairs
+                n_output = n_paired_subsamp * 2    # count is individual reads
+
+                samtools.reheader(tmp_bam_paired_subsamp, tmp_header, outBam)
+
+        n_final_individual_reads = samtools.count(outBam)
+
+        log.info("Pre-DeNovoAssembly read filters: ")
+        log.info("    %d read pairs at start", n_input)
+        log.info(
+            "    %d read pairs after Trimmomatic %s",
+            n_trim, "(and {} unpaired)".format(n_trim_unpaired) if n_trim_unpaired > 0 else ""
+        )
+        log.info(
+            "    %d read pairs after Prinseq rmdup %s",
+            n_rmdup, "(and {} unpaired from Trimmomatic+Prinseq)".format(n_rmdup_unpaired)
+            if n_rmdup_unpaired > 0 else ""
+        )
+        if did_include_subsampled_unpaired_reads:
+            log.info(
+                "   Too few individual reads (%d*2=%d) from paired reads to reach desired threshold (%d), "
+                "so including subsampled unpaired reads",
+                n_rmdup_paired, n_rmdup_paired * 2, n_reads
+            )
+        else:
+            log.info("  Paired read count sufficient to reach threshold (%d)", n_reads)
+        log.info(
+            "    %d individual reads for de novo assembly (%s%s)",
+            n_output,
+            "paired subsampled {} -> {}".format(n_rmdup_paired, n_paired_subsamp)
+            if not did_include_subsampled_unpaired_reads else "{} read pairs".format(n_rmdup_paired),
+            " + unpaired subsampled {} -> {}".format(n_rmdup_unpaired, n_unpaired_subsamp)
+            if did_include_subsampled_unpaired_reads else ""
+        )
+        log.info("    %d individual reads", n_final_individual_reads)
+
+        if did_include_subsampled_unpaired_reads:
+            if n_final_individual_reads < n_reads:
+                log.warning(
+                    "NOTE: Even with unpaired reads included, there are fewer unique trimmed reads "
+                    "than requested for de novo assembly input."
+                )
+
+    # multiply counts so all reflect individual reads
+    return (n_input * 2, n_trim * 2, n_rmdup * 2, n_output, n_paired_subsamp * 2, n_unpaired_subsamp)
+
+
+def parser_trim_rmdup_subsamp(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, unaligned BAM format.')
+    parser.add_argument('clipDb', help='Trimmomatic clip DB (FASTA with adapter sequences).')
+    parser.add_argument(
+        'outBam',
+        help='''Output reads, unaligned BAM format (currently, read groups and other
+                header information are destroyed in this process).'''
+    )
+    parser.add_argument(
+        '--n_reads',
+        default=100000,
+        type=int,
+        help='''Subsample to no more than this many individual reads. Note that
+                paired reads are given priority, and unpaired reads are included to
+                reach the count if there are too few paired reads. (default: %(default)s)'''
+    )
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, trim_rmdup_subsamp_reads, split_args=True)
+    return parser
+
+
+__commands__.append(('trim_rmdup_subsamp', parser_trim_rmdup_subsamp))
 
 
 # =========================
