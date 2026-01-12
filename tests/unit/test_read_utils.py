@@ -1004,3 +1004,62 @@ class TestDownsampleBams(TestCaseWithTmp):
 
         with self.assertRaises(ValueError):
             read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
+
+
+class TestTrimRmdupSubsamp(TestCaseWithTmp):
+    '''Test the trim_rmdup_subsamp command.
+
+    Tests ported from viral-assemble/test/unit/test_assembly.py.
+    Uses threads=1 to avoid overwhelming CI runners during parallel test execution.
+    '''
+
+    def test_subsamp_empty(self):
+        """Test with empty BAM input - should return all zeros."""
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'empty.bam')
+        clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=10, threads=1)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (0, 0, 0, 0, 0, 0))
+
+    def test_subsamp_small_50(self):
+        """Test subsampling to 50 reads from small input."""
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=50, threads=1)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (200, 172, 172, 50, 50, 0))
+
+    def test_subsamp_small_90(self):
+        """Test subsampling to 90 reads."""
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=90, threads=1)
+        os.unlink(outBam)
+        # counts are individual reads
+        self.assertEqual(read_stats, (200, 172, 172, 90, 90, 0))
+
+    def test_subsamp_small_200(self):
+        """Test where unpaired reads are needed to reach threshold."""
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.subset.bam')
+        clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=200, threads=1)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (200, 172, 172, 185, 172, 13))
+
+    def test_subsamp_big_500(self):
+        """Test with larger input file."""
+        inDir = util.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.testreads.bam')
+        clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
+        outBam = util.file.mkstempfname('.out.bam')
+        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500, threads=1)
+        os.unlink(outBam)
+        self.assertEqual(read_stats, (18710, 16310, 16310, 500, 500, 0))

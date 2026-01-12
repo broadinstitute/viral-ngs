@@ -36,24 +36,31 @@ class TrimmomaticTool(tools.Tool):
         sliding_window_size=4,
         sliding_window_q_cutoff=25,
         maxinfo_target_length=None,
-        maxinfo_strictness=None
+        maxinfo_strictness=None,
+        threads=None
     ):
-        '''Trim read sequences with Trimmomatic.'''
+        '''Trim read sequences with Trimmomatic.
+
+        Args:
+            threads: Number of CPU threads to use. If None, Trimmomatic uses its default.
+        '''
         trimmomaticPath = self.install_and_get_path()
         unpairedFastq1 = unpairedOutFastq1 or util.file.mkstempfname()
         unpairedFastq2 = unpairedOutFastq2 or util.file.mkstempfname()
         javaCmd = [trimmomaticPath]
 
+        # Build thread arguments if specified
+        thread_args = []
+        if threads is not None:
+            thread_count = util.misc.sanitize_thread_count(threads)
+            thread_args = ['-threads', str(thread_count)]
+
         if inFastq2 is None or os.path.getsize(inFastq2) < 10:
             # Unpaired reads
-            javaCmd.extend([
-                    'SE', '-phred33',
-                    inFastq1, unpairedFastq1
-                ])
+            javaCmd.extend(['SE'] + thread_args + ['-phred33', inFastq1, unpairedFastq1])
         else:
             # Paired reads
-            javaCmd.extend([
-                    'PE', '-phred33',
+            javaCmd.extend(['PE'] + thread_args + ['-phred33',
                     inFastq1, inFastq2,
                     pairedOutFastq1, unpairedFastq1, pairedOutFastq2, unpairedFastq2
                 ])
