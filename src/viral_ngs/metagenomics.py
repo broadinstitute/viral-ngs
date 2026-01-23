@@ -35,8 +35,7 @@ import pysam
 import util.cmd
 import util.file
 import util.misc
-import tools.picard
-import tools.samtools
+import read_utils
 
 import classify.kaiju
 import classify.kma
@@ -1160,11 +1159,6 @@ def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     parser.add_argument('--read_id_col', type=int, dest="read_id_col", help='The (zero-indexed) number of the column in read_IDs_to_tax_IDs containing read IDs. (default: %(default)s)', default=1)
     parser.add_argument('--tax_id_col', type=int, dest="tax_id_col", help='The (zero-indexed) number of the column in read_IDs_to_tax_IDs containing Taxonomy IDs. (default: %(default)s)', default=2)
     parser.add_argument('--out_count', help='Write a file with the number of reads matching the specified taxa.')
-    parser.add_argument(
-        '--JVMmemory',
-        default=tools.picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
     util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util.cmd.attach_main(parser, filter_bam_to_taxa, split_args=True)
     return parser
@@ -1175,8 +1169,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
                        tax_names=None, tax_ids=None,
                        omit_children=False,
                        read_id_col=1, tax_id_col=2,
-                       out_count=None,
-                       JVMmemory=None):
+                       out_count=None):
     """
         Filter an (already classified) input bam file to only include reads that have been mapped to specified
         taxonomic IDs or scientific names. This requires a classification file, as produced
@@ -1225,41 +1218,34 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
     tax_ids_to_include = frozenset(tax_ids_to_include) # frozenset membership check slightly faster
     log.info("matching against {} taxa".format(len(tax_ids_to_include)))
 
-    # perform the actual filtering to return a list of read IDs, writeen to a temp file
-    with util.file.tempfname(".txt.gz") as temp_read_list:
-        with util.file.open_or_gzopen(temp_read_list, "wt") as read_IDs_file:
-            read_ids_written = 0
-            for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
-                assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
-                assert read_id_col<len(row), "read_id_col does not appear to be in range for number of columns present in mapping file"
-                read_id = row[read_id_col]
-                read_tax_id = int(row[tax_id_col])
+    def _matching_read_ids():
+        """Generator that yields read IDs matching the specified taxa."""
+        for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
+            assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
+            assert read_id_col<len(row), "read_id_col does not appear to be in range for number of columns present in mapping file"
+            read_id = row[read_id_col]
+            read_tax_id = int(row[tax_id_col])
 
-                # transform read ID to take read pairs into account
-                read_id_match = re.match(paired_read_base_pattern,read_id)
-                if (read_id_match and
-                    read_tax_id in tax_ids_to_include):
-                    read_IDs_file.write(read_id_match.group(1)+"\n")
-                    read_ids_written+=1
-        log.info("matched {} reads".format(read_ids_written))
+            # transform read ID to take read pairs into account
+            read_id_match = re.match(paired_read_base_pattern, read_id)
+            if (read_id_match and read_tax_id in tax_ids_to_include):
+                yield read_id_match.group(1)
 
-        # report count if desired
-        if out_count:
-            with open(out_count, 'wt') as outf:
-                outf.write("{}\n".format(read_ids_written))
+    # Stream matching read IDs directly into ReadIdStore
+    with util.file.tmp_dir(suffix='_filter_taxa') as tmpdir:
+        db_path = os.path.join(tmpdir, 'read_ids.db')
+        with read_utils.ReadIdStore(db_path) as store:
+            store.extend(_matching_read_ids())
 
-        # if we found reads matching the taxNames requested,
-        if (read_ids_written > 0) or exclude:
-            # filter the input bam to include only these
-            tools.picard.FilterSamReadsTool().execute(in_bam,
-                                                        exclude,
-                                                        temp_read_list,
-                                                        out_bam,
-                                                        JVMmemory=JVMmemory)
-        else:
-            # otherwise, "touch" the output bam to contain the
-            # header of the input bam (no matching reads)
-            tools.samtools.SamtoolsTool().dumpHeader(in_bam,out_bam)
+            log.info("matched {} reads".format(len(store)))
+
+            # report count if desired
+            if out_count:
+                with open(out_count, 'wt') as outf:
+                    outf.write("{}\n".format(len(store)))
+
+            # filter the input bam (include=True keeps matching, include=False removes matching)
+            store.filter_bam_by_ids(in_bam, out_bam, include=not exclude)
 __commands__.append(('filter_bam_to_taxa', parser_filter_bam_to_taxa))
 
 

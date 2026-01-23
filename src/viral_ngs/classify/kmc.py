@@ -19,7 +19,6 @@ import Bio.SeqIO
 import read_utils
 import tools
 import tools.samtools
-import tools.picard
 import util.file
 import util.misc
 
@@ -275,8 +274,11 @@ class KmcTool(tools.Tool):
                 _chk(out_reads.endswith('.bam'), 'output from .bam to non-.bam not yet supported')
                 passing_read_names = os.path.join(t_dir, 'passing_read_names.txt')
                 read_utils.fasta_read_names(_out_reads, passing_read_names)
-                tools.picard.FilterSamReadsTool().execute(inBam=in_reads, exclude=False,
-                                                          readList=passing_read_names, outBam=out_reads)
+                # Load passing read names into ReadIdStore and filter BAM (keep matching reads)
+                db_path = os.path.join(t_dir, 'read_ids.db')
+                with read_utils.ReadIdStore(db_path) as store:
+                    store.add_from_readlist(passing_read_names)
+                    store.filter_bam_by_ids(in_reads, out_reads, include=True)
         # end: with util.file.tmp_dir(suffix='kmcfilt') as t_dir
     # end: def filter_reads(self, kmer_db, in_reads, out_reads, db_min_occs=1, db_max_occs=util.misc.MAX_INT32, ...)
 
