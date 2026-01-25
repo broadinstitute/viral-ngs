@@ -1,0 +1,7 @@
+>Feature sample
+1740	2010	CDS
+			note	sequencing did not capture all intervals comprising CDS
+			product	multi-interval-protein-with-missing-middle-section
+500	800	CDS
+			product	complete-single-interval-protein
+
