@@ -43,6 +43,10 @@ class TestFeatureReader(TestCaseWithTmp):
         self.assertEqual('NC_026438.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'NC_026438.1.tbl')))
 
+    def test_read_seq_id_ddbj(self):
+        self.assertEqual('LC889323.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
+            'LC889323.1.tbl')))
+
 class TestFeatureTransfer(TestCaseWithTmp):
     def setUp(self):
         super(TestFeatureTransfer, self).setUp()

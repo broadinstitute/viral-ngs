@@ -34,9 +34,9 @@ def get_feature_table_id(featureTableFile):
                     raise Exception("not sure how to handle a non-Feature record")
                 seqid = line[len('>Feature '):].strip()
                 if not (
-                    (seqid.startswith('gb|') or seqid.startswith('ref|'))):
-                    raise Exception("reference annotation ID does not appear to refer to a GenBank or RefSeq accession: %s" % seqid)
-                m = re.search(r"(?P<db>(?:gb|ref|dbj))\|(?:(?P<accession>[a-zA-Z0-9\._]+))+.*", seqid)
+                    (seqid.startswith('gb|') or seqid.startswith('ref|') or seqid.startswith('emb|') or seqid.startswith('dbj|'))):
+                    raise Exception("reference annotation ID does not appear to refer to a GenBank, RefSeq, EMBL, or DDBJ accession: %s" % seqid)
+                m = re.search(r"(?P<db>(?:gb|ref|emb|dbj))\|(?:(?P<accession>[a-zA-Z0-9\._]+))+.*", seqid)
                 if m:
                    seqid = m.group("accession")
                 else:
