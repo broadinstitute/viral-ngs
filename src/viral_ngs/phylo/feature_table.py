@@ -105,20 +105,19 @@ class SeqFeature(object):
 
     @property
     def lines(self):
-        if len(self.locations) == 0:
-            return  # Skip features with no valid locations
-        first_loc = self.locations.pop(0)
-        first_loc.feature_type = self.type
-        yield first_loc
-        for l in self.locations:
-            yield l
-        # yield notes first
-        for q in self.qualifiers:
-            if q.qualifier_key == "note":
-                yield q
-        for q in self.qualifiers:
-            if q.qualifier_key != "note":
-                yield q
+        if len(self.locations):
+            first_loc = self.locations.pop(0)
+            first_loc.feature_type = self.type
+            yield first_loc
+            for l in self.locations:
+                yield l
+            # yield notes first
+            for q in self.qualifiers:
+                if q.qualifier_key == "note":
+                    yield q
+            for q in self.qualifiers:
+                if q.qualifier_key != "note":
+                    yield q
 
 class AttrDict(dict):
     """
