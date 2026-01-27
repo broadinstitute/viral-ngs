@@ -225,6 +225,20 @@ class FeatureTable(object):
         if not self.refID:
             raise Exception("The feature table file did not have a header line in the format '%s'" % self.feature_line_regex_map["feature_table_header"].pattern)
 
+    def _is_valid_location(self, location):
+        """Check if a location has valid, non-None coordinates."""
+        if location.start is None or location.end is None:
+            return False
+        if location.start.position is None or location.end.position is None:
+            return False
+        # Ensure positions are integers (not strings)
+        try:
+            int(location.start.position)
+            int(location.end.position)
+        except (ValueError, TypeError):
+            return False
+        return True
+
     def remap_locations(self, map_function=None):
         """
             map_function should accept two SeqLocation objects and the containing feature, and return two (mapped) SeqLocation objects
@@ -233,15 +247,51 @@ class FeatureTable(object):
         if map_function:
             for feature in self.features:
                 remapped_locations = []
+                intervals_dropped = False
                 for location in feature.locations:
-                    
+
                     location.start, location.end = map_function(location.start,location.end, feature)
-                    # only include locations that are not totally null
-                    if location.start is not None and location.end is not None:
+                    # only include locations that are valid
+                    if self._is_valid_location(location):
                         remapped_locations.append(location)
                     else:
-                        feature.add_note("sequencing did not capture all intervals comprising CDS")
+                        # Mark that we've dropped intervals
+                        intervals_dropped = True
+                        # Add note when intervals are dropped
+                        if not any(q.qualifier_key == "note" and "sequencing did not capture" in q.qualifier_value
+                                  for q in feature.qualifiers):
+                            feature.add_note("sequencing did not capture all intervals comprising CDS")
+
+                # Filter out invalid intervals for CDS features
+                if feature.type == "CDS" and len(remapped_locations) > 0:
+                    filtered_locations = []
+                    seen_positions = set()
+                    for loc in remapped_locations:
+                        start_pos = int(loc.start.position)
+                        end_pos = int(loc.end.position)
+                        interval_key = (min(start_pos, end_pos), max(start_pos, end_pos))
+                        # Skip duplicate or single-base intervals
+                        if interval_key not in seen_positions and start_pos != end_pos:
+                            filtered_locations.append(loc)
+                            seen_positions.add(interval_key)
+                        else:
+                            # Mark that we dropped an interval
+                            intervals_dropped = True
+                    # If we filtered out intervals, add note
+                    if intervals_dropped and len(filtered_locations) < len(remapped_locations):
+                        if not any(q.qualifier_key == "note" and "sequencing did not capture" in q.qualifier_value
+                                  for q in feature.qualifiers):
+                            feature.add_note("sequencing did not capture all intervals comprising CDS")
+                    remapped_locations = filtered_locations
+
                 feature.locations = remapped_locations
+
+                # Drop CDS features with insufficient total length
+                if feature.type == "CDS" and len(remapped_locations) > 0:
+                    total_length = sum(abs(int(loc.end.position) - int(loc.start.position)) + 1
+                                       for loc in remapped_locations)
+                    if total_length < 3:  # Less than one codon
+                        feature.locations = []
 
 
     def lines(self, exclude_patterns=None):

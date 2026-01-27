@@ -105,6 +105,44 @@ class TestFeatureTransfer(TestCaseWithTmp):
 
         assert_equal_contents(self, out_tbl, expected)
 
+    def test_severely_truncated_assembly_oob_clip(self):
+        """Test annotation transfer with severely truncated assembly (adenovirus-like scenario).
+
+        This reproduces issue #67 where a ~50% truncated assembly creates invalid
+        feature table syntax with coordinates but no feature keys.
+        """
+        input_dir = os.path.join(self.input_dir, "adenovirus_truncated", "input")
+        expected_dir = os.path.join(self.input_dir, "adenovirus_truncated", "expected")
+        temp_dir = tempfile.gettempdir()
+
+        in_tbl = os.path.join(input_dir, "ref.tbl")
+        out_tbl = os.path.join(temp_dir, "sample.tbl")
+        expected = os.path.join(expected_dir, "mapped.tbl")
+
+        ncbi.tbl_transfer_prealigned(
+            os.path.join(input_dir, "aligned_1.fasta"),
+            os.path.join(input_dir, "ref.fasta"),
+            [in_tbl],
+            temp_dir,
+            oob_clip=True
+        )
+
+        # Verify output is valid feature table syntax
+        # Lines with coordinates must have exactly 3 tab-separated fields
+        # (first interval has feature type, subsequent intervals have empty third field)
+        with open(out_tbl, 'r') as f:
+            for line in f:
+                line = line.rstrip('\n')
+                if not line or line.startswith('>') or line.startswith('\t'):
+                    continue
+                # Lines with coordinates must be properly tab-delimited
+                parts = line.split('\t')
+                if len(parts) >= 2 and parts[0] and parts[1]:
+                    self.assertTrue(len(parts) == 3,
+                        f"Invalid line (coordinates must have 3 tab-delimited fields): {line}")
+
+        assert_equal_contents(self, out_tbl, expected)
+
     def test_lasv_oob_clip(self):
         input_dir    = os.path.join(self.input_dir, "lasv", "input")
         expected_dir = os.path.join(self.input_dir, "lasv", "expected")

@@ -1,0 +1,9 @@
+>Feature gb|TEST123456.1|
+1740	2010	CDS
+2500	2700
+3200	3400
+			product	multi-interval-protein-with-missing-middle-section
+			protein_id	gb|test001|
+500	800	CDS
+			product	complete-single-interval-protein
+			protein_id	gb|test002|

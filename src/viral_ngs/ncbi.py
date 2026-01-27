@@ -86,14 +86,14 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False, ign
                         if feature.type == 'CDS':
                             # for CDS features, clip in multiples of 3
                             r = (end.position if end.position is not None else alt_chrlens[altid])
-                            start.position = '{}'.format((r % 3) + 1)
+                            start.position = (r % 3) + 1
                             start.location_operator = '<'
                         else:
-                            start.position = '1'
+                            start.position = 1
                             start.location_operator = '<'
                     if end.position == None:
                         # clip the end
-                        end.position = '{}'.format(alt_chrlens[altid])
+                        end.position = alt_chrlens[altid]
                         end.location_operator = '>'
                 else:
                     # clip neg strand feature
@@ -107,14 +107,23 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False, ign
                             if (r-l) < 3:
                                 # less than a codon remains, drop it
                                 return (None, None)
-                        start.position = '{}'.format(r)
+                        start.position = r
                         start.location_operator = '<'
                     if end.position == None:
                         # clip the end (left side)
-                        end.position = '1'
+                        end.position = 1
                         end.location_operator = '<'
             else:
                 return (None, None)
+
+        # Validate final coordinates are within bounds
+        if start.position and end.position:
+            seq_len = alt_chrlens[altid]
+            if start.position < 1 or start.position > seq_len:
+                return (None, None)
+            if end.position < 1 or end.position > seq_len:
+                return (None, None)
+
         return (start, end)
 
     ft.remap_locations(remap_function)
