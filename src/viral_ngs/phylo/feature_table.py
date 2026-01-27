@@ -253,21 +253,7 @@ class FeatureTable(object):
                     location.start, location.end = map_function(location.start,location.end, feature)
                     # only include locations that are valid
                     if self._is_valid_location(location):
-                        # For CDS features, check if this is a single-base interval
-                        if feature.type == "CDS":
-                            try:
-                                start_pos = int(location.start.position)
-                                end_pos = int(location.end.position)
-                                if start_pos == end_pos:
-                                    # Single-base interval in CDS - mark as dropped
-                                    intervals_dropped = True
-                                    feature.add_note("sequencing did not capture all intervals comprising CDS")
-                                    continue
-                            except (ValueError, TypeError):
-                                pass
-                        # If we already dropped intervals, don't add more
-                        if not intervals_dropped:
-                            remapped_locations.append(location)
+                        remapped_locations.append(location)
                     else:
                         # Mark that we've dropped intervals
                         intervals_dropped = True

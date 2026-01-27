@@ -127,17 +127,19 @@ class TestFeatureTransfer(TestCaseWithTmp):
             oob_clip=True
         )
 
-        # Verify output is valid feature table syntax (no blank lines with coordinates)
+        # Verify output is valid feature table syntax
+        # Lines with coordinates must have exactly 3 tab-separated fields
+        # (first interval has feature type, subsequent intervals have empty third field)
         with open(out_tbl, 'r') as f:
             for line in f:
                 line = line.rstrip('\n')
                 if not line or line.startswith('>') or line.startswith('\t'):
                     continue
-                # Lines with coordinates must have a feature key (third column)
+                # Lines with coordinates must be properly tab-delimited
                 parts = line.split('\t')
                 if len(parts) >= 2 and parts[0] and parts[1]:
-                    self.assertTrue(len(parts) >= 3 and parts[2],
-                        f"Invalid line (coordinates without feature key): {line}")
+                    self.assertTrue(len(parts) == 3,
+                        f"Invalid line (coordinates must have 3 tab-delimited fields): {line}")
 
         assert_equal_contents(self, out_tbl, expected)
 
