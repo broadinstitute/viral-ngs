@@ -8,8 +8,8 @@
 2740	>1508	gene
 			gene	neg-strand-should-be-present-fuzzy-gt-end
 4000	4027	CDS
-7000	7034	
-7500	7578	
+7000	7034
+7500	7578
 			product	three-ranges-all-output-sorted
 4000	4027	CDS
 			note	sequencing did not capture all intervals comprising CDS

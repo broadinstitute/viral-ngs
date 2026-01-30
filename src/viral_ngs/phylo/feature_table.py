@@ -59,7 +59,12 @@ class SeqLocation(object):
         self.feature_type = feature_type
 
     def __str__(self):
-        return "{start}\t{end}\t{type}".format(start=self.start,end=self.end,type=self.feature_type if self.feature_type else "")
+        if self.feature_type:
+            return "{start}\t{end}\t{type}".format(
+                start=self.start, end=self.end, type=self.feature_type
+            )
+        else:
+            return "{start}\t{end}".format(start=self.start, end=self.end)
 
     def __eq__(self, other):
         return ((self.start, self.end) == (other.start, other.end))

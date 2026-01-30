@@ -47,6 +47,18 @@ class TestFeatureReader(TestCaseWithTmp):
         self.assertEqual('LC889323.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'LC889323.1.tbl')))
 
+    def test_seq_location_str_format(self):
+        """Test SeqLocation string format - continuation lines should not have trailing tabs."""
+        from phylo.feature_table import SeqLocation, SeqPosition
+
+        # First line with feature type - should have 3 columns
+        first = SeqLocation(SeqPosition(100), SeqPosition(200), feature_type='CDS')
+        self.assertEqual(str(first), "100\t200\tCDS")
+
+        # Continuation line without feature type - should have 2 columns, NO trailing tab
+        continuation = SeqLocation(SeqPosition(300), SeqPosition(400), feature_type=None)
+        self.assertEqual(str(continuation), "300\t400")  # NOT "300\t400\t"
+
 class TestFeatureTransfer(TestCaseWithTmp):
     def setUp(self):
         super(TestFeatureTransfer, self).setUp()
@@ -128,8 +140,8 @@ class TestFeatureTransfer(TestCaseWithTmp):
         )
 
         # Verify output is valid feature table syntax
-        # Lines with coordinates must have exactly 3 tab-separated fields
-        # (first interval has feature type, subsequent intervals have empty third field)
+        # First interval line has 3 fields (start, end, feature_type)
+        # Continuation lines have exactly 2 fields (start, end) - NO trailing tab
         with open(out_tbl, 'r') as f:
             for line in f:
                 line = line.rstrip('\n')
@@ -138,8 +150,13 @@ class TestFeatureTransfer(TestCaseWithTmp):
                 # Lines with coordinates must be properly tab-delimited
                 parts = line.split('\t')
                 if len(parts) >= 2 and parts[0] and parts[1]:
-                    self.assertTrue(len(parts) == 3,
-                        f"Invalid line (coordinates must have 3 tab-delimited fields): {line}")
+                    # Must have 2 or 3 columns
+                    self.assertTrue(len(parts) in (2, 3),
+                        f"Invalid line (must have 2 or 3 tab-delimited fields): {line}")
+                    # If 3 columns, the 3rd must not be empty (that's a trailing tab)
+                    if len(parts) == 3:
+                        self.assertNotEqual(parts[2], '',
+                            f"Line has trailing tab (continuation lines should have 2 columns): {line}")
 
         assert_equal_contents(self, out_tbl, expected)
 
