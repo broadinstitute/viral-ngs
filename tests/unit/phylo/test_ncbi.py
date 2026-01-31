@@ -160,6 +160,47 @@ class TestFeatureTransfer(TestCaseWithTmp):
 
         assert_equal_contents(self, out_tbl, expected)
 
+    def test_partial_symbols_column_placement(self):
+        """Test that < only appears in column 1 and > only appears in column 2.
+
+        Issue #72: Partial stop coordinates incorrectly used '<' instead of '>'.
+        Per NCBI spec, '<' always goes in column 1, '>' always goes in column 2,
+        regardless of strand.
+        """
+        input_dir = os.path.join(self.input_dir, "negative_strand_partial", "input")
+        expected_dir = os.path.join(self.input_dir, "negative_strand_partial", "expected")
+        temp_dir = tempfile.gettempdir()
+
+        in_tbl = os.path.join(input_dir, "ref.tbl")
+        out_tbl = os.path.join(temp_dir, "sample.tbl")
+        expected = os.path.join(expected_dir, "mapped.tbl")
+
+        ncbi.tbl_transfer_prealigned(
+            os.path.join(input_dir, "aligned_1.fasta"),
+            os.path.join(input_dir, "ref.fasta"),
+            [in_tbl],
+            temp_dir,
+            oob_clip=True
+        )
+
+        # Verify partial symbols are in correct columns per NCBI spec
+        with open(out_tbl, 'r') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.rstrip('\n')
+                if not line or line.startswith('>Feature') or line.startswith('\t'):
+                    continue
+                parts = line.split('\t')
+                if len(parts) >= 2:
+                    col1, col2 = parts[0], parts[1]
+                    # < must only appear in column 1 (start position)
+                    self.assertFalse(col2.startswith('<'),
+                        f"Line {line_num}: '<' in column 2 is invalid per NCBI spec (must be '>'): {line}")
+                    # > must only appear in column 2 (end position)
+                    self.assertFalse(col1.startswith('>'),
+                        f"Line {line_num}: '>' in column 1 is invalid per NCBI spec (must be '<'): {line}")
+
+        assert_equal_contents(self, out_tbl, expected)
+
     def test_lasv_oob_clip(self):
         input_dir    = os.path.join(self.input_dir, "lasv", "input")
         expected_dir = os.path.join(self.input_dir, "lasv", "expected")
