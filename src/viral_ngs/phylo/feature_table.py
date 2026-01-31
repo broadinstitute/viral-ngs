@@ -298,6 +298,31 @@ class FeatureTable(object):
                     if total_length < 3:  # Less than one codon
                         feature.locations = []
 
+                # Drop multi-interval features with internal partial symbols
+                # Per NCBI spec, < only valid at 5' end, > only at 3' end of entire feature
+                # Issue #74: table2asn rejects "Feature's location has internal partials"
+                if len(feature.locations) > 1:
+                    has_internal_partial = False
+                    for i, loc in enumerate(feature.locations):
+                        is_first = (i == 0)
+                        is_last = (i == len(feature.locations) - 1)
+
+                        # Check for partial symbols on non-terminal intervals
+                        # < should only appear on the first interval's start
+                        if loc.start.location_operator == '<' and not is_first:
+                            has_internal_partial = True
+                        # > should only appear on the last interval's end
+                        if loc.end.location_operator == '>' and not is_last:
+                            has_internal_partial = True
+                        # Also check reversed cases for strand considerations
+                        if loc.start.location_operator == '>' and not is_last:
+                            has_internal_partial = True
+                        if loc.end.location_operator == '<' and not is_first:
+                            has_internal_partial = True
+
+                    if has_internal_partial:
+                        feature.locations = []  # Drop the entire feature
+
 
     def lines(self, exclude_patterns=None):
         yield ">Feature {refID}".format(refID=self.refID)

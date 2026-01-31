@@ -12,7 +12,8 @@ import argparse
 import ncbi
 import util.file
 import phylo.genbank
-from test import assert_equal_bam_reads, TestCaseWithTmp, assert_equal_contents, assert_md5_equal_to_line_in_file
+from test import (assert_equal_bam_reads, TestCaseWithTmp, assert_equal_contents,
+                  assert_md5_equal_to_line_in_file, assert_valid_feature_table)
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -90,14 +91,22 @@ class TestFeatureTransfer(TestCaseWithTmp):
         out_tbl = os.path.join(temp_dir,"sample.tbl")
         expected = os.path.join(expected_dir, "mapped.tbl")
 
-        ncbi.tbl_transfer_prealigned( 
+        ncbi.tbl_transfer_prealigned(
                                     os.path.join(input_dir,"aligned_1.fasta"),
-                                    os.path.join(input_dir,"ref.fasta"), 
-                                    [in_tbl], 
+                                    os.path.join(input_dir,"ref.fasta"),
+                                    [in_tbl],
                                     temp_dir,
                                     oob_clip=True)
 
         assert_equal_contents(self, out_tbl, expected)
+
+        # Validate with table2asn
+        assert_valid_feature_table(
+            self,
+            out_tbl,
+            os.path.join(input_dir, "aligned_1.fasta"),
+            temp_dir
+        )
 
     def test_synthetic_feature_table_ignore_ambiguous_edges(self):
         input_dir    = os.path.join(self.input_dir, "synthetic_ignore_ambig_edges", "input")
@@ -160,6 +169,14 @@ class TestFeatureTransfer(TestCaseWithTmp):
 
         assert_equal_contents(self, out_tbl, expected)
 
+        # Validate with table2asn
+        assert_valid_feature_table(
+            self,
+            out_tbl,
+            os.path.join(input_dir, "aligned_1.fasta"),
+            temp_dir
+        )
+
     def test_partial_symbols_column_placement(self):
         """Test that < only appears in column 1 and > only appears in column 2.
 
@@ -200,6 +217,49 @@ class TestFeatureTransfer(TestCaseWithTmp):
                         f"Line {line_num}: '>' in column 1 is invalid per NCBI spec (must be '<'): {line}")
 
         assert_equal_contents(self, out_tbl, expected)
+
+        # Validate with table2asn
+        assert_valid_feature_table(
+            self,
+            out_tbl,
+            os.path.join(input_dir, "aligned_1.fasta"),
+            temp_dir
+        )
+
+    def test_internal_partials_dropped(self):
+        """Test that multi-interval features with internal partials are dropped.
+
+        Issue #74: table2asn rejects features where partial symbols appear
+        on internal intervals rather than the true 5'/3' ends. When a
+        multi-interval feature is truncated such that a partial symbol would
+        appear on an internal interval, the entire feature should be dropped.
+        """
+        input_dir = os.path.join(self.input_dir, "internal_partials", "input")
+        expected_dir = os.path.join(self.input_dir, "internal_partials", "expected")
+        temp_dir = tempfile.gettempdir()
+
+        in_tbl = os.path.join(input_dir, "ref.tbl")
+        out_tbl = os.path.join(temp_dir, "sample.tbl")
+        expected = os.path.join(expected_dir, "mapped.tbl")
+
+        ncbi.tbl_transfer_prealigned(
+            os.path.join(input_dir, "aligned_1.fasta"),
+            os.path.join(input_dir, "ref.fasta"),
+            [in_tbl],
+            temp_dir,
+            oob_clip=True
+        )
+
+        # Feature with internal partials should be dropped entirely
+        assert_equal_contents(self, out_tbl, expected)
+
+        # Validate with table2asn - should pass since feature was dropped
+        assert_valid_feature_table(
+            self,
+            out_tbl,
+            os.path.join(input_dir, "aligned_1.fasta"),
+            temp_dir
+        )
 
     def test_lasv_oob_clip(self):
         input_dir    = os.path.join(self.input_dir, "lasv", "input")

@@ -1,0 +1,5 @@
+>Feature gb|TEST_INTERNAL|
+500	100	CDS
+650	400
+			product	two-interval-protein
+			protein_id	gb|test_internal_001|
