@@ -1,0 +1,4 @@
+>Feature gb|TEST123.1|
+700	100	CDS
+			product	negative-strand-protein
+			protein_id	gb|test001|

@@ -112,7 +112,7 @@ def tbl_transfer_common(cmap, ref_tbl, out_tbl, alt_chrlens, oob_clip=False, ign
                     if end.position == None:
                         # clip the end (left side)
                         end.position = 1
-                        end.location_operator = '<'
+                        end.location_operator = '>'
             else:
                 return (None, None)
 
