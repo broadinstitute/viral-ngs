@@ -1,0 +1,66 @@
+# viral-ngs baseimage
+# Base image with micromamba and Python for viral-ngs tools
+#
+# This provides a minimal foundation with:
+# - micromamba (conda-compatible package manager)
+# - Python 3.12
+# - conda/mamba symlinks for compatibility
+#
+# Derivative images (core, classify, assemble, phylo) build on this.
+
+FROM mambaorg/micromamba:2.4.0-ubuntu24.04
+
+LABEL maintainer="viral-ngs@broadinstitute.org"
+LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-ngs"
+
+# Enable conda environment activation for RUN commands
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+
+USER root
+
+# Set locale
+ENV LANG="en_US.UTF-8" \
+    LANGUAGE="en_US:en" \
+    LC_ALL="en_US.UTF-8" \
+    TZ="UTC"
+
+# Install system packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    locales \
+    && locale-gen en_US.UTF-8 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symlinks for conda/mamba compatibility
+# Many scripts expect 'conda' or 'mamba' commands
+# micromamba is at /usr/bin/micromamba in the mambaorg image
+RUN ln -sf /usr/bin/micromamba /usr/local/bin/conda && \
+    ln -sf /usr/bin/micromamba /usr/local/bin/mamba
+
+# Configure micromamba channels
+RUN micromamba config append channels bioconda && \
+    micromamba config append channels conda-forge && \
+    micromamba config prepend channels broad-viral && \
+    micromamba config set always_yes yes && \
+    micromamba config set changeps1 no
+
+# Install Python in base environment
+RUN micromamba install -y -n base python=3.12 pip && \
+    micromamba clean --all --yes
+
+# Set up paths - include /opt/conda/bin for conda environment binaries
+# and /usr/local/bin for our conda/mamba symlinks
+ENV VIRAL_NGS_PATH="/opt/viral-ngs/source" \
+    PYTHONPATH="/opt/viral-ngs/source" \
+    PATH="/opt/conda/bin:/usr/local/bin:$PATH"
+
+WORKDIR /opt/viral-ngs/source
+
+# Verify installation
+RUN python --version && \
+    micromamba --version
+
+CMD ["/bin/bash"]

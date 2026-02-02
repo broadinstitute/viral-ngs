@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "viral-ngs"
+dynamic = ["version"]
+description = "Consolidated tools for viral NGS data analysis"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Broad Institute Viral Genomics", email = "viral-ngs@broadinstitute.org" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+keywords = ["bioinformatics", "genomics", "viral", "ngs", "sequencing"]
+dependencies = [
+    "biopython>=1.72",
+    "pysam>=0.23.0",
+    "pandas",
+    "pyyaml",
+    "matplotlib>=2.2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-xdist",
+    "pytest-cov",
+]
+
+[project.urls]
+Homepage = "https://github.com/broadinstitute/viral-ngs"
+Repository = "https://github.com/broadinstitute/viral-ngs"
+Issues = "https://github.com/broadinstitute/viral-ngs/issues"
+
+[tool.setuptools_scm]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
