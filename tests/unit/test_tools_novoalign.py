@@ -5,9 +5,9 @@ __author__ = "dpark@broadinstitute.org"
 import unittest
 import os.path
 import shutil
-import util.file
-import tools.novoalign
-import tools.samtools
+import viral_ngs.core
+import viral_ngs.core.novoalign
+import viral_ngs.core.samtools
 import pysam
 from test import TestCaseWithTmp, assert_md5_equal_to_line_in_file
 
@@ -16,13 +16,13 @@ class TestToolNovoalign(TestCaseWithTmp):
 
     def setUp(self):
         super(TestToolNovoalign, self).setUp()
-        self.novoalign = tools.novoalign.NovoalignTool()
+        self.novoalign = viral_ngs.core.novoalign.NovoalignTool()
         self.novoalign.install()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def test_index(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
-        inRef = util.file.mkstempfname('.fasta')
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebola.fasta')
+        inRef = viral_ngs.core.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
         self.novoalign.index_fasta(inRef)
         outfile = inRef[:-6] + '.nix'
@@ -31,44 +31,44 @@ class TestToolNovoalign(TestCaseWithTmp):
         self.assertTrue(os.path.getsize(outfile))
 
     def test_align(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
-        inRef = util.file.mkstempfname('.fasta')
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebola.fasta')
+        inRef = viral_ngs.core.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
         self.novoalign.index_fasta(inRef)
-        reads = os.path.join(util.file.get_test_input_path(self), 'ebov_reads.bam')
-        outBam = util.file.mkstempfname('.bam')
+        reads = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'ebov_reads.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         self.novoalign.execute(reads, inRef, outBam)
         self.assertTrue(os.path.isfile(outBam))
         self.assertTrue(os.path.getsize(outBam))
         self.assertTrue(os.path.isfile(outBam[:-1] + 'i'))
 
     def test_align_filter(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
-        inRef = util.file.mkstempfname('.fasta')
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebola.fasta')
+        inRef = viral_ngs.core.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
         self.novoalign.index_fasta(inRef)
-        reads = os.path.join(util.file.get_test_input_path(self), 'ebov_reads.bam')
-        outBam = util.file.mkstempfname('.bam')
+        reads = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'ebov_reads.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         self.novoalign.execute(reads, inRef, outBam, min_qual=1)
         self.assertTrue(os.path.isfile(outBam))
         self.assertTrue(os.path.getsize(outBam))
         self.assertTrue(os.path.isfile(outBam[:-1] + 'i'))
 
     def test_multi_read_groups(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(), 'G5012.3.fasta')
-        inRef = util.file.mkstempfname('.fasta')
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.fasta')
+        inRef = viral_ngs.core.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
         self.novoalign.index_fasta(inRef)
 
         # align with Novoalign (BAM input, BAM output)
-        reads = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        outBam = util.file.mkstempfname('.bam')
+        reads = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         self.novoalign.execute(reads, inRef, outBam)
         self.assertTrue(os.path.isfile(outBam))
         self.assertTrue(os.path.getsize(outBam))
         self.assertTrue(os.path.isfile(outBam[:-1] + 'i'))
-        sam_in = util.file.mkstempfname('.in.sam')
-        sam_out = util.file.mkstempfname('.out.sam')
+        sam_in = viral_ngs.core.file.mkstempfname('.in.sam')
+        sam_out = viral_ngs.core.file.mkstempfname('.out.sam')
         self.samtools.view([], reads, sam_in)
         self.samtools.view([], outBam, sam_out)
 
@@ -122,14 +122,14 @@ class TestToolNovoalign(TestCaseWithTmp):
             os.unlink(fn)
 
     def test_multi_read_groups_filter(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(), 'G5012.3.fasta')
-        inRef = util.file.mkstempfname('.fasta')
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.fasta')
+        inRef = viral_ngs.core.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
         self.novoalign.index_fasta(inRef)
 
         # align with Novoalign (BAM input, BAM output)
-        reads = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        outBam = util.file.mkstempfname('.bam')
+        reads = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         self.novoalign.execute(reads, inRef, outBam, min_qual=1)
         self.assertTrue(os.path.isfile(outBam))
         self.assertTrue(os.path.getsize(outBam))

@@ -1,4 +1,4 @@
-# Unit tests for util.misc.py
+# Unit tests for viral_ngs.core.misc.py
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -6,60 +6,59 @@ import os, random, collections
 import unittest
 import subprocess
 import multiprocessing
-import util.misc
-import util.file
+import viral_ngs.core
 import pytest
 
 
 class TestRunAndPrint(unittest.TestCase):
     
     def testBasicRunSuccess(self):
-        util.misc.run_and_print(['cat', '/dev/null'],
+        viral_ngs.core.misc.run_and_print(['cat', '/dev/null'],
             silent=False, buffered=False, check=False)
-        util.misc.run_and_print(['cat', '/dev/null'],
+        viral_ngs.core.misc.run_and_print(['cat', '/dev/null'],
             silent=False, buffered=False, check=True)
-        util.misc.run_and_print(['cat', '/dev/null'],
+        viral_ngs.core.misc.run_and_print(['cat', '/dev/null'],
             silent=True, buffered=False, check=False)
-        util.misc.run_and_print(['cat', '/dev/null'],
+        viral_ngs.core.misc.run_and_print(['cat', '/dev/null'],
             silent=True, buffered=False, check=True)
-        util.misc.run_and_print(['cat', '/dev/null'],
+        viral_ngs.core.misc.run_and_print(['cat', '/dev/null'],
             silent=False, buffered=True, check=False)
-        util.misc.run_and_print(['cat', '/dev/null'],
+        viral_ngs.core.misc.run_and_print(['cat', '/dev/null'],
             silent=False, buffered=True, check=True)
-        util.misc.run_and_print(['cat', '/dev/null'],
+        viral_ngs.core.misc.run_and_print(['cat', '/dev/null'],
             silent=True, buffered=True, check=False)
-        util.misc.run_and_print(['cat', '/dev/null'],
+        viral_ngs.core.misc.run_and_print(['cat', '/dev/null'],
             silent=True, buffered=True, check=True)
             
     def testBasicRunFailDontCare(self):
-        util.misc.run_and_print(['cat', '/notdev/notnull'],
+        viral_ngs.core.misc.run_and_print(['cat', '/notdev/notnull'],
             silent=False, buffered=False, check=False)
-        util.misc.run_and_print(['cat', '/notdev/notnull'],
+        viral_ngs.core.misc.run_and_print(['cat', '/notdev/notnull'],
             silent=True, buffered=False, check=False)
-        util.misc.run_and_print(['cat', '/notdev/notnull'],
+        viral_ngs.core.misc.run_and_print(['cat', '/notdev/notnull'],
             silent=False, buffered=True, check=False)
-        util.misc.run_and_print(['cat', '/notdev/notnull'],
+        viral_ngs.core.misc.run_and_print(['cat', '/notdev/notnull'],
             silent=True, buffered=True, check=False)
 
     def testBasicRunFailAndCatch(self):
         self.assertRaises(subprocess.CalledProcessError,
-            util.misc.run_and_print, ['cat', '/notdev/notnull'],
+            viral_ngs.core.misc.run_and_print, ['cat', '/notdev/notnull'],
             silent=False, buffered=False, check=True)
         self.assertRaises(subprocess.CalledProcessError,
-            util.misc.run_and_print, ['cat', '/notdev/notnull'],
+            viral_ngs.core.misc.run_and_print, ['cat', '/notdev/notnull'],
             silent=False, buffered=True, check=True)
         self.assertRaises(subprocess.CalledProcessError,
-            util.misc.run_and_print, ['cat', '/notdev/notnull'],
+            viral_ngs.core.misc.run_and_print, ['cat', '/notdev/notnull'],
             silent=True, buffered=False, check=True)
         self.assertRaises(subprocess.CalledProcessError,
-            util.misc.run_and_print, ['cat', '/notdev/notnull'],
+            viral_ngs.core.misc.run_and_print, ['cat', '/notdev/notnull'],
             silent=True, buffered=True, check=True)
 
 
 class TestFeatureSorter(unittest.TestCase):
 
     def testBasicSortingWithOverlap(self):
-        fs = util.misc.FeatureSorter((
+        fs = viral_ngs.core.misc.FeatureSorter((
             ('abca', 10, 20),
             ('abca', 25, 35),
             ('abca', 15, 30),
@@ -74,7 +73,7 @@ class TestFeatureSorter(unittest.TestCase):
         )
 
     def testBasicIntervalsWithOverlap(self):
-        fs = util.misc.FeatureSorter((
+        fs = viral_ngs.core.misc.FeatureSorter((
             ('abca', 10, 20),
             ('abca', 25, 35),
             ('abca', 15, 30),
@@ -91,7 +90,7 @@ class TestFeatureSorter(unittest.TestCase):
         )
 
     def testDisjointAndOverlappingIntervals(self):
-        fs = util.misc.FeatureSorter((
+        fs = viral_ngs.core.misc.FeatureSorter((
             ('abca', 10, 20),
             ('abca', 80, 90, '+', None),
             ('abca', 25, 35, '-'),
@@ -111,7 +110,7 @@ class TestFeatureSorter(unittest.TestCase):
         )
 
     def testMultiChrWindowedFeatures(self):
-        fs = util.misc.FeatureSorter((
+        fs = viral_ngs.core.misc.FeatureSorter((
             ('abca', 10, 20),
             ('aaaa', 17, 33),
             ('abca', 80, 90),
@@ -127,7 +126,7 @@ class TestFeatureSorter(unittest.TestCase):
         )
 
     def testOpenWindowRight(self):
-        fs = util.misc.FeatureSorter((
+        fs = viral_ngs.core.misc.FeatureSorter((
             ('abca', 10, 20),
             ('aaaa', 17, 33),
             ('abca', 80, 90),
@@ -144,7 +143,7 @@ class TestFeatureSorter(unittest.TestCase):
         )
 
     def testOpenWindowLeft(self):
-        fs = util.misc.FeatureSorter((
+        fs = viral_ngs.core.misc.FeatureSorter((
             ('abca', 10, 20),
             ('aaaa', 17, 33),
             ('abca', 80, 90),
@@ -160,7 +159,7 @@ class TestFeatureSorter(unittest.TestCase):
         )
 
     def testMultiChrWithPayloadIntervals(self):
-        fs = util.misc.FeatureSorter((
+        fs = viral_ngs.core.misc.FeatureSorter((
             ('abca', 10, 20),
             ('aaaa', 17, 33, '-', [100, 'name', []]),
             ('abca', 80, 90, '+', ['other info']),
@@ -186,9 +185,9 @@ class TestConfigIncludes(unittest.TestCase):
 
     def testConfigIncludes(self):
 
-        def test_fn(f): return os.path.join(util.file.get_test_input_path(), 'TestUtilMisc', f)
-        cfg1 = util.misc.load_config(test_fn('cfg1.yaml'))
-        cfg2 = util.misc.load_config(test_fn('cfg2.yaml'), std_includes=[test_fn('cfg_std.yaml')],
+        def test_fn(f): return os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestUtilMisc', f)
+        cfg1 = viral_ngs.core.misc.load_config(test_fn('cfg1.yaml'))
+        cfg2 = viral_ngs.core.misc.load_config(test_fn('cfg2.yaml'), std_includes=[test_fn('cfg_std.yaml')],
                                      param_renamings={'std_param_A_old': 'std_param_A_new'})
         
         self.assertIn('paramA', cfg2)
@@ -209,12 +208,12 @@ class TestConfigIncludes(unittest.TestCase):
 
         self.assertEqual(cfg2["std_param_A_new"], 111)  # specified as std_param_A_old in cfg1.yaml
 
-        self.assertEqual(util.misc.load_config(test_fn('empty.yaml')), {})
+        self.assertEqual(viral_ngs.core.misc.load_config(test_fn('empty.yaml')), {})
 
 def test_as_type():
-    """Test util.misc.as_type()"""
+    """Test viral_ngs.core.misc.as_type()"""
 
-    as_type = util.misc.as_type
+    as_type = viral_ngs.core.misc.as_type
 
     test_data = (
         ('1', int, 1, int),
@@ -250,9 +249,9 @@ def test_as_type():
 @pytest.mark.parametrize("iter_d", [False, True])
 @pytest.mark.parametrize("iter_subset", [False, True])
 def test_subdict(iter_d, iter_subset):
-    """Test util.misc.subdict()"""
+    """Test viral_ngs.core.misc.subdict()"""
     def subdict(d, subset): 
-        return util.misc.subdict(iter(d.items()) if iter_d else d, 
+        return viral_ngs.core.misc.subdict(iter(d.items()) if iter_d else d, 
                                  iter(subset) if iter_subset else subset)
 
     test_data = (
@@ -274,7 +273,7 @@ def test_subdict(iter_d, iter_subset):
         assert subdict(d, list(d.keys())*2) == d
 
 def test_chk():
-    chk = util.misc.chk
+    chk = viral_ngs.core.misc.chk
     chk(True, 'no error')
     with pytest.raises(RuntimeError):
         chk(False)
@@ -284,77 +283,77 @@ def test_chk():
         chk(isinstance(None, int), 'Expected an int', TypeError)
 
 def test_available_cpu_count(monkeypatch_function_result):
-    reported_cpu_count = util.misc.available_cpu_count()
+    reported_cpu_count = viral_ngs.core.misc.available_cpu_count()
     assert reported_cpu_count >= int(os.environ.get('PYTEST_XDIST_WORKER_COUNT', '1'))
-    assert util.misc.available_cpu_count() == reported_cpu_count
+    assert viral_ngs.core.misc.available_cpu_count() == reported_cpu_count
 
     # cgroup v2 limited to 1 cpu
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=True, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="100000 100000"):
-        assert util.misc.available_cpu_count() == 1
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="100000 100000"):
+        assert viral_ngs.core.misc.available_cpu_count() == 1
 
     # cgroup v2 limited to 2 cpu
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=True, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="200000 100000"):
-        assert util.misc.available_cpu_count() == 2
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="200000 100000"):
+        assert viral_ngs.core.misc.available_cpu_count() == 2
 
     # cgroup v2 with no CPU limit imposed on cgroup
     # (fall back to /proc/self/status method, with limit imposed there):
     #   'Cpus_allowed:  d' = 0b1101 bitmask (meaning execution allowed on 3 CPUs)
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=True, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="max 100000"), \
-         monkeypatch_function_result(util.file.slurp_file, '/proc/self/status', patch_result='Cpus_allowed:  d'):
-        assert util.misc.available_cpu_count() == 3
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu.max', patch_result="max 100000"), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/proc/self/status', patch_result='Cpus_allowed:  d'):
+        assert viral_ngs.core.misc.available_cpu_count() == 3
 
     # cgroup v1 limited to 2 CPUs
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='200000'), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='100000'):
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='200000'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='100000'):
          
-        assert util.misc.available_cpu_count() == 2
+        assert viral_ngs.core.misc.available_cpu_count() == 2
 
     # cgroup v1 limited to 1 CPU
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
          
-        assert util.misc.available_cpu_count() == 1
+        assert viral_ngs.core.misc.available_cpu_count() == 1
 
     # cgroup v1 with no limit imposed on the cgroup
     # (fall back to /proc/self/status method, with limit imposed there):
     #   'Cpus_allowed:  c' = 0b1100 bitmask (meaning execution allowed on 2 CPUs)
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/proc/self/status', patch_result='Cpus_allowed:  c'):
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/proc/self/status', patch_result='Cpus_allowed:  c'):
          
-        assert util.misc.available_cpu_count() == 2
+        assert viral_ngs.core.misc.available_cpu_count() == 2
 
     # cgroup v1 with no limit imposed on the cgoup or via /proc/self/status
     # (fall back to /proc/self/status method, with no limit imposed there)
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'):
         
-        assert util.misc.available_cpu_count() == reported_cpu_count
+        assert viral_ngs.core.misc.available_cpu_count() == reported_cpu_count
 
     # cgroup v1 with no limit imposed on the cgoup
     # with 'Cpus_allowed' not present in /proc/self/status
     # (fall back to multiprocessing.cpu_count() method)
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/proc/self/status', patch_result='unexpected_key:  1'):
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/proc/self/status', patch_result='unexpected_key:  1'):
         
-        assert util.misc.available_cpu_count() == reported_cpu_count
+        assert viral_ngs.core.misc.available_cpu_count() == reported_cpu_count
 
     # cgroup v1 with no limit imposed on the cgoup
     # with 'Cpus_allowed' not present in /proc/self/status
     # (fall back to multiprocessing.cpu_count() method with CPU count of 2 reported)
     with monkeypatch_function_result(os.path.exists, "/sys/fs/cgroup/cgroup.controllers", patch_result=False, patch_module=os.path), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
-         monkeypatch_function_result(util.file.slurp_file, '/proc/self/status', patch_result='unexpected_key:  1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_quota_us', patch_result='-1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/sys/fs/cgroup/cpu/cpu.cfs_period_us', patch_result='1'), \
+         monkeypatch_function_result(viral_ngs.core.file.slurp_file, '/proc/self/status', patch_result='unexpected_key:  1'), \
          monkeypatch_function_result(multiprocessing.cpu_count, patch_result=2, patch_module=multiprocessing):
         
-        assert util.misc.available_cpu_count() == 2
+        assert viral_ngs.core.misc.available_cpu_count() == 2

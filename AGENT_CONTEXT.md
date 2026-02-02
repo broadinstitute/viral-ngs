@@ -10,11 +10,11 @@
 |-------|--------|-------|
 | Phase 0: Prepare repo | ✅ COMPLETE | Legacy archived, branches cleaned, secrets configured |
 | Phase 1: Foundation | ✅ COMPLETE | pyproject.toml, baseimage, CI workflow created |
-| Phase 2: Migrate viral-core | 🔲 NOT STARTED | Next step |
+| Phase 2: Migrate viral-core | ✅ COMPLETE | Consolidated to `core/`, all deps via conda, x86-only handling |
 | Phase 3: Migrate derivatives | 🔲 NOT STARTED | assemble, phylo, classify |
 | Phase 4: Finalize | 🔲 NOT STARTED | mega image, docs, badges |
 
-**Next action:** Push to origin, then start Phase 2 (migrate viral-core with git history preservation).
+**Next action:** Start Phase 3a (migrate viral-assemble with git history preservation).
 
 ---
 
@@ -61,31 +61,39 @@ repo/
 
 ```
 viral-ngs/
-├── pyproject.toml
+├── pyproject.toml              # Empty deps (all via conda)
 ├── src/viral_ngs/
-│   ├── __init__.py
-│   ├── illumina.py, read_utils.py, ...  (from viral-core)
-│   ├── util/                             (from viral-core)
-│   ├── tools/                            (from viral-core)
-│   ├── metagenomics.py, taxon_filter.py  (from viral-classify)
-│   ├── classify/                         (from viral-classify)
-│   ├── assembly.py                       (from viral-assemble)
-│   ├── assemble/                         (from viral-assemble)
-│   ├── interhost.py, intrahost.py, ncbi.py (from viral-phylo)
-│   └── phylo/                            (from viral-phylo)
+│   ├── __init__.py             # Just imports core
+│   ├── py.typed
+│   └── core/                   # ALL core modules consolidated here
+│       ├── __init__.py         # Tool/InstallMethod classes + submodule imports
+│       ├── samtools.py, picard.py, bwa.py, ...  # Tool wrappers
+│       ├── file.py, misc.py, cmd.py, ...        # Utilities
+│       ├── read_utils.py, illumina.py, ...      # Command modules
+│       ├── errors.py, priorities.py, ...
+│       ├── metagenomics.py, taxon_filter.py     # (Phase 3c)
+│       ├── assembly.py                          # (Phase 3a)
+│       ├── interhost.py, intrahost.py, ncbi.py  # (Phase 3b)
+│       └── ...
 ├── docker/
 │   ├── Dockerfile.baseimage, Dockerfile.core, etc.
 │   └── requirements/
+│       ├── core.txt            # All deps (Python + bioinformatics)
+│       ├── core-x86.txt        # x86-only packages
+│       └── ...
 ├── tests/
 │   ├── conftest.py
 │   ├── unit/
 │   └── input/
+├── scripts/                    # Migration/maintenance scripts
 ├── .github/workflows/
 ├── docs/
 ├── README.md
-├── CLAUDE.md               (points to AGENTS.md)
-└── AGENTS.md               (consolidated guidance)
+├── CLAUDE.md                   # (points to AGENTS.md)
+└── AGENTS.md                   # (consolidated guidance)
 ```
+
+**Note:** The original `tools/` and `util/` directories were consolidated into `core/` for simplicity. There are no backward compatibility stubs - all code uses `viral_ngs.core.*` imports directly.
 
 ## Key Technical Details
 
@@ -149,25 +157,38 @@ The goal is to simplify to a single environment if possible.
 
 ## Import Changes Required
 
-All imports must change from flat to package style. Here are the patterns:
+All imports use the consolidated `viral_ngs.core.*` pattern.
+
+**Style preference:** Use full absolute imports (`import x.y.z`) over `from` imports (`from x.y import z`). This makes imports explicit and easier to trace.
 
 ```python
-# util imports
-import util.file          →  from viral_ngs.util import file
-from util.file import X   →  from viral_ngs.util.file import X
-import util.cmd           →  from viral_ngs.util import cmd
+# PREFERRED: Full absolute imports
+import viral_ngs.core.samtools
+import viral_ngs.core.picard
+import viral_ngs.core.file
 
-# tools imports
-import tools.samtools     →  from viral_ngs.tools import samtools
-from tools import picard  →  from viral_ngs.tools import picard
-import tools              →  from viral_ngs import tools
+# Then use as:
+viral_ngs.core.samtools.SamtoolsTool()
+viral_ngs.core.file.mkstempfname()
 
-# Cross-module imports (in classify referencing core)
-import read_utils         →  from viral_ngs import read_utils
-from illumina import X    →  from viral_ngs.illumina import X
+# ACCEPTABLE: from imports when accessing many items from same module
+from viral_ngs.core.misc import available_cpu_count
+
+# Within core/ modules, relative imports are required to avoid circular imports
+from . import samtools, picard
+from .file import mkstempfname
+
+# Old patterns (no longer used)
+import util.file          →  import viral_ngs.core.file
+from tools import samtools →  import viral_ngs.core.samtools
+import read_utils         →  import viral_ngs.core.read_utils
 ```
 
-Use find/replace carefully. Test imports after each module migration.
+**Key points:**
+- Prefer `import x.y.z` over `from x.y import z` for explicitness
+- NO backward compatibility stubs - `viral_ngs.tools` and `viral_ngs.util` don't exist
+- Within `core/` modules, use relative imports (`from . import X`) to avoid circular imports
+- Test imports after each module migration
 
 ## GitHub Actions Modernization
 
@@ -279,7 +300,11 @@ These decisions have been made and should not be revisited:
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Python packaging | `viral-ngs` pip package | Modern, cleaner imports |
-| Import style | `from viral_ngs.util import file` | Standard package pattern |
+| Import style | `import x.y.z` (not `from x.y import z`) | Explicit, easier to trace |
+| Module structure | Single `core/` directory | Simpler than separate tools/util |
+| Backward compat | None (no stubs) | Clean codebase, fresh start |
+| Python deps | All via conda | Faster install, binary compat |
+| x86-only handling | Separate requirements + --x86-only flag | Graceful ARM support |
 | Docker registry | Quay.io + ghcr.io | Redundancy, both registries |
 | Multi-arch | QEMU via docker/setup-qemu-action | Simpler than native runners for now |
 | Cache backend | Registry on Quay.io | GHA 10GB limit too small |
@@ -299,6 +324,44 @@ These decisions have been made and should not be revisited:
 4. **Don't forget ARM64**: Check bioconda package availability for each tool
 5. **Don't hardcode paths**: Use `$VIRAL_NGS_PATH` environment variable
 6. **Don't skip verification**: Run tests after each phase
+
+## Lessons Learned from Phase 2
+
+### Circular Import Issues
+
+When consolidating modules, be careful of circular imports:
+
+1. **Import order matters**: In `core/__init__.py`, import `version` before `cmd` because `cmd` uses `version` at module level
+2. **Use relative imports in core/**: Within `core/` modules, always use `from . import X` not `from viral_ngs.core import X`
+3. **Avoid importing parent package**: Don't use `from viral_ngs import util` inside core modules - this creates cycles
+
+### Conda Package Names
+
+- Python `lz4` package is just `lz4` in conda (not `python-lz4`)
+- `lz4-c` is the C library (separate from Python package)
+- Always verify package names with `conda search <package>` before adding
+
+### git-filter-repo Usage
+
+Install in a standalone venv (not project dependency):
+```bash
+python -m venv ~/venvs/git-filter-repo
+~/venvs/git-filter-repo/bin/pip install git-filter-repo
+source ~/venvs/git-filter-repo/bin/activate
+git filter-repo --path-rename ...
+```
+
+### x86-Only Packages
+
+For tools without ARM64 support:
+1. Put in separate requirements file (`core-x86.txt`)
+2. Use `install-conda-deps.sh --x86-only` flag
+3. Script auto-detects architecture
+4. Tool wrapper handles missing tool at install time, not import time
+
+### PrexistingUnixCommand is the Only InstallMethod
+
+Since all tools are installed via conda, `PrexistingUnixCommand` is the only `InstallMethod` subclass needed. It just checks if the tool exists in PATH.
 
 ## Communication
 
@@ -335,6 +398,17 @@ When working on this migration:
 - Created `docker/install-conda-deps.sh` for unified dependency installation
 - Created `.github/workflows/docker.yml` for multi-arch builds
 - Verified baseimage builds locally with Python 3.12 and conda/mamba symlinks
+
+### Phase 2 (Complete)
+- Imported viral-core with full git history (3,716 commits, all tags with `core-` prefix)
+- Consolidated `tools/` and `util/` directories into single `core/` directory
+- Updated all imports to `viral_ngs.core.*` pattern (no backward compat stubs)
+- Moved ALL Python dependencies to conda (pyproject.toml has empty deps)
+- Created `docker/requirements/core-x86.txt` for x86-only packages (novoalign, mvicuna)
+- Updated `install-conda-deps.sh` with `--x86-only` flag for architecture-specific packages
+- Created `docker/Dockerfile.core` with verification checks
+- Updated all test imports to use `viral_ngs.core.*`
+- Docker build verified with all module imports working
 
 ## Reference Repositories
 

@@ -10,12 +10,11 @@ import inspect
 import copy
 import functools
 
-import util.misc
-import util.file
+import viral_ngs.core
 
 import pytest
 
-import tools
+import viral_ngs.core
 
 def timer():
     if sys.version_info < (3, 3):
@@ -60,14 +59,14 @@ def pytest_collection_modifyitems(config, items):
 # Fixtures for creating a temp dir at session/module/class/function scope.
 # Unlike pytest's tmpdir fixture, they use tempfile.mkdtemp to create a
 # tempdir in the most secure/race-condition-free manner possible.
-# Also, since util.file.tmp_dir() is used, the tempdir contens can be
+# Also, since viral_ngs.core.file.tmp_dir() is used, the tempdir contens can be
 # preserved for debugging by setting the environment variable VIRAL_NGS_TMP_DIRKEEP.
 
 
 @contextlib.contextmanager
 def _tmpdir_aux(base_dir, scope, name):
     """Create and return a temporary directory; remove it and its contents on context exit."""
-    with util.file.tmp_dir(dir=base_dir,
+    with viral_ngs.core.file.tmp_dir(dir=base_dir,
                            prefix='test-{}-{}-'.format(scope, name)) as tmpdir:
         yield tmpdir
 
@@ -120,12 +119,12 @@ def monkeypatch_function_result(monkeypatch):
         patch_kwargs = copy.copy(patch_kwargs)
         patch_result = patch_kwargs.pop('patch_result', None)
         patch_exception = patch_kwargs.pop('patch_exception', None)
-        util.misc.chk(patch_exception is None or patch_result is None)
+        viral_ngs.core.misc.chk(patch_exception is None or patch_result is None)
         patch_module = patch_kwargs.pop('patch_module', inspect.getmodule(f))
-        get_call_args = functools.partial(inspect.getcallargs, util.misc.unwrap(f))
+        get_call_args = functools.partial(inspect.getcallargs, viral_ngs.core.misc.unwrap(f))
         patch_call_args = get_call_args(*patch_args, **patch_kwargs)
 
-        @util.misc.wraps(f)
+        @viral_ngs.core.misc.wraps(f)
         def patched_f(*args, **kwargs):
             if get_call_args(*args, **kwargs) != patch_call_args:
                 return f(*args, **kwargs)
@@ -135,7 +134,7 @@ def monkeypatch_function_result(monkeypatch):
 
             return patch_result
 
-        util.misc.chk(inspect.ismodule(patch_module) and getattr(patch_module, f.__name__) == f)
+        viral_ngs.core.misc.chk(inspect.ismodule(patch_module) and getattr(patch_module, f.__name__) == f)
         with monkeypatch.context() as m:
             m.setattr(patch_module, f.__name__, patched_f)
             yield

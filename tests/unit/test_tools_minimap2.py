@@ -7,38 +7,38 @@ import os.path
 import shutil
 import tempfile
 import subprocess
-import util.file
-import tools.minimap2
-import tools.samtools
+import viral_ngs.core
+import viral_ngs.core.minimap2
+import viral_ngs.core.samtools
 from test import TestCaseWithTmp
 
 class TestToolMinimap2(TestCaseWithTmp):
 
     def setUp(self):
         super(TestToolMinimap2, self).setUp()
-        self.mm2 = tools.minimap2.Minimap2()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.mm2 = viral_ngs.core.minimap2.Minimap2()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
         self.tempDir = tempfile.mkdtemp()
-        root_input_dir = util.file.get_test_input_path()
+        root_input_dir = viral_ngs.core.file.get_test_input_path()
         self.ref_fasta = os.path.join(root_input_dir, '5kb_human_from_chr6.fasta')
 
     def test_human_bam(self):
-        in_bam = os.path.join(util.file.get_test_input_path(), "TestDepleteHuman", 'test-reads-human.bam')
-        with util.file.tempfname('.bam') as outfile:
+        in_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), "TestDepleteHuman", 'test-reads-human.bam')
+        with viral_ngs.core.file.tempfname('.bam') as outfile:
             self.mm2.align_bam(in_bam, self.ref_fasta, outfile, options=['-x', 'sr'])
             self.assertEqual(self.samtools.count(outfile), 20)
 
     def test_ebola_bam(self):
-        in_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
-        ref_fasta = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
-        with util.file.tempfname('.bam') as outfile:
+        in_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        ref_fasta = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta')
+        with viral_ngs.core.file.tempfname('.bam') as outfile:
             self.mm2.align_bam(in_bam, ref_fasta, outfile)
             self.assertEqual(self.samtools.count(outfile), 18843)
 
     def test_corrupt_bam(self):
         # pipe.poll() should raise an exception
-        in_bam = os.path.join(util.file.get_test_input_path(), 'broken.bam')
-        with util.file.tempfname('.bam') as outfile:
+        in_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'broken.bam')
+        with viral_ngs.core.file.tempfname('.bam') as outfile:
             self.assertRaises(subprocess.CalledProcessError, self.mm2.align_bam, in_bam, self.ref_fasta, outfile)
 
 
@@ -47,17 +47,17 @@ class TestMinimap2Idxstats(TestCaseWithTmp):
 
     def setUp(self):
         super(TestMinimap2Idxstats, self).setUp()
-        self.mm2 = tools.minimap2.Minimap2()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.mm2 = viral_ngs.core.minimap2.Minimap2()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
         self.tempDir = tempfile.mkdtemp()
-        self.root_input_dir = util.file.get_test_input_path()
+        self.root_input_dir = viral_ngs.core.file.get_test_input_path()
 
     def test_idxstats_basic(self):
         """Basic functionality: single reference, verify idxstats format and counts."""
         in_bam = os.path.join(self.root_input_dir, 'G5012.3.testreads.bam')
         ref_fasta = os.path.join(self.root_input_dir, 'ebov-makona.fasta')
 
-        with util.file.tempfname('.idxstats.txt') as out_stats:
+        with viral_ngs.core.file.tempfname('.idxstats.txt') as out_stats:
             self.mm2.idxstats(in_bam, ref_fasta, out_stats)
 
             # Verify file exists and has content
@@ -87,8 +87,8 @@ class TestMinimap2Idxstats(TestCaseWithTmp):
         in_bam = os.path.join(self.root_input_dir, 'G5012.3.testreads.bam')
         ref_fasta = os.path.join(self.root_input_dir, 'ebov-makona.fasta')
 
-        with util.file.tempfname('.idxstats.txt') as out_stats:
-            with util.file.tempfname('.readlist.txt') as out_readlist:
+        with viral_ngs.core.file.tempfname('.idxstats.txt') as out_stats:
+            with viral_ngs.core.file.tempfname('.readlist.txt') as out_readlist:
                 self.mm2.idxstats(in_bam, ref_fasta, out_stats, outReadlist=out_readlist)
 
                 # Verify read list file is created
@@ -120,7 +120,7 @@ class TestMinimap2Idxstats(TestCaseWithTmp):
         in_bam = os.path.join(self.root_input_dir, 'G5012.3.testreads.bam')
         ref_fasta = os.path.join(self.root_input_dir, 'ebov-makona.fasta')
 
-        with util.file.tempfname('.idxstats.txt') as out_stats:
+        with viral_ngs.core.file.tempfname('.idxstats.txt') as out_stats:
             # Call without readlist
             self.mm2.idxstats(in_bam, ref_fasta, out_stats, outReadlist=None)
 
@@ -135,7 +135,7 @@ class TestMinimap2Idxstats(TestCaseWithTmp):
         in_bam = os.path.join(self.root_input_dir, 'empty.bam')
         ref_fasta = os.path.join(self.root_input_dir, 'ebov-makona.fasta')
 
-        with util.file.tempfname('.idxstats.txt') as out_stats:
+        with viral_ngs.core.file.tempfname('.idxstats.txt') as out_stats:
             self.mm2.idxstats(in_bam, ref_fasta, out_stats)
 
             # Should have output with zero counts
@@ -153,7 +153,7 @@ class TestMinimap2Idxstats(TestCaseWithTmp):
         in_bam = os.path.join(self.root_input_dir, 'G5012.3.testreads.bam')
         ref_fasta = os.path.join(self.root_input_dir, 'empty.fasta')
 
-        with util.file.tempfname('.idxstats.txt') as out_stats:
+        with viral_ngs.core.file.tempfname('.idxstats.txt') as out_stats:
             self.mm2.idxstats(in_bam, ref_fasta, out_stats)
 
             # Should produce empty output (no references = no lines)
@@ -167,7 +167,7 @@ class TestMinimap2Idxstats(TestCaseWithTmp):
         in_bam = os.path.join(self.root_input_dir, 'TestMinimap2Idxstats', 'multi-viral-reads.bam')
         ref_fasta = os.path.join(self.root_input_dir, 'TestMinimap2Idxstats', 'multi-viral-refs.fasta')
 
-        with util.file.tempfname('.idxstats.txt') as out_stats:
+        with viral_ngs.core.file.tempfname('.idxstats.txt') as out_stats:
             self.mm2.idxstats(in_bam, ref_fasta, out_stats)
 
             # Parse output

@@ -1,0 +1,48 @@
+# viral-ngs core image
+# Builds on baseimage, adds core bioinformatics tools and viral-ngs package
+#
+# This provides:
+# - All core bioinformatics tools (samtools, picard, bwa, etc.)
+# - The viral-ngs Python package installed in editable mode
+#
+# Usage:
+#   docker build --build-arg BASEIMAGE_TAG=main-baseimage -t viral-ngs:core -f docker/Dockerfile.core .
+
+ARG BASEIMAGE=quay.io/broadinstitute/viral-ngs:main-baseimage
+FROM ${BASEIMAGE}
+
+LABEL maintainer="viral-ngs@broadinstitute.org"
+LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-ngs"
+
+# Enable conda environment activation for RUN commands
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+
+# Copy requirements and dependency installation script
+COPY docker/requirements/core.txt docker/requirements/core-x86.txt /tmp/requirements/
+COPY docker/install-conda-deps.sh /tmp/
+
+# Install conda dependencies (bioinformatics tools)
+# First install all-architecture packages, then x86-only packages (skipped on ARM)
+RUN /tmp/install-conda-deps.sh /tmp/requirements/core.txt && \
+    /tmp/install-conda-deps.sh --x86-only /tmp/requirements/core-x86.txt
+
+# Copy source code
+COPY src/ /opt/viral-ngs/source/src/
+COPY pyproject.toml README.md LICENSE /opt/viral-ngs/source/
+
+# Install viral-ngs package
+# Use a fallback version since .git is not copied to Docker image
+WORKDIR /opt/viral-ngs/source
+ARG VERSION=0.0.0.dev0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
+RUN pip install --no-cache-dir .
+
+# Verify installation
+RUN python -c "from viral_ngs.core import read_utils, illumina, reports; print('Core modules OK')" && \
+    python -c "from viral_ngs.core import samtools, picard, bwa; print('Tool wrappers OK')" && \
+    python -c "from viral_ngs.core import file, misc, cmd; print('Utilities OK')"
+
+# Clean up
+RUN rm -rf /tmp/requirements /tmp/install-conda-deps.sh
+
+CMD ["/bin/bash"]

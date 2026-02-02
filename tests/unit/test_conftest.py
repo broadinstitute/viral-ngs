@@ -6,16 +6,16 @@ import os.path
 import functools
 import pytest
 
-import util.misc
-from util.file import slurp_file, get_test_input_path
+import viral_ngs.core
+from viral_ngs.core.file import slurp_file, get_test_input_path
 
 
 def test_monkeypatch_function_result(monkeypatch_function_result):
-    assert list(util.misc.unique([])) == []
-    with monkeypatch_function_result(util.misc.unique, [], patch_result=[1]):
-        assert list(util.misc.unique([])) == [1]
-        assert list(util.misc.unique([2,1,2])) == [2, 1]
-    assert list(util.misc.unique([])) == []
+    assert list(viral_ngs.core.misc.unique([])) == []
+    with monkeypatch_function_result(viral_ngs.core.misc.unique, [], patch_result=[1]):
+        assert list(viral_ngs.core.misc.unique([])) == [1]
+        assert list(viral_ngs.core.misc.unique([2,1,2])) == [2, 1]
+    assert list(viral_ngs.core.misc.unique([])) == []
 
     inp = functools.partial(os.path.join, get_test_input_path())
 

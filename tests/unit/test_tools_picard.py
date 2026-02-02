@@ -7,24 +7,24 @@ import re
 import os
 import tempfile
 import shutil
-import util
-import util.file
-import tools
-import tools.picard
-import tools.samtools
+import viral_ngs.core
+import viral_ngs.core
+import viral_ngs.core
+import viral_ngs.core.picard
+import viral_ngs.core.samtools
 from test import TestCaseWithTmp
 
 
 class TestToolPicard(TestCaseWithTmp):
 
     def test_fasta_index(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(self), 'in.fasta')
-        expected_dict = os.path.join(util.file.get_test_input_path(self), 'in.dict')
-        picard_index = tools.picard.CreateSequenceDictionaryTool()
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'in.fasta')
+        expected_dict = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'in.dict')
+        picard_index = viral_ngs.core.picard.CreateSequenceDictionaryTool()
         with open(expected_dict, 'rt') as inf:
             expected_first3 = [x.strip().split('\t')[:3] for x in inf.readlines()]
         for ext in ('.fasta', '.fa'):
-            inRef = util.file.mkstempfname(ext)
+            inRef = viral_ngs.core.file.mkstempfname(ext)
             shutil.copyfile(orig_ref, inRef)
             outDict = inRef[:-len(ext)] + '.dict'
 
@@ -37,9 +37,9 @@ class TestToolPicard(TestCaseWithTmp):
             self.assertEqual(actual_first3, expected_first3)
 
     def test_messy_fasta_index(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(self), 'messy-headers.fasta')
-        picard_index = tools.picard.CreateSequenceDictionaryTool()
-        with util.file.tempfname('.fasta') as inRef:
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'messy-headers.fasta')
+        picard_index = viral_ngs.core.picard.CreateSequenceDictionaryTool()
+        with viral_ngs.core.file.tempfname('.fasta') as inRef:
             shutil.copyfile(orig_ref, inRef)
             picard_index.execute(inRef, overwrite=True)
         with open(inRef[:-6] + '.dict', 'rt') as inf:
@@ -57,11 +57,11 @@ class TestToolPicard(TestCaseWithTmp):
         desired_count = 100
         tolerance = 0.02
 
-        in_sam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        out_bam = util.file.mkstempfname('.bam')
+        in_sam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        out_bam = viral_ngs.core.file.mkstempfname('.bam')
 
-        downsamplesam = tools.picard.DownsampleSamTool()
-        samtools = tools.samtools.SamtoolsTool()
+        downsamplesam = viral_ngs.core.picard.DownsampleSamTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
 
         downsamplesam.downsample_to_approx_count(in_sam, out_bam, desired_count)
 
@@ -70,12 +70,12 @@ class TestToolPicard(TestCaseWithTmp):
         ), "Downsampled bam file does not contain the expected number of reads within tolerance: %s" % tolerance
 
     def test_revert_bam_empty_input(self):
-        empty_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        out_bam = util.file.mkstempfname()
-        tools.picard.RevertSamTool().execute(
+        empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
+        out_bam = viral_ngs.core.file.mkstempfname()
+        viral_ngs.core.picard.RevertSamTool().execute(
             empty_bam,
             out_bam,
             picardOptions=['SORT_ORDER=queryname', 'SANITIZE=true']
         )
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         assert samtools.count(out_bam) == 0

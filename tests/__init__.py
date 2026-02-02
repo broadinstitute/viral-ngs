@@ -17,9 +17,9 @@ import pytest
 import pysam
 
 # intra-project
-import util.file
-from util.misc import available_cpu_count
-from tools.samtools import SamtoolsTool
+import viral_ngs.core
+from viral_ngs.core.misc import available_cpu_count
+from viral_ngs.core.samtools import SamtoolsTool
 
 logging.getLogger('botocore').setLevel(logging.WARNING)
 logging.getLogger('boto3').setLevel(logging.WARNING)
@@ -49,8 +49,8 @@ def assert_equal_bam_reads(testCase, bam_filename1, bam_filename2):
 
     samtools = SamtoolsTool()
 
-    sam_one = util.file.mkstempfname(".sam")
-    sam_two = util.file.mkstempfname(".sam")
+    sam_one = viral_ngs.core.file.mkstempfname(".sam")
+    sam_two = viral_ngs.core.file.mkstempfname(".sam")
 
     # write the bam files to sam format, without header (no -h)
     samtools.view(args=[], inFile=bam_filename1, outFile=sam_one)
@@ -127,7 +127,7 @@ class TestCaseWithTmp(unittest.TestCase):
 
     def input(self, fname):
         '''Return the full filename for a file in the test input directory for this test class'''
-        return os.path.join(util.file.get_test_input_path(self), fname)
+        return os.path.join(viral_ngs.core.file.get_test_input_path(self), fname)
 
     def inputs(self, *fnames):
         '''Return the full filenames for files in the test input directory for this test class'''

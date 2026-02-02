@@ -1,4 +1,4 @@
-# Unit tests for tools.samtools
+# Unit tests for viral_ngs.core.samtools
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -7,35 +7,35 @@ import os, os.path
 import tempfile
 import shutil
 import Bio.SeqIO, Bio.SeqRecord, Bio.Seq
-import util
-import util.file
-import tools
-import tools.samtools
+import viral_ngs.core
+import viral_ngs.core
+import viral_ngs.core
+import viral_ngs.core.samtools
 from test import TestCaseWithTmp
 
 
 class TestToolSamtools(TestCaseWithTmp):
 
     def test_count_bam(self):
-        sam = os.path.join(util.file.get_test_input_path(self), 'simple.sam')
-        n = tools.samtools.SamtoolsTool().count(sam, ['-S'])
+        sam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'simple.sam')
+        n = viral_ngs.core.samtools.SamtoolsTool().count(sam, ['-S'])
         self.assertEqual(n, 2)
 
     def test_fasta_index(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(self), 'in.fasta')
-        expected_fai = os.path.join(util.file.get_test_input_path(self), 'in.fasta.fai')
-        samtools = tools.samtools.SamtoolsTool()
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'in.fasta')
+        expected_fai = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'in.fasta.fai')
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         for ext in ('.fasta', '.fa'):
-            inRef = util.file.mkstempfname(ext)
+            inRef = viral_ngs.core.file.mkstempfname(ext)
             shutil.copyfile(orig_ref, inRef)
             outFai = inRef + '.fai'
             samtools.faidx(inRef)
             self.assertEqualContents(outFai, expected_fai)
 
     def test_messy_fasta_index(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(), 'TestToolPicard', 'messy-headers.fasta')
-        samtools = tools.samtools.SamtoolsTool()
-        with util.file.tempfname('.fasta') as inRef:
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestToolPicard', 'messy-headers.fasta')
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
+        with viral_ngs.core.file.tempfname('.fasta') as inRef:
             shutil.copyfile(orig_ref, inRef)
             samtools.faidx(inRef, overwrite=True)
         with open(inRef + '.fai', 'rt') as inf:
@@ -49,20 +49,20 @@ class TestToolSamtools(TestCaseWithTmp):
             self.assertEqual(len(seqnames), 8)
 
     def test_isEmpty(self):
-        samtools = tools.samtools.SamtoolsTool()
-        self.assertTrue(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'empty.bam')))
-        self.assertFalse(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'almost-empty.bam')))
-        self.assertFalse(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')))
-        self.assertFalse(samtools.isEmpty(os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')))
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
+        self.assertTrue(samtools.isEmpty(os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')))
+        self.assertFalse(samtools.isEmpty(os.path.join(viral_ngs.core.file.get_test_input_path(), 'almost-empty.bam')))
+        self.assertFalse(samtools.isEmpty(os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')))
+        self.assertFalse(samtools.isEmpty(os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')))
 
     def test_sam_downsample(self):
         desired_count = 100
         tolerance = 0.1
 
-        in_sam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        out_bam = util.file.mkstempfname('.bam')
+        in_sam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        out_bam = viral_ngs.core.file.mkstempfname('.bam')
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
 
         samtools.downsample_to_approx_count(in_sam, out_bam, desired_count)
 
@@ -74,10 +74,10 @@ class TestToolSamtools(TestCaseWithTmp):
         # The test input contains three reads to remove; one each: 
         #   leading indel, trailing indel, both leading and trailing
         # It also has a cigar string with an indel between alignment matches
-        in_sam = os.path.join(util.file.get_test_input_path(self), 'indel_cigar.sam')
-        out_bam = util.file.mkstempfname('.bam')
+        in_sam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'indel_cigar.sam')
+        out_bam = viral_ngs.core.file.mkstempfname('.bam')
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
 
         # We'll use the default regex, which matches leading or trailing indels.
         # It is reproduced here in case the default changes:
@@ -87,8 +87,8 @@ class TestToolSamtools(TestCaseWithTmp):
         assert samtools.count(out_bam)==39, "Output read count does not match the expected count."
 
     def test_bam2fa(self):
-        samtools = tools.samtools.SamtoolsTool()
-        sam = os.path.join(util.file.get_test_input_path(self), 'simple.sam')
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
+        sam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'simple.sam')
 
         with samtools.bam2fa_tmp(sam) as (fa1, fa2):
             for fa in (fa1, fa2):
@@ -103,11 +103,11 @@ class TestSamtoolsImport(TestCaseWithTmp):
     def test_import_paired_fastq_basic(self):
         """Test basic paired FASTQ to BAM conversion with sample name only"""
         # Use existing test FASTQ files from TestFastqBam
-        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
-        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
-        outBam = util.file.mkstempfname('.bam')
+        inFastq1 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         samtools.import_fastq(inFastq1, inFastq2, outBam, sample_name='TestSample')
 
         # Verify BAM file was created and is non-empty
@@ -124,11 +124,11 @@ class TestSamtoolsImport(TestCaseWithTmp):
         """Test that all RG tags are correctly set in BAM header"""
         import pysam
 
-        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
-        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
-        outBam = util.file.mkstempfname('.bam')
+        inFastq1 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         samtools.import_fastq(
             inFastq1, inFastq2, outBam,
             sample_name='FreeSample',
@@ -158,11 +158,11 @@ class TestSamtoolsImport(TestCaseWithTmp):
         """Test that RG defaults are applied correctly when optional params omitted"""
         import pysam
 
-        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
-        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
-        outBam = util.file.mkstempfname('.bam')
+        inFastq1 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         samtools.import_fastq(inFastq1, inFastq2, outBam, sample_name='TestSample')
 
         with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
@@ -186,11 +186,11 @@ class TestSamtoolsImport(TestCaseWithTmp):
         """Test that paired-end read flags are set correctly (77/141 for unmapped pairs)"""
         import pysam
 
-        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
-        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
-        outBam = util.file.mkstempfname('.bam')
+        inFastq1 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         samtools.import_fastq(inFastq1, inFastq2, outBam, sample_name='TestSample')
 
         with pysam.AlignmentFile(outBam, 'rb', check_sq=False) as bam:
@@ -206,11 +206,11 @@ class TestSamtoolsImport(TestCaseWithTmp):
         """Test that reads have the RG tag set correctly"""
         import pysam
 
-        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
-        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
-        outBam = util.file.mkstempfname('.bam')
+        inFastq1 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         samtools.import_fastq(
             inFastq1, inFastq2, outBam,
             sample_name='TestSample',
@@ -227,14 +227,14 @@ class TestSamtoolsImport(TestCaseWithTmp):
         import pysam
 
         # Create empty FASTQ files
-        emptyFastq1 = util.file.mkstempfname('.fastq')
-        emptyFastq2 = util.file.mkstempfname('.fastq')
-        outBam = util.file.mkstempfname('.bam')
+        emptyFastq1 = viral_ngs.core.file.mkstempfname('.fastq')
+        emptyFastq2 = viral_ngs.core.file.mkstempfname('.fastq')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
 
         open(emptyFastq1, 'w').close()
         open(emptyFastq2, 'w').close()
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         samtools.import_fastq(
             emptyFastq1, emptyFastq2, outBam,
             sample_name='EmptySample',
@@ -258,11 +258,11 @@ class TestSamtoolsImport(TestCaseWithTmp):
 
     def test_import_multithreaded(self):
         """Test that threads parameter works without error"""
-        inFastq1 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
-        inFastq2 = os.path.join(util.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
-        outBam = util.file.mkstempfname('.bam')
+        inFastq1 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in1.fastq')
+        inFastq2 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestFastqBam', 'in2.fastq')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
 
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         # Should work with explicit thread count
         samtools.import_fastq(
             inFastq1, inFastq2, outBam,

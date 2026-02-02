@@ -16,8 +16,88 @@ env:
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
 
 jobs:
-  # For now, just build baseimage. More flavors added in later phases.
-  build:
+  # Build baseimage first (no dependencies)
+  build-baseimage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      baseimage-tag: ${{ steps.get-tag.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add expiration label for feature branches
+        if: github.ref_type == 'branch' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "" >> docker/Dockerfile.baseimage
+          echo "# Auto-expire feature branch images after 10 weeks" >> docker/Dockerfile.baseimage
+          echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.baseimage
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.QUAY_REPO }}
+            ${{ env.GHCR_REPO }}
+          flavor: |
+            suffix=-baseimage
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=pr
+            type=raw,value=baseimage,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Get baseimage tag for downstream jobs
+        id: get-tag
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}-baseimage" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}-baseimage" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.baseimage
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-baseimage
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-baseimage,mode=max', env.QUAY_REPO) || '' }}
+
+  # Build derivative images (depend on baseimage)
+  build-derivatives:
+    needs: build-baseimage
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,7 +106,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flavor: [baseimage]
+        flavor: [core]
+        # More flavors will be added in Phase 3: classify, assemble, phylo
 
     steps:
       - name: Checkout repository
@@ -71,14 +152,10 @@ jobs:
           flavor: |
             suffix=-${{ matrix.flavor }}
           tags: |
-            # For branches: use branch name
             type=ref,event=branch
-            # For tags: use semver
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            # For PRs: use pr-<number>
             type=ref,event=pr
-            # Add flavor-only tag for main branch (e.g., "baseimage")
             type=raw,value=${{ matrix.flavor }},enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push Docker image
@@ -90,5 +167,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-baseimage.outputs.baseimage-tag }}
           cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-${{ matrix.flavor }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1},mode=max', env.QUAY_REPO, matrix.flavor) || '' }}

@@ -5,9 +5,9 @@ __author__ = "ilya@broadinstitute.org"
 import unittest
 import os.path
 import shutil
-import util.file
-import tools.bbmap
-import tools.samtools
+import viral_ngs.core
+import viral_ngs.core.bbmap
+import viral_ngs.core.samtools
 import pysam
 from test import TestCaseWithTmp, assert_md5_equal_to_line_in_file
 
@@ -16,16 +16,16 @@ class TestToolBBMap(TestCaseWithTmp):
 
     def setUp(self):
         super(TestToolBBMap, self).setUp()
-        self.bbmap = tools.bbmap.BBMapTool()
+        self.bbmap = viral_ngs.core.bbmap.BBMapTool()
         self.bbmap.install()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def test_align(self):
-        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
-        inRef = util.file.mkstempfname('.fasta')
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebola.fasta')
+        inRef = viral_ngs.core.file.mkstempfname('.fasta')
         shutil.copyfile(orig_ref, inRef)
-        reads = os.path.join(util.file.get_test_input_path(self), 'ebov_reads.bam')
-        outBam = util.file.mkstempfname('.bam')
+        reads = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'ebov_reads.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         # Use conservative memory and single thread for CI compatibility
         # BBMap alignment needs more memory than bbnorm for index building
         self.bbmap.align(inBam=reads, refFasta=inRef, outBam=outBam,
@@ -36,9 +36,9 @@ class TestToolBBMap(TestCaseWithTmp):
     def test_bbnorm_paired_interleaved(self):
         """Test bbnorm on paired-end interleaved FASTQ file."""
         # Create interleaved FASTQ from TestRmdupUnaligned BAM
-        inBam = os.path.join(util.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
-        inFastq = util.file.mkstempfname('.fastq')
-        outFastq = util.file.mkstempfname('.fastq')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        inFastq = viral_ngs.core.file.mkstempfname('.fastq')
+        outFastq = viral_ngs.core.file.mkstempfname('.fastq')
 
         # Convert BAM to interleaved FASTQ
         self.samtools.bam2fq(inBam, inFastq)
@@ -51,7 +51,7 @@ class TestToolBBMap(TestCaseWithTmp):
 
         # Run bbnorm (auto-detects interleaved format)
         # Use low memory and single thread for CI compatibility
-        with util.file.tmp_dir('_bbnorm_test') as tmpdir:
+        with viral_ngs.core.file.tmp_dir('_bbnorm_test') as tmpdir:
             self.bbmap.bbnorm(inFastq, outFastq, tmpdir=tmpdir, target=50,
                               threads=1, memory='250m')
 
@@ -71,9 +71,9 @@ class TestToolBBMap(TestCaseWithTmp):
     def test_bbnorm_single_end(self):
         """Test bbnorm on single-end FASTQ file."""
         # Create single-end FASTQ from TestPerSample/in.2libs3rgs.bam
-        inBam = os.path.join(util.file.get_test_input_path(), 'TestPerSample', 'in.2libs3rgs.bam')
-        inFastq = util.file.mkstempfname('.fastq')
-        outFastq = util.file.mkstempfname('.fastq')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestPerSample', 'in.2libs3rgs.bam')
+        inFastq = viral_ngs.core.file.mkstempfname('.fastq')
+        outFastq = viral_ngs.core.file.mkstempfname('.fastq')
 
         # Convert BAM to FASTQ (single-end)
         self.samtools.bam2fq(inBam, inFastq)
@@ -86,7 +86,7 @@ class TestToolBBMap(TestCaseWithTmp):
 
         # Run bbnorm (auto-detects single-end format)
         # Use low memory and single thread for CI compatibility
-        with util.file.tmp_dir('_bbnorm_test') as tmpdir:
+        with viral_ngs.core.file.tmp_dir('_bbnorm_test') as tmpdir:
             self.bbmap.bbnorm(inFastq, outFastq, tmpdir=tmpdir, target=50,
                               threads=1, memory='250m')
 

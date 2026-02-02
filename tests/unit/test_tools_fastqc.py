@@ -1,4 +1,4 @@
-# Unit tests for tools.fastqc
+# Unit tests for viral_ngs.core.fastqc
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -6,8 +6,8 @@ import unittest
 import os
 import zipfile
 from html.parser import HTMLParser
-import util.file
-import tools.fastqc
+import viral_ngs.core
+import viral_ngs.core.fastqc
 from test import TestCaseWithTmp
 
 
@@ -49,11 +49,11 @@ class TestToolFastQC(TestCaseWithTmp):
 
     def test_fastqc_nonempty_bam(self):
         """Test FastQC on a non-empty BAM file"""
-        in_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        out_html = util.file.mkstempfname('.html')
-        out_zip = util.file.mkstempfname('.zip')
+        in_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        out_html = viral_ngs.core.file.mkstempfname('.html')
+        out_zip = viral_ngs.core.file.mkstempfname('.zip')
 
-        fastqc = tools.fastqc.FastQC()
+        fastqc = viral_ngs.core.fastqc.FastQC()
         fastqc.execute(in_bam, out_html, out_zip=out_zip)
 
         # Verify HTML file is created and non-empty
@@ -77,11 +77,11 @@ class TestToolFastQC(TestCaseWithTmp):
 
     def test_fastqc_empty_bam(self):
         """Test FastQC on an empty BAM file (zero reads)"""
-        in_bam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
-        out_html = util.file.mkstempfname('.html')
-        out_zip = util.file.mkstempfname('.zip')
+        in_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
+        out_html = viral_ngs.core.file.mkstempfname('.html')
+        out_zip = viral_ngs.core.file.mkstempfname('.zip')
 
-        fastqc = tools.fastqc.FastQC()
+        fastqc = viral_ngs.core.fastqc.FastQC()
         fastqc.execute(in_bam, out_html, out_zip=out_zip)
 
         # Verify HTML file is created and non-empty
@@ -112,10 +112,10 @@ class TestToolFastQC(TestCaseWithTmp):
 
     def test_fastqc_without_zip(self):
         """Test FastQC when --out_zip is not specified"""
-        in_bam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        out_html = util.file.mkstempfname('.html')
+        in_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        out_html = viral_ngs.core.file.mkstempfname('.html')
 
-        fastqc = tools.fastqc.FastQC()
+        fastqc = viral_ngs.core.fastqc.FastQC()
         fastqc.execute(in_bam, out_html, out_zip=None)
 
         # Verify HTML file is created

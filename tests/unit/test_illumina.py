@@ -13,11 +13,11 @@ import shutil
 import json
 import gzip
 import pytest
-import util
-import util.file
-import illumina
-import tools.samtools
-import tools.picard
+import viral_ngs.core
+import viral_ngs.core
+import viral_ngs.core.illumina
+import viral_ngs.core.samtools
+import viral_ngs.core.picard
 from test import TestCaseWithTmp, assert_equal_bam_reads
 
 
@@ -32,13 +32,13 @@ class TestCommandHelp(unittest.TestCase):
 class TestSampleSheet(TestCaseWithTmp):
 
     def test_miseq(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-miseq-1.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 20)
 
     def test_broad_platform(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-hiseq-1.csv'), only_lane=2)
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
@@ -46,31 +46,31 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertEqual(len(samples.get_rows()), 48)
 
     def test_walkup_submission_no_header_no_lf(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-submit-1.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
     def test_walkup_submission(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-submit-2.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 96)
 
     def test_walkup_submission_no_lf(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-submit-3.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
     def test_tabfile(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
     def test_dup_index_collapse_at_init(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(
                                         os.path.join(inDir, 'SampleSheet-custom-inner-barcodes-outer-collapse.tsv'),
                                         collapse_duplicates=True,
@@ -80,7 +80,7 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertEqual(len(samples.get_rows()), 4)
 
     def test_dup_index_collapse(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(
                                         os.path.join(inDir, 'SampleSheet-custom-inner-barcodes-outer-collapse.tsv'),
                                         allow_non_unique = True
@@ -112,56 +112,56 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertEqual(tuple(r["barcode_2"] for r in samples.get_rows()), ("GCGCATAT","CTGTACCA","GAACGGTT","ACCGGTTA"))
 
     def test_tabfile_win_endings(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1_win-endings.txt'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
     def test_gz_tabfile_win_endings(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1_win-endings.txt.gz'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
     def test_tabfile_macos9_endings(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1_macos9-endings.txt'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 24)
 
     def test_tabfile_extras(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-2.txt'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 96)
 
     def test_tabfile_extras_win(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-2_win-endings.tsv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 96)
 
     def test_blank_line_in_tabular_section(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-with-blanklines.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 12)
 
     def test_picard_block(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-in-Broad-MiSeq-Format_with_Picard_Block.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 11)
 
     def test_rev_comp_barcode_values(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
         self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
         samples.rev_comp_barcode_values()
         self.assertEqual(samples.get_rows()[0]["barcode_2"], "GCGATCTA")
 
     def test_rev_comp_barcode_value_barcode2_at_load(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'), rev_comp_barcode_2=True)
         self.assertEqual(samples.get_rows()[0]["barcode_2"], "GCGATCTA")
         self.assertTrue(samples.barcodes_revcomped_relative_to_input)
@@ -169,7 +169,7 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertNotIn("barcode_1", samples.barcodes_revcomped_column_names)
 
     def test_rev_comp_barcode_values_specified_at_load_two_columns(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'), barcode_columns_to_revcomp=["barcode_1","barcode_2"])
         self.assertEqual(samples.get_rows()[23]["barcode_1"], "TCCTCTAC")
         self.assertEqual(samples.get_rows()[23]["barcode_2"], "AGAGGATA")
@@ -178,7 +178,7 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertIn("barcode_2", samples.barcodes_revcomped_column_names)
 
     def test_rev_comp_barcode_values_specified_one_column(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
         self.assertEqual(samples.get_rows()[23]["barcode_1"], "GTAGAGGA")
         samples.rev_comp_barcode_values(barcode_columns_to_revcomp=["barcode_1"])
@@ -189,7 +189,7 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertNotIn("barcode_2", samples.barcodes_revcomped_column_names)
 
     def test_rev_comp_barcode_values_specified_two_columns(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
         self.assertEqual(samples.get_rows()[23]["barcode_1"], "GTAGAGGA")
         self.assertEqual(samples.get_rows()[23]["barcode_2"], "TATCCTCT")
@@ -200,7 +200,7 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertIn("barcode_2", samples.barcodes_revcomped_column_names)
 
     def test_rev_comp_barcode_values_undo(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
         self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
         samples.rev_comp_barcode_values()
@@ -209,7 +209,7 @@ class TestSampleSheet(TestCaseWithTmp):
         self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
 
     def test_rev_comp_barcode_values_not_inplace(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-custom-1.txt'))
         self.assertEqual(samples.get_rows()[0]["barcode_2"], "TAGATCGC")
         samples_revcomped = samples.rev_comp_barcode_values(inplace=False)
@@ -221,7 +221,7 @@ class TestSampleSheet(TestCaseWithTmp):
 class TestRunInfo(TestCaseWithTmp):
 
     def test_miseq(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-miseq.xml'))
         self.assertEqual(runinfo.get_flowcell(), 'AEF96')
         self.assertEqual(runinfo.get_rundate_american(), '08/21/2015')
@@ -233,7 +233,7 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_flowcell_lane_count(), 1)
 
     def test_hiseq(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-hiseq.xml'))
         self.assertEqual(runinfo.get_flowcell(), 'HVFF2ADXX')
         self.assertEqual(runinfo.get_rundate_american(), '08/21/2015')
@@ -245,7 +245,7 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_flowcell_lane_count(), 2)
 
     def test_novaseq(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novaseq.xml'))
         self.assertEqual(runinfo.get_flowcell(), 'HCYTJDMXX')
         self.assertEqual(runinfo.get_rundate_american(), '06/27/2018')
@@ -257,7 +257,7 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_flowcell_lane_count(), 2)
 
     def test_nextseq550(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-nextseq550.xml'))
         self.assertEqual(runinfo.get_flowcell(), 'HMTLKAFX2')
         self.assertEqual(runinfo.get_rundate_american(), '02/21/2021')
@@ -269,7 +269,7 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_flowcell_lane_count(), 4)
 
     def test_novaseq_x_plus(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novaseq-x-plus.xml'))
         self.assertEqual(runinfo.get_flowcell(), '22J5GLLT4')
         self.assertEqual(runinfo.get_rundate_american(), '12/17/2024')
@@ -281,7 +281,7 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_flowcell_lane_count(), 8)
 
     def test_nextseq_1000_2000_p1(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-nextseq-1000-2000-p1.xml'))
         self.assertEqual(runinfo.get_flowcell(), 'AAG27M7M5')
         self.assertEqual(runinfo.get_rundate_american(), '09/27/2024')
@@ -293,17 +293,17 @@ class TestRunInfo(TestCaseWithTmp):
         self.assertEqual(runinfo.get_flowcell_lane_count(), 1)
 
     def test_novel_tile_count_but_known_fcid(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novel-tile-count.xml'))
         self.assertEqual(runinfo.get_machine_model(), "Illumina MiSeq")
 
     def test_novel_fcid_but_known_tile_count(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novel-fcid.xml'))
         self.assertEqual(runinfo.get_machine_model(), "Illumina MiSeq")
 
     def test_novel_tile_count_and_fcid(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         runinfo = illumina.RunInfo(os.path.join(inDir, 'RunInfo-novel-fcid-and-tilecount.xml'))
         self.assertEqual(runinfo.get_machine_model(), "UNKNOWN")
 
@@ -311,13 +311,13 @@ class TestRunInfo(TestCaseWithTmp):
 class TestIlluminaDir(TestCaseWithTmp):
 
     def test_directory(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         test_in = os.path.join(inDir, 'empty_dir')
         with illumina.IlluminaDirectory(test_in) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
 
     def test_tarball_normal(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-plain.tgz')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-plain.tar.bz2')) as idir:
@@ -326,12 +326,12 @@ class TestIlluminaDir(TestCaseWithTmp):
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
 
     def test_tarball_indented(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-indented.tgz')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
 
     def test_tarball_sample_sheet(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-samplesheet.tar.gz')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
             self.assertEqual(len(idir.get_SampleSheet().get_rows()), 15)
@@ -340,25 +340,25 @@ class TestIlluminaDir(TestCaseWithTmp):
             self.assertEqual(len(idir.get_SampleSheet().get_rows()), 15)
 
     def test_tarball_uncompressed(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-both-uncompressed.tar')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
             self.assertEqual(len(idir.get_SampleSheet().get_rows()), 15)
 
     def test_tarball_deep_dir_tree(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-both-broad_full_path.tar.gz')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
             self.assertEqual(len(idir.get_SampleSheet().get_rows()), 15)
 
     def test_zip_archive(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-both-2.zip')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
             self.assertEqual(len(idir.get_SampleSheet().get_rows()), 15)
 
     def test_tarball_run_info(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-runinfo.tar.gz')) as idir:
             self.assertTrue(os.path.isdir(idir.get_BCLdir()))
             self.assertEqual(idir.get_RunInfo().get_flowcell(), 'AHVPA')
@@ -370,7 +370,7 @@ class TestIlluminaDir(TestCaseWithTmp):
             self.assertEqual(idir.get_RunInfo().get_read_structure(), '101T8B8B101T')
 
     def test_tarball_fail_missing_data(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-runinfo.tar.gz')) as idir:
             self.assertRaises(Exception, idir.get_SampleSheet)
         with illumina.IlluminaDirectory(os.path.join(inDir, 'bcl-samplesheet.tar.gz')) as idir:
@@ -380,15 +380,15 @@ class TestIlluminaDir(TestCaseWithTmp):
 class TestDifficultSampleNames(TestCaseWithTmp):
 
     def test_paired_1(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
-        outHeader = util.file.mkstempfname('.txt')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
+        outHeader = viral_ngs.core.file.mkstempfname('.txt')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-0-1_S5_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-0-1_S5_L001_R2_001.fastq.gz'))
         illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo)
-        rgs = list(tools.samtools.SamtoolsTool().getReadGroups(outBam).values())
+        rgs = list(viral_ngs.core.samtools.SamtoolsTool().getReadGroups(outBam).values())
         self.assertEqual(len(rgs), 1)
         rgs = rgs[0]
         self.assertEqual(rgs.get('ID'), 'AEF96')
@@ -400,7 +400,7 @@ class TestDifficultSampleNames(TestCaseWithTmp):
         self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
     def test_inline_commas_strings(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         samples = illumina.SampleSheet(os.path.join(inDir, 'SampleSheet-inline-commas-strings.csv'))
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(len(samples.get_rows()), 18)
@@ -412,16 +412,16 @@ class TestDifficultSampleNames(TestCaseWithTmp):
             "Zika seedstock_7 (in K562, 10pg)"
         ]
         for sample_name in names_to_validate:
-            assert util.file.string_to_file_name(sample_name) in sample_names
+            assert viral_ngs.core.file.string_to_file_name(sample_name) in sample_names
 
 
 class TestIlluminaBarcodeHelper(TestCaseWithTmp):
     def test_one_correction(self):
         dir_prefix = "one_correction"
-        in_dir = util.file.get_test_input_path(self)
+        in_dir = viral_ngs.core.file.get_test_input_path(self)
         in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
         in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
-        out_report = util.file.mkstempfname('.txt')
+        out_report = viral_ngs.core.file.mkstempfname('.txt')
         expected = os.path.join(in_dir,dir_prefix,"expected.txt")
 
         args = [in_barcodes, in_metrics, out_report]
@@ -432,10 +432,10 @@ class TestIlluminaBarcodeHelper(TestCaseWithTmp):
 
     def test_ambiguous(self):
         dir_prefix = "ambiguous"
-        in_dir = util.file.get_test_input_path(self)
+        in_dir = viral_ngs.core.file.get_test_input_path(self)
         in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
         in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
-        out_report = util.file.mkstempfname('.txt')
+        out_report = viral_ngs.core.file.mkstempfname('.txt')
         expected = os.path.join(in_dir,dir_prefix,"expected.txt")
 
         args = [in_barcodes, in_metrics, out_report]
@@ -446,10 +446,10 @@ class TestIlluminaBarcodeHelper(TestCaseWithTmp):
 
     def test_single_index_run(self):
         dir_prefix = "single_index"
-        in_dir = util.file.get_test_input_path(self)
+        in_dir = viral_ngs.core.file.get_test_input_path(self)
         in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
         in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
-        out_report = util.file.mkstempfname('.txt')
+        out_report = viral_ngs.core.file.mkstempfname('.txt')
         expected = os.path.join(in_dir,dir_prefix,"expected.txt")
 
         args = [in_barcodes, in_metrics, out_report]
@@ -460,10 +460,10 @@ class TestIlluminaBarcodeHelper(TestCaseWithTmp):
 
     def test_single_index_i5_only_run(self):
         dir_prefix = "single_index_i5_only"
-        in_dir = util.file.get_test_input_path(self)
+        in_dir = viral_ngs.core.file.get_test_input_path(self)
         in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
         in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
-        out_report = util.file.mkstempfname('.txt')
+        out_report = viral_ngs.core.file.mkstempfname('.txt')
         expected = os.path.join(in_dir,dir_prefix,"expected.txt")
 
         args = [in_barcodes, in_metrics, out_report]
@@ -474,25 +474,25 @@ class TestIlluminaBarcodeHelper(TestCaseWithTmp):
 
     def test_few_assigned(self):
         dir_prefix = "few_assigned"
-        in_dir = util.file.get_test_input_path(self)
+        in_dir = viral_ngs.core.file.get_test_input_path(self)
         in_barcodes = os.path.join(in_dir,dir_prefix,"barcodes.txt")
         in_metrics = os.path.join(in_dir,dir_prefix,"metrics.txt")
-        out_report = util.file.mkstempfname('.txt')
+        out_report = viral_ngs.core.file.mkstempfname('.txt')
 
         self.assertRaises(Exception, illumina.main_guess_barcodes, in_barcodes, in_metrics, out_report)
 
 class TestMiseqToBam(TestCaseWithTmp):
 
     def test_paired_1(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
-        outHeader = util.file.mkstempfname('.txt')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
+        outHeader = viral_ngs.core.file.mkstempfname('.txt')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-0-1_S5_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-0-1_S5_L001_R2_001.fastq.gz'))
         illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo)
-        rgs = list(tools.samtools.SamtoolsTool().getReadGroups(outBam).values())
+        rgs = list(viral_ngs.core.samtools.SamtoolsTool().getReadGroups(outBam).values())
         self.assertEqual(len(rgs), 1)
         rgs = rgs[0]
         self.assertEqual(rgs.get('ID'), 'AEF96')
@@ -504,15 +504,15 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
     def test_paired_2(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
-        outHeader = util.file.mkstempfname('.txt')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
+        outHeader = viral_ngs.core.file.mkstempfname('.txt')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'))
         illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo)
-        rgs = list(tools.samtools.SamtoolsTool().getReadGroups(outBam).values())
+        rgs = list(viral_ngs.core.samtools.SamtoolsTool().getReadGroups(outBam).values())
         self.assertEqual(len(rgs), 1)
         rgs = rgs[0]
         self.assertEqual(rgs.get('ID'), 'AEF96')
@@ -524,15 +524,15 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
     def test_paired_custom_seq_center(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
-        outHeader = util.file.mkstempfname('.txt')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
+        outHeader = viral_ngs.core.file.mkstempfname('.txt')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'))
         illumina.miseq_fastq_to_bam(outBam, sampleSheet, fastq[0], inFastq2=fastq[1], runInfo=runInfo, sequencing_center='CustomSeqCenter')
-        rgs = list(tools.samtools.SamtoolsTool().getReadGroups(outBam).values())
+        rgs = list(viral_ngs.core.samtools.SamtoolsTool().getReadGroups(outBam).values())
         self.assertEqual(len(rgs), 1)
         rgs = rgs[0]
         self.assertEqual(rgs.get('ID'), 'AEF96')
@@ -544,16 +544,16 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertTrue(rgs.get('DT','').startswith('2015-08-2'))
 
     def test_fail_missing_pair(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_001.fastq.gz'),)
         self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], runInfo=runInfo)
 
     def test_fail_backwards_pair(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R2_001.fastq.gz'),
@@ -561,8 +561,8 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
 
     def test_fail_mismatched_pair(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-48-5_S16_L001_R1_001.fastq.gz'),
@@ -570,8 +570,8 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
 
     def test_fail_oob_index(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-48-5_S33_L001_R1_001.fastq.gz'),
@@ -579,8 +579,8 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertRaises(Exception, illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
 
     def test_fail_bad_format(self):
-        inDir = util.file.get_test_input_path(self)
-        outBam = util.file.mkstempfname('.bam')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outBam = viral_ngs.core.file.mkstempfname('.bam')
         sampleSheet = os.path.join(inDir, 'SampleSheet.csv')
         runInfo = os.path.join(inDir, 'RunInfo.xml')
         fastq = (os.path.join(inDir, 'mebv-48-5_S17_L001_R1_002.fastq.gz'),
@@ -607,8 +607,8 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.samtools = tools.samtools.SamtoolsTool()
-        self.picard = tools.picard.FastqToSamTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
+        self.picard = viral_ngs.core.picard.FastqToSamTool()
 
     def create_test_bam_with_inline_barcodes(self, output_bam, barcode_reads):
         """
@@ -624,8 +624,8 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
             barcode_reads: Dict mapping barcode -> num_reads
                           e.g., {"AAAACCCC": 10, "GGGGTTTT": 5}
         """
-        r1_fastq = util.file.mkstempfname('.fastq')
-        r2_fastq = util.file.mkstempfname('.fastq')
+        r1_fastq = viral_ngs.core.file.mkstempfname('.fastq')
+        r2_fastq = viral_ngs.core.file.mkstempfname('.fastq')
 
         with open(r1_fastq, 'w') as f1, open(r2_fastq, 'w') as f2:
             read_id = 0
@@ -674,8 +674,8 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
             sample_idx: Sample index (0-based) for read group name generation
             starting_read_id: Starting read ID number (for sequential read numbering)
         """
-        r1_fastq = util.file.mkstempfname('.fastq')
-        r2_fastq = util.file.mkstempfname('.fastq')
+        r1_fastq = viral_ngs.core.file.mkstempfname('.fastq')
+        r2_fastq = viral_ngs.core.file.mkstempfname('.fastq')
 
         with open(r1_fastq, 'w') as f1, open(r2_fastq, 'w') as f2:
             for i in range(num_reads):
@@ -727,7 +727,7 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
         - Output BAM content matches expected (reads correctly demuxed and trimmed)
         """
         # Get test input directory
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
 
         # Define expected read counts per sample
         sample1_reads = 100
@@ -1452,7 +1452,7 @@ class TestIlluminaMetadata(TestCaseWithTmp):
         super().setUp()
         # Share test data with TestSplitcodeDemuxFastqs
         # Use the test input directory path construction that works
-        test_dir = util.file.get_test_path()
+        test_dir = viral_ngs.core.file.get_test_path()
         self.input_dir = os.path.join(test_dir, 'input', 'TestSplitcodeDemuxFastqs')
 
         # Metadata input files
@@ -2217,7 +2217,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.input_dir = util.file.get_test_input_path(self)
+        self.input_dir = viral_ngs.core.file.get_test_input_path(self)
 
         # Input FASTQ files
         self.r1_fastq = os.path.join(self.input_dir, 'TestPool1_S1_L001_R1_001.fastq.gz')
@@ -2331,7 +2331,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         )
 
         # Use samtools to count reads in each output BAM
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
 
         # BAM filenames now use library name format: {sample}.l{library_id_per_sample}.bam
         sample1_bam = os.path.join(out_dir, 'TestSample1.lL1.bam')
@@ -2379,7 +2379,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         self.assertTrue(os.path.exists(unassigned_r2), "Unassigned R2 should exist")
 
         # Verify unassigned files are not empty (should have 25 read pairs)
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         # We'd need to convert FASTQ to BAM to count, but that's overkill.
         # Just verify the files have non-zero size.
         self.assertGreater(os.path.getsize(unassigned_r1), 0,
@@ -2417,7 +2417,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
         if os.path.exists(empty_bam):
             # If BAM exists, it should have 0 reads
-            samtools = tools.samtools.SamtoolsTool()
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
             read_count = samtools.count(empty_bam)
             self.assertEqual(read_count, 0, "Empty sample should have 0 reads")
         else:
@@ -2607,7 +2607,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
                        "2-barcode sample should produce a single BAM file")
 
         # Verify all 80 reads are in the output BAM
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         total_reads = samtools.count(expected_bam)
         read_pairs = total_reads // 2
         self.assertEqual(read_pairs, 80,
@@ -2710,7 +2710,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
             # Verify read counts using samtools
             # Note: samtools.count() returns total reads (R1 + R2 for paired-end)
-            samtools = tools.samtools.SamtoolsTool()
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
 
             # TestSample1_RC (AAAAAAAA): should have 2 read pairs = 4 total reads
             count1 = int(samtools.count(expected_bams[0]))
@@ -2799,7 +2799,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
             # Verify read counts using samtools
             # Note: samtools.count() returns total reads (R1 + R2 for paired-end)
-            samtools = tools.samtools.SamtoolsTool()
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
 
             # TestSample1_N (AAAAAAAA): should have 2 read pairs = 4 total reads
             count1 = int(samtools.count(expected_bams[0]))
@@ -2933,7 +2933,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
                 self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
 
             # Verify read counts
-            samtools = tools.samtools.SamtoolsTool()
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
             sample1_pairs = samtools.count(expected_bams[0]) // 2
             sample2_pairs = samtools.count(expected_bams[1]) // 2
             sample3_pairs = samtools.count(expected_bams[2]) // 2
@@ -2975,7 +2975,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
                            f"Expected output BAM missing: {expected_bam}")
 
             # Verify all 80 reads are in the output BAM
-            samtools = tools.samtools.SamtoolsTool()
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
             read_pairs = samtools.count(expected_bam) // 2
             self.assertEqual(read_pairs, 80, "All 80 read pairs should be present")
 
@@ -3212,14 +3212,14 @@ class TestMergeDemuxMetrics(TestCaseWithTmp):
         TypeError with main_merge_demux_metrics(args) signature.
         """
         # Get test input files
-        test_dir = util.file.get_test_path()
+        test_dir = viral_ngs.core.file.get_test_path()
         input1 = os.path.join(test_dir, 'input', 'TestIlluminaBarcodeHelper', 'single_index', 'metrics.txt')
         input2 = os.path.join(test_dir, 'input', 'TestIlluminaBarcodeHelper', 'one_correction', 'metrics.txt')
 
         self.assertTrue(os.path.exists(input1), f"Test input missing: {input1}")
         self.assertTrue(os.path.exists(input2), f"Test input missing: {input2}")
 
-        out_file = util.file.mkstempfname('.txt')
+        out_file = viral_ngs.core.file.mkstempfname('.txt')
 
         try:
             # Call via parser (like CLI does)

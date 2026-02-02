@@ -15,7 +15,6 @@ authors = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS :: MacOS X",
     "Programming Language :: Python :: 3",
@@ -25,19 +24,18 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 keywords = ["bioinformatics", "genomics", "viral", "ngs", "sequencing"]
-dependencies = [
-    "biopython>=1.72",
-    "pysam>=0.23.0",
-    "pandas",
-    "pyyaml",
-    "matplotlib>=2.2.4",
-]
+# All runtime dependencies are installed via conda for faster installation
+# and better binary compatibility. See docker/requirements/core.txt
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "pytest-xdist",
     "pytest-cov",
+]
+terra = [
+    "firecloud>=0.16.35",
 ]
 
 [project.urls]
@@ -54,3 +52,6 @@ where = ["src"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]

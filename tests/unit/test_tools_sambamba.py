@@ -1,4 +1,4 @@
-# Unit tests for tools.sambamba
+# Unit tests for viral_ngs.core.sambamba
 
 __author__ = "dpark@broadinstitute.org"
 
@@ -10,10 +10,10 @@ import platform
 
 import pytest
 
-import util.file
-import tools
-import tools.sambamba
-import tools.samtools
+import viral_ngs.core
+import viral_ngs.core
+import viral_ngs.core.sambamba
+import viral_ngs.core.samtools
 from test import TestCaseWithTmp
 
 
@@ -27,8 +27,8 @@ class TestToolSambamba(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.sambamba = tools.sambamba.SambambaTool()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.sambamba = viral_ngs.core.sambamba.SambambaTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def test_sambamba_installed(self):
         """Verify sambamba is installed and accessible"""
@@ -48,13 +48,13 @@ class TestSambambaSort(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.sambamba = tools.sambamba.SambambaTool()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.sambamba = viral_ngs.core.sambamba.SambambaTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def test_sort_coordinate(self):
         """Test coordinate sort (default)"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        outBam = util.file.mkstempfname('.sorted.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
 
         self.sambamba.sort(inBam, outBam)
 
@@ -69,8 +69,8 @@ class TestSambambaSort(TestCaseWithTmp):
 
     def test_sort_queryname(self):
         """Test queryname sort"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        outBam = util.file.mkstempfname('.namesorted.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.namesorted.bam')
 
         self.sambamba.sort(inBam, outBam, sort_order='queryname')
 
@@ -85,8 +85,8 @@ class TestSambambaSort(TestCaseWithTmp):
 
     def test_sort_with_threads(self):
         """Test multi-threaded sorting"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        outBam = util.file.mkstempfname('.sorted.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
 
         # Should work with explicit thread count
         self.sambamba.sort(inBam, outBam, threads=2)
@@ -102,14 +102,14 @@ class TestSambambaIndex(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.sambamba = tools.sambamba.SambambaTool()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.sambamba = viral_ngs.core.sambamba.SambambaTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def test_index_basic(self):
         """Test creating .bai index file (not .bam.bai)"""
         # First, sort the BAM (indexing requires coordinate-sorted BAM)
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        sortedBam = util.file.mkstempfname('.sorted.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        sortedBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
         self.sambamba.sort(inBam, sortedBam)
 
         # Now index it
@@ -124,8 +124,8 @@ class TestSambambaIndex(TestCaseWithTmp):
 
     def test_index_with_threads(self):
         """Test multi-threaded indexing"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        sortedBam = util.file.mkstempfname('.sorted.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        sortedBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
         self.sambamba.sort(inBam, sortedBam)
 
         self.sambamba.index(sortedBam, threads=2)
@@ -135,8 +135,8 @@ class TestSambambaIndex(TestCaseWithTmp):
 
     def test_index_file_exists(self):
         """Verify .bai file is created in expected location (not .bam.bai)"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        sortedBam = util.file.mkstempfname('.sorted.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        sortedBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
         self.sambamba.sort(inBam, sortedBam)
 
         # Remove any existing index files
@@ -157,21 +157,21 @@ class TestSambambaMerge(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.sambamba = tools.sambamba.SambambaTool()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.sambamba = viral_ngs.core.sambamba.SambambaTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def test_merge_two_bams(self):
         """Test merging two BAM files"""
         # Sort both input BAMs first (merge requires sorted input)
-        inBam1 = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        inBam2 = os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam')
+        inBam1 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        inBam2 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.mini.bam')
 
-        sortedBam1 = util.file.mkstempfname('.sorted1.bam')
-        sortedBam2 = util.file.mkstempfname('.sorted2.bam')
+        sortedBam1 = viral_ngs.core.file.mkstempfname('.sorted1.bam')
+        sortedBam2 = viral_ngs.core.file.mkstempfname('.sorted2.bam')
         self.sambamba.sort(inBam1, sortedBam1)
         self.sambamba.sort(inBam2, sortedBam2)
 
-        outBam = util.file.mkstempfname('.merged.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.merged.bam')
         self.sambamba.merge([sortedBam1, sortedBam2], outBam)
 
         # Verify output exists
@@ -180,18 +180,18 @@ class TestSambambaMerge(TestCaseWithTmp):
 
     def test_merge_preserves_reads(self):
         """Verify read count equals sum of inputs"""
-        inBam1 = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        inBam2 = os.path.join(util.file.get_test_input_path(), 'G5012.3.mini.bam')
+        inBam1 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        inBam2 = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.mini.bam')
 
-        sortedBam1 = util.file.mkstempfname('.sorted1.bam')
-        sortedBam2 = util.file.mkstempfname('.sorted2.bam')
+        sortedBam1 = viral_ngs.core.file.mkstempfname('.sorted1.bam')
+        sortedBam2 = viral_ngs.core.file.mkstempfname('.sorted2.bam')
         self.sambamba.sort(inBam1, sortedBam1)
         self.sambamba.sort(inBam2, sortedBam2)
 
         count1 = self.samtools.count(sortedBam1)
         count2 = self.samtools.count(sortedBam2)
 
-        outBam = util.file.mkstempfname('.merged.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.merged.bam')
         self.sambamba.merge([sortedBam1, sortedBam2], outBam)
 
         merged_count = self.samtools.count(outBam)
@@ -203,12 +203,12 @@ class TestSambambaFlagstat(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.sambamba = tools.sambamba.SambambaTool()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.sambamba = viral_ngs.core.sambamba.SambambaTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def test_flagstat_basic(self):
         """Test getting alignment statistics"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
 
         stats = self.sambamba.flagstat(inBam)
 
@@ -217,7 +217,7 @@ class TestSambambaFlagstat(TestCaseWithTmp):
 
     def test_flagstat_returns_dict(self):
         """Verify parsed output structure"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
 
         stats = self.sambamba.flagstat(inBam)
 
@@ -226,7 +226,7 @@ class TestSambambaFlagstat(TestCaseWithTmp):
 
     def test_flagstat_empty_bam(self):
         """Test flagstat on empty BAM file"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
 
         stats = self.sambamba.flagstat(inBam)
 
@@ -239,19 +239,19 @@ class TestSambambaMarkdup(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        self.sambamba = tools.sambamba.SambambaTool()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.sambamba = viral_ngs.core.sambamba.SambambaTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def test_markdup_basic(self):
         """Test basic duplicate marking on aligned BAM"""
         # Use the larger test file which should have duplicates
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
 
         # Sort first (markdup requires coordinate-sorted input)
-        sortedBam = util.file.mkstempfname('.sorted.bam')
+        sortedBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
         self.sambamba.sort(inBam, sortedBam)
 
-        outBam = util.file.mkstempfname('.deduped.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.deduped.bam')
         self.sambamba.markdup(sortedBam, outBam)
 
         # Verify output exists
@@ -265,11 +265,11 @@ class TestSambambaMarkdup(TestCaseWithTmp):
 
     def test_markdup_with_threads(self):
         """Test multi-threaded duplicate marking"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.subset.bam')
-        sortedBam = util.file.mkstempfname('.sorted.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
+        sortedBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
         self.sambamba.sort(inBam, sortedBam)
 
-        outBam = util.file.mkstempfname('.deduped.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.deduped.bam')
         self.sambamba.markdup(sortedBam, outBam, threads=2)
 
         self.assertTrue(os.path.exists(outBam))
@@ -277,13 +277,13 @@ class TestSambambaMarkdup(TestCaseWithTmp):
 
     def test_markdup_empty_input(self):
         """Test handling of empty BAM file"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
 
         # Sort the empty BAM (should still work)
-        sortedBam = util.file.mkstempfname('.sorted.bam')
+        sortedBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
         self.sambamba.sort(inBam, sortedBam)
 
-        outBam = util.file.mkstempfname('.deduped.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.deduped.bam')
         self.sambamba.markdup(sortedBam, outBam)
 
         # Output should exist and be empty
@@ -292,11 +292,11 @@ class TestSambambaMarkdup(TestCaseWithTmp):
 
     def test_markdup_removes_duplicates(self):
         """Test remove_duplicates=True flag"""
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
-        sortedBam = util.file.mkstempfname('.sorted.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        sortedBam = viral_ngs.core.file.mkstempfname('.sorted.bam')
         self.sambamba.sort(inBam, sortedBam)
 
-        outBam = util.file.mkstempfname('.deduped.bam')
+        outBam = viral_ngs.core.file.mkstempfname('.deduped.bam')
         self.sambamba.markdup(sortedBam, outBam, remove_duplicates=True)
 
         # Output should exist

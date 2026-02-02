@@ -1,0 +1,8 @@
+# x86-only bioinformatics tools
+# These packages are only available on x86_64 architecture
+# They are installed separately from the main core requirements
+# Install with: install-conda-deps.sh --x86-only requirements/core-x86.txt
+
+# Aligners (broad-viral channel, x86 only)
+mvicuna>=2.0
+novoalign>=4.03.06

@@ -68,7 +68,13 @@ viral-ngs/
 ├── pyproject.toml
 ├── src/viral_ngs/
 │   ├── __init__.py
-│   └── py.typed
+│   ├── py.typed
+│   └── core/                   # All core modules consolidated here
+│       ├── __init__.py         # Tool/InstallMethod classes + imports
+│       ├── samtools.py, picard.py, bwa.py, ...  # Tool wrappers
+│       ├── file.py, misc.py, cmd.py, ...        # Utilities
+│       ├── read_utils.py, illumina.py, ...      # Command modules
+│       └── errors.py, priorities.py, ...
 ├── docker/
 │   ├── Dockerfile.baseimage
 │   ├── Dockerfile.core
@@ -78,7 +84,8 @@ viral-ngs/
 │   ├── Dockerfile.mega
 │   ├── install-conda-deps.sh
 │   └── requirements/
-│       ├── core.txt
+│       ├── core.txt            # All deps (Python + bioinformatics)
+│       ├── core-x86.txt        # x86-only packages (novoalign, mvicuna)
 │       ├── classify.txt
 │       ├── assemble.txt
 │       └── phylo.txt
@@ -86,6 +93,7 @@ viral-ngs/
 │   ├── conftest.py
 │   ├── unit/
 │   └── input/
+├── scripts/                    # Migration/maintenance scripts
 ├── .github/workflows/
 │   ├── docker.yml
 │   └── test.yml
@@ -171,68 +179,70 @@ viral-ngs/
 
 ---
 
-## Phase 2: Migrate viral-core
+## Phase 2: Migrate viral-core ✅ COMPLETE
 
 **Goal:** Get core functionality working in new repo.
 
-### Git History Preservation
+### What Was Done
 
-```bash
-# Install git-filter-repo
-pip install git-filter-repo
+1. **Git History Preservation** ✅
+   - Installed git-filter-repo in standalone venv (`~/venvs/git-filter-repo`)
+   - Cloned viral-core and rewrote paths to `src/viral_ngs/`
+   - Merged with `--allow-unrelated-histories` (3,716 commits preserved)
+   - All tags renamed with `core-` prefix
 
-# Clone viral-core and rewrite paths
-git clone https://github.com/broadinstitute/viral-core.git viral-core-rewrite
-cd viral-core-rewrite
+2. **Consolidated Structure** ✅
+   - **Key change:** Merged `tools/` and `util/` into single `core/` directory
+   - All imports now use `viral_ngs.core.*` pattern (e.g., `import viral_ngs.core.samtools`)
+   - No backward compatibility stubs - clean imports only
+   - Tool base classes (`Tool`, `InstallMethod`, `PrexistingUnixCommand`) in `core/__init__.py`
 
-# Rewrite paths: *.py -> src/viral_ngs/*.py, util/ -> src/viral_ngs/util/, etc.
-git filter-repo --path-rename 'util/:src/viral_ngs/util/' \
-                --path-rename 'tools/:src/viral_ngs/tools/' \
-                --tag-rename '':'core-' \
-                --force
+3. **Conda-Only Dependencies** ✅
+   - ALL Python runtime dependencies installed via conda for speed
+   - `pyproject.toml` has empty `dependencies = []`
+   - All deps listed in `docker/requirements/core.txt`
+   - Added scipy (required by priorities.py)
 
-# Merge into monorepo
-cd /path/to/viral-ngs
-git remote add viral-core ../viral-core-rewrite
-git fetch viral-core
-git merge viral-core/master --allow-unrelated-histories -m "Import viral-core with history"
-git remote remove viral-core
-```
+4. **x86-Only Tool Handling** ✅
+   - Created `docker/requirements/core-x86.txt` for novoalign/mvicuna
+   - Updated `install-conda-deps.sh` with `--x86-only` flag
+   - On ARM, x86-only packages are skipped gracefully
 
-### Import Changes Required
+5. **Docker Image** ✅
+   - Created `docker/Dockerfile.core`
+   - Verified build passes with all import checks
 
-All imports must change from flat to package style:
+### Final Import Pattern
+
 ```python
-# Before
-import util.file
-from tools import samtools
+# All modules are in viral_ngs.core.*
+import viral_ngs.core.samtools
+import viral_ngs.core.picard
+import viral_ngs.core.file
+import viral_ngs.core.misc
 
-# After
-from viral_ngs.util import file
-from viral_ngs.tools import samtools
+# Within core/ modules, use relative imports
+from . import samtools, picard
+from .file import mkstempfname
 ```
 
-Use this regex for find/replace:
-```
-# For "import util.X"
-s/import util\./from viral_ngs.util import /g
+### Files Created/Modified
 
-# For "from util.X import Y"
-s/from util\./from viral_ngs.util./g
+| File | Action |
+|------|--------|
+| `src/viral_ngs/core/` | New - all modules consolidated here |
+| `src/viral_ngs/core/__init__.py` | Tool/InstallMethod classes + submodule imports |
+| `docker/Dockerfile.core` | New |
+| `docker/requirements/core.txt` | All Python + bioinformatics deps |
+| `docker/requirements/core-x86.txt` | New - x86-only packages |
+| `docker/install-conda-deps.sh` | Added `--x86-only` flag |
+| `pyproject.toml` | Empty dependencies (all via conda) |
+| `tests/` | Updated imports to viral_ngs.core.* |
 
-# For "import tools.X"
-s/import tools\./from viral_ngs.tools import /g
-```
+### Removed (No Backward Compat Stubs)
 
-### Tasks
-
-1. [ ] Import viral-core with history preservation
-2. [ ] Update all imports to `viral_ngs.*` style
-3. [ ] Create `docker/requirements/core.txt` from `requirements-conda.txt`
-4. [ ] Create `docker/Dockerfile.core`
-5. [ ] Migrate tests to `tests/unit/`
-6. [ ] Verify: build image, run all core tests
-7. [ ] Set up CodeCov integration
+- `src/viral_ngs/tools/` - removed, use `viral_ngs.core.*`
+- `src/viral_ngs/util/` - removed, use `viral_ngs.core.*`
 
 ---
 
@@ -469,37 +479,28 @@ jobs:
           filters: |
             core:
               - 'docker/requirements/core.txt'
-              - 'src/viral_ngs/util/**'
-              - 'src/viral_ngs/tools/**'
-              - 'src/viral_ngs/*.py'
+              - 'docker/requirements/core-x86.txt'
+              - 'src/viral_ngs/core/**'
               - 'docker/Dockerfile.core'
               - 'docker/Dockerfile.baseimage'
             classify:
               - 'docker/requirements/classify.txt'
               - 'src/viral_ngs/classify/**'
-              - 'src/viral_ngs/metagenomics.py'
-              - 'src/viral_ngs/taxon_filter.py'
               - 'docker/Dockerfile.classify'
               - 'docker/requirements/core.txt'
-              - 'src/viral_ngs/util/**'
-              - 'src/viral_ngs/tools/**'
+              - 'src/viral_ngs/core/**'
             assemble:
               - 'docker/requirements/assemble.txt'
               - 'src/viral_ngs/assemble/**'
-              - 'src/viral_ngs/assembly.py'
               - 'docker/Dockerfile.assemble'
               - 'docker/requirements/core.txt'
-              - 'src/viral_ngs/util/**'
-              - 'src/viral_ngs/tools/**'
+              - 'src/viral_ngs/core/**'
             phylo:
               - 'docker/requirements/phylo.txt'
               - 'src/viral_ngs/phylo/**'
-              - 'src/viral_ngs/interhost.py'
-              - 'src/viral_ngs/intrahost.py'
               - 'docker/Dockerfile.phylo'
               - 'docker/requirements/core.txt'
-              - 'src/viral_ngs/util/**'
-              - 'src/viral_ngs/tools/**'
+              - 'src/viral_ngs/core/**'
 
   build:
     needs: changes
@@ -630,8 +631,9 @@ conda search -c bioconda <package> --subdir linux-aarch64
 
 | Package | ARM64 Status | Notes |
 |---------|-------------|-------|
-| novoalign | ⚠️ No | Commercial, x86-only |
-| gatk=3.8 | ⚠️ Check | Legacy version |
+| novoalign | ❌ No | Commercial, x86-only, in `core-x86.txt` |
+| mvicuna | ❌ No | x86-only, in `core-x86.txt` |
+| gatk=3.8 | ✅ Yes | Legacy version, works on ARM |
 | samtools | ✅ Yes | |
 | bwa | ✅ Yes | |
 | minimap2 | ✅ Yes | |
@@ -639,7 +641,10 @@ conda search -c bioconda <package> --subdir linux-aarch64
 | kraken2 | ✅ Yes | |
 | spades | ✅ Yes | |
 
-If a package lacks ARM64 support:
-1. Document it as x86-only
-2. Consider building from source in Dockerfile
-3. Or skip that tool on ARM builds
+### x86-Only Package Handling
+
+For packages that lack ARM64 support:
+1. Add to `docker/requirements/core-x86.txt` (or flavor-specific x86 file)
+2. Install with `install-conda-deps.sh --x86-only <file>`
+3. Script auto-detects architecture and skips on ARM
+4. Tool wrapper should handle missing tool gracefully (fail on install, not import)

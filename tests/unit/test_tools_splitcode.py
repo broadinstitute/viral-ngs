@@ -1,4 +1,4 @@
-# Unit tests for tools.splitcode
+# Unit tests for viral_ngs.core.splitcode
 # -*- coding: utf-8 -*-
 
 __author__ = "dpark@broadinstitute.org"
@@ -10,11 +10,11 @@ import tempfile
 import filecmp
 import shutil
 import json
-import util
-import util.file
-import tools.splitcode
-import tools.samtools
-import tools.picard
+import viral_ngs.core
+import viral_ngs.core
+import viral_ngs.core.splitcode
+import viral_ngs.core.samtools
+import viral_ngs.core.picard
 from test import TestCaseWithTmp, assert_equal_bam_reads
 
 
@@ -23,7 +23,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
 
     def test_basic_single_pool(self):
         """Test basic functionality with a single pool."""
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         sample_sheet = os.path.join(inDir, 'sample_sheet_basic.tsv')
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -36,7 +36,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
                 os.path.join(tmpdir, 'ATCGATCG-GCTAGCTA.lB1_summary.json')
             )
 
-            result_path = tools.splitcode.create_splitcode_lookup_table(
+            result_path = viral_ngs.core.splitcode.create_splitcode_lookup_table(
                 sample_sheet, csv_out, unmatched_name="Unmatched"
             )
 
@@ -86,7 +86,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
 
     def test_zero_reads_pool(self):
         """Test handling of pool with zero reads."""
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         sample_sheet = os.path.join(inDir, 'sample_sheet_zero_reads.tsv')
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -99,7 +99,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
                 os.path.join(tmpdir, 'TTTTAAAA-CCCCGGGG.lB2_summary.json')
             )
 
-            result_path = tools.splitcode.create_splitcode_lookup_table(
+            result_path = viral_ngs.core.splitcode.create_splitcode_lookup_table(
                 sample_sheet, csv_out, unmatched_name="Unmatched"
             )
 
@@ -118,7 +118,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
 
     def test_multi_pool(self):
         """Test with multiple pools."""
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         sample_sheet = os.path.join(inDir, 'sample_sheet_multi_pool.tsv')
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -135,7 +135,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
                 os.path.join(tmpdir, 'GGGGGGGG-CCCCCCCC.lLibB_summary.json')
             )
 
-            result_path = tools.splitcode.create_splitcode_lookup_table(
+            result_path = viral_ngs.core.splitcode.create_splitcode_lookup_table(
                 sample_sheet, csv_out, unmatched_name="Unmatched"
             )
 
@@ -162,7 +162,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
 
     def test_append_run_id(self):
         """Test append_run_id parameter."""
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         sample_sheet = os.path.join(inDir, 'sample_sheet_basic.tsv')
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -175,7 +175,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
                 os.path.join(tmpdir, 'ATCGATCG-GCTAGCTA.lB1.FLOWCELL123_summary.json')
             )
 
-            result_path = tools.splitcode.create_splitcode_lookup_table(
+            result_path = viral_ngs.core.splitcode.create_splitcode_lookup_table(
                 sample_sheet, csv_out,
                 unmatched_name="Unmatched",
                 append_run_id="FLOWCELL123"
@@ -202,7 +202,7 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
     def setUp(self):
         super().setUp()
         self.temp_dir = tempfile.mkdtemp()
-        self.samtools = tools.samtools.SamtoolsTool()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -218,8 +218,8 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
             barcode: 8bp inline barcode to prepend to R1 sequences
         """
         # Create temp FASTQs with inline barcodes
-        r1_fastq = util.file.mkstempfname('.fastq')
-        r2_fastq = util.file.mkstempfname('.fastq')
+        r1_fastq = viral_ngs.core.file.mkstempfname('.fastq')
+        r2_fastq = viral_ngs.core.file.mkstempfname('.fastq')
 
         with open(r1_fastq, 'w') as f1, open(r2_fastq, 'w') as f2:
             for i in range(num_reads):
@@ -235,7 +235,7 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
                 f2.write(f"@read{i}\n{seq_r2}\n+\n{qual_r2}\n")
 
         # Convert to BAM
-        tools.picard.FastqToSamTool().execute(
+        viral_ngs.core.picard.FastqToSamTool().execute(
             r1_fastq,
             r2_fastq,
             "TestSample",
@@ -285,7 +285,7 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
         out_demux_dir = self.temp_dir
 
         # Run splitcode
-        result = tools.splitcode.run_splitcode_on_pool(
+        result = viral_ngs.core.splitcode.run_splitcode_on_pool(
             pool_id=pool_id,
             pool_bam_file=pool_bam,
             splitcode_config=splitcode_config,
@@ -360,7 +360,7 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
         out_demux_dir = self.temp_dir
 
         # Run splitcode
-        result = tools.splitcode.run_splitcode_on_pool(
+        result = viral_ngs.core.splitcode.run_splitcode_on_pool(
             pool_id=pool_id,
             pool_bam_file=pool_bam,
             splitcode_config=splitcode_config,
@@ -432,7 +432,7 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
 
         pool_id = "TestPool"
 
-        tools.splitcode.run_splitcode_on_pool(
+        viral_ngs.core.splitcode.run_splitcode_on_pool(
             pool_id=pool_id,
             pool_bam_file=pool_bam,
             splitcode_config=splitcode_config,
@@ -501,7 +501,7 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
         unmatched_name = "unassigned"
         out_demux_dir = self.temp_dir
 
-        tools.splitcode.run_splitcode_on_pool(
+        viral_ngs.core.splitcode.run_splitcode_on_pool(
             pool_id=pool_id,
             pool_bam_file=pool_bam,
             splitcode_config=splitcode_config,
@@ -562,7 +562,7 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
         with open(splitcode_keepfile, 'w') as f:
             f.write(f"{sample_id}\t{output_prefix}\n")
 
-        tools.splitcode.run_splitcode_on_pool(
+        viral_ngs.core.splitcode.run_splitcode_on_pool(
             pool_id="TestPool",
             pool_bam_file=pool_bam,
             splitcode_config=splitcode_config,
@@ -626,7 +626,7 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
         out_demux_dir = self.temp_dir
 
         # Run splitcode (this doesn't use append_run_id directly, but creates the JSON)
-        tools.splitcode.run_splitcode_on_pool(
+        viral_ngs.core.splitcode.run_splitcode_on_pool(
             pool_id=base_pool_id,
             pool_bam_file=pool_bam,
             splitcode_config=splitcode_config,
@@ -692,7 +692,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
             'muxed_run': ['Pool1', 'Pool1']
         }, index=['Sample1', 'Sample2'])
 
-        config_file, keep_file, sample_ids = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, keep_file, sample_ids = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', self.temp_dir, max_hamming_dist=1
         )
 
@@ -749,7 +749,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
             'muxed_run': ['Pool1', 'Pool1', 'Pool1']
         }, index=['S1', 'S2', 'S3'])
 
-        config_file, keep_file, sample_ids = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, keep_file, sample_ids = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', self.temp_dir
         )
 
@@ -774,7 +774,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
         }, index=['Sample1'])
 
         # Test distance=0 (exact match only)
-        config_file, _, _ = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, _, _ = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', self.temp_dir, max_hamming_dist=0
         )
 
@@ -785,7 +785,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
         self.assertEqual(rows[1][3], '0')  # distance column
 
         # Test distance=2
-        config_file, _, _ = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, _, _ = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', self.temp_dir, max_hamming_dist=2
         )
 
@@ -807,7 +807,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
         }, index=['Sample1'])
 
         # Test default (None) - should be "1"
-        config_file, _, _ = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, _, _ = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', self.temp_dir, r1_trim_bp_right_of_barcode=None
         )
 
@@ -818,7 +818,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
         self.assertEqual(rows[1][4], '1')  # left column: "1" means trim barcode only
 
         # Test with 5 extra bp
-        config_file, _, _ = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, _, _ = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', self.temp_dir, r1_trim_bp_right_of_barcode=5
         )
 
@@ -841,7 +841,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
         }, index=['S1', 'S2', 'S3'])
 
         # Generate for Pool1 only
-        config_file, keep_file, sample_ids = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, keep_file, sample_ids = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', self.temp_dir
         )
 
@@ -873,7 +873,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
 
         # Try to generate for Pool2 (which doesn't exist)
         with self.assertRaises(ValueError) as context:
-            tools.splitcode.generate_splitcode_config_and_keep_files(
+            viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
                 df, 'Pool2', self.temp_dir
             )
 
@@ -895,7 +895,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
             'muxed_run': ['Pool1', 'Pool1']
         }, index=['MySample', 'Other'])
 
-        config_file, keep_file, _ = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, keep_file, _ = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', self.temp_dir
         )
 
@@ -929,7 +929,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
         }, index=['Sample1'])
 
         output_dir = "/custom/output/path"
-        _, keep_file, _ = tools.splitcode.generate_splitcode_config_and_keep_files(
+        _, keep_file, _ = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, 'Pool1', output_dir
         )
 
@@ -968,7 +968,7 @@ class TestGenerateSplitcodeConfigAndKeepFiles(TestCaseWithTmp):
 
         # Generate for Pool_1 only
         pool_id = 'ATCGATCG-GCTAGCTA.lPool_1.HHJYWDRX5.6'
-        config_file, keep_file, sample_ids = tools.splitcode.generate_splitcode_config_and_keep_files(
+        config_file, keep_file, sample_ids = viral_ngs.core.splitcode.generate_splitcode_config_and_keep_files(
             df, pool_id, '/output', max_hamming_dist=1, r1_trim_bp_right_of_barcode=3
         )
 
@@ -1041,7 +1041,7 @@ class TestSplitcodeSummaryJSONErrorHandling(TestCaseWithTmp):
 
         # Should raise FileNotFoundError with helpful message
         with self.assertRaises(FileNotFoundError) as context:
-            tools.splitcode.create_splitcode_lookup_table(
+            viral_ngs.core.splitcode.create_splitcode_lookup_table(
                 sample_sheet,
                 csv_out,
                 unmatched_name="Unmatched"
@@ -1076,7 +1076,7 @@ class TestSplitcodeSummaryJSONErrorHandling(TestCaseWithTmp):
 
         # Should raise JSONDecodeError
         with self.assertRaises(json.JSONDecodeError):
-            tools.splitcode.create_splitcode_lookup_table(
+            viral_ngs.core.splitcode.create_splitcode_lookup_table(
                 sample_sheet,
                 csv_out,
                 unmatched_name="Unmatched"
@@ -1133,7 +1133,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
 
         # Convert
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv
         )
@@ -1189,7 +1189,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
 
         with self.assertRaises(ValueError) as context:
-            tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+            viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
                 input_csv,
                 output_tsv
             )
@@ -1216,7 +1216,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
 
         with self.assertRaises(ValueError) as context:
-            tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+            viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
                 input_csv,
                 output_tsv
             )
@@ -1243,7 +1243,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv
         )
@@ -1277,7 +1277,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv
         )
@@ -1307,7 +1307,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv
         )
@@ -1339,7 +1339,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv,
             combine_innerbarcode_unmatched=False
@@ -1373,7 +1373,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv,
             combine_innerbarcode_unmatched=True,
@@ -1416,7 +1416,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv,
             combine_innerbarcode_unmatched=True,
@@ -1453,7 +1453,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv,
             report_within_pools=False
@@ -1492,7 +1492,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv,
             report_within_pools=True
@@ -1537,7 +1537,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv,
             report_within_pools=True
@@ -1576,7 +1576,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
         df_input.to_csv(input_csv, index=False)
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv,
             report_within_pools=True
@@ -1611,7 +1611,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
         custom_name = "MyCustomDemuxFunction"
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv,
             demux_function=custom_name
@@ -1641,7 +1641,7 @@ class TestConvertSplitcodeMetricsToPicardStyle(TestCaseWithTmp):
 
         output_tsv = os.path.join(self.temp_dir, 'output.tsv')
         # Should not raise any errors
-        tools.splitcode.convert_splitcode_demux_metrics_to_picard_style(
+        viral_ngs.core.splitcode.convert_splitcode_demux_metrics_to_picard_style(
             input_csv,
             output_tsv
         )

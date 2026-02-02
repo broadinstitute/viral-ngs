@@ -9,8 +9,8 @@ import unittest
 import argparse
 
 # module-specific
-import file_utils
-import util.file
+import viral_ngs.core.file_utils
+import viral_ngs.core
 from test import TestCaseWithTmp
 
 class TestCommandHelp(unittest.TestCase):
@@ -22,7 +22,7 @@ class TestCommandHelp(unittest.TestCase):
 class TestTarballMerger(TestCaseWithTmp):
     def setUp(self):
         super(TestTarballMerger, self).setUp()
-        self.input_dir = util.file.get_test_input_path(self)
+        self.input_dir = viral_ngs.core.file.get_test_input_path(self)
         self.raw_files = ["file{}".format(x) for x in range(1,5)]
         self.input_mixed_files = list(os.path.join(self.input_dir, "mixed-compressed-input", fn)
                 for fn in sorted(os.listdir(os.path.join(self.input_dir, "mixed-compressed-input"))))
@@ -41,8 +41,8 @@ class TestTarballMerger(TestCaseWithTmp):
 class TestTsvJoin(TestCaseWithTmp):
    
     def test_join(self):
-        infiles = list(os.path.join(util.file.get_test_input_path(self), x) for x in ('tab-1.txt', 'tab-2.txt'))
-        expected = os.path.join(util.file.get_test_input_path(self), 'expected-out.txt')
-        actual = util.file.mkstempfname('.joined.txt')
+        infiles = list(os.path.join(viral_ngs.core.file.get_test_input_path(self), x) for x in ('tab-1.txt', 'tab-2.txt'))
+        expected = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'expected-out.txt')
+        actual = viral_ngs.core.file.mkstempfname('.joined.txt')
         file_utils.tsv_join(infiles, actual, join_id='h1')
         self.assertEqualContents(expected, actual)

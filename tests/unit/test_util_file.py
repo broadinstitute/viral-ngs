@@ -1,4 +1,4 @@
-# Unit tests for util.file.py
+# Unit tests for viral_ngs.core.file.py
 
 __author__ = "ilya@broadinstitute.org"
 
@@ -9,7 +9,7 @@ import filecmp
 import subprocess
 import tarfile
 import tempfile
-import util.file
+import viral_ngs.core
 from test import TestCaseWithTmp
 import pytest
 from mock import patch
@@ -30,11 +30,11 @@ def testTempFiles():
     '''Test creation of tempfiles using context managers, as well as dump_file/slurp_file routines'''
     tmp_fns = []
     sfx='tmp-file-test'
-    with util.file.tempfname(sfx) as my_tmp_fn:
+    with viral_ngs.core.file.tempfname(sfx) as my_tmp_fn:
         tmp_dir_listing = os.listdir( os.path.dirname( my_tmp_fn ) )
         assert os.path.basename( my_tmp_fn ) in tmp_dir_listing
 
-        with util.file.tempfnames((sfx+'-A',sfx+'-B')) as my_tmp_fns:
+        with viral_ngs.core.file.tempfnames((sfx+'-A',sfx+'-B')) as my_tmp_fns:
 
             assert len(my_tmp_fns)==2
             for fn in my_tmp_fns:
@@ -49,12 +49,12 @@ def testTempFiles():
                 assert os.access(fn, os.R_OK | os.W_OK)
 
                 fileValue='my\ntest\ndata\n' + fn + '\n'
-                util.file.dump_file( fname=fn, value=fileValue )
+                viral_ngs.core.file.dump_file( fname=fn, value=fileValue )
                 assert os.path.isfile(fn)
                 assert os.path.getsize(fn) == len(fileValue)
-                assert util.file.slurp_file(fn) == fileValue
+                assert viral_ngs.core.file.slurp_file(fn) == fileValue
 
-                util.file.make_empty(fn)
+                viral_ngs.core.file.make_empty(fn)
                 assert os.path.getsize(fn)==0
 
                 tmp_fns.append(fn)
@@ -62,17 +62,17 @@ def testTempFiles():
         assert os.path.isfile(my_tmp_fn) and not os.path.isfile(my_tmp_fns[0]) and not os.path.isfile(my_tmp_fns[1])
 
         largeString = 'A' * (2*1024*1024)
-        util.file.dump_file(fname=my_tmp_fn, value=largeString)
+        viral_ngs.core.file.dump_file(fname=my_tmp_fn, value=largeString)
         with pytest.raises(RuntimeError):
-            util.file.slurp_file(my_tmp_fn, maxSizeMb=1)
+            viral_ngs.core.file.slurp_file(my_tmp_fn, maxSizeMb=1)
 
     assert not os.path.isfile(my_tmp_fn)
 
 def test_check_paths(tmpdir):
-    '''Test the util.file.check_paths()'''
+    '''Test the viral_ngs.core.file.check_paths()'''
     from os.path import join
-    from util.file import check_paths
-    inDir = util.file.get_test_input_path()
+    from viral_ngs.core.file import check_paths
+    inDir = viral_ngs.core.file.get_test_input_path()
     def test_f(f):
         return join(inDir, f)
     check_paths(read=test_f('empty.bam'))
@@ -87,12 +87,12 @@ def test_check_paths(tmpdir):
     with pytest.raises(Exception):
         check_paths(write=writable_dir)
 
-    util.file.make_empty(join(writable_dir, 'myempty.dat'))
+    viral_ngs.core.file.make_empty(join(writable_dir, 'myempty.dat'))
     check_paths(read_and_write=join(writable_dir, 'myempty.dat'))
 
 def test_uncompressed_file_type():
-    """Test util.file.uncompressed_file_type()"""
-    uft = util.file.uncompressed_file_type
+    """Test viral_ngs.core.file.uncompressed_file_type()"""
+    uft = viral_ngs.core.file.uncompressed_file_type
     assert uft('test.fasta.gz') == '.fasta'
     assert uft('test.fasta.bz2') == '.fasta'
     assert uft('test.fasta') == '.fasta'
@@ -106,7 +106,7 @@ def test_uncompressed_file_type():
     assert uft('/a/test.gz') == ''
 
 def test_string_to_file_name():
-    """Test util.file.string_to_file_name()"""
+    """Test viral_ngs.core.file.string_to_file_name()"""
 
     unichr = getattr(builtins, 'unichr', chr)
 
@@ -118,30 +118,30 @@ def test_string_to_file_name():
         ''.join(map(unichr, range(1000))),
         )
 
-    with util.file.tmp_dir() as tmp_d:
+    with viral_ngs.core.file.tmp_dir() as tmp_d:
         for test_fname in test_fnames:
-            t_path = os.path.join(tmp_d, util.file.string_to_file_name(test_fname, tmp_d))
-            util.file.make_empty(t_path)
+            t_path = os.path.join(tmp_d, viral_ngs.core.file.string_to_file_name(test_fname, tmp_d))
+            viral_ngs.core.file.make_empty(t_path)
             assert os.path.isfile(t_path) and os.path.getsize(t_path) == 0
 
 
 @pytest.fixture(scope='module', params=['', '.bz2', '.gz', '.lz4', '.zst'])
 def compressed_input_file(request):
-    return os.path.join(util.file.get_test_input_path(), 'ebola.fasta' + request.param)
+    return os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebola.fasta' + request.param)
 
 @pytest.fixture(scope='module')
 def expected_plaintext():
-    return os.path.join(util.file.get_test_input_path(), 'ebola.fasta')
+    return os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebola.fasta')
 
 def test_decompress_shutil_copyfileobj(request, expected_plaintext, compressed_input_file):
-    out = util.file.mkstempfname(os.path.basename(compressed_input_file)+'.fa')
-    with util.file.open_or_gzopen(compressed_input_file, 'rt') as inf, open(out, 'wt') as outf:
+    out = viral_ngs.core.file.mkstempfname(os.path.basename(compressed_input_file)+'.fa')
+    with viral_ngs.core.file.open_or_gzopen(compressed_input_file, 'rt') as inf, open(out, 'wt') as outf:
         shutil.copyfileobj(inf, outf)
     assert filecmp.cmp(out, expected_plaintext, shallow=False)
 
 def test_decompress_line_by_line(request, expected_plaintext, compressed_input_file):
-    out = util.file.mkstempfname(os.path.basename(compressed_input_file)+'.fa')
-    with util.file.open_or_gzopen(compressed_input_file, 'rt', newline=None) as inf, open(out, 'wt') as outf:
+    out = viral_ngs.core.file.mkstempfname(os.path.basename(compressed_input_file)+'.fa')
+    with viral_ngs.core.file.open_or_gzopen(compressed_input_file, 'rt', newline=None) as inf, open(out, 'wt') as outf:
         for line in inf:
             outf.write(line)
     assert filecmp.cmp(out, expected_plaintext, shallow=False)
@@ -150,7 +150,7 @@ def test_decompress_line_by_line(request, expected_plaintext, compressed_input_f
 class TestExtractTarball(TestCaseWithTmp):
     def setUp(self):
         super(TestExtractTarball, self).setUp()
-        self.input_dir = os.path.join(util.file.get_test_input_path(), 'TestTarballMerger')
+        self.input_dir = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestTarballMerger')
         self.input_mixed_files = list(os.path.join(self.input_dir, "mixed-compressed-input", fn)
                 for fn in sorted(os.listdir(os.path.join(self.input_dir, "mixed-compressed-input"))))
         self.expected_outputs = list(os.path.join(self.input_dir, "raw-input", fn)
@@ -159,7 +159,7 @@ class TestExtractTarball(TestCaseWithTmp):
     def test_simple_extract(self):
         for tarfile, expected in zip(self.input_mixed_files, self.expected_outputs):
             temp_dir = tempfile.mkdtemp()
-            util.file.extract_tarball(tarfile, out_dir=temp_dir)
+            viral_ngs.core.file.extract_tarball(tarfile, out_dir=temp_dir)
             out_files = os.listdir(temp_dir)
             self.assertEqual(len(out_files), 1)
             self.assertEqualContents(os.path.join(temp_dir, out_files[0]), expected)
@@ -167,7 +167,7 @@ class TestExtractTarball(TestCaseWithTmp):
 class TestTarballMerger(TestCaseWithTmp):
     def setUp(self):
         super(TestTarballMerger, self).setUp()
-        self.input_dir = util.file.get_test_input_path(self)
+        self.input_dir = viral_ngs.core.file.get_test_input_path(self)
         self.raw_files = ["file{}".format(x) for x in range(1,5)]
         self.input_tgz_files = list(os.path.join(self.input_dir, "compressed-input", fn)
                 for fn in sorted(os.listdir(os.path.join(self.input_dir, "compressed-input"))))
@@ -181,7 +181,7 @@ class TestTarballMerger(TestCaseWithTmp):
         temp_dir = tempfile.gettempdir()
         out_tarball_file = os.path.join(temp_dir,"out.tar.gz")
 
-        util.file.repack_tarballs(out_tarball_file,
+        viral_ngs.core.file.repack_tarballs(out_tarball_file,
                                   self.input_mixed_files
                                   )
 
@@ -202,7 +202,7 @@ class TestTarballMerger(TestCaseWithTmp):
         out_tarball_file = os.path.join(temp_dir,"out.tar.gz")
         out_extracted_path = os.path.join(temp_dir,"extracted")
 
-        util.file.repack_tarballs(out_tarball_file,
+        viral_ngs.core.file.repack_tarballs(out_tarball_file,
                                   self.input_mixed_files,
                                   extract_to_disk_path=out_extracted_path
                                   )
@@ -232,7 +232,7 @@ class TestTarballMerger(TestCaseWithTmp):
         out_tarball_file = os.path.join(temp_dir,"out.tar.gz")
         out_extracted_path = os.path.join(temp_dir,"extracted")
 
-        util.file.repack_tarballs(out_tarball_file,
+        viral_ngs.core.file.repack_tarballs(out_tarball_file,
                                   self.input_mixed_files,
                                   extract_to_disk_path=out_extracted_path,
                                   avoid_disk_roundtrip=False
@@ -264,7 +264,7 @@ class TestTarballMerger(TestCaseWithTmp):
 
         ps = subprocess.Popen("cat {files}".format(files=' '.join(self.input_tgz_files)).split(), stdout=subprocess.PIPE)
         with patch('sys.stdin', ps.stdout):
-            util.file.repack_tarballs(out_tarball_file,
+            viral_ngs.core.file.repack_tarballs(out_tarball_file,
                                       ["-"],
                                       pipe_hint_in="gz")
         ps.wait()
@@ -293,7 +293,7 @@ class TestTarballMerger(TestCaseWithTmp):
             # temporarily disable pytest's capture of sys.stdout
             with self.capsys.disabled():
                 with patch('sys.stdout', outf):
-                    util.file.repack_tarballs("-",
+                    viral_ngs.core.file.repack_tarballs("-",
                                               self.input_mixed_files,
                                               pipe_hint_out="gz")
 
@@ -320,7 +320,7 @@ class TestTarballMerger(TestCaseWithTmp):
                 # temporarily disable pytest's capture of sys.stdout
                 with self.capsys.disabled():
                     with patch('sys.stdout', outf):
-                        util.file.repack_tarballs( "-",
+                        viral_ngs.core.file.repack_tarballs( "-",
                                                  ["-"],
                                                  pipe_hint_out="gz",
                                                  pipe_hint_in="gz")
