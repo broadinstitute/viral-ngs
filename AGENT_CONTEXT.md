@@ -377,6 +377,35 @@ git checkout HEAD -- .github/workflows/docker.yml  # Restore our workflows
 
 Or use `--path-rename` to move them to a non-executable location during filter-repo.
 
+### Be Selective with git filter-repo Imports
+
+When using `git filter-repo` to import repositories, be **very selective** about what gets included. Don't just import everything and delete later - use explicit `--path` options to only include what you need:
+
+```bash
+# BAD: Import everything, delete unwanted files after
+git filter-repo --path-rename 'util/:src/viral_ngs/core/'
+
+# GOOD: Only import specific paths you actually want
+git filter-repo \
+    --path util/ \
+    --path tools/ \
+    --path '*.py' \
+    --path-rename 'util/:src/viral_ngs/core/' \
+    --path-rename 'tools/:src/viral_ngs/core/' \
+    --force
+```
+
+**Files commonly NOT wanted from source repos:**
+- `.coveralls.yml`, `.travis.yml` - obsolete CI configs
+- `.flake8`, `.pylintrc`, `.style.yapf` - linter configs (consolidate to pyproject.toml if needed)
+- `.landscape.yaml` - defunct Landscape.io service
+- `github_actions_ci/` - legacy CI scripts (replaced by modern actions)
+- `.github/workflows/*.yml` - legacy workflows that will fail in new context
+
+**Cleanup applied in Phase 2:**
+- Deleted 5 obsolete dotfiles
+- Deleted 13 legacy CI scripts in `github_actions_ci/`
+
 ## Communication
 
 When working on this migration:
