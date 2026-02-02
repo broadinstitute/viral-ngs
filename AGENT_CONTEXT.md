@@ -304,7 +304,7 @@ These decisions have been made and should not be revisited:
 | Module structure | Single `core/` directory | Simpler than separate tools/util |
 | Backward compat | None (no stubs) | Clean codebase, fresh start |
 | Python deps | All via conda | Faster install, binary compat |
-| x86-only handling | Separate requirements + --x86-only flag | Graceful ARM support |
+| x86-only handling | Not included in core (novoalign/mvicuna removed) | Simplify core image |
 | Docker registry | Quay.io + ghcr.io | Redundancy, both registries |
 | Multi-arch | QEMU via docker/setup-qemu-action | Simpler than native runners for now |
 | Cache backend | Registry on Quay.io | GHA 10GB limit too small |
@@ -351,13 +351,14 @@ source ~/venvs/git-filter-repo/bin/activate
 git filter-repo --path-rename ...
 ```
 
-### x86-Only Packages
+### x86-Only Packages (Removed from core)
 
-For tools without ARM64 support:
-1. Put in separate requirements file (`core-x86.txt`)
+The x86-only packages (novoalign, mvicuna) from the broad-viral channel are **not included** in the core image. They were specialized tools that added complexity without broad usage. The tool wrappers still exist in the code (for backward compatibility with scripts that might reference them) but will fail gracefully if called since the tools aren't installed.
+
+If future derivative images need x86-only packages:
+1. Put in separate requirements file (e.g., `assemble-x86.txt`)
 2. Use `install-conda-deps.sh --x86-only` flag
-3. Script auto-detects architecture
-4. Tool wrapper handles missing tool at install time, not import time
+3. Script auto-detects architecture and skips on ARM
 
 ### PrexistingUnixCommand is the Only InstallMethod
 
@@ -404,10 +405,10 @@ When working on this migration:
 - Consolidated `tools/` and `util/` directories into single `core/` directory
 - Updated all imports to `viral_ngs.core.*` pattern (no backward compat stubs)
 - Moved ALL Python dependencies to conda (pyproject.toml has empty deps)
-- Created `docker/requirements/core-x86.txt` for x86-only packages (novoalign, mvicuna)
-- Updated `install-conda-deps.sh` with `--x86-only` flag for architecture-specific packages
 - Created `docker/Dockerfile.core` with verification checks
 - Updated all test imports to use `viral_ngs.core.*`
+- Deleted legacy viral-core CI workflow (build.yml) - using new docker.yml
+- Removed x86-only packages (novoalign, mvicuna) and broad-viral channel from core
 - Docker build verified with all module imports working
 
 ## Reference Repositories

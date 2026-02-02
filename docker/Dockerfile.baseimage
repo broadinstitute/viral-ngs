@@ -43,7 +43,6 @@ RUN ln -sf /usr/bin/micromamba /usr/local/bin/conda && \
 # Configure micromamba channels
 RUN micromamba config append channels bioconda && \
     micromamba config append channels conda-forge && \
-    micromamba config prepend channels broad-viral && \
     micromamba config set always_yes yes && \
     micromamba config set changeps1 no
 

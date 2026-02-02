@@ -18,13 +18,11 @@ LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-n
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 # Copy requirements and dependency installation script
-COPY docker/requirements/core.txt docker/requirements/core-x86.txt /tmp/requirements/
+COPY docker/requirements/core.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install conda dependencies (bioinformatics tools)
-# First install all-architecture packages, then x86-only packages (skipped on ARM)
-RUN /tmp/install-conda-deps.sh /tmp/requirements/core.txt && \
-    /tmp/install-conda-deps.sh --x86-only /tmp/requirements/core-x86.txt
+RUN /tmp/install-conda-deps.sh /tmp/requirements/core.txt
 
 # Copy source code
 COPY src/ /opt/viral-ngs/source/src/
