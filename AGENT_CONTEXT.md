@@ -359,7 +359,7 @@ For tools without ARM64 support (novoalign, mvicuna):
 3. Script auto-detects architecture and skips on ARM
 4. Tool wrapper handles missing tool at runtime, not import time
 
-These packages require the `broad-viral` conda channel, which is configured in the baseimage.
+These packages are in bioconda but only have x86_64 builds. Use exact versions (e.g., `novoalign=3.09.04`, `mvicuna=1.0`) since newer versions may not exist.
 
 ### PrexistingUnixCommand is the Only InstallMethod
 
