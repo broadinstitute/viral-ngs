@@ -41,8 +41,10 @@ RUN ln -sf /usr/bin/micromamba /usr/local/bin/conda && \
     ln -sf /usr/bin/micromamba /usr/local/bin/mamba
 
 # Configure micromamba channels
+# broad-viral channel is needed for novoalign/mvicuna (x86-only tools)
 RUN micromamba config append channels bioconda && \
     micromamba config append channels conda-forge && \
+    micromamba config append channels broad-viral && \
     micromamba config set always_yes yes && \
     micromamba config set changeps1 no
 
