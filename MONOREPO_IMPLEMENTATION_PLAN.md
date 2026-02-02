@@ -18,38 +18,48 @@
 
 ---
 
-## Phase 0: Prepare Existing viral-ngs Repository
+## Phase 0: Prepare Existing viral-ngs Repository ✅ COMPLETE
 
 **Goal:** Clean up the dormant repo for reuse.
 
 ### Tasks
 
-1. **Audit current state**
-   - [ ] Review any open issues/PRs (close or migrate if relevant)
-   - [ ] Check branch structure (identify branches to archive/delete)
-   - [ ] Review any existing GitHub Actions workflows
-   - [ ] Check for secrets/settings that need updating
+1. **Audit current state** ✅
+   - [x] Review any open issues/PRs (closed 53 issues with migration notice)
+   - [x] Check branch structure (deleted 148 stale feature branches)
+   - [x] Review any existing GitHub Actions workflows (none existed, Travis CI removed)
+   - [x] Check for secrets/settings that need updating
 
-2. **Archive old content**
+2. **Archive old content** ✅
    ```bash
    git tag archive/legacy-monolith
    git branch archive/legacy
    git push origin archive/legacy-monolith archive/legacy
    ```
 
-3. **Update repository settings**
+3. **Update repository settings** ✅
    - [x] Set default branch to `main`
    - [x] Add secrets: `QUAY_USERNAME`, `QUAY_TOKEN`, `CODECOV_TOKEN`
    - [x] Update repository description/topics
    - [x] Close all legacy issues with migration notice
    - [ ] Branch protection rules (deferred to Phase 4)
    - [x] GitHub Packages/ghcr.io (auto-enables on first push, uses GITHUB_TOKEN)
+   - [x] Replaced BSD-3-Clause license with MIT
 
 ---
 
-## Phase 1: Set Up Monorepo Foundation
+## Phase 1: Set Up Monorepo Foundation ✅ COMPLETE
 
 **Goal:** Establish fresh structure with modern tooling.
+
+### Completed Items
+- [x] Created `pyproject.toml` with setuptools-scm versioning
+- [x] Created `src/viral_ngs/__init__.py` with version detection
+- [x] Created `src/viral_ngs/py.typed` marker for type hints
+- [x] Created `docker/Dockerfile.baseimage` using `mambaorg/micromamba:2.4.0-ubuntu24.04`
+- [x] Created `docker/install-conda-deps.sh` for unified dependency installation
+- [x] Created `.github/workflows/docker.yml` for multi-arch builds to Quay.io + ghcr.io
+- [x] Verified baseimage builds locally (Python 3.12, conda/mamba symlinks work)
 
 ### Directory Structure
 

@@ -2,6 +2,22 @@
 
 > This document provides background context for the Claude Code agent that will implement the monorepo migration. Read this alongside `MONOREPO_IMPLEMENTATION_PLAN.md`.
 
+---
+
+## CURRENT STATUS
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 0: Prepare repo | ✅ COMPLETE | Legacy archived, branches cleaned, secrets configured |
+| Phase 1: Foundation | ✅ COMPLETE | pyproject.toml, baseimage, CI workflow created |
+| Phase 2: Migrate viral-core | 🔲 NOT STARTED | Next step |
+| Phase 3: Migrate derivatives | 🔲 NOT STARTED | assemble, phylo, classify |
+| Phase 4: Finalize | 🔲 NOT STARTED | mega image, docs, badges |
+
+**Next action:** Push to origin, then start Phase 2 (migrate viral-core with git history preservation).
+
+---
+
 ## Overview
 
 You are helping migrate 5 separate git repositories into a single monorepo at `github.com/broadinstitute/viral-ngs`. This is a substantial refactoring project that will modernize the codebase's CI/CD, Docker builds, and Python packaging.
@@ -12,13 +28,13 @@ All repositories are located at `/Users/dpark/dev/`:
 
 | Repository | Path | Description |
 |------------|------|-------------|
-| viral-baseimage | `/Users/dpark/dev/viral-baseimage` | Base Docker image with conda/python |
+| viral-baseimage | NOT LOCAL (use GitHub API) | Base Docker image with conda/python |
 | viral-core | `/Users/dpark/dev/viral-core` | Core utilities, illumina, read_utils, tools/ |
 | viral-classify | `/Users/dpark/dev/viral-classify` | Metagenomics, taxonomy filtering |
 | viral-assemble | `/Users/dpark/dev/viral-assemble` | Genome assembly tools |
 | viral-phylo | `/Users/dpark/dev/viral-phylo` | Phylogenetic analysis |
 
-**Target repository:** `/Users/dpark/dev/viral-ngs` (this directory - currently dormant)
+**Target repository:** `/Users/dpark/dev/viral-ngs` (this directory - monorepo in progress)
 
 ## Codebase Architecture
 
@@ -199,12 +215,15 @@ cache-to: type=registry,ref=quay.io/broadinstitute/viral-ngs:cache-core-amd64,mo
 
 ## Micromamba Migration Notes
 
-From viral-baseimage PR #29, key lessons:
+From viral-baseimage PR #29 and read-qc-tools repo, key lessons:
 
 1. **API differences**: `conda config --add X` → `micromamba config append X`
 2. **No default Python**: Must explicitly install Python in base image
-3. **Symlink trick**: Create `conda` and `mamba` symlinks to `micromamba`
-4. **Activation**: Set `MAMBA_DOCKERFILE_ACTIVATE=1`
+3. **Symlink trick**: Create `conda` and `mamba` symlinks pointing to `/usr/bin/micromamba`
+4. **Activation**: Set `ARG MAMBA_DOCKERFILE_ACTIVATE=1` for RUN commands
+5. **PATH for non-interactive**: Must explicitly add `/opt/conda/bin` to PATH with `ENV` statement - the mambaorg entrypoint only sets PATH for interactive shells
+6. **Base image**: Use `mambaorg/micromamba:2.4.0-ubuntu24.04` as base (simpler than building from scratch)
+7. **Symlink location**: In mambaorg image, micromamba is at `/usr/bin/micromamba`, NOT `/usr/local/bin/`
 
 ## Test Strategy
 
@@ -261,13 +280,16 @@ These decisions have been made and should not be revisited:
 |----------|--------|-----------|
 | Python packaging | `viral-ngs` pip package | Modern, cleaner imports |
 | Import style | `from viral_ngs.util import file` | Standard package pattern |
-| Docker registry | Single repo with flavor tags | Modern pattern like python:slim |
-| Multi-arch | Native parallel builds | 10x faster than QEMU |
+| Docker registry | Quay.io + ghcr.io | Redundancy, both registries |
+| Multi-arch | QEMU via docker/setup-qemu-action | Simpler than native runners for now |
 | Cache backend | Registry on Quay.io | GHA 10GB limit too small |
 | Default branch | `main` | Modern convention |
 | Code coverage | CodeCov | Replacing Coveralls |
 | Retire tools | kaiju, diamond | Reduce complexity |
 | Consolidate | kraken2, krona to main env | Try, keep multi-env if fails |
+| Feature branch cleanup | `quay.expires-after=10w` label | No API token needed |
+| License | MIT | Replacing BSD-3-Clause |
+| Base image | `mambaorg/micromamba:2.4.0-ubuntu24.04` | Simpler than custom build |
 
 ## Common Pitfalls to Avoid
 
@@ -290,6 +312,33 @@ When working on this migration:
 ## Next Steps
 
 1. Read `MONOREPO_IMPLEMENTATION_PLAN.md` for the detailed task list
-2. Start with Phase 0 (prepare viral-ngs repo)
+2. **Phase 2**: Migrate viral-core with git history preservation using `git filter-repo`
 3. Work through phases sequentially
 4. Verify each phase before moving to the next
+
+## What Was Done in Phase 0 & 1
+
+### Phase 0 (Complete)
+- Created `archive/legacy-monolith` tag and `archive/legacy` branch
+- Deleted 148 stale feature branches (ct-*, is-*, sy-*, etc.)
+- Deleted all legacy files (783 files, 83K+ lines)
+- Replaced BSD-3-Clause license with MIT
+- Renamed `master` to `main`, set as default branch
+- Closed all 53 legacy issues with migration notice
+- Configured secrets: `QUAY_USERNAME`, `QUAY_TOKEN`, `CODECOV_TOKEN`
+- Updated repo description and topics
+
+### Phase 1 (Complete)
+- Created `pyproject.toml` with setuptools-scm
+- Created `src/viral_ngs/__init__.py` and `py.typed`
+- Created `docker/Dockerfile.baseimage` using mambaorg/micromamba
+- Created `docker/install-conda-deps.sh` for unified dependency installation
+- Created `.github/workflows/docker.yml` for multi-arch builds
+- Verified baseimage builds locally with Python 3.12 and conda/mamba symlinks
+
+## Reference Repositories
+
+When implementing Docker patterns, refer to:
+- `broadinstitute/read-qc-tools` - Simple micromamba-based Dockerfile pattern
+- `broadinstitute/viral-baseimage` branch `ct-reduce-google-sdk-install-size` - PR #29 for micromamba migration ideas
+- `broadinstitute/viral-core` - Current Dockerfile and install scripts for reference
