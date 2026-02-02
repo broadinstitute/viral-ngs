@@ -1,0 +1,2 @@
+sample_name	expected_barcode_1	expected_barcode_2	expected_barcode_1_name	expected_barcode_2_name	expected_barcodes_read_count	guessed_barcode_1	guessed_barcode_2	guessed_barcode_1_name	guessed_barcode_2_name	guessed_barcodes_read_count	match_type
+G5767.1_171025	CAGAGAGG	TATCCTCT	BI7A06,N708	BI5G02,E503,S503,[N|S|E]503	69	TAGGCATT	TATCCTCT	N706	E503,S503,[N|S|E]503	41442	one_barcode_match

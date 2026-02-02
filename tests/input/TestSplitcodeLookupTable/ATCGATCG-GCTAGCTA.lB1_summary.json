@@ -1,0 +1,36 @@
+{
+  "n_processed": 100000,
+  "n_assigned": 95000,
+  "tag_qc": [
+    {
+      "tag": "Sample1.lB1_R1",
+      "distance": 0,
+      "count": 30000
+    },
+    {
+      "tag": "Sample1.lB1_R1",
+      "distance": 1,
+      "count": 1500
+    },
+    {
+      "tag": "Sample2.lB1_R1",
+      "distance": 0,
+      "count": 45000
+    },
+    {
+      "tag": "Sample2.lB1_R1",
+      "distance": 1,
+      "count": 2000
+    },
+    {
+      "tag": "Sample3.lB1_R1",
+      "distance": 0,
+      "count": 15000
+    },
+    {
+      "tag": "Sample3.lB1_R1",
+      "distance": 1,
+      "count": 1500
+    }
+  ]
+}

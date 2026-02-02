@@ -1,0 +1,8 @@
+sample	library_id_per_sample	I7_Index_ID	barcode_1	I5_Index_ID	barcode_2	Inline_Index_ID	barcode_3
+TestSample1	L1		ATCGATCG		GCTAGCTA		AAAAAAAA
+TestSample2	L1		ATCGATCG		GCTAGCTA		CCCCCCCC
+TestSample3	L1		ATCGATCG		GCTAGCTA		GGGGTTTT
+TestSampleEmpty	L1		ATCGATCG		GCTAGCTA		TTTTGGGG
+TestSample5	L2		CTGATCGT		TAGATCGC		AAAAAAAA
+TestSample6	L2		CTGATCGT		TAGATCGC		CCCCCCCC
+TestSampleNoSplitcode	L3		GGAATTCC		CCGGAATT		

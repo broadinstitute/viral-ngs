@@ -14,6 +14,10 @@ __pycache__/
 # C extensions
 *.so
 
+# WIP/dev temporary backup copies
+*.bak
+*.bak[0-9]
+
 # Distribution / packaging
 .Python
 env/
@@ -48,12 +52,13 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .coverage
+.coverage*
 .cache
 .noseids
 nosetests.xml
 pytest.xml
 coverage.xml
-.coverage*
+coverage/
 
 test/input/TestVPhaser2/in.bam.bti
 
@@ -74,3 +79,5 @@ tools/conda-tools/
 *.snakemake/
 
 .pytest_cache/
+
+.vscode/

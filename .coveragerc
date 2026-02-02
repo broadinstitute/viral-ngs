@@ -1,0 +1,22 @@
+# .coveragerc to control test coverage report
+# source is not used here because it is specified in pytest.ini
+[run]
+branch = True
+omit = tools/conda-tools/*
+disable_warnings =
+    module-not-imported
+relative_files = True
+
+[report]
+
+exclude_lines =
+    pragma: no cover
+
+    #raise AssertionError
+    raise NotImplementedError
+
+    def __repr__
+    if self\.debug
+
+    if 0:
+    if __name__ == .__main__.:

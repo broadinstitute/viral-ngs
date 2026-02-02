@@ -1,0 +1,2 @@
+sample_name	expected_barcode_1	expected_barcode_1_name	expected_barcodes_read_count	guessed_barcode_1	guessed_barcode_1_name	guessed_barcodes_read_count	match_type
+Amm_RNA-Tag	CAAGCTTA	BI5B08	21771				alternatives_have_lower_read_counts

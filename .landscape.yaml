@@ -1,0 +1,34 @@
+doc-warnings: no # "no" disables pep257, which has issues parsing complex __all__ statements
+test-warnings: yes
+strictness: medium
+max-line-length: 120
+requirements:
+    - requirements.txt
+    - requirements-pipes.txt
+ignore-paths:
+    - docs
+python-targets:
+    - 2
+    - 3
+
+dodgy:
+  run: yes
+mccabe:
+  run: yes 
+pyflakes:
+  run: yes
+pep8:
+  run: yes
+pylint:
+  run: yes
+pep257:
+  run: false # problematic for __all__ statements?
+profile-validator:
+  run: yes
+# optional:
+frosted:
+  run: false
+vulture:
+  run: false
+pyroma:
+  run: false

@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<RunInfo Version="6">
+	<Run Id="250101_TEST_0001_BTESTFC01" Number="1">
+		<Flowcell>TESTFC01</Flowcell>
+		<Instrument>TEST001</Instrument>
+		<Date>2025-01-01T10:00:00Z</Date>
+		<Reads>
+			<Read Number="1" NumCycles="50" IsIndexedRead="N" IsReverseComplement="N"/>
+			<Read Number="2" NumCycles="8" IsIndexedRead="Y" IsReverseComplement="N"/>
+			<Read Number="3" NumCycles="8" IsIndexedRead="Y" IsReverseComplement="Y"/>
+			<Read Number="4" NumCycles="50" IsIndexedRead="N" IsReverseComplement="N"/>
+		</Reads>
+		<FlowcellLayout LaneCount="1" SurfaceCount="2" SwathCount="1" TileCount="6">
+			<TileSet TileNamingConvention="FourDigit">
+				<Tiles>
+					<Tile>1_1101</Tile>
+					<Tile>1_1102</Tile>
+					<Tile>1_1103</Tile>
+					<Tile>1_1201</Tile>
+					<Tile>1_1202</Tile>
+					<Tile>1_1203</Tile>
+				</Tiles>
+			</TileSet>
+		</FlowcellLayout>
+	</Run>
+</RunInfo>
