@@ -1,2 +1,0 @@
-@HD	VN:1.4	SO:queryname
-@RG	ID:A	PL:txtPlatform	LB:txtLib	DT:2014-11-10	SM:txtSample	CN:txtCenter

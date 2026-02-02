@@ -1,5 +1,0 @@
-@HD	VN:1.4
-@SQ	SN:from_chr9	LN:57	UR:file:/Users/dpark/dev/viral-ngs/test/input/TestToolPicard/in.fasta	M5:e619b7ec4224c26f20993903b80e1c8e
-@SQ	SN:from_ebov_1	LN:50	UR:file:/Users/dpark/dev/viral-ngs/test/input/TestToolPicard/in.fasta	M5:9d0d8dcb3f1cfcb203ceab0c23a24358
-@SQ	SN:from_chr1	LN:50	UR:file:/Users/dpark/dev/viral-ngs/test/input/TestToolPicard/in.fasta	M5:5046b0acf637bca46fbafb571e4fc991
-@SQ	SN:from_ebov_2	LN:50	UR:file:/Users/dpark/dev/viral-ngs/test/input/TestToolPicard/in.fasta	M5:42819f6a988627298972d9585e8d890b

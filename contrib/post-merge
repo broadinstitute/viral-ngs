@@ -1,7 +1,0 @@
-#!/bin/bash
-
-CHANGED=`git diff HEAD@{1} --name-only -- requirements-conda.txt`
-if [[ -n $CHANGED ]];
-then
-    ./contrib/update-conda-env.sh
-fi
