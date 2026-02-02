@@ -38,11 +38,12 @@
    ```
 
 3. **Update repository settings**
-   - [ ] Set default branch to `main`
+   - [x] Set default branch to `main`
    - [ ] Update branch protection rules
-   - [ ] Add secrets: `QUAY_USERNAME`, `QUAY_TOKEN`, `QUAY_API_TOKEN`
+   - [x] Add secrets: `QUAY_USERNAME`, `QUAY_TOKEN`, `CODECOV_TOKEN`
    - [ ] Enable GitHub Packages (ghcr.io)
    - [ ] Update repository description/topics
+   - [x] Close all legacy issues with migration notice
 
 ---
 
@@ -77,8 +78,7 @@ viral-ngs/
 │   └── input/
 ├── .github/workflows/
 │   ├── docker.yml
-│   ├── test.yml
-│   └── cleanup.yml
+│   └── test.yml
 ├── docs/
 ├── README.md
 ├── CLAUDE.md
@@ -146,32 +146,16 @@ viral-ngs/
 
 3. **Create .github/workflows/docker.yml** (see full workflow in Appendix A)
 
-4. **Create .github/workflows/cleanup.yml**
-   ```yaml
-   name: Cleanup Docker Tags
+4. **Feature branch image expiration**
 
-   on:
-     delete:
-       branches: ['**']
-
-   jobs:
-     cleanup:
-       if: github.event.ref_type == 'branch'
-       runs-on: ubuntu-latest
-       steps:
-         - name: Delete Quay.io tags
-           env:
-             BRANCH: ${{ github.event.ref }}
-             QUAY_TOKEN: ${{ secrets.QUAY_API_TOKEN }}
-           run: |
-             for flavor in "" "-baseimage" "-core" "-classify" "-assemble" "-phylo"; do
-               TAG="${BRANCH}${flavor}"
-               curl -X DELETE \
-                 -H "Authorization: Bearer $QUAY_TOKEN" \
-                 "https://quay.io/api/v1/repository/broadinstitute/viral-ngs/tag/$TAG" \
-                 || true
-             done
+   Instead of a cleanup workflow requiring API tokens, use Quay.io's built-in expiration labels.
+   In the Docker workflow, for non-main/non-release builds, append to Dockerfile:
+   ```bash
+   # For feature branch builds only
+   echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.${{ matrix.flavor }}
    ```
+
+   This auto-expires feature branch images after 10 weeks while keeping release and main images permanent.
 
 5. **Verify baseimage builds on both architectures**
 
@@ -332,7 +316,13 @@ Tasks:
 
 3. **Consolidate README.md** from all 5 repos
 
-4. **Optional: Create SKILLS.md** for custom Claude Code commands
+4. **Update README.md badges**
+   - GitHub Actions build status badge
+   - CodeCov coverage badge
+   - Quay.io image badges (for each flavor)
+   - License badge (MIT)
+
+5. **Optional: Create SKILLS.md** for custom Claude Code commands
 
 ### Add Mega Image
 
@@ -400,7 +390,8 @@ quay.io/broadinstitute/viral-ngs:cache-classify-amd64
 
 - **Push on:** Tagged releases, branch pushes
 - **Skip on:** PRs, merge queue builds
-- **Delete:** When branch is deleted on GitHub
+- **Auto-expire:** Feature branch images expire after 10 weeks via `quay.expires-after` label
+- **Permanent:** Release tags and main branch images (no expiration label)
 
 ---
 
