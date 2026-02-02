@@ -39,11 +39,11 @@
 
 3. **Update repository settings**
    - [x] Set default branch to `main`
-   - [ ] Update branch protection rules
    - [x] Add secrets: `QUAY_USERNAME`, `QUAY_TOKEN`, `CODECOV_TOKEN`
-   - [ ] Enable GitHub Packages (ghcr.io)
-   - [ ] Update repository description/topics
+   - [x] Update repository description/topics
    - [x] Close all legacy issues with migration notice
+   - [ ] Branch protection rules (deferred to Phase 4)
+   - [ ] Enable GitHub Packages/ghcr.io (optional, if needed)
 
 ---
 
@@ -348,6 +348,12 @@ RUN python -c "from viral_ngs import assembly, metagenomics, interhost; print('m
 1. [ ] Update WDL docker image references to new tag format
 2. [ ] Test workflows with new images
 3. [ ] Consider transition period with both old/new available
+
+### Configure Branch Protection
+
+1. [ ] Enable branch protection rules on `main`
+2. [ ] Require pull request reviews before merging
+3. [ ] Require status checks to pass (CI builds, tests)
 
 ### Archive Old Repositories
 
