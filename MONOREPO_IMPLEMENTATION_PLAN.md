@@ -43,7 +43,7 @@
    - [x] Update repository description/topics
    - [x] Close all legacy issues with migration notice
    - [ ] Branch protection rules (deferred to Phase 4)
-   - [ ] Enable GitHub Packages/ghcr.io (optional, if needed)
+   - [x] GitHub Packages/ghcr.io (auto-enables on first push, uses GITHUB_TOKEN)
 
 ---
 
