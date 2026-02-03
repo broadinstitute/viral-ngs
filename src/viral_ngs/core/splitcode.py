@@ -739,7 +739,7 @@ def run_splitcode_on_pool(  pool_id,
     """
     with samtools.SamtoolsTool().bam2fq_tmp(pool_bam_file) as (fqin1, fqin2):
         n_fastqs = 2
-        splitcode_tool = splitcode.SplitCodeTool()
+        splitcode_tool = SplitCodeTool()
 
         # output args
         unmapped_r1   = f"{out_demux_dir_path_tmp}/{unmatched_name}.{pool_id}_R1.fastq"

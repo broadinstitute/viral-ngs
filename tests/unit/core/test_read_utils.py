@@ -21,7 +21,7 @@ from tests import TestCaseWithTmp, assert_equal_bam_reads
 class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
-        for cmd_name, parser_fun in read_utils.__commands__:
+        for cmd_name, parser_fun in viral_ngs.read_utils.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
@@ -41,7 +41,7 @@ class TestBwamemIdxstats(TestCaseWithTmp):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
         outBam = viral_ngs.core.file.mkstempfname('.bam', directory=self.tempDir)
         outStats = viral_ngs.core.file.mkstempfname('.stats.txt', directory=self.tempDir)
-        read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBam, outStats)
+        viral_ngs.read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBam, outStats)
         with open(outStats, 'rt') as inf:
             actual_count = int(inf.readline().strip().split('\t')[2])
         self.assertEqual(actual_count, self.samtools.count(outBam, opts=['-F', '4']))
@@ -51,7 +51,7 @@ class TestBwamemIdxstats(TestCaseWithTmp):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
         outBam = viral_ngs.core.file.mkstempfname('.bam', directory=self.tempDir)
         outStats = viral_ngs.core.file.mkstempfname('.stats.txt', directory=self.tempDir)
-        read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBam, outStats, filterReadsAfterAlignment=True)
+        viral_ngs.read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBam, outStats, filterReadsAfterAlignment=True)
         with open(outStats, 'rt') as inf:
             actual_count = int(inf.readline().strip().split('\t')[2])
         self.assertEqual(actual_count, self.samtools.count(outBam, opts=['-F', '4']))
@@ -59,7 +59,7 @@ class TestBwamemIdxstats(TestCaseWithTmp):
 
         outBamNoFiltering = viral_ngs.core.file.mkstempfname('.bam', directory=self.tempDir)
         outStatsNoFiltering = viral_ngs.core.file.mkstempfname('.stats.txt', directory=self.tempDir)
-        read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBamNoFiltering, outStatsNoFiltering, filterReadsAfterAlignment=False)
+        viral_ngs.read_utils.bwamem_idxstats(inBam, self.ebolaRef, outBamNoFiltering, outStatsNoFiltering, filterReadsAfterAlignment=False)
         with open(outStatsNoFiltering, 'rt') as inf:
             count_without_filtering = int(inf.readline().strip().split('\t')[2])
 
@@ -69,7 +69,7 @@ class TestBwamemIdxstats(TestCaseWithTmp):
     def test_bwamem_idxstats_no_bam_output(self):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
         outStats = viral_ngs.core.file.mkstempfname('.stats.txt', directory=self.tempDir)
-        read_utils.bwamem_idxstats(inBam, self.ebolaRef, None, outStats)
+        viral_ngs.read_utils.bwamem_idxstats(inBam, self.ebolaRef, None, outStats)
         with open(outStats, 'rt') as inf:
             actual_count = int(inf.readline().strip().split('\t')[2])
         self.assertGreater(actual_count, 18000)
@@ -90,7 +90,7 @@ class TestMinimap2Idxstats(TestCaseWithTmp):
         outStats = viral_ngs.core.file.mkstempfname('.stats.txt', directory=self.tempDir)
 
         # New signature: minimap2_idxstats(inBam, refFasta, outStats, outReadlist=None, threads=None)
-        read_utils.minimap2_idxstats(inBam, self.ebolaRef, outStats)
+        viral_ngs.read_utils.minimap2_idxstats(inBam, self.ebolaRef, outStats)
 
         with open(outStats, 'rt') as inf:
             actual_count = int(inf.readline().strip().split('\t')[2])
@@ -102,7 +102,7 @@ class TestMinimap2Idxstats(TestCaseWithTmp):
         outStats = viral_ngs.core.file.mkstempfname('.stats.txt', directory=self.tempDir)
         outReadlist = viral_ngs.core.file.mkstempfname('.readlist.txt', directory=self.tempDir)
 
-        read_utils.minimap2_idxstats(inBam, self.ebolaRef, outStats, outReadlist=outReadlist)
+        viral_ngs.read_utils.minimap2_idxstats(inBam, self.ebolaRef, outStats, outReadlist=outReadlist)
 
         # Verify stats file
         with open(outStats, 'rt') as inf:
@@ -139,7 +139,7 @@ class TestFastqBam(TestCaseWithTmp):
 
         # in1.fastq, in2.fastq -> out.bam; header params from command-line
         # Note: --JVMmemory is kept for backwards compatibility but ignored with samtools
-        parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
+        parser = viral_ngs.read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1,
                                   inFastq2,
                                   outBamCmd,
@@ -171,7 +171,7 @@ class TestFastqBam(TestCaseWithTmp):
         assert_equal_bam_reads(self, outBamCmd, expected1_7Sam)
 
         # Test with header file
-        parser = read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
+        parser = viral_ngs.read_utils.parser_fastq_to_bam(argparse.ArgumentParser())
         args = parser.parse_args([inFastq1, inFastq2, outBamTxt, '--header', inHeader])
         args.func_main(args)
 
