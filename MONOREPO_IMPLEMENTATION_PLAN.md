@@ -296,116 +296,111 @@ Tasks:
 - [x] Migrate tests (to `tests/unit/assemble/`)
 - [x] Add `build-on-core` job to GitHub Actions
 
-### Phase 3b: viral-phylo
+### Phase 3b: viral-phylo ✅ COMPLETE
 
-```bash
-git clone https://github.com/broadinstitute/viral-phylo.git viral-phylo-rewrite
-cd viral-phylo-rewrite
-git filter-repo --path-rename 'interhost.py:src/viral_ngs/interhost.py' \
-                --path-rename 'intrahost.py:src/viral_ngs/intrahost.py' \
-                --path-rename 'ncbi.py:src/viral_ngs/ncbi.py' \
-                --path-rename 'phylo/:src/viral_ngs/phylo/' \
-                --tag-rename '':'phylo-' \
-                --force
-```
+**What Was Done:**
 
-Tasks:
-1. [ ] Import with history
-2. [ ] Update imports
-3. [ ] Create `docker/requirements/phylo.txt`
-4. [ ] Create `docker/Dockerfile.phylo`
-5. [ ] Migrate tests
-6. [ ] Verify build and tests
+1. **Git History Preservation**
+   - Cloned viral-phylo and rewrote paths with git filter-repo
+   - Merged with `--allow-unrelated-histories`
+   - All tags renamed with `phylo-` prefix
 
-### Phase 3c: viral-classify
+2. **Module Structure**
+   - `interhost.py`, `intrahost.py`, `ncbi.py` → `src/viral_ngs/`
+   - `phylo/` → `src/viral_ngs/phylo/` (tool wrappers)
+   - Tests in `tests/unit/phylo/`
 
-**Special considerations:**
-- Retire kaiju (env2) and diamond (env3)
-- Attempt to consolidate kraken2/krona (env4) into main environment
-
-```bash
-git clone https://github.com/broadinstitute/viral-classify.git viral-classify-rewrite
-cd viral-classify-rewrite
-
-# Exclude retired tool wrappers if desired
-git filter-repo --path-rename 'metagenomics.py:src/viral_ngs/metagenomics.py' \
-                --path-rename 'taxon_filter.py:src/viral_ngs/taxon_filter.py' \
-                --path-rename 'kmer_utils.py:src/viral_ngs/kmer_utils.py' \
-                --path-rename 'classify/:src/viral_ngs/classify/' \
-                --tag-rename '':'classify-' \
-                --force
-```
+3. **Docker Infrastructure**
+   - Created `docker/requirements/phylo.txt`
+   - Created `docker/Dockerfile.phylo`
+   - Added phylo to `build-on-core` job in GitHub Actions
 
 Tasks:
-1. [ ] Import with history (excluding kaiju/diamond wrappers)
-2. [ ] Update imports
-3. [ ] Create `docker/requirements/classify.txt`
-4. [ ] **Test kraken2/krona consolidation** into main env
-5. [ ] If consolidation fails, keep minimal multi-env pattern
-6. [ ] Create `docker/Dockerfile.classify`
-7. [ ] Migrate tests
-8. [ ] Verify build and tests
+- [x] Import with history
+- [x] Update imports
+- [x] Create `docker/requirements/phylo.txt`
+- [x] Create `docker/Dockerfile.phylo`
+- [x] Migrate tests
+- [x] Verify build and tests
+
+### Phase 3c: viral-classify ✅ COMPLETE
+
+**What Was Done:**
+
+1. **Git History Preservation**
+   - Cloned viral-classify and rewrote paths with git filter-repo
+   - Merged with `--allow-unrelated-histories`
+   - All tags renamed with `classify-` prefix
+
+2. **Module Structure**
+   - `metagenomics.py`, `taxon_filter.py`, `kmer_utils.py` → `src/viral_ngs/`
+   - `classify/` → `src/viral_ngs/classify/` (tool wrappers)
+   - Tests in `tests/unit/classify/`
+
+3. **Retired Tools**
+   - Removed kaiju, megan, diamond (unused)
+   - Removed kraken v1, krakenuniq (superseded by kraken2)
+   - Successfully consolidated kraken2/krona into main environment
+
+4. **Docker Infrastructure**
+   - Created `docker/requirements/classify.txt` (consolidated kraken2+krona)
+   - Created `docker/Dockerfile.classify`
+   - Added classify to `build-on-core` job in GitHub Actions
+
+Tasks:
+- [x] Import with history (excluding kaiju/diamond wrappers)
+- [x] Update imports
+- [x] Create `docker/requirements/classify.txt`
+- [x] **Test kraken2/krona consolidation** into main env ✅ SUCCESS
+- [x] Create `docker/Dockerfile.classify`
+- [x] Migrate tests
+- [x] Verify build and tests
 
 ---
 
-## Phase 4: Finalize and Transition
+## Phase 4: Finalize and Transition ✅ COMPLETE
 
-### Documentation Consolidation
+### Documentation Consolidation ✅
 
-1. **Create AGENTS.md** - merge content from:
-   - viral-core/CLAUDE.md
-   - viral-core/DEVELOPMENT_NOTES.md
-   - New monorepo-specific guidance
+1. **Created AGENTS.md** - comprehensive guide for AI assistants:
+   - Development environment and workflow
+   - Code architecture and module structure
+   - Import patterns and conventions
+   - Docker images and CI/CD
+   - Coding guidelines and troubleshooting
 
-2. **Create minimal CLAUDE.md**
-   ```markdown
-   # CLAUDE.md
-   See @AGENTS.md for project context and guidelines.
-   ```
+2. **Updated CLAUDE.md** - minimal pointer to AGENTS.md
 
-3. **Consolidate README.md** from all 5 repos
-
-4. **Update README.md badges**
+3. **Updated README.md**
    - GitHub Actions build status badge
-   - CodeCov coverage badge
-   - Quay.io image badges (for each flavor)
    - License badge (MIT)
+   - Docker image usage examples
+   - Quick start guide
+   - Module structure overview
 
-5. **Optional: Create SKILLS.md** for custom Claude Code commands
+### Add Mega Image ✅
 
-### Add Mega Image
+Created `docker/Dockerfile.mega` that:
+- Builds on core image
+- Installs ALL dependencies (assemble, classify, phylo)
+- Verifies all module imports
+- Gets `latest` tag on main branch
 
-Create `docker/Dockerfile.mega`:
-```dockerfile
-FROM quay.io/broadinstitute/viral-ngs:${VERSION}-core
+Added `build-mega` job to GitHub Actions workflow.
 
-COPY docker/requirements/ /tmp/requirements/
-COPY docker/install-conda-deps.sh /tmp/
+### Remaining Tasks (Post-Migration)
 
-# Install ALL deps together
-RUN /tmp/install-conda-deps.sh \
-    /tmp/requirements/core.txt \
-    /tmp/requirements/classify.txt \
-    /tmp/requirements/assemble.txt \
-    /tmp/requirements/phylo.txt
-
-RUN python -c "from viral_ngs import assembly, metagenomics, interhost; print('mega OK')"
-```
-
-### Update viral-pipelines
-
+#### Update viral-pipelines
 1. [ ] Update WDL docker image references to new tag format
 2. [ ] Test workflows with new images
 3. [ ] Consider transition period with both old/new available
 
-### Configure Branch Protection
-
+#### Configure Branch Protection
 1. [ ] Enable branch protection rules on `main`
 2. [ ] Require pull request reviews before merging
 3. [ ] Require status checks to pass (CI builds, tests)
 
-### Archive Old Repositories
-
+#### Archive Old Repositories
 1. [ ] Add deprecation notices to old repos
 2. [ ] Point to new monorepo
 3. [ ] Archive (make read-only) after transition period

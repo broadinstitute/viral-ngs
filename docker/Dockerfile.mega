@@ -1,0 +1,55 @@
+# viral-ngs mega image
+# Builds on core, adds ALL tools (assembly, classification, phylogenetics)
+#
+# This provides:
+# - All core bioinformatics tools (from core image)
+# - All assembly tools (SPAdes, MUMmer, MAFFT, skani, etc.)
+# - All classification tools (Kraken2, BLAST, BMTagger, KMC, etc.)
+# - All phylogenetics tools (LoFreq, SnpEff, MUSCLE, V-Phaser2, etc.)
+#
+# Usage:
+#   docker build --build-arg BASEIMAGE=quay.io/broadinstitute/viral-ngs:main-core -t viral-ngs:mega -f docker/Dockerfile.mega .
+
+ARG BASEIMAGE=quay.io/broadinstitute/viral-ngs:main-core
+FROM ${BASEIMAGE}
+
+LABEL maintainer="viral-ngs@broadinstitute.org"
+LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-ngs"
+
+# Enable conda environment activation for RUN commands
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+
+# Copy requirements and dependency installation script
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt docker/requirements/classify.txt docker/requirements/phylo.txt /tmp/requirements/
+COPY docker/install-conda-deps.sh /tmp/
+
+# Install ALL conda dependencies in single resolver call for proper dependency resolution
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt /tmp/requirements/classify.txt /tmp/requirements/phylo.txt
+
+# Copy source code (includes all modules)
+COPY src/ /opt/viral-ngs/source/src/
+COPY scripts/ /opt/viral-ngs/source/scripts/
+COPY pyproject.toml README.md LICENSE /opt/viral-ngs/source/
+
+# Install viral-ngs package
+# VERSION is passed from GitHub Actions via git describe
+WORKDIR /opt/viral-ngs/source
+ARG VERSION
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
+RUN pip install --no-cache-dir . && \
+    echo "${VERSION}" > /opt/viral-ngs/source/VERSION
+
+# Verify installation - all modules
+RUN python -c "from viral_ngs import read_utils, illumina; print('Core command modules OK')" && \
+    python -c "from viral_ngs import assembly; print('Assembly command modules OK')" && \
+    python -c "from viral_ngs import metagenomics, taxon_filter, kmer_utils; print('Classify command modules OK')" && \
+    python -c "from viral_ngs import interhost, intrahost, ncbi; print('Phylo command modules OK')" && \
+    python -c "from viral_ngs.core import samtools, picard, bwa; print('Core tools OK')" && \
+    python -c "from viral_ngs.assemble import spades, mummer, mafft; print('Assemble tools OK')" && \
+    python -c "from viral_ngs.classify import kraken2, blast, bmtagger; print('Classify tools OK')" && \
+    python -c "from viral_ngs.phylo import mafft, muscle, snpeff; print('Phylo tools OK')"
+
+# Clean up
+RUN rm -rf /tmp/requirements /tmp/install-conda-deps.sh
+
+CMD ["/bin/bash"]

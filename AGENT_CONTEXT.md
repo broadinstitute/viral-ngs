@@ -12,10 +12,11 @@
 | Phase 1: Foundation | ✅ COMPLETE | pyproject.toml, baseimage, CI workflow created |
 | Phase 2: Migrate viral-core | ✅ COMPLETE | Consolidated to `core/`, all deps via conda, x86-only handling |
 | Phase 3a: Migrate viral-assemble | ✅ COMPLETE | 3,448 commits, tests in tests/unit/assemble/ |
-| Phase 3b-c: Migrate phylo, classify | 🔲 NOT STARTED | phylo and classify remaining |
-| Phase 4: Finalize | 🔲 NOT STARTED | mega image, docs, badges |
+| Phase 3b: Migrate viral-phylo | ✅ COMPLETE | Full history, tests in tests/unit/phylo/ |
+| Phase 3c: Migrate viral-classify | ✅ COMPLETE | Full history, retired kaiju/megan/kraken v1, tests in tests/unit/classify/ |
+| Phase 4: Finalize | ✅ COMPLETE | AGENTS.md, README.md badges, Dockerfile.mega |
 
-**Next action:** Start Phase 3b (migrate viral-phylo with git history preservation).
+**Migration complete!** The monorepo is now fully functional with all modules migrated.
 
 ---
 
