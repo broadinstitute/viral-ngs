@@ -375,6 +375,14 @@ Feature branch images get `quay.expires-after=10w` label for automatic cleanup.
 
 ## Coding Guidelines
 
+### Agent Attribution
+
+**Commit messages**: By default, do NOT include agent/model credits (e.g., "Co-Authored-By: Claude") in commit messages. This reduces noise in the git history.
+
+**Code review comments**: DO include notes about agent/model involvement when writing code review comments (e.g., PR reviews, inline comments). This provides useful context about how the review was conducted.
+
+**Explicit requests**: Include agent attribution in commits or elsewhere when explicitly requested by a human reviewer or contributor.
+
 ### Test-Driven Development
 
 1. Write tests first
