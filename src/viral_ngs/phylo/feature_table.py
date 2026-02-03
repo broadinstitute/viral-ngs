@@ -3,7 +3,7 @@
 import re
 import os
 
-import phylo.feature_table_types
+from . import feature_table_types
 
 class SeqPosition(object):
     def __init__(self, position, location_operator=None, allow_fuzzy=True):
@@ -139,7 +139,7 @@ class AttrDict(dict):
 
 class FeatureTable(object):
     # get feature table keys from extensive map
-    _default_feature_types = sorted(phylo.feature_table_types.ft_types.keys())
+    _default_feature_types = sorted(feature_table_types.ft_types.keys())
 
     def __init__(self, filepath=None, valid_feature_types=None):
         self.refID = None

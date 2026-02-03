@@ -9,9 +9,9 @@ import unittest
 import argparse
 
 # module-specific
-import ncbi
-import util.file
-import phylo.genbank
+import viral_ngs.ncbi
+import viral_ngs.core.file
+import viral_ngs.phylo.genbank
 from test import (assert_equal_bam_reads, TestCaseWithTmp, assert_equal_contents,
                   assert_md5_equal_to_line_in_file, assert_valid_feature_table)
 
@@ -26,26 +26,26 @@ class TestCommandHelp(unittest.TestCase):
 class TestFeatureReader(TestCaseWithTmp):
     def setUp(self):
         super(TestFeatureReader, self).setUp()
-        self.input_dir = util.file.get_test_input_path(self)
+        self.input_dir = viral_ngs.core.file.get_test_input_path(self)
 
     def test_read_seq_id_simple(self):
         accessions = ('GU481072.1', 'GU481073.1',
             'KM821772.1', 'KM821773.1')
         for acc in accessions:
-            self.assertEqual(acc, phylo.genbank.get_feature_table_id(os.path.join(self.input_dir, acc+'.tbl')))
+            self.assertEqual(acc, viral_ngs.phylo.genbank.get_feature_table_id(os.path.join(self.input_dir, acc+'.tbl')))
 
     def test_read_seq_id_different_fnames(self):
-        self.assertEqual('KM821998.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
+        self.assertEqual('KM821998.1', viral_ngs.phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'test1-S.tbl')))
-        self.assertEqual('KM821997.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
+        self.assertEqual('KM821997.1', viral_ngs.phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'test2-L.tbl')))
 
     def test_read_seq_id_refseq(self):
-        self.assertEqual('NC_026438.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
+        self.assertEqual('NC_026438.1', viral_ngs.phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'NC_026438.1.tbl')))
 
     def test_read_seq_id_ddbj(self):
-        self.assertEqual('LC889323.1', phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
+        self.assertEqual('LC889323.1', viral_ngs.phylo.genbank.get_feature_table_id(os.path.join(self.input_dir,
             'LC889323.1.tbl')))
 
     def test_seq_location_str_format(self):
@@ -63,7 +63,7 @@ class TestFeatureReader(TestCaseWithTmp):
 class TestFeatureTransfer(TestCaseWithTmp):
     def setUp(self):
         super(TestFeatureTransfer, self).setUp()
-        self.input_dir = util.file.get_test_input_path(self)
+        self.input_dir = viral_ngs.core.file.get_test_input_path(self)
 
     def test_synthetic_feature_table(self):
         input_dir = os.path.join(self.input_dir, "synthetic", "input")

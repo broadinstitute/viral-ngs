@@ -18,12 +18,11 @@ import Bio.SeqRecord
 import Bio.Seq
 
 # module-specific
-import intrahost
-import util.file
-import phylo.vcf
-import test
-from intrahost import AlleleFieldParser
-import phylo.mafft
+import viral_ngs.intrahost
+import viral_ngs.core.file
+import viral_ngs.phylo.vcf
+from viral_ngs.intrahost import AlleleFieldParser
+import viral_ngs.phylo.mafft
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -35,16 +34,16 @@ class TestCommandHelp(unittest.TestCase):
 
 
 def makeTempFasta(seqs):
-    fn = util.file.mkstempfname('.fasta')
+    fn = viral_ngs.core.file.mkstempfname('.fasta')
     with open(fn, 'wt') as outf:
-        for line in util.file.fastaMaker(seqs):
+        for line in viral_ngs.core.file.fastaMaker(seqs):
             outf.write(line)
     return fn
 
 
 class MockVphaserOutput:
     ''' This creates test data that pretends to be the output from
-        tools.vphaser2.Vphaser2Tool.iterate
+        viral_ngs.core.vphaser2.Vphaser2Tool.iterate
     '''
 
     def __init__(self):
@@ -151,7 +150,7 @@ class TestIntrahostFilters(unittest.TestCase):
         self.assertEqual(output[0][7:], expected[7:])
 
 
-#@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+#@unittest.skipIf(viral_ngs.core.is_osx(), "vphaser2 osx binary from bioconda has issues")
 @unittest.skip("vphaser2 behaving unpredictably; not used in WDL pipelines")
 class TestPerSample(test.TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process
@@ -173,10 +172,10 @@ class TestPerSample(test.TestCaseWithTmp):
         #   for example, pos 660 is C in ref.fasta, but more reads have T there
         #   than C in in.bam. So we are actually testing the case that
         #   V-Phaser 2 consensus != our consensus.
-        myInputDir = util.file.get_test_input_path(self)
+        myInputDir = viral_ngs.core.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
-        outTab = util.file.mkstempfname('.txt')
+        outTab = viral_ngs.core.file.mkstempfname('.txt')
         intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
         self.assertEqualContents(outTab, expected)
@@ -223,14 +222,14 @@ class VcfMergeRunner:
         self.isnvs[sample].add_indel(chrom, pos, acounts, libinfo)
 
     def dump_isnv_tmp_file(self, sample):
-        fn = util.file.mkstempfname('.txt')
+        fn = viral_ngs.core.file.mkstempfname('.txt')
         with open(fn, 'wt') as outf:
             for row in self.isnvs[sample]:
                 outf.write('\t'.join(map(str, row)) + '\n')
         return fn
 
     def run_and_get_vcf_rows(self, retree=1, omit_samplenames=False):
-        outVcf = util.file.mkstempfname('.vcf.gz')
+        outVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
 
         self.multi_align_samples(retree=retree)
 
@@ -242,7 +241,7 @@ class VcfMergeRunner:
                               self.alignedFastas)
 
 
-        with phylo.vcf.VcfReader(outVcf) as vcf:
+        with viral_ngs.phylo.vcf.VcfReader(outVcf) as vcf:
             rows = list(vcf.get())
         return rows
 
@@ -257,7 +256,7 @@ class VcfMergeRunner:
             genomeKVIterator = self.genomeFastas.items()
 
         for sampleName, fastaFile in genomeKVIterator:
-            with util.file.open_or_gzopen(fastaFile, 'r') as inf:
+            with viral_ngs.core.file.open_or_gzopen(fastaFile, 'r') as inf:
                 for seq in Bio.SeqIO.parse(inf, 'fasta'):
                     self.sequence_order.setdefault(sampleName, default=[])
                     self.sequence_order[sampleName].append(seq.id)
@@ -265,15 +264,15 @@ class VcfMergeRunner:
         inputFastas = []
         inputFastas.append(self.ref)
         inputFastas.extend(self.genomeFastas.values())
-        transposedFiles = util.file.transposeChromosomeFiles(inputFastas)
+        transposedFiles = viral_ngs.core.file.transposeChromosomeFiles(inputFastas)
 
         # since the FASTA files are
         for idx, filePath in enumerate(transposedFiles):
 
-            outFile = util.file.mkstempfname('.fasta')
+            outFile = viral_ngs.core.file.mkstempfname('.fasta')
             outFilePath = os.path.dirname(outFile)
 
-            alignedOutFile = phylo.mafft.MafftTool().execute(
+            alignedOutFile = viral_ngs.phylo.mafft.MafftTool().execute(
                 inFastas=[os.path.abspath(filePath)],
                 outFile=os.path.join(outFilePath, "{}{}.fasta".format("aligned", idx)),
                 localpair=False,
@@ -300,19 +299,19 @@ class TestVcfMerge(test.TestCaseWithTmp):
     def test_empty_output(self):
         ref = makeTempFasta([('ref1', 'ATCGCA')])
         s1 = makeTempFasta([('s1-1', 'ATCGCA')])
-        emptyfile = util.file.mkstempfname('.txt')
-        outVcf = util.file.mkstempfname('.vcf')
+        emptyfile = viral_ngs.core.file.mkstempfname('.txt')
+        outVcf = viral_ngs.core.file.mkstempfname('.vcf')
         #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertGreater(os.path.getsize(outVcf), 0)
-        with util.file.open_or_gzopen(outVcf, 'rt') as inf:
+        with viral_ngs.core.file.open_or_gzopen(outVcf, 'rt') as inf:
             for line in inf:
                 self.assertTrue(line.startswith('#'))
-        outVcf = util.file.mkstempfname('.vcf.gz')
+        outVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
         #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertGreater(os.path.getsize(outVcf), 0)
-        with util.file.open_or_gzopen(outVcf, 'rt') as inf:
+        with viral_ngs.core.file.open_or_gzopen(outVcf, 'rt') as inf:
             for line in inf:
                 self.assertTrue(line.startswith('#'))
 
@@ -320,8 +319,8 @@ class TestVcfMerge(test.TestCaseWithTmp):
         ref = makeTempFasta([('ref1', 'ATCGTTCA'), ('ref2', 'GGCCC')])
         s1 = makeTempFasta([('s1-1', 'ATCGCA'), ('s1-2', 'GGCCC')])
         s2 = makeTempFasta([('s2-1', 'ATCGTTCA'), ('s2-2', 'GGCCC')])
-        emptyfile = util.file.mkstempfname('.txt')
-        outVcf = util.file.mkstempfname('.vcf.gz')
+        emptyfile = viral_ngs.core.file.mkstempfname('.txt')
+        outVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
         self.assertRaises(
             LookupError, intrahost.merge_to_vcf, ref, outVcf, [
                 's1', 's2'
@@ -330,7 +329,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
             ], [
                 s1, s2
             ])
-        with phylo.vcf.VcfReader(outVcf) as vcf:
+        with viral_ngs.phylo.vcf.VcfReader(outVcf) as vcf:
             self.assertEqual(vcf.samples(), ['s1', 's2'])
             self.assertEqual(vcf.chrlens(), {'ref1': 8, 'ref2': 5})
 

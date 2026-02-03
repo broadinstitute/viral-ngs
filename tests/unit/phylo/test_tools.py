@@ -3,10 +3,10 @@
 __author__ = "yesimon@broadinstitute.org"
 
 import pytest
-import tools
-from tools import *
+import viral_ngs.core
+from viral_ngs.core import Tool, PrexistingUnixCommand
 
-@pytest.fixture(params=tools.all_tool_classes())
+@pytest.fixture(params=viral_ngs.core.all_tool_classes())
 def tool_class(request):
     return request.param
 

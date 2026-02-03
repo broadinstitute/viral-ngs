@@ -2,9 +2,8 @@
 
 __author__ = "irwin@broadinstitute.org"
 
-import interhost
-import test
-import util.file
+import viral_ngs.interhost
+import viral_ngs.core.file
 import unittest
 import argparse
 import itertools
@@ -19,9 +18,9 @@ class TestCommandHelp(unittest.TestCase):
 
 
 def makeTempFasta(seqs):
-    fn = util.file.mkstempfname('.fasta')
+    fn = viral_ngs.core.file.mkstempfname('.fasta')
     with open(fn, 'wt') as outf:
-        for line in util.file.fastaMaker(seqs):
+        for line in viral_ngs.core.file.fastaMaker(seqs):
             outf.write(line)
     return fn
 
@@ -83,7 +82,7 @@ class TestCoordMapper(test.TestCaseWithTmp):
     def test_unequal_genomes_error(self):
         genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
         genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC')])
-        with self.assertRaises(util.file.TranspositionError):
+        with self.assertRaises(viral_ngs.core.file.TranspositionError):
             cm = interhost.CoordMapper()
             cm.align_and_load_sequences([genomeA, genomeB])
 
@@ -282,7 +281,7 @@ class TestSpecificAlignments(test.TestCaseWithTmp):
             self.assertEqual(cm.mapChr('s2', 's3', x), ('s3', y))
         for x, y in ((1, 1), (2, 2), (3, 2), (4, 3)):
             self.assertEqual(cm.mapChr('s3', 's2', x), ('s2', y))
-        for a, b in itertools.combinations(('s2', 's4', 's5'), 2):
+        for a, b in iterviral_ngs.core.combinations(('s2', 's4', 's5'), 2):
             for i in (1, 2, 3):
                 self.assertEqual(cm.mapChr(a, b, i), (b, i))
                 self.assertEqual(cm.mapChr(b, a, i), (a, i))

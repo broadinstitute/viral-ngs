@@ -21,12 +21,12 @@ from collections import OrderedDict
 import Bio.AlignIO, Bio.SeqIO
 
 # module-specific
-import util.cmd
-import util.file
-import phylo.muscle
-import phylo.snpeff
-import phylo.mafft
-import phylo.vcf
+from .core import cmd
+from .core import file
+from .phylo import muscle
+from .phylo import snpeff
+from .phylo import mafft
+from .phylo import vcf
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class CoordMapper(collections.abc.MutableMapping):
             a pair of real bases in between.
     """
 
-    def __init__(self, alignerTool=phylo.muscle.MuscleTool):
+    def __init__(self, alignerTool=muscle.MuscleTool):
         """ The two genomes are described by fasta files with the same number of
             chromosomes, and corresponding chromosomes must be in same order.
         """
@@ -214,13 +214,13 @@ class CoordMapper(collections.abc.MutableMapping):
         aligner = self.alignerTool if aligner is None else aligner
 
         # transpose
-        per_chr_fastas = util.file.transposeChromosomeFiles(unaligned_fasta_files)
+        per_chr_fastas = file.transposeChromosomeFiles(unaligned_fasta_files)
         if not per_chr_fastas:
             raise Exception('no input sequences')
         # align
         alignOutFileNames = []
         for alignInFileName in per_chr_fastas:
-            alignOutFileName = util.file.mkstempfname('.fasta')
+            alignOutFileName = file.mkstempfname('.fasta')
             aligner.execute(alignInFileName, alignOutFileName)
             alignOutFileNames.append(alignOutFileName)
             os.unlink(alignInFileName)
@@ -325,8 +325,8 @@ def parser_snpEff(parser=argparse.ArgumentParser()):
         NCBI requires you to specify your email address with each request.
         In case of excessive usage of the E-utilities, NCBI will attempt to contact
         a user at the email address provided before blocking access.""")
-    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, phylo.snpeff.SnpEff().annotate_vcf, split_args=True)
+    cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, snpeff.SnpEff().annotate_vcf, split_args=True)
     return parser
 
 
@@ -382,15 +382,15 @@ def parser_align_mafft(parser):
 
     parser.add_argument('outFile', help='Output file containing alignment result (default format: FASTA)')
 
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_align_mafft)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_align_mafft)
     return parser
 
 
 def main_align_mafft(args):
     ''' Run the mafft alignment on the input FASTA file.'''
 
-    phylo.mafft.MafftTool().execute(
+    mafft.MafftTool().execute(
         inFastas=args.inFastas,
         outFile=args.outFile,
         localpair=args.localpair,
@@ -433,8 +433,8 @@ def parser_multichr_mafft(parser):
         sample names in the order of their sequence
         positions in the output.""")
 
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, multichr_mafft)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, multichr_mafft)
     return parser
 
 
@@ -454,7 +454,7 @@ def multichr_mafft(args):
     prefix = "" if args.outFilePrefix is None else args.outFilePrefix
 
     # reorder the data into new FASTA files, where each FASTA file has only variants of its respective chromosome
-    transposedFiles = util.file.transposeChromosomeFiles(args.inFastas, args.sampleRelationFile, args.sampleNameListFile)
+    transposedFiles = file.transposeChromosomeFiles(args.inFastas, args.sampleRelationFile, args.sampleNameListFile)
 
     # since the FASTA files are
     for idx, filePath in enumerate(transposedFiles):
@@ -462,7 +462,7 @@ def multichr_mafft(args):
         # execute MAFFT alignment. The input file is passed within a list, since argparse ordinarily
         # passes input files in this way, and the MAFFT tool expects lists,
         # but in this case we are creating the input file ourselves
-        phylo.mafft.MafftTool().execute(
+        mafft.MafftTool().execute(
             inFastas=[os.path.abspath(filePath)],
             outFile=os.path.join(absoluteOutDirectory, "{}_{}.fasta".format(prefix, idx + 1)),
             localpair=args.localpair,
@@ -536,8 +536,8 @@ def make_vcf(a, ref_idx, chrom):
 
 
 def full_parser():
-    return util.cmd.make_parser(__commands__, __doc__)
+    return cmd.make_parser(__commands__, __doc__)
 
 
 if __name__ == '__main__':
-    util.cmd.main_argparse(__commands__, __doc__)
+    cmd.main_argparse(__commands__, __doc__)

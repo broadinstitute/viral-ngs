@@ -4,9 +4,9 @@
 '''
 
 
-import tools
-import util.file
-import util.misc
+from viral_ngs import core
+from viral_ngs.core import file
+from viral_ngs.core import misc
 
 import os
 import os.path
@@ -19,11 +19,11 @@ TOOL_NAME = "muscle"
 _log = logging.getLogger(__name__)
 
 
-class MuscleTool(tools.Tool):
+class MuscleTool(core.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(MuscleTool, self).__init__(install_methods=install_methods)
 
     def version(self):

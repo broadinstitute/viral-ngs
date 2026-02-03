@@ -7,8 +7,8 @@ __date__ = "PLACEHOLDER"
 
 import logging
 import pysam
-import util.file
-import util.misc
+from viral_ngs.core import file
+from viral_ngs.core import misc
 
 log = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ def get_chrlens(inFile):
                         c_len = int(row[2][3:])
                         chrlens.append((c, c_len))
         elif inFile.endswith('.vcf') or inFile.endswith('.vcf.gz'):
-            with util.file.open_or_gzopen(inFile, 'rt') as inf:
+            with file.open_or_gzopen(inFile, 'rt') as inf:
                 for line in inf:
                     line = line.rstrip('\n')
                     if line.startswith('##contig=<ID=') and line.endswith('>'):
@@ -156,7 +156,7 @@ def calc_maf(genos, ancestral=None, ploidy=1):
 
     # count up
     out = {'n_tot': len(alleles)}
-    acounts = util.misc.histogram(alleles)
+    acounts = misc.histogram(alleles)
     alist = sorted([(n, a) for a, n in acounts.items()])
 
     # daf

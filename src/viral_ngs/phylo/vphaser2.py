@@ -8,19 +8,19 @@ import os
 import tempfile
 import shutil
 import pysam
-import tools
-import util.file
+from viral_ngs import core
+from viral_ngs.core import file
 
 log = logging.getLogger(__name__)
 
 TOOL_NAME = "vphaser2"
 TOOL_VERSION = "2.0"
 
-class Vphaser2Tool(tools.Tool):
+class Vphaser2Tool(core.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(Vphaser2Tool, self).__init__(install_methods=install_methods)
 
     def execute(self, inBam, outDir, numThreads=None):    # pylint: disable=W0221
@@ -57,7 +57,7 @@ class Vphaser2Tool(tools.Tool):
           SNP_or_LP_Profile1, SNP_or_LP_Profile2, ...]
         """
         #outdir = tempfile.mkdtemp('vphaser2')
-        with util.file.tmp_dir(prefix='vphaser2') as outdir:
+        with file.tmp_dir(prefix='vphaser2') as outdir:
             try:
                 self.execute(inBam, outdir, numThreads)
             finally:

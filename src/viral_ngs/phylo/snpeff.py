@@ -15,10 +15,10 @@ import shutil
 import pysam
 
 # module-specific
-import tools
-import util.file
-import util.misc
-import phylo.genbank
+from viral_ngs import core
+from viral_ngs.core import file
+from viral_ngs.core import misc
+from . import genbank
 
 _log = logging.getLogger(__name__)
 
@@ -26,12 +26,12 @@ TOOL_NAME = 'snpEff'
 TOOL_VERSION = '4.3.1t'
 
 
-class SnpEff(tools.Tool):
+class SnpEff(core.Tool):
 
     def __init__(self, install_methods=None, extra_genomes=None):
         self.jvmMemDefault = '4g'
         if not install_methods:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         self.known_dbs = set()
         self.installed_dbs = set()
         super(SnpEff, self).__init__(install_methods=install_methods)
@@ -55,7 +55,7 @@ class SnpEff(tools.Tool):
             ] + args
 
         _log.debug(' '.join(tool_cmd))
-        return util.misc.run_and_print(tool_cmd, stdin=stdin, stderr=stderr, buffered=True, silent=command in ("databases","build"), check=True)
+        return misc.run_and_print(tool_cmd, stdin=stdin, stderr=stderr, buffered=True, silent=command in ("databases","build"), check=True)
 
     def has_genome(self, genome):
         if not self.known_dbs:
@@ -73,7 +73,7 @@ class SnpEff(tools.Tool):
         self.installed_dbs.add(dbname)
 
     def create_db(self, accessions, emailAddress=None, JVMmemory=None):
-        sortedAccessionString = ", ".join([phylo.genbank.parse_accession_str(acc) for acc in sorted(accessions)])
+        sortedAccessionString = ", ".join([genbank.parse_accession_str(acc) for acc in sorted(accessions)])
         databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
         # if the database is not installed, we need to make it
@@ -88,7 +88,7 @@ class SnpEff(tools.Tool):
             else:
                 outputDir = os.path.realpath(os.path.join(os.path.dirname(config_file), data_dir, databaseId))
 
-            phylo.genbank.fetch_full_records_from_genbank(
+            genbank.fetch_full_records_from_genbank(
                 sorted(accessions), 
                 outputDir,
                 emailAddress,
@@ -161,13 +161,13 @@ class SnpEff(tools.Tool):
         Annotate variants in VCF file with translation consequences using snpEff.
         """
         if outVcf.endswith('.vcf.gz'):
-            tmpVcf = util.file.mkstempfname(prefix='vcf_snpEff-', suffix='.vcf')
+            tmpVcf = file.mkstempfname(prefix='vcf_snpEff-', suffix='.vcf')
         elif outVcf.endswith('.vcf'):
             tmpVcf = outVcf
         else:
             raise Exception("invalid input")
 
-        sortedAccessionString = ", ".join([phylo.genbank.parse_accession_str(acc) for acc in sorted(genomes)])
+        sortedAccessionString = ", ".join([genbank.parse_accession_str(acc) for acc in sorted(genomes)])
         databaseId = hashlib.sha256(sortedAccessionString.encode('utf-8')).hexdigest()[:55]
 
         genomeToUse = ""

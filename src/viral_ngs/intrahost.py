@@ -22,15 +22,15 @@ import Bio.Data.IUPACData
 import pysam
 
 # module-specific
-import tools.samtools
-import util.cmd
-import util.file
-import util.misc
-import phylo.genbank
-import phylo.vcf
-import phylo.vphaser2
-from util.stats import median, fisher_exact, chi2_contingency
-import interhost
+from .core import samtools
+from .core import cmd
+from .core import file
+from .core import misc
+from .phylo import genbank
+from .phylo import vcf
+from .phylo import vphaser2
+from .core.stats import median, fisher_exact, chi2_contingency
+from . import interhost
 
 log = logging.getLogger(__name__)
 
@@ -111,25 +111,25 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
             sequence/chrom name, and library counts and p-values appended to
             the counts for each allele.
     '''
-    samtoolsTool = tools.samtools.SamtoolsTool()
+    samtoolsTool = samtools.SamtoolsTool()
 
     if minReadsEach is not None and minReadsEach < 0:
         raise Exception('minReadsEach must be at least 0.')
 
     sorted_bam_file = inBam
-    if not util.file.bam_is_sorted(inBam):
-        sorted_bam_file = util.file.mkstempfname('.mapped-sorted.bam')
-        sorted_bam_file_tmp = util.file.mkstempfname('.mapped-sorted.bam')
+    if not file.bam_is_sorted(inBam):
+        sorted_bam_file = file.mkstempfname('.mapped-sorted.bam')
+        sorted_bam_file_tmp = file.mkstempfname('.mapped-sorted.bam')
         samtoolsTool.sort(args=['-T', sorted_bam_file_tmp], inFile=inBam, outFile=sorted_bam_file)
 
     bam_to_process = sorted_bam_file
     if removeDoublyMappedReads:
-        leading_or_trailing_indels_removed = util.file.mkstempfname('.mapped-leading_or_trailing_indels_removed.bam')
+        leading_or_trailing_indels_removed = file.mkstempfname('.mapped-leading_or_trailing_indels_removed.bam')
         # vphaser crashes when cigar strings have leading or trailing indels
         # so we will use filterByCigarString() with its default regex to remove such reads
         samtoolsTool.filterByCigarString(sorted_bam_file, leading_or_trailing_indels_removed)
 
-        bam_to_process = util.file.mkstempfname('.mapped-withdoublymappedremoved.bam')
+        bam_to_process = file.mkstempfname('.mapped-withdoublymappedremoved.bam')
         samtoolsTool.removeDoublyMappedReads(leading_or_trailing_indels_removed, bam_to_process)
         os.unlink(leading_or_trailing_indels_removed)
 
@@ -140,14 +140,14 @@ def vphaser_one_sample(inBam, inConsFasta, outTab, vphaserNumThreads=None,
     # file to allow the pipeline to continue
     if samtoolsTool.count(bam_to_process) == 0:
         log.warning("The bam file %s has 0 reads after removing doubly-mapped reads. Writing blank V-Phaser output.", bam_to_process)
-        util.file.touch(outTab)
+        file.touch(outTab)
         return None
 
-    variantIter = phylo.vphaser2.Vphaser2Tool().iterate(bam_to_process, vphaserNumThreads)
+    variantIter = vphaser2.Vphaser2Tool().iterate(bam_to_process, vphaserNumThreads)
     filteredIter = filter_strand_bias(variantIter, minReadsEach, maxBias)
 
     libraryFilteredIter = compute_library_bias(filteredIter, bam_to_process, inConsFasta)
-    with util.file.open_or_gzopen(outTab, 'wt') as outf:
+    with file.open_or_gzopen(outTab, 'wt') as outf:
         for row in libraryFilteredIter:
             outf.write('\t'.join(row) + '\n')
 
@@ -187,11 +187,11 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
           so total might not be sum of library counts.
     '''
     alleleCol = 7  # First column of output with allele counts
-    samtoolsTool = tools.samtools.SamtoolsTool()
+    samtoolsTool = samtools.SamtoolsTool()
     rgs_by_lib = sorted((rg['LB'], rg['ID']) for rg in samtoolsTool.getReadGroups(inBam).values())
     rgs_by_lib = itertools.groupby(rgs_by_lib, lambda x: x[0])
     libBams = []
-    header_sam = util.file.mkstempfname('.sam')
+    header_sam = file.mkstempfname('.sam')
     samtoolsTool.dumpHeader(inBam, header_sam)
     for lib, rgs in rgs_by_lib:
         rgs = list(idVal for lb, idVal in rgs)
@@ -202,7 +202,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
         # extract readgroups one by one and then concatenate.
         rgBams = []
         for idVal in rgs:
-            rgBam = util.file.mkstempfname('.bam')
+            rgBam = file.mkstempfname('.bam')
             samtoolsTool.view(['-b', '-r', idVal], inBam, rgBam)
             samtoolsTool.index(rgBam)
             if samtoolsTool.count(rgBam) > 0:
@@ -212,7 +212,7 @@ def compute_library_bias(isnvs, inBam, inConsFasta):
                 os.unlink(rgBam)
         if rgBams:
             if len(rgBams) > 1:
-                libBam = util.file.mkstempfname('.bam')
+                libBam = file.mkstempfname('.bam')
                 samtoolsTool.merge(rgBams, libBam, ['-f', '-1', '-h', header_sam])
                 for bam in rgBams:
                     os.unlink(bam)
@@ -303,8 +303,8 @@ def get_mpileup_allele_counts(inBam, chrom, pos, inConsFasta, samtools=None):
             base itself for non-indels
             'i' or 'd', in which case report count for consensus.
     """
-    samtools = samtools or tools.samtools.SamtoolsTool()
-    pileupFileName = util.file.mkstempfname('.txt')
+    samtools = samtools or samtools.SamtoolsTool()
+    pileupFileName = file.mkstempfname('.txt')
 
     # bcftools params
     # https://samtools.github.io/bcftools/bcftools.html#mpileup
@@ -359,8 +359,8 @@ def parser_vphaser_one_sample(parser=argparse.ArgumentParser()):
                         default=False,
                         action="store_true",
                         help="""When calling V-Phaser, remove reads mapping to more than one contig. Default is to keep the reads.""")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, vphaser_one_sample, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, vphaser_one_sample, split_args=True)
     return parser
 
 
@@ -373,8 +373,8 @@ def parser_vphaser(parser=argparse.ArgumentParser()):
     parser.add_argument("inBam", help="Input Bam file.")
     parser.add_argument("outTab", help="Tab-separated headerless output file.")
     parser.add_argument("--numThreads", type=int, default=None, help="Number of threads in call to V-Phaser 2.")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, vphaser_main, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, vphaser_main, split_args=True)
     return parser
 
 
@@ -384,7 +384,7 @@ def vphaser_main(inBam, outTab, numThreads=None):
             adding CHROM as the first field on each line.
     """
     with open(outTab, 'wt') as outf:
-        for row in phylo.vphaser2.Vphaser2Tool().iterate(inBam, numThreads):
+        for row in vphaser2.Vphaser2Tool().iterate(inBam, numThreads):
             outf.write('\t'.join(row) + '\n')
 
 
@@ -426,8 +426,8 @@ def parser_tabfile_rename(parser=argparse.ArgumentParser()):
                         type=int,
                         help="""Which column number to replace (0-based index). [default: %(default)s]""",
                         default=0)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, tabfile_values_rename, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, tabfile_values_rename, split_args=True)
     return parser
 
 
@@ -478,19 +478,19 @@ def merge_to_vcf(
     if not samples:
         samplenames_from_isnvs = []
         for isnvs_file in isnvs:
-            for row in util.file.read_tabfile(isnvs_file):
+            for row in file.read_tabfile(isnvs_file):
                 guessed_sample_ID = sampleIDMatch(row[0])
                 if guessed_sample_ID not in samplenames_from_isnvs:
                     samplenames_from_isnvs.append(guessed_sample_ID)
         
         samplenames_from_alignments = set()
         for alignmentFile in alignments:
-            with util.file.open_or_gzopen(alignmentFile, 'r') as inf:
+            with file.open_or_gzopen(alignmentFile, 'r') as inf:
                 for seq in Bio.SeqIO.parse(inf, 'fasta'):
                     samplenames_from_alignments.add(sampleIDMatch(seq.id))
 
         refnames = set()
-        with util.file.open_or_gzopen(refFasta, 'r') as inf:
+        with file.open_or_gzopen(refFasta, 'r') as inf:
             for seq in Bio.SeqIO.parse(inf, 'fasta'):
                     refnames.add(sampleIDMatch(seq.id))
 
@@ -509,7 +509,7 @@ def merge_to_vcf(
         for sample in samples:
             sample_found=False
             for isnvs_file in isnvs:
-                for row in util.file.read_tabfile(isnvs_file):
+                for row in file.read_tabfile(isnvs_file):
                     if sample==sampleIDMatch(row[0]):
                         samp_to_isnv[sample] = isnvs_file
                         sample_found=True
@@ -526,13 +526,13 @@ def merge_to_vcf(
     log.info(samp_to_isnv)
 
     # get IDs and sequence lengths for reference sequence
-    with util.file.open_or_gzopen(refFasta, 'r') as inf:
+    with file.open_or_gzopen(refFasta, 'r') as inf:
         ref_chrlens = list((seq.id, len(seq)) for seq in Bio.SeqIO.parse(inf, 'fasta'))
 
     # use the output filepath specified if it is a .vcf, otherwise if it is gzipped we need
     # to write to a temp VCF and then compress to vcf.gz later
     if outVcf.endswith('.vcf.gz'):
-        tmpVcf = util.file.mkstempfname('.vcf')
+        tmpVcf = file.mkstempfname('.vcf')
     elif outVcf.endswith('.vcf'):
         tmpVcf = outVcf
     else:
@@ -553,7 +553,7 @@ def merge_to_vcf(
         # write out the contig lengths present in the reference genome
         for c, clen in ref_chrlens:
             if parse_accession:
-                c = phylo.genbank.parse_accession_str(c)
+                c = genbank.parse_accession_str(c)
             if strip_chr_version:
                 c = strip_accession_version(c)
             outf.write('##contig=<ID=%s,length=%d>\n' % (c, clen))
@@ -580,10 +580,10 @@ def merge_to_vcf(
         # copy the list of alignment files
         alignmentFiles = list(alignments)
 
-        with util.file.open_or_gzopen(refFasta, 'r') as inf:
+        with file.open_or_gzopen(refFasta, 'r') as inf:
             for refSeq in Bio.SeqIO.parse(inf, 'fasta'):
                 for alignmentFile in alignmentFiles:
-                    with util.file.open_or_gzopen(alignmentFile, 'r') as inf2:
+                    with file.open_or_gzopen(alignmentFile, 'r') as inf2:
                         for seq in Bio.SeqIO.parse(inf2, 'fasta'):
                             if refSeq.id == seq.id:
                                 ref_seq_id_to_alignment_file[seq.id] = alignmentFile
@@ -597,7 +597,7 @@ def merge_to_vcf(
                 "There must be an isnv file for each sample. %s samples, %s isnv files" % (len(samples), len(isnvs)))
 
         for fileName in alignments:
-            with util.file.open_or_gzopen(fileName, 'r') as inf:
+            with file.open_or_gzopen(fileName, 'r') as inf:
                 # get two independent iterators into the alignment file
                 number_of_aligned_sequences = count_iter_items(Bio.SeqIO.parse(inf, 'fasta'))
                 num_isnv_files = len(isnvs)
@@ -636,7 +636,7 @@ def merge_to_vcf(
                 samplesToUse = [x for x in cm.chrMaps.keys() if sampleIDMatch(x) in samples]
 
                 alignmentFile = ref_seq_id_to_alignment_file[ref_sequence.id]
-                with util.file.open_or_gzopen(alignmentFile, 'r') as alignFileIn:
+                with file.open_or_gzopen(alignmentFile, 'r') as alignFileIn:
                     for seq in Bio.SeqIO.parse(alignFileIn, 'fasta'):
                         for sampleName in samplesToUse:
                             if seq.id == sampleName:
@@ -651,7 +651,7 @@ def merge_to_vcf(
                 for s in samplesToUse:
                     isnv_filepath = samp_to_isnv[sampleIDMatch(s)]
 
-                    for row in util.file.read_tabfile(isnv_filepath):
+                    for row in file.read_tabfile(isnv_filepath):
                         # map ref->sample
                         s_chrom = cm.mapChr(ref_sequence.id, s)
                         if row[0] == s_chrom:
@@ -845,7 +845,7 @@ def merge_to_vcf(
                     # finally: all other alleles, sorted first by number of containing samples,
                     #          then by intrahost read frequency summed over the population,
                     #          then by the allele string itself.
-                    alleles_cons = [alleleItem for alleleItem, n in sorted(util.misc.histogram(consAlleles.values()).items(),
+                    alleles_cons = [alleleItem for alleleItem, n in sorted(misc.histogram(consAlleles.values()).items(),
                                                          key=lambda x: x[1],
                                                          reverse=True) if alleleItem != refAllele]
                     alleles_isnv = list(itertools.chain.from_iterable(
@@ -859,7 +859,7 @@ def merge_to_vcf(
                         else:
                             log.info("dropped allele %s at position %s:%s", a, ref_sequence.id, pos)
                     alleles_isnv = list(allele for n_samples, n_reads, allele in reversed(sorted(alleles_isnv2)))
-                    alleles = list(util.misc.unique([refAllele] + alleles_cons + alleles_isnv))
+                    alleles = list(misc.unique([refAllele] + alleles_cons + alleles_isnv))
 
                     # map alleles from strings to numeric indexes
                     if not alleles:
@@ -886,7 +886,7 @@ def merge_to_vcf(
                     # prepare output row and write to file
                     c = ref_sequence.id
                     if parse_accession:
-                        c = phylo.genbank.parse_accession_str(c)
+                        c = genbank.parse_accession_str(c)
                     if strip_chr_version:
                         c = strip_accession_version(c)
                     out = [c, pos, '.', alleles[0], ','.join(alleles[1:]), '.', '.', '.', 'GT:AF:DP:NL:LB']
@@ -941,8 +941,8 @@ def parser_merge_to_vcf(parser=argparse.ArgumentParser()):
                         dest="parse_accession",
                         help="""If set, parse only the accession for the chromosome name.
         Helpful if snpEff has to create its own database""")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, merge_to_vcf, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, merge_to_vcf, split_args=True)
     return parser
 
 
@@ -978,7 +978,7 @@ def compute_Fws(vcfrow):
 def add_Fws_vcf(inVcf, outVcf):
     '''Compute the Fws statistic on iSNV data. See Manske, 2012 (Nature)'''
     with open(outVcf, 'wt') as outf:
-        with util.file.open_or_gzopen(inVcf, 'rt') as inf:
+        with file.open_or_gzopen(inVcf, 'rt') as inf:
             for line in inf:
                 if line.startswith('##'):
                     outf.write(line)
@@ -999,8 +999,8 @@ def add_Fws_vcf(inVcf, outVcf):
 def parser_Fws(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
     parser.add_argument("outVcf", help="Output VCF file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, add_Fws_vcf, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, add_Fws_vcf, split_args=True)
     return parser
 
 
@@ -1077,7 +1077,7 @@ def parse_ann(ann_field, alleles, transcript_blacklist=None):
                 v = 'Glycoprotein'
             if v:
                 a_out.append(v)
-        out[k] = ','.join(util.misc.unique(a_out))
+        out[k] = ','.join(misc.unique(a_out))
     return out
 
 
@@ -1090,7 +1090,7 @@ def iSNV_table(vcf_iter):
         ]
         # compute Hs: heterozygosity in population based on consensus genotypes alone
         genos = [row[s].split(':')[0] for s in samples]
-        genos = util.misc.histogram(int(gt) for gt in genos if gt != '.')
+        genos = misc.histogram(int(gt) for gt in genos if gt != '.')
         n = sum(genos.values())
         Hs = 1.0 - sum(k * k / float(n * n) for k in genos.values())
         try:
@@ -1128,8 +1128,8 @@ def iSNV_table(vcf_iter):
 def parser_iSNV_table(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcf", help="Input VCF file")
     parser.add_argument("outFile", help="Output text file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, main_iSNV_table)
+    cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, main_iSNV_table)
     return parser
 
 
@@ -1137,9 +1137,9 @@ def main_iSNV_table(args):
     '''Convert VCF iSNV data to tabular text'''
     header = ['chr', 'pos', 'sample', 'patient', 'time', 'alleles', 'iSNV_freq', 'Hw', 'Hs', 'eff_type',
               'eff_codon_dna', 'eff_aa', 'eff_aa_pos', 'eff_prot_len', 'eff_gene', 'eff_protein']
-    with util.file.open_or_gzopen(args.outFile, 'wt') as outf:
+    with file.open_or_gzopen(args.outFile, 'wt') as outf:
         outf.write('\t'.join(header) + '\n')
-        for row in iSNV_table(util.file.read_tabfile_dict(args.inVcf)):
+        for row in iSNV_table(file.read_tabfile_dict(args.inVcf)):
             sample_parts = row['sample'].split('.')
             row['patient'] = sample_parts[0]
             if len(sample_parts) > 1:
@@ -1172,8 +1172,8 @@ def iSNP_per_patient(table, agg_fun=median):
 def parser_iSNP_per_patient(parser=argparse.ArgumentParser()):
     parser.add_argument("inFile", help="Input text file")
     parser.add_argument("outFile", help="Output text file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, main_iSNP_per_patient)
+    cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, main_iSNP_per_patient)
     return parser
 
 
@@ -1183,7 +1183,7 @@ def main_iSNP_per_patient(args):
               'eff_prot_len', 'eff_gene', 'eff_protein']
     with open(args.outFile, 'wt') as outf:
         outf.write('\t'.join(header) + '\n')
-        for row in iSNP_per_patient(util.file.read_tabfile_dict(args.inFile)):
+        for row in iSNP_per_patient(file.read_tabfile_dict(args.inFile)):
             outf.write('\t'.join(map(str, [row.get(h, '') for h in header])) + '\n')
     return 0
 
@@ -1210,8 +1210,8 @@ def sampleIDMatch(inputString):
 
 
 def full_parser():
-    return util.cmd.make_parser(__commands__, __doc__)
+    return cmd.make_parser(__commands__, __doc__)
 
 
 if __name__ == '__main__':
-    util.cmd.main_argparse(__commands__, __doc__)
+    cmd.main_argparse(__commands__, __doc__)

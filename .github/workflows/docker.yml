@@ -228,8 +228,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flavor: [assemble]
-        # More flavors will be added: classify, phylo
+        flavor: [assemble, phylo]
+        # More flavors will be added: classify
 
     steps:
       - name: Checkout repository

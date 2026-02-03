@@ -4,9 +4,9 @@
 '''
 
 import logging
-import tools
-import util.file
-import util.misc
+from viral_ngs import core
+from viral_ngs.core import file
+from viral_ngs.core import misc
 import os
 import os.path
 import random
@@ -19,11 +19,11 @@ TOOL_NAME = "mummer"
 log = logging.getLogger(__name__)
 
 
-class MummerTool(tools.Tool):
+class MummerTool(core.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(MummerTool, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -35,7 +35,7 @@ class MummerTool(tools.Tool):
         self.tool_version = subprocess.check_output([self.install_and_get_path(), '-version']).decode('UTF-8').strip()
 
     def executable_path(self):
-        exec_path = tools.Tool.executable_path(self)
+        exec_path = core.Tool.executable_path(self)
         if os.path.isdir(exec_path):
             return exec_path
         else:
@@ -145,9 +145,9 @@ class MummerTool(tools.Tool):
             aligner = self.promer
         else:
             raise NameError()
-        delta_1 = util.file.mkstempfname('.delta')
-        delta_2 = util.file.mkstempfname('.delta')
-        tiling = util.file.mkstempfname('.tiling')
+        delta_1 = file.mkstempfname('.delta')
+        delta_2 = file.mkstempfname('.delta')
+        tiling = file.mkstempfname('.tiling')
         aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen)
         self.delta_filter(delta_1, delta_2)
         self.show_tiling(delta_2, tiling, circular=circular, tab_delim=True,
@@ -193,9 +193,9 @@ class MummerTool(tools.Tool):
             aligner = self.promer
         else:
             raise NameError()
-        delta_1 = util.file.mkstempfname('.delta')
-        delta_2 = util.file.mkstempfname('.delta')
-        tiling = util.file.mkstempfname('.tiling')
+        delta_1 = file.mkstempfname('.delta')
+        delta_2 = file.mkstempfname('.delta')
+        tiling = file.mkstempfname('.tiling')
         aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen,
             maxgap=maxgap, minmatch=minmatch, mincluster=mincluster)
         self.delta_filter(delta_1, delta_2)
@@ -226,9 +226,9 @@ class MummerTool(tools.Tool):
             raise NotImplementedError('we have not implemented a show-aligns file reader that works for protein alignments')
         else:
             raise NameError()
-        delta_1 = util.file.mkstempfname('.delta')
-        delta_2 = util.file.mkstempfname('.delta')
-        tiling = util.file.mkstempfname('.tiling')
+        delta_1 = file.mkstempfname('.delta')
+        delta_2 = file.mkstempfname('.delta')
+        tiling = file.mkstempfname('.tiling')
         aligner(refFasta, contigsFasta, delta_1, extend=extend, breaklen=breaklen,
             maxgap=maxgap, minmatch=minmatch, mincluster=mincluster)
         self.delta_filter(delta_1, delta_2)
@@ -240,8 +240,8 @@ class MummerTool(tools.Tool):
         os.unlink(delta_1)
 
         # load intervals into a FeatureSorter
-        fs = util.misc.FeatureSorter()
-        with util.file.open_or_gzopen(tiling, 'r') as inf:
+        fs = misc.FeatureSorter()
+        with file.open_or_gzopen(tiling, 'r') as inf:
             for line in inf:
                 row = line.rstrip('\n\r').split('\t')
                 c = row[11]
@@ -263,7 +263,7 @@ class MummerTool(tools.Tool):
 
         # load all contig-to-ref alignments into AlignsReaders
         alnReaders = {}
-        aln_file = util.file.mkstempfname('.aligns')
+        aln_file = file.mkstempfname('.aligns')
         for c, start, stop, strand, other in fs.get_features():
             chr_pair = (c, other[0])
             if chr_pair not in alnReaders:
@@ -290,7 +290,7 @@ class MummerTool(tools.Tool):
                 def n_diff_lens(seqs): return n_diff_vals(*map(len, seqs))
                 def frac_unambig(seqs):
                     """Given a list of seqs of the same length, return the fraction of positions on which they all agree"""
-                    util.misc.chk(n_diff_lens(alt_seqs_f) == 1, 'ambig_max_lens>1 not currently supported')
+                    misc.chk(n_diff_lens(alt_seqs_f) == 1, 'ambig_max_lens>1 not currently supported')
                     n_tot = len(seqs[0])
                     n_unambig = list(map(n_diff_vals, *seqs)).count(1)
                     return float(n_unambig) / float(n_tot or 1.0)
@@ -324,7 +324,7 @@ class MummerTool(tools.Tool):
                         alternate_contigs.append((c, left, right, ranked_unique_seqs))
 
                 # write this chromosome to fasta file
-                for line in util.file.fastaMaker([(str(c)+"_contigs_ordered_and_oriented", ''.join(seq))]):
+                for line in file.fastaMaker([(str(c)+"_contigs_ordered_and_oriented", ''.join(seq))]):
                     outf.write(line)
 
         # if alternate scaffolds exist, emit to output fasta file (if specified)
@@ -332,7 +332,7 @@ class MummerTool(tools.Tool):
             log.info("emitting alternative scaffold sequences to {}".format(outAlternateContigs))
             with open(outAlternateContigs, 'wt') as outf:
                 for c, left, right, seqs in alternate_contigs:
-                    for line in util.file.fastaMaker([
+                    for line in file.fastaMaker([
                         ("{}:{}-{}_option_{}".format(c,left,right,i), s)
                         for i,s in enumerate(seqs)]):
                         outf.write(line)
@@ -348,13 +348,13 @@ class MummerTool(tools.Tool):
         query_id = Bio.SeqIO.read(otherFasta, 'fasta').id
 
         # run nucmer
-        delta_1 = util.file.mkstempfname('.delta')
-        delta_2 = util.file.mkstempfname('.delta')
+        delta_1 = file.mkstempfname('.delta')
+        delta_2 = file.mkstempfname('.delta')
         self.nucmer(refFasta, otherFasta, delta_1)
         self.delta_filter(delta_1, delta_2)
 
         # run show-aligns
-        aln_file = util.file.mkstempfname('.aligns')
+        aln_file = file.mkstempfname('.aligns')
         toolCmd = [os.path.join(self.install_and_get_path(), 'show-aligns'),
             '-r', delta_2, ref_id, query_id]
         log.debug(' '.join(toolCmd))
@@ -369,7 +369,7 @@ class MummerTool(tools.Tool):
             seqs[1][1].append(a[7])
         seqs[0][1] = ''.join(seqs[0][1])
         seqs[1][1] = ''.join(seqs[1][1])
-        util.file.makeFastaFile(seqs, outFasta)
+        file.makeFastaFile(seqs, outFasta)
 
         # cleanup
         for fn in (delta_1, delta_2, aln_file):
@@ -402,7 +402,7 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
         other_seqs = []
     else:
         # multiple contigs align here
-        ranks = list(sorted(util.misc.histogram(alt_seqs).items(),
+        ranks = list(sorted(misc.histogram(alt_seqs).items(),
             key=lambda x:x[1], reverse=True))
         other_seqs = list(s for s,n in ranks)
         if len(ranks)==1:
@@ -413,7 +413,7 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
             new_seq = ranks[0][0]
         else:
             # multiple possible replacement sequences
-            len_ranks = list(sorted(util.misc.histogram(
+            len_ranks = list(sorted(misc.histogram(
                 [len(s) for s in alt_seqs] + [ref_len] # let the reference have one vote
                 ).items(), key=lambda x:x[1], reverse=True))
             if len(len_ranks)==1 or len_ranks[0][1]>len_ranks[1][1]:
@@ -421,7 +421,7 @@ def contig_chooser(alt_seqs, ref_len, coords_debug=""):
                 # remove all alt_seqs that don't use that length
                 alt_seqs = list(s for s in alt_seqs if len(s)==len_ranks[0][0])
                 assert alt_seqs
-                ranks = list(sorted(util.misc.histogram(alt_seqs).items(),
+                ranks = list(sorted(misc.histogram(alt_seqs).items(),
                     key=lambda x:x[1], reverse=True))
                 if len(ranks)==1 or ranks[0][1]>ranks[1][1]:
                     # clear winner amongst remaining sequences of most popular length

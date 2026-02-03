@@ -5,20 +5,20 @@ __author__ = "irwin@broadinstitute.org"
 import os
 import pickle
 import unittest
-import util.file
-import tools
-from intrahost import vphaser_main
+import viral_ngs.core.file
+import viral_ngs.core
+from viral_ngs.intrahost import vphaser_main
 from test import TestCaseWithTmp, _CPUS
 
 
-#@unittest.skipIf(tools.is_osx(), "vphaser2 osx binary from bioconda has issues")
+#@unittest.skipIf(viral_ngs.core.is_osx(), "vphaser2 osx binary from bioconda has issues")
 @unittest.skip("vphaser2 behaving unpredictably; not used in WDL pipelines")
 class TestVPhaser2(TestCaseWithTmp):
 
     def test_vphaser2(self):
-        myInputDir = util.file.get_test_input_path(self)
+        myInputDir = viral_ngs.core.file.get_test_input_path(self)
         inBam = os.path.join(myInputDir, 'in.bam')
-        outTab = util.file.mkstempfname('.txt')
+        outTab = viral_ngs.core.file.mkstempfname('.txt')
         vphaser_main(inBam, outTab, numThreads=_CPUS)
         with open(outTab, 'rt') as outf:
             recs = map(lambda s: s.strip('\n').split('\t'), outf.readlines())
