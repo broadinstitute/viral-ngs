@@ -390,8 +390,8 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
         # get read counts for bam files provided
         read_counts = {}
         with concurrent.futures.ProcessPoolExecutor(max_workers=util_misc.sanitize_thread_count(threads)) as executor:
-            samtools = samtools.SamtoolsTool()
-            for x, result in zip(bams, executor.map(samtools.count, bams)):
+            samtools_tool = samtools.SamtoolsTool()
+            for x, result in zip(bams, executor.map(samtools_tool.count, bams)):
                 read_counts[x] = int(result)
 
         return read_counts
@@ -675,26 +675,26 @@ defaultFormat = 'fastq'
 
 def split_bam(inBam, outBams):
     '''Split BAM file equally into several output BAM files. '''
-    samtools = samtools.SamtoolsTool()
-    picard = picard.PicardTools()
+    samtools_tool = samtools.SamtoolsTool()
+    picard_tool = picard.PicardTools()
 
     # get totalReadCount and maxReads
     # maxReads = totalReadCount / num files, but round up to the nearest
     # even number in order to keep read pairs together (assuming the input
     # is sorted in query order and has no unmated reads, which can be
     # accomplished by Picard RevertSam with SANITIZE=true)
-    totalReadCount = samtools.count(inBam)
+    totalReadCount = samtools_tool.count(inBam)
     maxReads = int(math.ceil(float(totalReadCount) / len(outBams) / 2) * 2)
     log.info("splitting %d reads into %d files of %d reads each", totalReadCount, len(outBams), maxReads)
 
     # load BAM header into memory
-    header = samtools.getHeader(inBam)
+    header = samtools_tool.getHeader(inBam)
     if 'SO:queryname' not in header[0]:
         raise Exception('Input BAM file must be sorted in queryame order')
 
     # dump to bigsam
     bigsam = mkstempfname('.sam')
-    samtools.view(['-@', '3'], inBam, bigsam)
+    samtools_tool.view(['-@', '3'], inBam, bigsam)
 
     # split bigsam into little ones
     with util_file.open_or_gzopen(bigsam, 'rt') as inf:
@@ -712,7 +712,7 @@ def split_bam(inBam, outBams):
                 if outBam == outBams[-1]:
                     for line in inf:
                         outf.write(line)
-            picard.execute(
+            picard_tool.execute(
                 "SamFormatConverter", [
                     'INPUT=' + tmp_sam_reads, 'OUTPUT=' + outBam, 'VERBOSITY=WARNING'
                 ],
@@ -1021,10 +1021,10 @@ def rmdup_bbnorm_bam(inBam, outBam,
         min_input_reads: Skip processing if input has fewer reads (copy input to output)
         max_output_reads: Randomly downsample keep-list if larger than this
     """
-    samtools = samtools.SamtoolsTool()
+    samtools_tool = samtools.SamtoolsTool()
 
     # Count input reads
-    input_read_count = samtools.count(inBam)
+    input_read_count = samtools_tool.count(inBam)
     log.info("Input BAM has %d reads", input_read_count)
 
     # Skip processing if empty or below min_input_reads threshold
@@ -1041,7 +1041,7 @@ def rmdup_bbnorm_bam(inBam, outBam,
     with util_file.tmp_dir(suffix='_bbnorm') as tmpdir:
         # Convert BAM to interleaved FASTQ using samtools bam2fq
         inFastq = os.path.join(tmpdir, 'input.fastq')
-        samtools.bam2fq(inBam, inFastq)  # Single file = interleaved output
+        samtools_tool.bam2fq(inBam, inFastq)  # Single file = interleaved output
 
         # Run bbnorm
         outFastq = os.path.join(tmpdir, 'output.fastq')
@@ -1068,7 +1068,7 @@ def rmdup_bbnorm_bam(inBam, outBam,
             store.filter_bam_by_ids(inBam, outBam, include=True)
 
     # Count output reads
-    output_read_count = samtools.count(outBam)
+    output_read_count = samtools_tool.count(outBam)
     log.info("Output BAM has %d reads (%.1f%% of input)",
              output_read_count, 100.0 * output_read_count / max(input_read_count, 1))
 
@@ -1146,8 +1146,8 @@ def main_rmdup_prinseq_fastq(args):
     ''' Run prinseq-lite's duplicate removal operation on paired-end
         reads.  Also removes reads with more than one N.
     '''
-    prinseq = prinseq.PrinseqTool()
-    prinseq.rmdup_fastq_paired(args.inFastq1, args.inFastq2, args.outFastq1, args.outFastq2, args.includeUnmated, args.unpairedOutFastq1, args.unpairedOutFastq2)
+    prinseq_tool = prinseq.PrinseqTool()
+    prinseq_tool.rmdup_fastq_paired(args.inFastq1, args.inFastq2, args.outFastq1, args.outFastq2, args.includeUnmated, args.unpairedOutFastq1, args.unpairedOutFastq2)
     return 0
 
 
@@ -1339,14 +1339,14 @@ def align_and_fix(
         return
 
     assert aligner in ["novoalign", "bwa", "minimap2"]
-    samtools = samtools.SamtoolsTool()
+    samtools_tool = samtools.SamtoolsTool()
 
     refFastaCopy = mkstempfname('.ref_copy.fasta')
     with util_file.fastas_with_sanitized_ids(refFasta, use_tmp=True) as sanitized_fastas:
         shutil.copyfile(sanitized_fastas[0], refFastaCopy)
 
     picard.CreateSequenceDictionaryTool().execute(refFastaCopy, overwrite=True, JVMmemory=JVMmemory)
-    samtools.faidx(refFastaCopy, overwrite=True)
+    samtools_tool.faidx(refFastaCopy, overwrite=True)
 
     if aligner_options is None:
         if aligner=="novoalign":
@@ -1354,7 +1354,7 @@ def align_and_fix(
         else:
             aligner_options = '' # use defaults
 
-    if samtools.isEmpty(inBam):
+    if samtools_tool.isEmpty(inBam):
         log.warning("zero reads present in input")
 
     bam_aligned = mkstempfname('.aligned.bam')
@@ -1371,12 +1371,12 @@ def align_and_fix(
         )
 
     elif aligner=='bwa':
-        bwa = bwa.Bwa()
-        bwa.index(refFastaCopy)
+        bwa_tool = bwa.Bwa()
+        bwa_tool.index(refFastaCopy)
 
         opts = aligner_options.split()
 
-        bwa.align_mem_bam(inBam, refFastaCopy, bam_aligned, min_score_to_filter=bwa_min_score, threads=threads, options=opts)
+        bwa_tool.align_mem_bam(inBam, refFastaCopy, bam_aligned, min_score_to_filter=bwa_min_score, threads=threads, options=opts)
 
     elif aligner=='minimap2':
         mm2 = minimap2.Minimap2()
@@ -1404,10 +1404,10 @@ def align_and_fix(
     if dup_marker == 'sambamba' and not skip_mark_dupes:
         sambamba.SambambaTool().index(bam_marked, threads=threads)
     else:
-        samtools.index(bam_marked)
+        samtools_tool.index(bam_marked)
 
     # Local realignment with GATK (optional)
-    if skip_realign or samtools.isEmpty(bam_marked):
+    if skip_realign or samtools_tool.isEmpty(bam_marked):
         bam_realigned = bam_marked
     else:
         bam_realigned = mkstempfname('.realigned.bam')
@@ -1424,9 +1424,9 @@ def align_and_fix(
     if outBamFiltered:
         filtered_any_mapq = mkstempfname('.filtered_any_mapq.bam')
         # filter based on read flags
-        samtools.filter_to_proper_primary_mapped_reads(bam_realigned, filtered_any_mapq)
+        samtools_tool.filter_to_proper_primary_mapped_reads(bam_realigned, filtered_any_mapq)
         # remove reads with MAPQ <1
-        samtools.view(['-b', '-q', '1'], filtered_any_mapq, outBamFiltered)
+        samtools_tool.view(['-b', '-q', '1'], filtered_any_mapq, outBamFiltered)
         os.unlink(filtered_any_mapq)
         if dup_marker == 'sambamba':
             sambamba.SambambaTool().index(outBamFiltered, threads=threads)
@@ -1511,8 +1511,8 @@ def filter_bam_to_proper_primary_mapped_reads(inBam, outBam, doNotRequirePairsTo
             - For single-end reads:
                 mapped
     '''
-    samtools = samtools.SamtoolsTool()
-    samtools.filter_to_proper_primary_mapped_reads(inBam, 
+    samtools_tool = samtools.SamtoolsTool()
+    samtools_tool.filter_to_proper_primary_mapped_reads(inBam,
                                                    outBam,
                                                    require_pairs_to_be_proper=not doNotRequirePairsToBeProper,
                                                    reject_singletons=not keepSingletons,
@@ -1591,21 +1591,21 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
     else:
         bam_filtered = outBam
 
-    samtools = samtools.SamtoolsTool()
-    bwa = bwa.Bwa()
+    samtools_tool = samtools.SamtoolsTool()
+    bwa_tool = bwa.Bwa()
 
     ref_indexed = util_file.mkstempfname('.reference.fasta')
     shutil.copyfile(refFasta, ref_indexed)
-    bwa.index(ref_indexed)
+    bwa_tool.index(ref_indexed)
 
     bwa_opts = [] if aligner_options is None else aligner_options.split()
-    bwa.mem(inBam, ref_indexed, bam_aligned, options=bwa_opts,
+    bwa_tool.mem(inBam, ref_indexed, bam_aligned, options=bwa_opts,
             min_score_to_filter=min_score_to_filter)
-    
+
     if filterReadsAfterAlignment:
-        samtools.filter_to_proper_primary_mapped_reads(bam_aligned, 
-                                                       bam_filtered, 
-                                                       require_pairs_to_be_proper=not doNotRequirePairsToBeProper, 
+        samtools_tool.filter_to_proper_primary_mapped_reads(bam_aligned,
+                                                       bam_filtered,
+                                                       require_pairs_to_be_proper=not doNotRequirePairsToBeProper,
                                                        reject_singletons=not keepSingletons,
                                                        reject_duplicates=not keepDuplicates)
         os.unlink(bam_aligned)
@@ -1613,7 +1613,7 @@ def bwamem_idxstats(inBam, refFasta, outBam=None, outStats=None,
         shutil.move(bam_aligned, bam_filtered)
 
     if outStats is not None:
-        samtools.idxstats(bam_filtered, outStats)
+        samtools_tool.idxstats(bam_filtered, outStats)
 
     if outBam is None:
         os.unlink(bam_filtered)
@@ -1757,8 +1757,8 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=No
     threads = util_misc.sanitize_thread_count(threads)
 
     downsamplesam = picard.DownsampleSamTool()
-    samtools = samtools.SamtoolsTool()
-    prinseq = prinseq.PrinseqTool()
+    samtools_tool = samtools.SamtoolsTool()
+    prinseq_tool = prinseq.PrinseqTool()
 
     if n_reads < 1:
         raise ValueError("n_reads must be >= 1")
@@ -1797,7 +1797,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=No
         n_trim_unpaired = sum(map(util_file.count_fastq_reads, trimfq_unpaired))    # count is individual reads
 
         # --- Prinseq duplicate removal ---
-        prinseq.rmdup_fastq_paired(
+        prinseq_tool.rmdup_fastq_paired(
             trimfq[0],
             trimfq[1],
             rmdupfq[0],
@@ -1810,7 +1810,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=No
         n_rmdup_paired = max(map(util_file.count_fastq_reads, rmdupfq))    # count is pairs
         n_rmdup = n_rmdup_paired    # count is pairs
 
-        samtools.dumpHeader(inBam, tmp_header)
+        samtools_tool.dumpHeader(inBam, tmp_header)
 
         # convert paired reads to bam
         # stub out an empty file if the input fastqs are empty
@@ -1836,7 +1836,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=No
                 # merge unpaired reads from trimmomatic and singletons left over from paired-mode prinseq
                 util_file.cat(unpaired_concat, trimfq_unpaired + rmdupfq_unpaired_from_paired_rmdup)
 
-                prinseq.rmdup_fastq_single(unpaired_concat, unpaired_concat_rmdup)
+                prinseq_tool.rmdup_fastq_single(unpaired_concat, unpaired_concat_rmdup)
                 n_rmdup_unpaired = util_file.count_fastq_reads(unpaired_concat_rmdup)
 
                 did_include_subsampled_unpaired_reads = True
@@ -1844,7 +1844,7 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=No
                 # if there are no unpaired reads, simply output the paired reads
                 if n_rmdup_unpaired == 0:
                     shutil.copyfile(tmp_bam_paired, outBam)
-                    n_output = samtools.count(outBam)
+                    n_output = samtools_tool.count(outBam)
                 else:
                     with util_file.tempfname(suffix='.unpaired.bam') as tmp_bam_unpaired, \
                          util_file.tempfname(suffix='.unpaired.subsamp.bam') as tmp_bam_unpaired_subsamp, \
@@ -1855,12 +1855,12 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=No
 
                         reads_to_add = (n_reads - (n_rmdup_paired * 2))
                         downsamplesam.downsample_to_approx_count(tmp_bam_unpaired, tmp_bam_unpaired_subsamp, reads_to_add)
-                        n_unpaired_subsamp = samtools.count(tmp_bam_unpaired_subsamp)
+                        n_unpaired_subsamp = samtools_tool.count(tmp_bam_unpaired_subsamp)
 
                         # merge the subsampled unpaired reads into the bam
                         picard.MergeSamFilesTool().execute([tmp_bam_paired, tmp_bam_unpaired_subsamp], tmp_bam_merged)
 
-                        samtools.reheader(tmp_bam_merged, tmp_header, outBam)
+                        samtools_tool.reheader(tmp_bam_merged, tmp_header, outBam)
 
                         n_paired_subsamp = n_rmdup_paired    # count is pairs
                         n_output = n_rmdup_paired * 2 + n_unpaired_subsamp    # count is individual reads
@@ -1871,12 +1871,12 @@ def trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=100000, trim_opts=No
 
             with util_file.tempfname(suffix='.paired.subsamp.bam') as tmp_bam_paired_subsamp:
                 downsamplesam.downsample_to_approx_count(tmp_bam_paired, tmp_bam_paired_subsamp, n_reads)
-                n_paired_subsamp = samtools.count(tmp_bam_paired_subsamp) // 2    # count is pairs
+                n_paired_subsamp = samtools_tool.count(tmp_bam_paired_subsamp) // 2    # count is pairs
                 n_output = n_paired_subsamp * 2    # count is individual reads
 
-                samtools.reheader(tmp_bam_paired_subsamp, tmp_header, outBam)
+                samtools_tool.reheader(tmp_bam_paired_subsamp, tmp_header, outBam)
 
-        n_final_individual_reads = samtools.count(outBam)
+        n_final_individual_reads = samtools_tool.count(outBam)
 
         log.info("Pre-DeNovoAssembly read filters: ")
         log.info("    %d read pairs at start", n_input)

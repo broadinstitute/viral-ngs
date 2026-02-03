@@ -205,7 +205,7 @@ class TestFastqBam(TestCaseWithTmp):
         open(emptyFastq2, 'w').close()
 
         # Convert empty FASTQs to BAM (should now succeed with defensive code)
-        read_utils.fastq_to_bam(
+        viral_ngs.read_utils.fastq_to_bam(
             emptyFastq1,
             emptyFastq2,
             outBam,
@@ -242,7 +242,7 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'input.bam')
         expected_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'expected.bam')
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
-        read_utils.rmdup_mvicuna_bam(
+        viral_ngs.read_utils.rmdup_mvicuna_bam(
             input_bam,
             output_bam
         )
@@ -253,7 +253,7 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
         empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
-        read_utils.rmdup_mvicuna_bam(
+        viral_ngs.read_utils.rmdup_mvicuna_bam(
             empty_bam,
             output_bam
         )
@@ -265,7 +265,7 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'input.bam')
         expected_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'expected.bam')
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
-        read_utils.rmdup_cdhit_bam(
+        viral_ngs.read_utils.rmdup_cdhit_bam(
             input_bam,
             output_bam
         )
@@ -276,7 +276,7 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
         empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
-        read_utils.rmdup_cdhit_bam(
+        viral_ngs.read_utils.rmdup_cdhit_bam(
             empty_bam,
             output_bam
         )
@@ -297,7 +297,7 @@ class TestReadIdStore(TestCaseWithTmp):
                 f.write('@read{}/2\nACGT\n+\nIIII\n'.format(i))
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             added = store.add_from_fastq(fastq_path)
             self.assertEqual(added, 3)  # 3 unique read IDs
             self.assertEqual(len(store), 3)
@@ -310,7 +310,7 @@ class TestReadIdStore(TestCaseWithTmp):
                 f.write('@read{}\nACGT\n+\nIIII\n'.format(i))
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             added = store.add_from_fastq(fastq_path)
             self.assertEqual(added, 5)
             self.assertEqual(len(store), 5)
@@ -324,7 +324,7 @@ class TestReadIdStore(TestCaseWithTmp):
                 f.write('@duplicate_read\nACGT\n+\nIIII\n')
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.add_from_fastq(fastq_path)
             self.assertEqual(len(store), 1)  # Only 1 unique ID
 
@@ -338,7 +338,7 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path = viral_ngs.core.file.mkstempfname('.db')
         out_path = viral_ngs.core.file.mkstempfname('.txt')
 
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.add_from_fastq(fastq_path)
             written = store.write_to_file(out_path)
             self.assertEqual(written, 5)
@@ -359,7 +359,7 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path = viral_ngs.core.file.mkstempfname('.db')
         out_path = viral_ngs.core.file.mkstempfname('.txt')
 
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.add_from_fastq(fastq_path)
             self.assertEqual(len(store), 100)
             written = store.write_to_file(out_path, max_reads=20)
@@ -377,7 +377,7 @@ class TestReadIdStore(TestCaseWithTmp):
             pass  # Empty file
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             added = store.add_from_fastq(fastq_path)
             self.assertEqual(added, 0)
             self.assertEqual(len(store), 0)
@@ -385,7 +385,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_add_single(self):
         """Test adding a single read ID."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             self.assertTrue(store.add('read1'))
             self.assertEqual(len(store), 1)
             # Adding same ID again should return False
@@ -398,7 +398,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_extend(self):
         """Test adding multiple read IDs efficiently."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             # Add from a list
             added = store.extend(['read1', 'read2', 'read3'])
             self.assertEqual(added, 3)
@@ -412,7 +412,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_extend_generator(self):
         """Test extend with a generator (O(1) memory)."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             # Use a generator expression
             added = store.extend('read{}'.format(i) for i in range(100))
             self.assertEqual(added, 100)
@@ -421,7 +421,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_contains(self):
         """Test membership testing with 'in' operator."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(['read1', 'read2', 'read3'])
             self.assertIn('read1', store)
             self.assertIn('read2', store)
@@ -430,7 +430,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_iter(self):
         """Test iteration over read IDs in insertion order."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(['read3', 'read1', 'read2'])
             # Should iterate in insertion order
             result = list(store)
@@ -439,7 +439,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_delitem(self):
         """Test deleting read IDs with del operator."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(['read1', 'read2', 'read3'])
             self.assertEqual(len(store), 3)
 
@@ -456,7 +456,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_discard(self):
         """Test discard method (no error if absent)."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(['read1', 'read2'])
 
             store.discard('read1')
@@ -470,7 +470,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_shrink_to_subsample_basic(self):
         """Test shrink_to_subsample reduces store to n elements."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             # Add 100 read IDs
             original_ids = set('read{}'.format(i) for i in range(100))
             store.extend(original_ids)
@@ -487,7 +487,7 @@ class TestReadIdStore(TestCaseWithTmp):
     def test_shrink_to_subsample_larger_than_store(self):
         """Test shrink_to_subsample with n >= store size does nothing."""
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(['read{}'.format(i) for i in range(50)])
             self.assertEqual(len(store), 50)
 
@@ -503,12 +503,12 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path1 = viral_ngs.core.file.mkstempfname('.db')
         db_path2 = viral_ngs.core.file.mkstempfname('.db')
 
-        with read_utils.ReadIdStore(db_path1) as store1:
+        with viral_ngs.read_utils.ReadIdStore(db_path1) as store1:
             store1.extend(original_ids)
             store1.shrink_to_subsample(10)
             result1 = set(store1)
 
-        with read_utils.ReadIdStore(db_path2) as store2:
+        with viral_ngs.read_utils.ReadIdStore(db_path2) as store2:
             store2.extend(original_ids)
             store2.shrink_to_subsample(10)
             result2 = set(store2)
@@ -535,7 +535,7 @@ class TestReadIdStore(TestCaseWithTmp):
                     break
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(read_names)
             store.filter_bam_by_ids(input_bam, output_bam, include=True)
 
@@ -561,7 +561,7 @@ class TestReadIdStore(TestCaseWithTmp):
                     break
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(read_names)
             store.filter_bam_by_ids(input_bam, output_bam, include=False)
 
@@ -585,7 +585,7 @@ class TestReadIdStore(TestCaseWithTmp):
                     break
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(read_names)
             store.filter_bam_by_ids(input_bam, output_bam, include=True)
 
@@ -615,7 +615,7 @@ class TestReadIdStore(TestCaseWithTmp):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(['read1', 'read2'])
             store.filter_bam_by_ids(input_bam, output_bam, include=True)
 
@@ -629,7 +629,7 @@ class TestReadIdStore(TestCaseWithTmp):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             # Empty store
             store.filter_bam_by_ids(input_bam, output_bam, include=True)
 
@@ -649,7 +649,7 @@ class TestReadIdStore(TestCaseWithTmp):
         input_count = samtools.count(input_bam)
 
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        with read_utils.ReadIdStore(db_path) as store:
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             # Empty store
             store.filter_bam_by_ids(input_bam, output_bam, include=False)
 
@@ -670,7 +670,7 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
 
         # Use low memory and single thread for CI compatibility
-        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+        viral_ngs.read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
 
         # Output should have reads and be <= input count
         input_count = self.samtools.count(input_bam)
@@ -684,7 +684,7 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
 
         # Empty input doesn't call bbnorm, so no need for memory/threads
-        read_utils.rmdup_bbnorm_bam(empty_bam, output_bam)
+        viral_ngs.read_utils.rmdup_bbnorm_bam(empty_bam, output_bam)
 
         self.assertEqual(self.samtools.count(output_bam), 0)
 
@@ -695,7 +695,7 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
 
         # Use low memory and single thread for CI compatibility
-        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+        viral_ngs.read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
 
         # Output should have reads
         input_count = self.samtools.count(input_bam)
@@ -710,7 +710,7 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
 
         # Use low memory and single thread for CI compatibility
-        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
+        viral_ngs.read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1, memory='250m')
 
         # Output should have reads
         input_count = self.samtools.count(input_bam)
@@ -725,7 +725,7 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
 
         # min_input_reads causes skip, so bbnorm isn't called
-        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, min_input_reads=2000)
+        viral_ngs.read_utils.rmdup_bbnorm_bam(input_bam, output_bam, min_input_reads=2000)
 
         # Output should equal input (copied, not processed)
         input_count = self.samtools.count(input_bam)
@@ -739,7 +739,7 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
 
         # Use low memory and single thread for CI compatibility
-        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, min_input_reads=1000,
+        viral_ngs.read_utils.rmdup_bbnorm_bam(input_bam, output_bam, min_input_reads=1000,
                                      threads=1, memory='250m')
 
         # Output should have reads (processing occurred)
@@ -756,7 +756,7 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         # Set max_output_reads to 500 (less than expected bbnorm output)
         # Use low memory and single thread for CI compatibility
         max_output_reads = 500
-        read_utils.rmdup_bbnorm_bam(input_bam, output_bam, max_output_reads=max_output_reads,
+        viral_ngs.read_utils.rmdup_bbnorm_bam(input_bam, output_bam, max_output_reads=max_output_reads,
                                      threads=1, memory='250m')
 
         # Output should be approximately max_output_reads (tolerance for pairs)
@@ -821,13 +821,13 @@ class TestAlignAndFix(TestCaseWithTmp):
         outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')
         outBamFiltered = viral_ngs.core.file.mkstempfname('.outBamFiltered.bam')
 
-        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered, '--aligner', aligner])
         args.func_main(args)
 
     def test_empty_reads(self):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
-        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta,  '--aligner', 'minimap2',
             '--outBamAll', viral_ngs.core.file.mkstempfname('.outBamAll.bam'),
             '--outBamFiltered', viral_ngs.core.file.mkstempfname('.outBamFiltered.bam')])
@@ -838,7 +838,7 @@ class TestAlignAndFix(TestCaseWithTmp):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
         outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')
 
-        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll,
              '--aligner', 'minimap2', '--skipRealign'])
         args.func_main(args)
@@ -853,7 +853,7 @@ class TestAlignAndFix(TestCaseWithTmp):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
         outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')
 
-        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll,
              '--aligner', 'minimap2', '--skipRealign', '--skipMarkDupes'])
         args.func_main(args)
@@ -867,7 +867,7 @@ class TestAlignAndFix(TestCaseWithTmp):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
         outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')
 
-        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll,
              '--aligner', 'minimap2', '--dupMarker', 'sambamba', '--skipRealign'])
         args.func_main(args)
@@ -881,7 +881,7 @@ class TestAlignAndFix(TestCaseWithTmp):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
         outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')
 
-        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll,
              '--aligner', 'minimap2', '--dupMarker', 'picard', '--skipRealign'])
         args.func_main(args)
@@ -892,7 +892,7 @@ class TestAlignAndFix(TestCaseWithTmp):
 
     def test_dup_marker_default_is_sambamba(self):
         """Verify default duplicate marker is sambamba"""
-        parser = read_utils.parser_align_and_fix(argparse.ArgumentParser())
+        parser = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser())
         args = parser.parse_args(['in.bam', 'ref.fasta'])
         self.assertEqual(args.dup_marker, 'sambamba')
 
@@ -902,7 +902,7 @@ class TestAlignAndFix(TestCaseWithTmp):
         outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')
         outBamFiltered = viral_ngs.core.file.mkstempfname('.outBamFiltered.bam')
 
-        args = read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered,
              '--aligner', 'minimap2', '--dupMarker', 'sambamba', '--skipRealign'])
         args.func_main(args)
@@ -936,7 +936,7 @@ class TestDownsampleBams(TestCaseWithTmp):
 
         target_count = self.samtools.count(self.smaller_bam)
         # target count not passed in since we are checking that the count of the smaller file is used
-        read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, JVMmemory="1g")
+        viral_ngs.read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
         
@@ -949,7 +949,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         temp_dir = tempfile.mkdtemp()
 
         target_count = 4000
-        read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
+        viral_ngs.read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
         
@@ -959,7 +959,7 @@ class TestDownsampleBams(TestCaseWithTmp):
 
     def test_downsample_to_target_count_without_subdir(self):
         target_count = 4000
-        read_utils.main_downsample_bams([self.larger_bam], out_path=None, specified_read_count=target_count, JVMmemory="1g")
+        viral_ngs.read_utils.main_downsample_bams([self.larger_bam], out_path=None, specified_read_count=target_count, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(os.path.dirname(self.larger_bam), '*downsampled-*.bam')))
         
@@ -973,7 +973,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         temp_dir = tempfile.mkdtemp()
 
         target_count = 1500
-        read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_after=True, specified_read_count=target_count, JVMmemory="1g")
+        viral_ngs.read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_after=True, specified_read_count=target_count, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
         
@@ -986,7 +986,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         temp_dir = tempfile.mkdtemp()
 
         target_count = 1500
-        read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_before=True, specified_read_count=target_count, JVMmemory="1g")
+        viral_ngs.read_utils.main_downsample_bams([self.with_dups], temp_dir, deduplicate_before=True, specified_read_count=target_count, JVMmemory="1g")
 
         output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
         
@@ -1001,7 +1001,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         target_count = 20000
 
         with self.assertRaises(ValueError):
-            read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
+            viral_ngs.read_utils.main_downsample_bams([self.larger_bam, self.smaller_bam], temp_dir, specified_read_count=target_count, JVMmemory="1g")
 
 
 class TestTrimRmdupSubsamp(TestCaseWithTmp):
@@ -1017,7 +1017,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'empty.bam')
         clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
         outBam = viral_ngs.core.file.mkstempfname('.out.bam')
-        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=10, threads=1)
+        read_stats = viral_ngs.read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=10, threads=1)
         os.unlink(outBam)
         self.assertEqual(read_stats, (0, 0, 0, 0, 0, 0))
 
@@ -1027,7 +1027,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'G5012.3.subset.bam')
         clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
         outBam = viral_ngs.core.file.mkstempfname('.out.bam')
-        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=50, threads=1)
+        read_stats = viral_ngs.read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=50, threads=1)
         os.unlink(outBam)
         self.assertEqual(read_stats, (200, 172, 172, 50, 50, 0))
 
@@ -1037,7 +1037,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'G5012.3.subset.bam')
         clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
         outBam = viral_ngs.core.file.mkstempfname('.out.bam')
-        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=90, threads=1)
+        read_stats = viral_ngs.read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=90, threads=1)
         os.unlink(outBam)
         # counts are individual reads
         self.assertEqual(read_stats, (200, 172, 172, 90, 90, 0))
@@ -1048,7 +1048,7 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'G5012.3.subset.bam')
         clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
         outBam = viral_ngs.core.file.mkstempfname('.out.bam')
-        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=200, threads=1)
+        read_stats = viral_ngs.read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=200, threads=1)
         os.unlink(outBam)
         self.assertEqual(read_stats, (200, 172, 172, 185, 172, 13))
 
@@ -1058,6 +1058,6 @@ class TestTrimRmdupSubsamp(TestCaseWithTmp):
         inBam = os.path.join(inDir, 'G5012.3.testreads.bam')
         clipDb = os.path.join(inDir, 'TestTrimRmdupSubsamp', 'clipDb.fasta')
         outBam = viral_ngs.core.file.mkstempfname('.out.bam')
-        read_stats = read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500, threads=1)
+        read_stats = viral_ngs.read_utils.trim_rmdup_subsamp_reads(inBam, clipDb, outBam, n_reads=500, threads=1)
         os.unlink(outBam)
         self.assertEqual(read_stats, (18710, 16310, 16310, 500, 500, 0))

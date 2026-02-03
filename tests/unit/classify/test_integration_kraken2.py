@@ -16,7 +16,7 @@ from viral_ngs import core as tools
 from viral_ngs.classify import kraken2
 from viral_ngs.classify import krona
 from viral_ngs.core import picard
-import tests.unit.fixtures
+import tests.unit.classify.fixtures
 
 
 def is_gz_file(filepath):
@@ -24,8 +24,8 @@ def is_gz_file(filepath):
         return binascii.hexlify(test_f.read(2)) == b'1f8b'
 
 
-krona = pytest.fixture(scope='module')(tests.unit.fixtures.krona)
-krona_db = pytest.fixture(scope='module')(tests.unit.fixtures.krona_db)
+krona = pytest.fixture(scope='module')(tests.unit.classify.fixtures.krona)
+krona_db = pytest.fixture(scope='module')(tests.unit.classify.fixtures.krona_db)
 
 
 @pytest.fixture()

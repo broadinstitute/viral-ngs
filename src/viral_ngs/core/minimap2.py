@@ -50,7 +50,7 @@ class Minimap2(Tool):
                       threads=None, JVMmemory=None, should_index=True):
         options = options or []
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
         threads = util_misc.sanitize_thread_count(threads)
 
         # fetch list of RGs
@@ -114,7 +114,7 @@ class Minimap2(Tool):
         """
         options = list(options).copy() or []
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
 
         # Require exactly one RG
         rgs = samtools.getReadGroups(inBam)
@@ -210,7 +210,7 @@ class Minimap2(Tool):
         if '-2' not in options:
             options.append('-2')
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
 
         with util_file.tempfname('.aligned.sam') as aln_sam:
             fastq_pipe = samtools.bam2fq_pipe(inReads)
@@ -274,7 +274,7 @@ class Minimap2(Tool):
         log.info("Starting idxstats: aligning %s to %s", inReads, refDb)
 
         threads = util_misc.sanitize_thread_count(threads)
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
 
         # Parse reference FASTA for sequence lengths
         ref_lengths = collections.OrderedDict()

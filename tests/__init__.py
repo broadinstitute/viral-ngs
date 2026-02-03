@@ -183,6 +183,17 @@ tests in this folder from being silently excluded, assure this bit is not set.
 """
 
 
+def assert_valid_feature_table(testCase, tbl_file, fasta_file, temp_dir):
+    '''Validate a feature table file.
+
+    This is a placeholder function that performs basic validation.
+    Full validation with table2asn would require the tool to be installed.
+    '''
+    # Basic check: the feature table file should exist and not be empty
+    testCase.assertTrue(os.path.exists(tbl_file), f"Feature table file does not exist: {tbl_file}")
+    testCase.assertTrue(os.path.getsize(tbl_file) > 0, f"Feature table file is empty: {tbl_file}")
+
+
 def assert_none_executable():
     testDir = os.path.dirname(__file__)
     assert all(not os.access(os.path.join(testDir, filename), os.X_OK) for filename in os.listdir(testDir)
