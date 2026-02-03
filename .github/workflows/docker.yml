@@ -111,6 +111,7 @@ jobs:
           echo "Detected version: ${VERSION}"
 
   # Build baseimage first (no dependencies)
+  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
   build-baseimage:
     needs: get-version
     runs-on: ubuntu-latest
@@ -130,36 +131,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Quay.io
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
-
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Add expiration label for feature branches
-        if: github.ref_type == 'branch' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          echo "" >> docker/Dockerfile.baseimage
-          echo "# Auto-expire feature branch images after 10 weeks" >> docker/Dockerfile.baseimage
-          echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.baseimage
-
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.QUAY_REPO }}
-            ${{ env.GHCR_REPO }}
+          images: ${{ env.GHCR_REPO }}
           flavor: |
             suffix=-baseimage
           tags: |
@@ -167,7 +150,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=pr
-            type=raw,value=baseimage,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=baseimage,enable=${{ github.ref == 'refs/heads/main' }},suffix=
 
       - name: Get baseimage tag for downstream jobs
         id: get-tag
@@ -187,10 +170,13 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-baseimage
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-baseimage,mode=max', env.QUAY_REPO) || '' }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-main
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-baseimage-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
 
   # Build core image (depends on baseimage)
+  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
   build-core:
     needs: [get-version, build-baseimage]
     runs-on: ubuntu-latest
@@ -210,36 +196,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Quay.io
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
-
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Add expiration label for feature branches
-        if: github.ref_type == 'branch' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          echo "" >> docker/Dockerfile.core
-          echo "# Auto-expire feature branch images after 10 weeks" >> docker/Dockerfile.core
-          echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.core
-
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.QUAY_REPO }}
-            ${{ env.GHCR_REPO }}
+          images: ${{ env.GHCR_REPO }}
           flavor: |
             suffix=-core
           tags: |
@@ -247,7 +215,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=pr
-            type=raw,value=core,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=core,enable=${{ github.ref == 'refs/heads/main' }},suffix=
 
       - name: Get core tag for downstream jobs
         id: get-tag
@@ -268,12 +236,15 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-baseimage.outputs.baseimage-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.build-baseimage.outputs.baseimage-tag }}
             VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-core
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-core,mode=max', env.QUAY_REPO) || '' }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-core-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
 
   # Build derivative images that depend on core
+  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
   build-derivatives:
     needs: [get-version, build-core]
     runs-on: ubuntu-latest
@@ -296,36 +267,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Quay.io
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
-
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Add expiration label for feature branches
-        if: github.ref_type == 'branch' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          echo "" >> docker/Dockerfile.${{ matrix.flavor }}
-          echo "# Auto-expire feature branch images after 10 weeks" >> docker/Dockerfile.${{ matrix.flavor }}
-          echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.${{ matrix.flavor }}
-
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.QUAY_REPO }}
-            ${{ env.GHCR_REPO }}
+          images: ${{ env.GHCR_REPO }}
           flavor: |
             suffix=-${{ matrix.flavor }}
           tags: |
@@ -333,7 +286,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=pr
-            type=raw,value=${{ matrix.flavor }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ matrix.flavor }},enable=${{ github.ref == 'refs/heads/main' }},suffix=
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -345,12 +298,15 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.build-core.outputs.core-tag }}
             VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-${{ matrix.flavor }}
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1},mode=max', env.QUAY_REPO, matrix.flavor) || '' }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-${{ matrix.flavor }}-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-${{ matrix.flavor }}-main
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1}-{2},mode=max', env.GHCR_REPO, matrix.flavor, github.ref_name) || '' }}
 
   # Build mega image (all tools combined) - depends on core
+  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
   build-mega:
     needs: [get-version, build-core]
     runs-on: ubuntu-latest
@@ -368,36 +324,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Quay.io
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
-
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Add expiration label for feature branches
-        if: github.ref_type == 'branch' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          echo "" >> docker/Dockerfile.mega
-          echo "# Auto-expire feature branch images after 10 weeks" >> docker/Dockerfile.mega
-          echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.mega
-
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.QUAY_REPO }}
-            ${{ env.GHCR_REPO }}
+          images: ${{ env.GHCR_REPO }}
           # No suffix for mega - it's the main image
           tags: |
             type=ref,event=branch
@@ -416,10 +354,12 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.build-core.outputs.core-tag }}
             VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-mega
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-mega,mode=max', env.QUAY_REPO) || '' }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-main
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-mega-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
 
   # ============================================================================
   # TEST JOBS - Run after corresponding images are built
@@ -428,7 +368,7 @@ jobs:
 
   # Test core - runs after core image is built
   test-core:
-    needs: [paths-filter, get-version, build-core]
+    needs: [paths-filter, get-version, build-baseimage, build-core]
     if: needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -439,18 +379,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Quay.io
-        if: github.event_name != 'pull_request'
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # For PRs, build locally since image wasn't pushed
+      # Use main branch baseimage as fallback since PR's baseimage isn't in registry
       - name: Build test image (PR only)
         if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
@@ -461,9 +401,12 @@ jobs:
           load: true
           tags: viral-ngs:test-core
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:main-baseimage
             VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-core
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-${{ github.head_ref }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-main
 
       - name: Set image name
         id: image
@@ -471,7 +414,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "name=viral-ngs:test-core" >> $GITHUB_OUTPUT
           else
-            echo "name=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}" >> $GITHUB_OUTPUT
+            echo "name=${{ env.GHCR_REPO }}:${{ needs.build-core.outputs.core-tag }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Run core tests
@@ -508,17 +451,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Quay.io
-        if: github.event_name != 'pull_request'
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # For PRs, build locally using main branch core image as base
       - name: Build test image (PR only)
         if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
@@ -529,9 +472,12 @@ jobs:
           load: true
           tags: viral-ngs:test-assemble
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:main-core
             VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-assemble
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-${{ github.head_ref }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
 
       - name: Get assemble tag
         id: tag
@@ -548,7 +494,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "name=viral-ngs:test-assemble" >> $GITHUB_OUTPUT
           else
-            echo "name=${{ env.QUAY_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
+            echo "name=${{ env.GHCR_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Run assemble tests
@@ -585,17 +531,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Quay.io
-        if: github.event_name != 'pull_request'
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # For PRs, build locally using main branch core image as base
       - name: Build test image (PR only)
         if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
@@ -606,9 +552,12 @@ jobs:
           load: true
           tags: viral-ngs:test-classify
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:main-core
             VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-classify
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-${{ github.head_ref }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
 
       - name: Get classify tag
         id: tag
@@ -625,7 +574,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "name=viral-ngs:test-classify" >> $GITHUB_OUTPUT
           else
-            echo "name=${{ env.QUAY_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
+            echo "name=${{ env.GHCR_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Run classify tests
@@ -662,17 +611,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Quay.io
-        if: github.event_name != 'pull_request'
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # For PRs, build locally using main branch core image as base
       - name: Build test image (PR only)
         if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
@@ -683,9 +632,12 @@ jobs:
           load: true
           tags: viral-ngs:test-phylo
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:main-core
             VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-phylo
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-${{ github.head_ref }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
 
       - name: Get phylo tag
         id: tag
@@ -702,7 +654,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "name=viral-ngs:test-phylo" >> $GITHUB_OUTPUT
           else
-            echo "name=${{ env.QUAY_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
+            echo "name=${{ env.GHCR_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Run phylo tests
@@ -725,3 +677,122 @@ jobs:
           flags: phylo
           name: codecov-phylo
           fail_ci_if_error: false
+
+  # ============================================================================
+  # DEPLOY JOBS - Copy images from GHCR to Quay after tests pass
+  # Uses crane to efficiently copy multi-arch manifests without re-pulling layers
+  # ============================================================================
+
+  deploy-to-quay:
+    needs: [get-version, build-baseimage, build-core, build-derivatives, build-mega, test-core, test-assemble, test-classify, test-phylo]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: baseimage
+            tag_output: baseimage-tag
+          - flavor: core
+            tag_output: core-tag
+          - flavor: assemble
+            tag_output: null
+          - flavor: classify
+            tag_output: null
+          - flavor: phylo
+            tag_output: null
+          - flavor: mega
+            tag_output: null
+
+    steps:
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Determine tags to copy
+        id: tags
+        run: |
+          FLAVOR="${{ matrix.flavor }}"
+
+          # Determine the suffix (mega has no suffix)
+          if [[ "$FLAVOR" == "mega" ]]; then
+            SUFFIX=""
+          else
+            SUFFIX="-${FLAVOR}"
+          fi
+
+          # Build the branch/tag-based tag
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            # Version tag: copy as version tag
+            VERSION="${{ github.ref_name }}"
+            echo "src_tag=${VERSION}${SUFFIX}" >> $GITHUB_OUTPUT
+            echo "dest_tags=${VERSION}${SUFFIX}" >> $GITHUB_OUTPUT
+            # Also create major.minor tag
+            MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+            echo "extra_dest_tag=${MAJOR_MINOR}${SUFFIX}" >> $GITHUB_OUTPUT
+          else
+            # Branch: copy as branch tag
+            BRANCH="${{ github.ref_name }}"
+            echo "src_tag=${BRANCH}${SUFFIX}" >> $GITHUB_OUTPUT
+            echo "dest_tags=${BRANCH}${SUFFIX}" >> $GITHUB_OUTPUT
+            echo "extra_dest_tag=" >> $GITHUB_OUTPUT
+          fi
+
+          # For main branch, also create the "latest" style tag
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            if [[ "$FLAVOR" == "mega" ]]; then
+              echo "latest_tag=latest" >> $GITHUB_OUTPUT
+            else
+              echo "latest_tag=${FLAVOR}" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "latest_tag=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Copy image to Quay.io
+        run: |
+          SRC="${{ env.GHCR_REPO }}:${{ steps.tags.outputs.src_tag }}"
+          DEST="${{ env.QUAY_REPO }}:${{ steps.tags.outputs.dest_tags }}"
+
+          echo "Copying $SRC -> $DEST"
+          crane copy "$SRC" "$DEST"
+
+          # Copy extra version tag if present (e.g., v1.25 for v1.25.0)
+          if [[ -n "${{ steps.tags.outputs.extra_dest_tag }}" ]]; then
+            EXTRA_DEST="${{ env.QUAY_REPO }}:${{ steps.tags.outputs.extra_dest_tag }}"
+            echo "Copying $SRC -> $EXTRA_DEST"
+            crane copy "$SRC" "$EXTRA_DEST"
+          fi
+
+          # Copy "latest" style tag for main branch
+          if [[ -n "${{ steps.tags.outputs.latest_tag }}" ]]; then
+            LATEST_DEST="${{ env.QUAY_REPO }}:${{ steps.tags.outputs.latest_tag }}"
+            echo "Copying $SRC -> $LATEST_DEST"
+            crane copy "$SRC" "$LATEST_DEST"
+          fi
+
+      - name: Add expiration label for feature branches
+        if: github.ref_type == 'branch' && github.ref_name != 'main'
+        run: |
+          # Note: crane doesn't support adding labels directly, but Quay.io
+          # can be configured with tag expiration policies at the repo level.
+          # For now, feature branch images on Quay won't auto-expire.
+          # Consider using Quay.io's tag expiration API or repo settings.
+          echo "Note: Feature branch images on Quay.io should be cleaned up periodically"
