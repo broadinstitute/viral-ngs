@@ -32,6 +32,7 @@ MOCK_MODULES = [
     'Bio.Seq', 'Bio.SeqRecord',
     'pybedtools', 'pybedtools.BedTool',
     'arrow', 'zstandard', 'bz2', 'lz4', 'lz4.frame',
+    'anndata',
 ]
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
