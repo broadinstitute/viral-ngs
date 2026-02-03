@@ -69,12 +69,20 @@ viral-ngs/
 ├── src/viral_ngs/
 │   ├── __init__.py
 │   ├── py.typed
-│   └── core/                   # All core modules consolidated here
-│       ├── __init__.py         # Tool/InstallMethod classes + imports
-│       ├── samtools.py, picard.py, bwa.py, ...  # Tool wrappers
-│       ├── file.py, misc.py, cmd.py, ...        # Utilities
-│       ├── read_utils.py, illumina.py, ...      # Command modules
-│       └── errors.py, priorities.py, ...
+│   ├── assembly.py             # Assembly commands (Phase 3a)
+│   ├── interhost.py, intrahost.py, ncbi.py  # Phylo commands (Phase 3b)
+│   ├── metagenomics.py, taxon_filter.py     # Classify commands (Phase 3c)
+│   ├── core/                   # Core modules consolidated here
+│   │   ├── __init__.py         # Tool/InstallMethod classes + imports
+│   │   ├── samtools.py, picard.py, bwa.py, ...  # Tool wrappers
+│   │   ├── file.py, misc.py, cmd.py, ...        # Utilities
+│   │   ├── read_utils.py, illumina.py, ...      # Command modules
+│   │   └── errors.py, priorities.py, ...
+│   ├── assemble/               # Assembly tool wrappers (Phase 3a)
+│   │   ├── __init__.py
+│   │   └── spades.py, mummer.py, mafft.py, ...
+│   ├── phylo/                  # Phylo tool wrappers (Phase 3b)
+│   └── classify/               # Classify tool wrappers (Phase 3c)
 ├── docker/
 │   ├── Dockerfile.baseimage
 │   ├── Dockerfile.core
@@ -92,6 +100,10 @@ viral-ngs/
 ├── tests/
 │   ├── conftest.py
 │   ├── unit/
+│   │   ├── core/              # Core module tests
+│   │   ├── assemble/          # Assembly module tests (Phase 3a)
+│   │   ├── phylo/             # Phylo module tests (Phase 3b)
+│   │   └── classify/          # Classify module tests (Phase 3c)
 │   └── input/
 ├── scripts/                    # Migration/maintenance scripts
 ├── .github/workflows/
@@ -248,24 +260,41 @@ from .file import mkstempfname
 
 ## Phase 3: Migrate Derivative Modules
 
-### Phase 3a: viral-assemble
+### Phase 3a: viral-assemble ✅ COMPLETE
 
-```bash
-git clone https://github.com/broadinstitute/viral-assemble.git viral-assemble-rewrite
-cd viral-assemble-rewrite
-git filter-repo --path-rename 'assembly.py:src/viral_ngs/assembly.py' \
-                --path-rename 'assemble/:src/viral_ngs/assemble/' \
-                --tag-rename '':'assemble-' \
-                --force
-```
+**What Was Done:**
+
+1. **Git History Preservation**
+   - Cloned viral-assemble and rewrote paths with git filter-repo
+   - Merged with `--allow-unrelated-histories` (3,448 commits preserved)
+   - All tags renamed with `assemble-` prefix
+
+2. **Module Structure**
+   - `assembly.py` → `src/viral_ngs/assembly.py` (at viral_ngs level, NOT in core/)
+   - `assemble/` → `src/viral_ngs/assemble/` (tool wrappers subpackage)
+   - Created `src/viral_ngs/assemble/__init__.py` with module exports
+
+3. **Import Updates**
+   - All imports updated to `viral_ngs.core.*` and `viral_ngs.assemble.*` pattern
+   - Avoided `from x import y` where possible, using full imports instead
+
+4. **Docker Infrastructure**
+   - Created `docker/requirements/assemble.txt` (SPAdes, MUMmer, MAFFT, skani, etc.)
+   - Created `docker/Dockerfile.assemble` building on core image
+   - Added `build-on-core` job to `.github/workflows/docker.yml`
+
+5. **Test Organization**
+   - Tests imported to `tests/unit/assemble/`
+   - Core tests moved from `tests/unit/test_*.py` to `tests/unit/core/`
+   - Imported Perl script: `scripts/fasta-trim-terminal-ambigs.pl`
 
 Tasks:
-1. [x] Import with history (3,448 commits, tags prefixed with `assemble-`)
-2. [x] Update imports (`viral_ngs.core.*`, `viral_ngs.assemble.*`)
-3. [x] Create `docker/requirements/assemble.txt`
-4. [x] Create `docker/Dockerfile.assemble`
-5. [x] Migrate tests (to `tests/unit/assemble/`)
-6. [x] Add `build-on-core` job to GitHub Actions
+- [x] Import with history (3,448 commits, tags prefixed with `assemble-`)
+- [x] Update imports (`viral_ngs.core.*`, `viral_ngs.assemble.*`)
+- [x] Create `docker/requirements/assemble.txt`
+- [x] Create `docker/Dockerfile.assemble`
+- [x] Migrate tests (to `tests/unit/assemble/`)
+- [x] Add `build-on-core` job to GitHub Actions
 
 ### Phase 3b: viral-phylo
 
@@ -430,7 +459,7 @@ quay.io/broadinstitute/viral-ngs:cache-classify-amd64
 | 0 | Old content archived, settings updated, secrets configured |
 | 1 | baseimage builds on amd64+arm64, pushes to quay.io+ghcr.io |
 | 2 | core builds, all core tests pass, `pip install viral-ngs` works |
-| 3a | assemble builds, assembly tests pass |
+| 3a | ✅ assemble builds, assembly tests pass |
 | 3b | phylo builds, phylo tests pass |
 | 3c | classify builds (ideally single env), classify tests pass |
 | 4 | mega image works, viral-pipelines WDLs work |

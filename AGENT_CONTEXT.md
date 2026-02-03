@@ -11,10 +11,11 @@
 | Phase 0: Prepare repo | ✅ COMPLETE | Legacy archived, branches cleaned, secrets configured |
 | Phase 1: Foundation | ✅ COMPLETE | pyproject.toml, baseimage, CI workflow created |
 | Phase 2: Migrate viral-core | ✅ COMPLETE | Consolidated to `core/`, all deps via conda, x86-only handling |
-| Phase 3: Migrate derivatives | 🔲 NOT STARTED | assemble, phylo, classify |
+| Phase 3a: Migrate viral-assemble | ✅ COMPLETE | 3,448 commits, tests in tests/unit/assemble/ |
+| Phase 3b-c: Migrate phylo, classify | 🔲 NOT STARTED | phylo and classify remaining |
 | Phase 4: Finalize | 🔲 NOT STARTED | mega image, docs, badges |
 
-**Next action:** Start Phase 3a (migrate viral-assemble with git history preservation).
+**Next action:** Start Phase 3b (migrate viral-phylo with git history preservation).
 
 ---
 
@@ -65,16 +66,21 @@ viral-ngs/
 ├── src/viral_ngs/
 │   ├── __init__.py             # Just imports core
 │   ├── py.typed
-│   └── core/                   # ALL core modules consolidated here
-│       ├── __init__.py         # Tool/InstallMethod classes + submodule imports
-│       ├── samtools.py, picard.py, bwa.py, ...  # Tool wrappers
-│       ├── file.py, misc.py, cmd.py, ...        # Utilities
-│       ├── read_utils.py, illumina.py, ...      # Command modules
-│       ├── errors.py, priorities.py, ...
-│       ├── metagenomics.py, taxon_filter.py     # (Phase 3c)
-│       ├── assembly.py                          # (Phase 3a)
-│       ├── interhost.py, intrahost.py, ncbi.py  # (Phase 3b)
-│       └── ...
+│   ├── assembly.py             # Assembly command module (Phase 3a)
+│   ├── interhost.py, intrahost.py, ncbi.py  # Phylo modules (Phase 3b)
+│   ├── metagenomics.py, taxon_filter.py     # Classify modules (Phase 3c)
+│   ├── core/                   # Core modules consolidated here
+│   │   ├── __init__.py         # Tool/InstallMethod classes + submodule imports
+│   │   ├── samtools.py, picard.py, bwa.py, ...  # Tool wrappers
+│   │   ├── file.py, misc.py, cmd.py, ...        # Utilities
+│   │   ├── read_utils.py, illumina.py, ...      # Command modules
+│   │   └── errors.py, priorities.py, ...
+│   ├── assemble/               # Assembly tool wrappers (Phase 3a)
+│   │   ├── __init__.py
+│   │   ├── spades.py, mummer.py, mafft.py, ...
+│   │   └── skani.py, muscle.py, gap2seq.py, ...
+│   ├── phylo/                  # Phylo tool wrappers (Phase 3b)
+│   └── classify/               # Classify tool wrappers (Phase 3c)
 ├── docker/
 │   ├── Dockerfile.baseimage, Dockerfile.core, etc.
 │   └── requirements/
@@ -93,7 +99,7 @@ viral-ngs/
 └── AGENTS.md                   # (consolidated guidance)
 ```
 
-**Note:** The original `tools/` and `util/` directories were consolidated into `core/` for simplicity. There are no backward compatibility stubs - all code uses `viral_ngs.core.*` imports directly.
+**Note:** The original `tools/` and `util/` directories were consolidated into `core/` for simplicity. There are no backward compatibility stubs - all code uses `viral_ngs.core.*` imports directly. Non-core command modules (assembly.py, interhost.py, etc.) go directly under `src/viral_ngs/`, while their tool wrappers go in subpackages (`assemble/`, `phylo/`, `classify/`).
 
 ## Key Technical Details
 
@@ -416,6 +422,96 @@ git filter-repo \
 - Deleted 5 obsolete dotfiles
 - Deleted 13 legacy CI scripts in `github_actions_ci/`
 
+## Lessons Learned from Phase 3a
+
+### Module Placement in Monorepo
+
+Non-core modules have a specific structure:
+- **Command modules** (e.g., `assembly.py`) go at `src/viral_ngs/` level, NOT inside `core/`
+- **Tool wrappers** go in subpackages: `src/viral_ngs/assemble/`, `src/viral_ngs/phylo/`, etc.
+- This keeps `core/` for truly core shared functionality
+
+Example structure for assemble:
+```
+src/viral_ngs/
+├── assembly.py              # Command module (at viral_ngs level)
+└── assemble/                # Tool wrappers subpackage
+    ├── __init__.py
+    ├── spades.py
+    ├── mummer.py
+    └── ...
+```
+
+### Bulk Import Updates with sed
+
+For updating many imports across files, use sed:
+```bash
+# Update imports in all Python files
+sed -i '' 's/from util import/import viral_ngs.core./g' src/viral_ngs/**/*.py
+sed -i '' 's/import util\./import viral_ngs.core./g' src/viral_ngs/**/*.py
+```
+
+**Key points:**
+- Use `-i ''` on macOS (or `-i` on Linux) for in-place editing
+- Always review changes with `git diff` after bulk updates
+- Some complex patterns may need manual fixes
+
+### Test Organization for Efficient CI
+
+Tests are organized by module subdirectory:
+```
+tests/unit/
+├── core/           # Core module tests
+├── assemble/       # Assembly module tests
+├── phylo/          # Phylo module tests
+└── classify/       # Classify module tests
+```
+
+**Cascading test dependencies:**
+- Core changes → run ALL tests
+- assemble changes → run assemble + core tests
+- phylo changes → run phylo + core tests
+
+### Docker Build Tiers
+
+The GitHub Actions workflow uses a three-tier build structure:
+1. **build-baseimage** - Base image with conda/micromamba
+2. **build-derivatives** - Images that depend on baseimage (core)
+3. **build-on-core** - Images that depend on core (assemble, classify, phylo)
+
+Each tier `needs:` the previous one to ensure proper dependency order.
+
+### git filter-repo Path Rewrites for Non-Core Modules
+
+When importing non-core modules, use path rewrites that reflect the correct structure:
+```bash
+git filter-repo \
+    --path-rename 'assembly.py:src/viral_ngs/assembly.py' \
+    --path-rename 'assemble/:src/viral_ngs/assemble/' \
+    --path-rename 'test/unit/:tests/unit/assemble/' \
+    --tag-rename '':'assemble-' \
+    --force
+```
+
+**Important:** Command modules go to `src/viral_ngs/`, NOT `src/viral_ngs/core/`.
+
+### Creating Package __init__.py for Tool Wrapper Subpackages
+
+Each tool wrapper subpackage needs an `__init__.py` that exports its modules:
+```python
+"""
+viral_ngs.assemble - Tool wrappers for genome assembly.
+"""
+from . import gap2seq
+from . import mafft
+from . import mummer
+from . import muscle
+from . import skani
+from . import spades
+from . import vcf
+from . import wgsim
+```
+
 ## Communication
 
 When working on this migration:
@@ -429,7 +525,13 @@ When working on this migration:
 
 1. Read `MONOREPO_IMPLEMENTATION_PLAN.md` for the detailed task list
 2. **Phase 3b**: Migrate viral-phylo with git history preservation using `git filter-repo`
+   - Command modules: `interhost.py`, `intrahost.py`, `ncbi.py` → `src/viral_ngs/`
+   - Tool wrappers: `phylo/` → `src/viral_ngs/phylo/`
+   - Tests: `test/unit/` → `tests/unit/phylo/`
 3. **Phase 3c**: Migrate viral-classify with git history preservation
+   - Command modules: `metagenomics.py`, `taxon_filter.py`, `kmer_utils.py` → `src/viral_ngs/`
+   - Tool wrappers: `classify/` → `src/viral_ngs/classify/`
+   - Special: Retire kaiju/diamond, try to consolidate kraken2/krona to main env
 4. Work through phases sequentially
 5. Verify each phase before moving to the next
 
