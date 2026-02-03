@@ -184,14 +184,9 @@ from . import stats
 from . import cmd
 from . import illumina_indices
 
-# Top-level modules
+# Remaining core modules
 from . import errors
-from . import broad_utils
-from . import file_utils
-from . import illumina
 from . import priorities
-from . import read_utils
-from . import reports
 
 # Tool wrappers
 from . import bbmap

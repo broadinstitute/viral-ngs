@@ -410,6 +410,19 @@ RUN python -c "from viral_ngs import assembly, metagenomics, interhost; print('m
 2. [ ] Point to new monorepo
 3. [ ] Archive (make read-only) after transition period
 
+### Future Refactoring (Post-Migration)
+
+**Extract reusable classes from command modules:**
+
+The command modules (`illumina.py`, `read_utils.py`, `assembly.py`, etc.) contain both CLI code and reusable classes. A future refactoring should:
+
+1. [ ] Extract `IlluminaDirectory`, `SampleSheet` from `illumina.py` → `core/illumina_types.py`
+2. [ ] Extract `ContigModifier`, `PoorAssemblyError`, `DenovoAssemblyError` from `assembly.py` → `assemble/types.py`
+3. [ ] Keep command modules as thin CLI wrappers that import from library modules
+4. [ ] This improves testability and allows library-only usage without CLI dependencies
+
+**Note:** This is low priority and can be done incrementally after the migration is complete.
+
 ---
 
 ## Docker Image Tags

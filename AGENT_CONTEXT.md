@@ -62,18 +62,22 @@ repo/
 
 ```
 viral-ngs/
-├── pyproject.toml              # Empty deps (all via conda)
+├── pyproject.toml              # With project.scripts for CLI entry points
 ├── src/viral_ngs/
 │   ├── __init__.py             # Just imports core
 │   ├── py.typed
+│   ├── illumina.py             # Core command module (moved from core/)
+│   ├── read_utils.py           # Core command module (moved from core/)
+│   ├── reports.py              # Core command module (moved from core/)
+│   ├── file_utils.py           # Core command module (moved from core/)
+│   ├── broad_utils.py          # Core command module (moved from core/)
 │   ├── assembly.py             # Assembly command module (Phase 3a)
 │   ├── interhost.py, intrahost.py, ncbi.py  # Phylo modules (Phase 3b)
 │   ├── metagenomics.py, taxon_filter.py     # Classify modules (Phase 3c)
-│   ├── core/                   # Core modules consolidated here
+│   ├── core/                   # Core library modules (utilities + tool wrappers)
 │   │   ├── __init__.py         # Tool/InstallMethod classes + submodule imports
 │   │   ├── samtools.py, picard.py, bwa.py, ...  # Tool wrappers
 │   │   ├── file.py, misc.py, cmd.py, ...        # Utilities
-│   │   ├── read_utils.py, illumina.py, ...      # Command modules
 │   │   └── errors.py, priorities.py, ...
 │   ├── assemble/               # Assembly tool wrappers (Phase 3a)
 │   │   ├── __init__.py
@@ -184,16 +188,22 @@ from viral_ngs.core.misc import available_cpu_count
 from . import samtools, picard
 from .file import mkstempfname
 
+# For command modules at viral_ngs/ level (illumina.py, read_utils.py, etc.)
+from .core import samtools, picard
+from .core import file as util_file, misc as util_misc, cmd as util_cmd
+
 # Old patterns (no longer used)
 import util.file          →  import viral_ngs.core.file
 from tools import samtools →  import viral_ngs.core.samtools
-import read_utils         →  import viral_ngs.core.read_utils
+import read_utils         →  import viral_ngs.read_utils  # (read_utils is at viral_ngs level)
 ```
 
 **Key points:**
 - Prefer `import x.y.z` over `from x.y import z` for explicitness
 - NO backward compatibility stubs - `viral_ngs.tools` and `viral_ngs.util` don't exist
+- Command modules (illumina.py, read_utils.py, etc.) are at `viral_ngs/` level, NOT in `core/`
 - Within `core/` modules, use relative imports (`from . import X`) to avoid circular imports
+- Command modules import from core using `from .core import X`
 - Test imports after each module migration
 
 ## GitHub Actions Modernization

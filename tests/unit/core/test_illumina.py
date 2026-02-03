@@ -14,8 +14,7 @@ import json
 import gzip
 import pytest
 import viral_ngs.core
-import viral_ngs.core
-import viral_ngs.core.illumina
+import viral_ngs.illumina
 import viral_ngs.core.samtools
 import viral_ngs.core.picard
 from test import TestCaseWithTmp, assert_equal_bam_reads

@@ -30,12 +30,12 @@ import matplotlib.pyplot as plt
 import numpy  as np
 import pandas as pd
 
-from . import picard
-from . import samtools
-from . import splitcode
+from .core import picard
+from .core import samtools
+from .core import splitcode
 from . import read_utils
-from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
-from .illumina_indices import IlluminaIndexReference, IlluminaBarcodeHelper
+from .core import file as util_file, misc as util_misc, cmd as util_cmd
+from .core.illumina_indices import IlluminaIndexReference, IlluminaBarcodeHelper
 
 log = logging.getLogger(__name__)
 
@@ -5034,5 +5034,9 @@ def full_parser():
     return util_cmd.make_parser(__commands__, __doc__)
 
 
-if __name__ == "__main__":
+def main():
     util_cmd.main_argparse(__commands__, __doc__)
+
+
+if __name__ == "__main__":
+    main()

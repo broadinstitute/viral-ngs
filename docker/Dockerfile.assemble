@@ -32,10 +32,12 @@ COPY scripts/ /opt/viral-ngs/source/scripts/
 COPY pyproject.toml README.md LICENSE /opt/viral-ngs/source/
 
 # Install viral-ngs package
+# VERSION is passed from GitHub Actions via git describe
 WORKDIR /opt/viral-ngs/source
-ARG VERSION=0.0.0.dev0
+ARG VERSION
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir . && \
+    echo "${VERSION}" > /opt/viral-ngs/source/VERSION
 
 # Verify installation
 RUN python -c "from viral_ngs.core import read_utils, illumina; print('Core modules OK')" && \

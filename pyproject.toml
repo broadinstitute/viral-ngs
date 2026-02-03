@@ -49,9 +49,15 @@ dev = [
     "pytest-xdist",
     "pytest-cov",
 ]
-terra = [
-    "firecloud>=0.16.35",
-]
+
+[project.scripts]
+# Command-line entry points for viral-ngs tools
+illumina = "viral_ngs.illumina:main"
+read_utils = "viral_ngs.read_utils:main"
+reports = "viral_ngs.reports:main"
+file_utils = "viral_ngs.file_utils:main"
+broad_utils = "viral_ngs.broad_utils:main"
+assembly = "viral_ngs.assembly:main"
 
 [project.urls]
 Homepage = "https://github.com/broadinstitute/viral-ngs"

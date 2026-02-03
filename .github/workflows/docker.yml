@@ -16,8 +16,31 @@ env:
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
 
 jobs:
+  # Calculate version from git describe (once, shared by all jobs)
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for accurate git describe
+          fetch-tags: true
+
+      - name: Get version from git describe
+        id: version
+        run: |
+          # Get version like: v3.4.5 or v3.4.5-3-gabcdef
+          VERSION=$(git describe --tags --always)
+          # Strip leading 'v' if present for semver compatibility
+          VERSION=${VERSION#v}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Detected version: ${VERSION}"
+
   # Build baseimage first (no dependencies)
   build-baseimage:
+    needs: get-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -97,7 +120,7 @@ jobs:
 
   # Build derivative images (depend on baseimage)
   build-derivatives:
-    needs: build-baseimage
+    needs: [get-version, build-baseimage]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -179,12 +202,13 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-baseimage.outputs.baseimage-tag }}
+            VERSION=${{ needs.get-version.outputs.version }}
           cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-${{ matrix.flavor }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1},mode=max', env.QUAY_REPO, matrix.flavor) || '' }}
 
   # Build images that depend on core (assemble, classify, phylo)
   build-on-core:
-    needs: build-derivatives
+    needs: [get-version, build-derivatives]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -256,5 +280,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-derivatives.outputs.core-tag }}
+            VERSION=${{ needs.get-version.outputs.version }}
           cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-${{ matrix.flavor }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1},mode=max', env.QUAY_REPO, matrix.flavor) || '' }}

@@ -13,7 +13,7 @@ import os
 import os.path
 import json
 import glob
-from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
+from .core import file as util_file, misc as util_misc, cmd as util_cmd
 
 log = logging.getLogger(__name__)
 
@@ -124,5 +124,10 @@ __commands__.append(('get_all_names', parser_get_all_names))
 def full_parser():
     return util_cmd.make_parser(__commands__, __doc__)
 
-if __name__ == '__main__':
+
+def main():
     util_cmd.main_argparse(__commands__, __doc__)
+
+
+if __name__ == '__main__':
+    main()

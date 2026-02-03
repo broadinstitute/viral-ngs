@@ -22,11 +22,11 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot
 
-from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
-from . import samtools
-from . import bwa
-from . import fastqc
-from .stats import mean, median
+from .core import file as util_file, misc as util_misc, cmd as util_cmd
+from .core import samtools
+from .core import bwa
+from .core import fastqc
+from .core.stats import mean, median
 
 log = logging.getLogger(__name__)
 
@@ -964,5 +964,9 @@ def full_parser():
     return util_cmd.make_parser(__commands__, __doc__)
 
 
-if __name__ == '__main__':
+def main():
     util_cmd.main_argparse(__commands__, __doc__)
+
+
+if __name__ == '__main__':
+    main()

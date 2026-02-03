@@ -26,7 +26,7 @@ from collections import OrderedDict, defaultdict
 import viral_ngs.core.cmd
 import viral_ngs.core.file
 import viral_ngs.core.misc
-import viral_ngs.core.read_utils
+import viral_ngs.read_utils
 import viral_ngs.core.picard
 import viral_ngs.core.samtools
 import viral_ngs.core.gatk
@@ -83,7 +83,7 @@ def assemble_spades(
     else:
         trim_rmdup_bam = viral_ngs.core.file.mkstempfname('.subsamp.bam')
 
-    viral_ngs.core.read_utils.trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=n_reads,
+    viral_ngs.read_utils.trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=n_reads,
                                         trim_opts=dict(maxinfo_target_length=35, maxinfo_strictness=.2))
 
     with viral_ngs.core.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True
@@ -1764,5 +1764,9 @@ def full_parser():
     return viral_ngs.core.cmd.make_parser(__commands__, __doc__)
 
 
-if __name__ == '__main__':
+def main():
     viral_ngs.core.cmd.main_argparse(__commands__, __doc__)
+
+
+if __name__ == '__main__':
+    main()

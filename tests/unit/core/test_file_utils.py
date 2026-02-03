@@ -9,7 +9,7 @@ import unittest
 import argparse
 
 # module-specific
-import viral_ngs.core.file_utils
+import viral_ngs.file_utils
 import viral_ngs.core
 from test import TestCaseWithTmp
 

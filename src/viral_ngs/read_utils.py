@@ -24,21 +24,21 @@ import functools
 from Bio import SeqIO
 import pysam
 
-from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
-from .file import mkstempfname
-from . import bbmap
-from . import bwa
-from . import cdhit
-from . import picard
-from . import samtools
-from . import minimap2
-from . import mvicuna
-from . import prinseq
-from . import novoalign
-from . import gatk
-from . import sambamba
-from . import trimmomatic
-from . import Tool
+from .core import file as util_file, misc as util_misc, cmd as util_cmd
+from .core.file import mkstempfname
+from .core import bbmap
+from .core import bwa
+from .core import cdhit
+from .core import picard
+from .core import samtools
+from .core import minimap2
+from .core import mvicuna
+from .core import prinseq
+from .core import novoalign
+from .core import gatk
+from .core import sambamba
+from .core import trimmomatic
+from .core import Tool
 
 log = logging.getLogger(__name__)
 
@@ -2338,5 +2338,9 @@ def full_parser():
     return util_cmd.make_parser(__commands__, __doc__)
 
 
-if __name__ == '__main__':
+def main():
     util_cmd.main_argparse(__commands__, __doc__)
+
+
+if __name__ == '__main__':
+    main()
