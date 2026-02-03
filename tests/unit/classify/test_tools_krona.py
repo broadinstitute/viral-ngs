@@ -3,7 +3,7 @@ from builtins import super
 import os.path
 import tempfile
 import unittest
-from mock import patch
+from unittest.mock import patch
 from viral_ngs.core import file as util_file
 from viral_ngs.core import misc as util_misc
 from viral_ngs.classify import krona

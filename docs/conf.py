@@ -24,7 +24,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(project_root, 'src'))
 
 # -- Mock out the heavyweight pip packages, esp those that require C ----
-import mock
+from unittest import mock
 MOCK_MODULES = [
     'scipy', 'pysam',
     'Bio', 'Bio.AlignIO', 'Bio.Alphabet', 'Bio.Alphabet.IUPAC',

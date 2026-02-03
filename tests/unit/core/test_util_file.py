@@ -12,7 +12,7 @@ import tempfile
 import viral_ngs.core
 from tests import TestCaseWithTmp
 import pytest
-from mock import patch
+from unittest.mock import patch
 
 if sys.version_info >= (3, 10, 12):
     '''

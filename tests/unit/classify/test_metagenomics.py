@@ -11,8 +11,8 @@ import textwrap
 import unittest
 import pytest
 
-import mock
-from mock import patch
+from unittest import mock
+from unittest.mock import patch
 
 from viral_ngs.core import picard
 from viral_ngs import metagenomics
