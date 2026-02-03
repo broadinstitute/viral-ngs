@@ -361,6 +361,16 @@ For tools without ARM64 support (novoalign, mvicuna):
 
 These packages are in bioconda but only have x86_64 builds. Use exact versions (e.g., `novoalign=3.09.04`, `mvicuna=1.0`) since newer versions may not exist.
 
+### udocker Quirks
+
+- udocker refuses to run as root by default. Use `--allow-root` flag for Docker build verification
+- In Dockerfile, use `udocker --allow-root version` to verify installation
+- The `MINIWDL__SCHEDULER__CONTAINER_BACKEND=udocker` environment variable tells miniwdl to use udocker
+
+### qsv is x86-Only
+
+The `qsv` package (fast CSV tool) is only available for linux-64, osx-64, win-64 - no ARM64 build. For multi-arch Docker builds, either skip it or add to an x86-only requirements file.
+
 ### PrexistingUnixCommand is the Only InstallMethod
 
 Since all tools are installed via conda, `PrexistingUnixCommand` is the only `InstallMethod` subclass needed. It just checks if the tool exists in PATH.
@@ -418,7 +428,7 @@ When working on this migration:
 ## Next Steps
 
 1. Read `MONOREPO_IMPLEMENTATION_PLAN.md` for the detailed task list
-2. **Phase 2**: Migrate viral-core with git history preservation using `git filter-repo`
+2. **Phase 3a**: Migrate viral-assemble with git history preservation using `git filter-repo`
 3. Work through phases sequentially
 4. Verify each phase before moving to the next
 
@@ -453,6 +463,15 @@ When working on this migration:
 - Updated all test imports to use `viral_ngs.core.*`
 - Deleted legacy viral-core CI workflow (build.yml) that was accidentally merged with git history
 - Docker build verified with all module imports working
+
+### Baseimage Enhancements (Post-Phase 2)
+- Created `docker/requirements/baseimage.txt` with general utilities
+- Added to baseimage: miniwdl, udocker, awscli, google-cloud-storage, csvkit, jq, parallel, pigz, unzip, zstd
+- Set `MINIWDL__SCHEDULER__CONTAINER_BACKEND=udocker` environment variable
+- Moved general utilities from core.txt to baseimage.txt
+- Added seaborn to core.txt for data visualization
+- Updated pyproject.toml with Python dependencies for pip-based installs
+- Note: qsv is x86-only (no ARM64 build), excluded for multi-arch support
 
 ## Reference Repositories
 

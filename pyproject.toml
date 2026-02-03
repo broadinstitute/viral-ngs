@@ -24,9 +24,24 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 keywords = ["bioinformatics", "genomics", "viral", "ngs", "sequencing"]
-# All runtime dependencies are installed via conda for faster installation
-# and better binary compatibility. See docker/requirements/core.txt
-dependencies = []
+# Python dependencies for pip-based installs
+# Note: For Docker-based usage, all deps (including bioinformatics tools) are
+# installed via conda. See docker/requirements/core.txt
+dependencies = [
+    "arrow>=0.12.1",
+    "biopython>=1.72",
+    "jinja2>=2.11.3",
+    "lz4>=2.2.1",
+    "matplotlib>=2.2.4",
+    "pandas",
+    "psutil>=6.1.0",
+    "pybedtools>=0.7.10",
+    "pysam>=0.23.0",
+    "pyyaml",
+    "scipy",
+    "seaborn",
+    "zstandard>=0.23.0",
+]
 
 [project.optional-dependencies]
 dev = [

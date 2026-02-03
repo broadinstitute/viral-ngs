@@ -4,6 +4,7 @@
 # installation and better binary compatibility. This includes packages
 # with C extensions that would otherwise require compilation.
 #
+# Note: General utilities (parallel, pigz, jq, etc.) are in baseimage.txt
 # Note: x86-only packages (novoalign, mvicuna) are in core-x86.txt
 
 # Python runtime dependencies
@@ -18,6 +19,7 @@ pybedtools>=0.7.10
 pysam>=0.23.0
 pyyaml
 scipy
+seaborn
 zstandard>=0.23.0
 
 # Bioinformatics tools
@@ -26,22 +28,16 @@ bcftools>=1.10
 bedtools>=2.29.2
 bwa>=0.7.17
 cd-hit>=4.6.8
-csvkit>=1.0.4
 fastqc>=0.11.7
 fgbio>=2.2.1
 gatk=3.8
 illumina-interop=1.5.0
-jq>=1.6
 lbzip2>=2.5
 lz4-c>=1.8.3
 minimap2>=2.17
-parallel>=20190922
 picard=2.25.6
-pigz>=2.4
 prinseq>=0.20.4
 sambamba>=1.0.1
 samtools>=1.21
 splitcode>=0.31.4
 trimmomatic>=0.38
-unzip>=6.0
-zstd>=1.5.7

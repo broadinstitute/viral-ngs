@@ -1,0 +1,24 @@
+# Conda dependencies for viral-ngs baseimage
+#
+# These are general-purpose tools installed in the base image that are
+# useful across all derivative images (core, classify, assemble, phylo).
+#
+# All packages are from conda-forge unless noted.
+
+# WDL local execution (miniwdl + udocker for containerized task execution)
+miniwdl>=1.11.1
+udocker>=1.3.16
+
+# Cloud CLIs
+awscli
+google-cloud-storage
+
+# General utilities
+csvkit>=1.0.4
+jq>=1.6
+parallel>=20190922
+pigz>=2.4
+unzip>=6.0
+zstd>=1.5.7
+
+# Note: qsv is x86-only (no linux-aarch64 build), skipping for multi-arch support

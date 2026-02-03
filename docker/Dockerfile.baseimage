@@ -1,10 +1,11 @@
 # viral-ngs baseimage
-# Base image with micromamba and Python for viral-ngs tools
+# Base image with micromamba, Python, and general utilities for viral-ngs tools
 #
-# This provides a minimal foundation with:
+# This provides a foundation with:
 # - micromamba (conda-compatible package manager)
 # - Python 3.12
 # - conda/mamba symlinks for compatibility
+# - General utilities (miniwdl, udocker, cloud CLIs, etc.)
 #
 # Derivative images (core, classify, assemble, phylo) build on this.
 
@@ -56,10 +57,23 @@ ENV VIRAL_NGS_PATH="/opt/viral-ngs/source" \
     PYTHONPATH="/opt/viral-ngs/source" \
     PATH="/opt/conda/bin:/usr/local/bin:$PATH"
 
+# Configure miniwdl to use udocker as container backend
+ENV MINIWDL__SCHEDULER__CONTAINER_BACKEND="udocker"
+
+# Copy requirements and install script
+COPY docker/requirements/baseimage.txt /tmp/requirements/
+COPY docker/install-conda-deps.sh /tmp/
+
+# Install baseimage dependencies (miniwdl, udocker, cloud CLIs, utilities)
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt && \
+    rm -rf /tmp/requirements /tmp/install-conda-deps.sh
+
 WORKDIR /opt/viral-ngs/source
 
 # Verify installation
 RUN python --version && \
-    micromamba --version
+    micromamba --version && \
+    miniwdl --version && \
+    udocker --allow-root version
 
 CMD ["/bin/bash"]
