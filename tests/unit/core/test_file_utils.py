@@ -34,7 +34,7 @@ class TestTarballMerger(TestCaseWithTmp):
         temp_dir = tempfile.gettempdir()
         out_tarball_file = os.path.join(temp_dir,"out.tar.gz")
 
-        file_utils.merge_tarballs( out_tarball_file,
+        viral_ngs.file_utils.merge_tarballs( out_tarball_file,
                                     self.input_mixed_files
                                     )
 
@@ -44,5 +44,5 @@ class TestTsvJoin(TestCaseWithTmp):
         infiles = list(os.path.join(viral_ngs.core.file.get_test_input_path(self), x) for x in ('tab-1.txt', 'tab-2.txt'))
         expected = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'expected-out.txt')
         actual = viral_ngs.core.file.mkstempfname('.joined.txt')
-        file_utils.tsv_join(infiles, actual, join_id='h1')
+        viral_ngs.file_utils.tsv_join(infiles, actual, join_id='h1')
         self.assertEqualContents(expected, actual)

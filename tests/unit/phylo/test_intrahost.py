@@ -23,12 +23,13 @@ import viral_ngs.core.file
 import viral_ngs.phylo.vcf
 from viral_ngs.intrahost import AlleleFieldParser
 import viral_ngs.phylo.mafft
+from tests import TestCaseWithTmp, _CPUS
 
 
 class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
-        for cmd_name, parser_fun in intrahost.__commands__:
+        for cmd_name, parser_fun in viral_ngs.intrahost.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
@@ -130,7 +131,7 @@ class MockVphaserOutput:
 
 class TestIntrahostFilters(unittest.TestCase):
     ''' This tests step 1 of the iSNV calling process
-        (intrahost.vphaser_one_sample), which runs V-Phaser2 on
+        (viral_ngs.intrahost.vphaser_one_sample), which runs V-Phaser2 on
         a single sample, reformats the output slightly, and performs
         strand-bias filtering and adds library-bias statistics.
         These unit tests mock the vphaser tool output and just test
@@ -141,7 +142,7 @@ class TestIntrahostFilters(unittest.TestCase):
         data = MockVphaserOutput()
         data.add_snp('c1', 100, [('A', 10, 20), ('T', 5, 2), ('C', 30, 500), ('G', 60, 40)])
         data.add_snp('c2', 100, [('C', 10, 2), ('T', 2, 8)])
-        output = list(intrahost.filter_strand_bias(data))
+        output = list(viral_ngs.intrahost.filter_strand_bias(data))
         expected = ['c1', '100', 'A', 'G', None, 'snp', 23.076923076923078, 'G:60:40:60:40:1', 'A:10:20:10:20:1']
         self.assertEqual(len(output), 1)
         self.assertEqual(output[0][:4], expected[:4])
@@ -152,9 +153,9 @@ class TestIntrahostFilters(unittest.TestCase):
 
 #@unittest.skipIf(viral_ngs.core.is_osx(), "vphaser2 osx binary from bioconda has issues")
 @unittest.skip("vphaser2 behaving unpredictably; not used in WDL pipelines")
-class TestPerSample(test.TestCaseWithTmp):
+class TestPerSample(TestCaseWithTmp):
     ''' This tests step 1 of the iSNV calling process
-        (intrahost.vphaser_one_sample), which runs V-Phaser2 on
+        (viral_ngs.intrahost.vphaser_one_sample), which runs V-Phaser2 on
         a single sample, reformats the output slightly, and performs
         strand-bias filtering and adds library-bias statistics.
     '''
@@ -176,13 +177,13 @@ class TestPerSample(test.TestCaseWithTmp):
         inBam = os.path.join(myInputDir, 'in.bam')
         refFasta = os.path.join(myInputDir, 'ref.fasta')
         outTab = viral_ngs.core.file.mkstempfname('.txt')
-        intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=test._CPUS, minReadsEach=6, maxBias=3)
+        viral_ngs.intrahost.vphaser_one_sample(inBam, refFasta, outTab, vphaserNumThreads=_CPUS, minReadsEach=6, maxBias=3)
         expected = os.path.join(myInputDir, 'vphaser_one_sample_expected.txt')
         self.assertEqualContents(outTab, expected)
 
 
 class VcfMergeRunner:
-    ''' This creates test data and feeds it to intrahost.merge_to_vcf
+    ''' This creates test data and feeds it to viral_ngs.intrahost.merge_to_vcf
     '''
 
     def __init__(self, ref_genome=None):
@@ -234,10 +235,10 @@ class VcfMergeRunner:
         self.multi_align_samples(retree=retree)
 
         if not omit_samplenames:
-            intrahost.merge_to_vcf(self.ref, outVcf, self.sample_order, list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
+            viral_ngs.intrahost.merge_to_vcf(self.ref, outVcf, self.sample_order, list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
                               self.alignedFastas)
         else:
-            intrahost.merge_to_vcf(self.ref, outVcf, [], list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
+            viral_ngs.intrahost.merge_to_vcf(self.ref, outVcf, [], list(self.dump_isnv_tmp_file(s) for s in self.sample_order),
                               self.alignedFastas)
 
 
@@ -284,14 +285,14 @@ class VcfMergeRunner:
                 verbose=False,
                 outputAsClustal=None,
                 maxiters=1000,
-                threads=test._CPUS,
+                threads=_CPUS,
                 retree=retree)
             self.alignedFastas.append(alignedOutFile)
 
 
-class TestVcfMerge(test.TestCaseWithTmp):
+class TestVcfMerge(TestCaseWithTmp):
     ''' This tests step 2 of the iSNV calling process
-        (intrahost.merge_to_vcf), which gets really nasty and tricky
+        (viral_ngs.intrahost.merge_to_vcf), which gets really nasty and tricky
         and has lots of edge cases. These unit tests mock the vphaser
         tool output and just tests the merge and VCF stuff.
     '''
@@ -301,15 +302,15 @@ class TestVcfMerge(test.TestCaseWithTmp):
         s1 = makeTempFasta([('s1-1', 'ATCGCA')])
         emptyfile = viral_ngs.core.file.mkstempfname('.txt')
         outVcf = viral_ngs.core.file.mkstempfname('.vcf')
-        #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
-        self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
+        #viral_ngs.intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
+        self.assertRaises(LookupError, viral_ngs.intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertGreater(os.path.getsize(outVcf), 0)
         with viral_ngs.core.file.open_or_gzopen(outVcf, 'rt') as inf:
             for line in inf:
                 self.assertTrue(line.startswith('#'))
         outVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
-        #intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
-        self.assertRaises(LookupError, intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
+        #viral_ngs.intrahost.merge_to_vcf(ref, outVcf, ['s1'], [emptyfile], [s1])
+        self.assertRaises(LookupError, viral_ngs.intrahost.merge_to_vcf, ref, outVcf, ['s1'], [emptyfile], [s1])
         self.assertGreater(os.path.getsize(outVcf), 0)
         with viral_ngs.core.file.open_or_gzopen(outVcf, 'rt') as inf:
             for line in inf:
@@ -322,7 +323,7 @@ class TestVcfMerge(test.TestCaseWithTmp):
         emptyfile = viral_ngs.core.file.mkstempfname('.txt')
         outVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
         self.assertRaises(
-            LookupError, intrahost.merge_to_vcf, ref, outVcf, [
+            LookupError, viral_ngs.intrahost.merge_to_vcf, ref, outVcf, [
                 's1', 's2'
             ], [
                 emptyfile, emptyfile
