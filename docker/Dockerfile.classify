@@ -20,12 +20,13 @@ LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-n
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 # Copy requirements and dependency installation script
-COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/classify.txt /tmp/requirements/
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/classify.txt docker/requirements/classify-x86.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install conda dependencies (classify tools)
-# Install all requirements together in single resolver call for proper dependency resolution
-RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/classify.txt
+# All files resolved together in single micromamba call; x86-only files skipped on ARM
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/classify.txt \
+    --x86-only:/tmp/requirements/classify-x86.txt
 
 # Copy source code (includes classify module)
 COPY src/ /opt/viral-ngs/source/src/

@@ -7,6 +7,11 @@
 # Note: General utilities (parallel, pigz, jq, etc.) are in baseimage.txt
 # Note: x86-only packages (novoalign, mvicuna) are in core-x86.txt
 
+# Testing framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-xdist>=3.0.0
+
 # Python runtime dependencies
 arrow>=0.12.1
 biopython>=1.72

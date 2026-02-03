@@ -130,9 +130,10 @@ viral-ngs/
 │   └── requirements/
 │       ├── baseimage.txt
 │       ├── core.txt
-│       ├── core-x86.txt        # x86-only packages
+│       ├── core-x86.txt        # x86-only core packages
 │       ├── assemble.txt
 │       ├── classify.txt
+│       ├── classify-x86.txt    # x86-only classify packages
 │       ├── phylo.txt
 │       └── phylo-x86.txt       # x86-only phylo packages
 │
@@ -255,17 +256,29 @@ The `pyproject.toml` has empty dependencies - conda handles everything.
    - `docker/requirements/classify.txt` - classification-specific
    - `docker/requirements/phylo.txt` - phylo-specific
 
-3. For x86-only packages (no ARM64 build), add to `core-x86.txt`
+3. For x86-only packages (no ARM64 build), add to the appropriate `-x86.txt` file:
+   - `core-x86.txt` - novoalign, mvicuna
+   - `classify-x86.txt` - bmtagger, kallisto, kb-python
+   - `phylo-x86.txt` - table2asn
 
 ### Dependency Resolution
 
-When building derivative images, ALL dependencies must be installed in a single resolver call:
+When building derivative images, ALL dependencies (including x86-only) must be installed in a **single resolver call** using the `--x86-only:` prefix:
 
 ```bash
-/tmp/install-conda-deps.sh /tmp/requirements/core.txt /tmp/requirements/assemble.txt
+# Single resolver call - x86-only files skipped on ARM64
+/tmp/install-conda-deps.sh \
+  /tmp/requirements/baseimage.txt \
+  /tmp/requirements/core.txt \
+  /tmp/requirements/classify.txt \
+  --x86-only:/tmp/requirements/classify-x86.txt
 ```
 
 This prevents version regressions. **Never install incrementally.**
+
+The `install-conda-deps.sh` script:
+- On x86: Includes all files in one micromamba call
+- On ARM64: Skips files tagged with `--x86-only:` but includes others
 
 ---
 
@@ -343,8 +356,16 @@ Each test job uploads coverage to Codecov with flavor-specific flags.
 ### Multi-Architecture Support
 
 - Images built for `linux/amd64` and `linux/arm64`
-- x86-only packages (novoalign, mvicuna, table2asn) handled gracefully on ARM
+- x86-only packages (novoalign, mvicuna, bmtagger, kallisto, kb-python, table2asn) handled via `--x86-only:` prefix in `install-conda-deps.sh`
+- Python tool wrappers still importable on ARM64; only runtime execution fails for missing binaries
 - Cache stored on Quay.io registry (GHA 10GB limit too small)
+
+### Documentation Build
+
+The `docs.yml` workflow builds Sphinx documentation. Key points:
+- Uses `mock` to stub heavy dependencies (`Bio`, `pysam`, `scipy`, etc.) in `docs/conf.py`
+- When adding new imports to source code, add corresponding mocks to `MOCK_MODULES` in `docs/conf.py`
+- Runs `sphinx-build -W` (warnings as errors)
 
 ### Feature Branch Images
 

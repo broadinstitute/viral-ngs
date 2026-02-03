@@ -1,0 +1,11 @@
+# Classification tools - x86-only (no ARM64 builds available)
+# These packages are skipped on ARM64 architecture
+# Install with: install-conda-deps.sh --x86-only:classify-x86.txt
+
+# BMTagger: Host sequence filtering tool
+bmtagger>=3.101
+
+# Kallisto/kb-python: Pseudoalignment for RNA-seq
+# kb-python depends on ngs-tools -> pyseq-align which has no ARM64 build
+kallisto>=0.51.1
+kb-python>=0.29.5

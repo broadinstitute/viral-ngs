@@ -22,10 +22,9 @@ COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requi
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install conda dependencies (bioinformatics tools)
-# Install baseimage.txt + core.txt together in single resolver call for proper dependency resolution
-# Then install x86-only packages (skipped on ARM)
-RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt && \
-    /tmp/install-conda-deps.sh --x86-only /tmp/requirements/core-x86.txt
+# All files resolved together in single micromamba call; x86-only files skipped on ARM
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt \
+    --x86-only:/tmp/requirements/core-x86.txt
 
 # Copy source code
 COPY src/ /opt/viral-ngs/source/src/

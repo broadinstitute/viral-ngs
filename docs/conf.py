@@ -25,11 +25,14 @@ sys.path.insert(0, os.path.join(project_root, 'src'))
 
 # -- Mock out the heavyweight pip packages, esp those that require C ----
 import mock
-MOCK_MODULES = ['scipy', 'pysam',
-                'Bio', 'Bio.AlignIO', 'Bio.Alphabet',
-                'Bio.Alphabet.IUPAC', 'Bio.SeqIO', 'Bio.Data.IUPACData',
-                'Bio.Seq', 'Bio.SeqRecord', 'pybedtools', 'pybedtools.BedTool',
-                'arrow', 'zstd', 'bz2', 'lz4.frame']
+MOCK_MODULES = [
+    'scipy', 'pysam',
+    'Bio', 'Bio.AlignIO', 'Bio.Alphabet', 'Bio.Alphabet.IUPAC',
+    'Bio.SeqIO', 'Bio.SeqIO.FastaIO', 'Bio.Data.IUPACData',
+    'Bio.Seq', 'Bio.SeqRecord',
+    'pybedtools', 'pybedtools.BedTool',
+    'arrow', 'zstandard', 'bz2', 'lz4', 'lz4.frame',
+]
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
 

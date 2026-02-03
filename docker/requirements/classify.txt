@@ -1,8 +1,6 @@
 # Metagenomic classification tools
+# Note: x86-only packages (bmtagger, kallisto, kb-python) are in classify-x86.txt
 blast>=2.15.0
-bmtagger>=3.101
-kallisto>=0.51.1
-kb-python>=0.29.5
 kma>=1.4.0
 kmc>=3.2.1
 kraken2>=2.1.3

@@ -60,6 +60,57 @@ docker pull ghcr.io/broadinstitute/viral-ngs:latest
 
 The recommended way to use viral-ngs is via Docker images, which include all bioinformatics tool dependencies pre-configured.
 
+### Conda + pip (Development)
+
+For local development with bioinformatics tools:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/broadinstitute/viral-ngs.git
+   cd viral-ngs
+   ```
+
+2. **Create and activate a conda environment:**
+   ```bash
+   conda create -n viral-ngs python=3.12
+   conda activate viral-ngs
+   ```
+
+   Or using micromamba (faster):
+   ```bash
+   micromamba create -n viral-ngs python=3.12
+   micromamba activate viral-ngs
+   ```
+
+3. **Install bioinformatics tools via conda:**
+   ```bash
+   # Core tools only
+   conda install -c conda-forge -c bioconda \
+     --file docker/requirements/baseimage.txt \
+     --file docker/requirements/core.txt
+
+   # Or for all tools (mega)
+   conda install -c conda-forge -c bioconda \
+     --file docker/requirements/baseimage.txt \
+     --file docker/requirements/core.txt \
+     --file docker/requirements/assemble.txt \
+     --file docker/requirements/classify.txt \
+     --file docker/requirements/phylo.txt
+   ```
+
+4. **Install the viral-ngs Python package:**
+   ```bash
+   pip install -e .
+   ```
+
+   Note: Installing into an activated conda environment is safe - pip installs into the conda environment, not system Python.
+
+5. **Verify installation:**
+   ```bash
+   read_utils --version
+   python -c "from viral_ngs.core import samtools; print(samtools.SamtoolsTool().version())"
+   ```
+
 ### pip (Python package only)
 
 For use as a Python library without bioinformatics tools:
@@ -68,7 +119,7 @@ For use as a Python library without bioinformatics tools:
 pip install viral-ngs
 ```
 
-Note: pip installation does not include external tools (samtools, bwa, etc.). Use Docker for the complete toolset.
+Note: pip installation does not include external tools (samtools, bwa, etc.). Use Docker or Conda for the complete toolset.
 
 ## Documentation
 
