@@ -1,0 +1,80 @@
+LOCUS       JQ610683                 925 bp    RNA     linear   VRL 31-JAN-2014
+DEFINITION  Orungo virus isolate UGMP 359 segment 9, complete sequence.
+ACCESSION   JQ610683
+VERSION     JQ610683.1
+KEYWORDS    .
+SOURCE      Orungo virus (ORUV)
+  ORGANISM  Orungo virus
+            Viruses; dsRNA viruses; Reoviridae; Sedoreovirinae; Orbivirus.
+REFERENCE   1  (bases 1 to 925)
+  AUTHORS   Mohd Jaafar,F., Belhouchet,M., Belaganahalli,M., Tesh,R.B.,
+            Mertens,P.P. and Attoui,H.
+  TITLE     Full-genome characterisation of orungo, lebombo and changuinola
+            viruses provides evidence for co-evolution of orbiviruses with
+            their arthropod vectors
+  JOURNAL   PLoS ONE 9 (1), E86392 (2014)
+   PUBMED   24475112
+  REMARK    Publication Status: Online-Only
+REFERENCE   2  (bases 1 to 925)
+  AUTHORS   Attoui,H., Mohd Jaafar,F., Mertens,P.P.C. and Belhouchet,M.
+  TITLE     Direct Submission
+  JOURNAL   Submitted (01-FEB-2012) Vector-Borne Diseases, Institute for Animal
+            Health, Ash Road, Pirbright, Woking, Surrey GU24 0NF, United
+            Kingdom
+COMMENT     GenBank Accession Numbers JQ610675-JQ610684 represent sequences
+            from the 10 segments of Orungo virus.
+            
+            ##Assembly-Data-START##
+            Assembly Method       :: manually v. manually
+            Sequencing Technology :: Sanger dideoxy sequencing
+            ##Assembly-Data-END##
+FEATURES             Location/Qualifiers
+     source          1..925
+                     /organism="Orungo virus"
+                     /mol_type="genomic RNA"
+                     /isolate="UGMP 359"
+                     /isolation_source="Anopheles funestus"
+                     /host="Homo sapiens"
+                     /db_xref="taxon:40058"
+                     /segment="9"
+                     /country="Uganda"
+                     /collection_date="Sep-1959"
+                     /note="acronym: ORUV"
+     CDS             23..883
+                     /note="helicase"
+                     /codon_start=1
+                     /product="VP6"
+                     /protein_id="AFX73395.1"
+                     /translation="MLVLAPGDLIDGVRHQLSERGVRIRLRETNDDEQKDEPVDTGGG
+                     KPGDRIGKEVGNAESEQSSDKEKKAGGSSDSELGEGGDGRRQTEKAEGGENGTRDIGI
+                     QDKDKQFDRRANPDNALDRENRSGDPQLKYGFATKRIANAVESKYHCGGFEGPGSDGY
+                     IKLEMSIMKALGLNRDDHIEQLEFLKHQQKGPSKIQVRTIASETKLKEVCNIMDKPVA
+                     PTARSAVSVVSNRVEDVKEAQVYFTTPTGDRGWKEVARKASQTPNIRAYINPEGDDPK
+                     VSFLHLIDHL"
+     CDS             111..512
+                     /note="non-structural protein 4"
+                     /codon_start=1
+                     /product="NS4"
+                     /protein_id="AFX73396.1"
+                     /translation="MMTSKRMNQWIREAASRVIESGRKLEMPRVNSLPIKRRRLEEVR
+                     IQSSGKVEMEGDKLRRLKAERMELEILAFRIKTNNLIGALIQITRWTEKIDQEIRNLN
+                     MDLQPNELQTPLSQSTTAVDLRGQDRMDTSN"
+ORIGIN      
+        1 gtataaaaca tcctcccatg tcatgttggt gttggcaccg ggtgatctca tagacggagt
+       61 gcgtcatcaa ttatctgaaa gaggagtcag gattcgttta cgggaaacga atgatgacga
+      121 gcaaaaggat gaaccagtgg atacgggagg cggcaagccg ggtgatcgaa tcgggaagga
+      181 agttggaaat gccgagagtg aacagtcttc cgataaagag aagaaggctg gaggaagttc
+      241 ggattcagag ctcggggaag gtggagatgg aaggcgacaa actgagaagg ctgaaggcgg
+      301 agagaatgga actagagata ttggcattca ggataaagac aaacaatttg atcggcgcgc
+      361 taatccagat aacgcgttgg acagagaaaa tcgatcagga gatccgcaac ttaaatatgg
+      421 atttgcaacc aaacgaattg caaacgccgt tgagtcaaag taccactgcg gtggatttga
+      481 ggggccagga tcggatggat acatcaaact agaaatgtca ataatgaagg cgctaggttt
+      541 aaaccgagat gaccacatcg aacaattgga gttcctcaag caccaacaga aagggcccag
+      601 caaaattcaa gtcagaacga tcgcttccga aaccaaatta aaagaggtgt gtaatataat
+      661 ggacaagccg gtggctccca cagcgagaag tgcggtgagt gtagttagta accgtgttga
+      721 agacgtgaag gaagcccagg tgtattttac aactccaaca ggagatagag gctggaaaga
+      781 agtagcaagg aaagcgagcc agacaccaaa cattcgagcg tacattaatc cggagggaga
+      841 tgatcctaaa gtctcatttc tgcatttaat cgatcatctg tgaggtcacg gtctgaacta
+      901 cgggcatgct gggtgtttca gttac
+//
+

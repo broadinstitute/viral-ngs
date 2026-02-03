@@ -1,0 +1,64 @@
+>Feature gb|JQ610675.1|
+13	3921	CDS
+			product	VP1
+			prot_desc	RNA-dependent RNA polymerase
+			protein_id	gb|AFX73387.1|
+
+>Feature gb|JQ610676.1|
+17	2899	CDS
+			product	VP2
+			prot_desc	T2 protein
+			protein_id	gb|AFX73388.1|
+
+>Feature gb|JQ610677.1|
+18	2738	CDS
+			product	VP3
+			prot_desc	outer capsid and cell attachment protein
+			protein_id	gb|AFX73389.1|
+
+>Feature gb|JQ610678.1|
+13	1926	CDS
+			product	VP4
+			prot_desc	capping enzyme
+			protein_id	gb|AFX73390.1|
+
+>Feature gb|JQ610679.1|
+36	1676	CDS
+			product	NS1
+			prot_desc	non-structural protein 1
+			protein_id	gb|AFX73391.1|
+
+>Feature gb|JQ610680.1|
+22	1581	CDS
+			product	VP5
+			prot_desc	outer capsid protein
+			protein_id	gb|AFX73392.1|
+
+>Feature gb|JQ610681.1|
+17	1069	CDS
+			product	VP7
+			prot_desc	T13 protein
+			protein_id	gb|AFX73393.1|
+
+>Feature gb|JQ610682.1|
+26	1057	CDS
+			product	NS2
+			prot_desc	non-structural protein 2
+			protein_id	gb|AFX73394.1|
+
+>Feature gb|JQ610683.1|
+23	883	CDS
+			product	VP6
+			prot_desc	helicase
+			protein_id	gb|AFX73395.1|
+111	512	CDS
+			product	NS4
+			prot_desc	non-structural protein 4
+			protein_id	gb|AFX73396.1|
+
+>Feature gb|JQ610684.1|
+20	703	CDS
+			product	NS3
+			prot_desc	non-structural protein 3
+			protein_id	gb|AFX73397.1|
+

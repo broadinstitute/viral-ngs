@@ -1,0 +1,113 @@
+LOCUS       JQ610677                2781 bp    RNA     linear   VRL 31-JAN-2014
+DEFINITION  Orungo virus isolate UGMP 359 segment 3, complete sequence.
+ACCESSION   JQ610677
+VERSION     JQ610677.1
+KEYWORDS    .
+SOURCE      Orungo virus (ORUV)
+  ORGANISM  Orungo virus
+            Viruses; dsRNA viruses; Reoviridae; Sedoreovirinae; Orbivirus.
+REFERENCE   1  (bases 1 to 2781)
+  AUTHORS   Mohd Jaafar,F., Belhouchet,M., Belaganahalli,M., Tesh,R.B.,
+            Mertens,P.P. and Attoui,H.
+  TITLE     Full-genome characterisation of orungo, lebombo and changuinola
+            viruses provides evidence for co-evolution of orbiviruses with
+            their arthropod vectors
+  JOURNAL   PLoS ONE 9 (1), E86392 (2014)
+   PUBMED   24475112
+  REMARK    Publication Status: Online-Only
+REFERENCE   2  (bases 1 to 2781)
+  AUTHORS   Attoui,H., Mohd Jaafar,F., Mertens,P.P.C. and Belhouchet,M.
+  TITLE     Direct Submission
+  JOURNAL   Submitted (01-FEB-2012) Vector-Borne Diseases, Institute for Animal
+            Health, Ash Road, Pirbright, Woking, Surrey GU24 0NF, United
+            Kingdom
+COMMENT     GenBank Accession Numbers JQ610675-JQ610684 represent sequences
+            from the 10 segments of Orungo virus.
+            
+            ##Assembly-Data-START##
+            Assembly Method       :: manually v. manually
+            Sequencing Technology :: Sanger dideoxy sequencing
+            ##Assembly-Data-END##
+FEATURES             Location/Qualifiers
+     source          1..2781
+                     /organism="Orungo virus"
+                     /mol_type="genomic RNA"
+                     /isolate="UGMP 359"
+                     /isolation_source="Anopheles funestus"
+                     /host="Homo sapiens"
+                     /db_xref="taxon:40058"
+                     /segment="3"
+                     /country="Uganda"
+                     /collection_date="Sep-1959"
+                     /note="acronym: ORUV"
+     CDS             18..2738
+                     /note="outer capsid and cell attachment protein"
+                     /codon_start=1
+                     /product="VP3"
+                     /protein_id="AFX73389.1"
+                     /translation="MAHADAKGSDPEREALRKNPYLDGDVLGTAGGQVLSVFALTEIL
+                     QKVRQTQAELAAHAIDLDGPVPEITGVIKKIAELVDTVPYEVRDSPPISYKTLSMQSR
+                     DFVIQVDQYYEQISQIGGDVGEDEPMEFYKTMLEKVRYLRKSGAFILRGIKTRDYRGN
+                     EVAEPEALGVEFREVLSNFIAADRQVIQNALDAAIVENGQVGDRAVDVYMAAVSEPWY
+                     RIYNRLQAYIEVTQLRELRRAMEWLNALGRRKRVEYDDSFLTDFRARDTVWVQTQQLP
+                     VNARVIWEVPRSYIANLMMNIALCLPLGDFIAPNPRIGSITITQRITMTTPFGMMSGM
+                     TPTSMQMDDVKKIYLALLFPGQIVLNIKPDPAHSIDPVLRMVSGVLGHLMFTYGPRFT
+                     NITATTSQLLDSALSDYFLYMQNSRVPVVYGPTGLPLDFRIGGRQGYDCNNLRGDPQT
+                     GRGYNGWGVVDVDRRAPSPYDLVQRFIRYCNIDSREIIDPRTFGFNMNYPLYMEMIRA
+                     LVAGGKDQEAAYLRQMLPFHMIRFARINQIINEDLLSAFSLPDEDFDALFFNMLRGEY
+                     GKAEPIVLDISWASIWFAFNRYFDPVQRSDLLSVAPMIEAVYASEISILQLDMINLQQ
+                     LRARAPDMLINATPSQFWKAALASAAEPVVELMNLSQSFRFINVRDIIQWTRTREVQP
+                     SLALTLEREAWAVAADFEELMLVNHVYFHRSVVPEPQLDDIDEFRRQGFLYTNLLEAA
+                     PPRLLITNYDYNVALLQANLGQFKSALRRILDDGGWVMFGGMLRNVRLKIYDSKPGED
+                     VLSELPYLYSEKVENGLRFVSLKYARRATIYFLMYKVEYSNTPDALISVNPTYTMTKI
+                     YTNKRLVRKVRSPDVLNIVNKRVVAYKTKMRLIDITSALRLGVKLAAPTV"
+ORIGIN      
+        1 gtatatattc cttcgcgatg gcgcatgcgg atgctaaagg aagtgatccg gagagagagg
+       61 cgttgaggaa gaacccttat ctagatggag acgtcttggg aaccgcaggc ggccaagttt
+      121 tgtcggtttt cgcattgacc gaaattttac aaaaagtaag acagacgcaa gctgaactgg
+      181 ccgcacacgc aatcgatttg gatggaccag tccctgagat caccggggtt attaagaaga
+      241 tagcggagtt agttgacacc gttccatatg aagtgcgcga ttcaccacct ataagctata
+      301 agactttaag catgcaatcg cgcgactttg tcatccaggt ggaccagtat tacgaacaga
+      361 tttcgcaaat tggaggagac gtcggggagg acgagccgat ggagttctat aaaacaatgc
+      421 tagaaaaggt acgctattta aggaagagtg gagcattcat tttgagaggt attaaaacac
+      481 gagactatag gggtaatgaa gtggcggaac cagaagcttt aggagtcgaa tttcgtgaag
+      541 tactttctaa ttttattgcg gcggatagac aagtgataca gaatgcgtta gatgcagcca
+      601 tagttgaaaa tggccaggtg ggtgataggg cggtcgatgt ttatatggct gctgtttctg
+      661 agccatggta tcgaatatat aataggttac aggcgtatat tgaagttacg caactgagag
+      721 aattgaggcg cgcaatggag tggctgaatg cacttggtcg tcgtaagaga gtggagtatg
+      781 atgattcatt cttgaccgat tttcgagcga gagatacggt atgggtgcag acgcaacagc
+      841 ttcccgttaa cgctcgtgtg atctgggagg ttccgaggtc atatatagct aatttgatga
+      901 tgaatatcgc gttatgtctg ccactaggtg atttcatagc cccaaacccg aggattgggt
+      961 cgataacgat aacccagcga ataactatga ctacgccttt tgggatgatg tctgggatga
+     1021 cccccacatc aatgcagatg gacgatgtca agaagatata tctcgcgttg ctctttcccg
+     1081 ggcagatcgt tttgaatatt aaacccgacc cagcgcactc catcgatccg gtactgcgta
+     1141 tggtttcggg tgtgttgggg catttgatgt tcacctacgg tcccagattt actaacataa
+     1201 cagctacaac atcgcagttg ctagatagtg ccttgagcga ctattttctg tacatgcaaa
+     1261 acagtagagt tccggtggtg tacggaccaa ctgggttacc tttggatttt agaatcggtg
+     1321 gacgacaagg ctatgattgc aataatctgc ggggagaccc gcagactggg agggggtaca
+     1381 atggatgggg agtcgttgac gtcgatcgaa gagcacccag tccgtacgat ttggttcaaa
+     1441 gatttatacg ttactgcaac atagactctc gcgagatcat cgacccacgg acgtttggat
+     1501 ttaatatgaa ctatccgcta tatatggaga tgatacgtgc attagttgcc ggaggaaaag
+     1561 atcaggaagc ggcgtaccta cgacaaatgt taccttttca catgatcaga ttcgcacgga
+     1621 tcaatcagat aataaacgaa gacttactta gcgcgttttc cttaccagat gaggatttcg
+     1681 acgcattatt tttcaatatg ctgcgcggcg agtatggaaa ggctgagccg atcgttttag
+     1741 atatcagttg ggcttcaatt tggtttgcgt tcaaccgcta ctttgaccca gtccaaaggt
+     1801 cagatctatt atcagtggca cccatgattg aggctgtcta tgcgtcagaa atctccattt
+     1861 tgcaattgga tatgatcaac ctgcagcagt tgagagcgag ggcacctgat atgttgatta
+     1921 acgcaactcc gagtcagttt tggaaagcgg cgttagcatc cgcagcagaa ccagtagttg
+     1981 agttgatgaa tctttcgcag agttttcgat tcattaacgt cagggatata atacagtgga
+     2041 ctagaacacg agaagtgcaa ccgtcgctgg ctctcacttt ggaacgagag gcgtgggcgg
+     2101 tcgcagctga cttcgaagag ttgatgctcg taaaccatgt ctattttcat agatcggtgg
+     2161 ttcccgaacc acagttggat gacatcgatg aatttcgtag gcaaggattc ctgtacacaa
+     2221 atctattgga agcggccccc ccgcgtttgt taatcaccaa ttatgattac aacgttgcgc
+     2281 tactgcaggc gaatcttgga caatttaaat ccgctttgag gagaattctg gatgacggtg
+     2341 gttgggtgat gttcggggga atgctgagaa atgttcgttt gaaaatatac gattcaaagc
+     2401 cgggagagga cgtcttaagc gaactaccct atctttactc cgagaaagtg gaaaacggtt
+     2461 taaggtttgt gtctttgaag tatgcgagac gagcaactat ttatttttta atgtataagg
+     2521 ttgaatattc aaacacacca gatgctttaa tatcagtcaa ccccacgtat accatgacga
+     2581 agatttatac aaacaagaga ctggtccgga aagtcaggtc acctgacgtt ttgaacatcg
+     2641 ttaataaaag agtagtggct tataaaacga agatgcggtt gattgacatt acatcggcac
+     2701 tgcgtcttgg tgttaaactt gcagcaccta cagtgtgaat tgaccactca acctgtggtg
+     2761 ctcggtgggg aattcgctta c
+//
+

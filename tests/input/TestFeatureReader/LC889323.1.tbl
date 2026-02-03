@@ -1,0 +1,8 @@
+>Feature dbj|LC889323.1|
+1	2280	gene
+			gene	test_gene
+			locus_tag	TEST_gp1
+1	2280	CDS
+			product	test protein
+			protein_id	dbj|TEST123.1|
+

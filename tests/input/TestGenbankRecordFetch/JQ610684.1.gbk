@@ -1,0 +1,68 @@
+LOCUS       JQ610684                 761 bp    RNA     linear   VRL 31-JAN-2014
+DEFINITION  Orungo virus isolate UGMP 359 segment 10, complete sequence.
+ACCESSION   JQ610684
+VERSION     JQ610684.1
+KEYWORDS    .
+SOURCE      Orungo virus (ORUV)
+  ORGANISM  Orungo virus
+            Viruses; dsRNA viruses; Reoviridae; Sedoreovirinae; Orbivirus.
+REFERENCE   1  (bases 1 to 761)
+  AUTHORS   Mohd Jaafar,F., Belhouchet,M., Belaganahalli,M., Tesh,R.B.,
+            Mertens,P.P. and Attoui,H.
+  TITLE     Full-genome characterisation of orungo, lebombo and changuinola
+            viruses provides evidence for co-evolution of orbiviruses with
+            their arthropod vectors
+  JOURNAL   PLoS ONE 9 (1), E86392 (2014)
+   PUBMED   24475112
+  REMARK    Publication Status: Online-Only
+REFERENCE   2  (bases 1 to 761)
+  AUTHORS   Attoui,H., Mohd Jaafar,F., Mertens,P.P.C. and Belhouchet,M.
+  TITLE     Direct Submission
+  JOURNAL   Submitted (01-FEB-2012) Vector-Borne Diseases, Institute for Animal
+            Health, Ash Road, Pirbright, Woking, Surrey GU24 0NF, United
+            Kingdom
+COMMENT     GenBank Accession Numbers JQ610675-JQ610684 represent sequences
+            from the 10 segments of Orungo virus.
+            
+            ##Assembly-Data-START##
+            Assembly Method       :: manually v. manually
+            Sequencing Technology :: Sanger dideoxy sequencing
+            ##Assembly-Data-END##
+FEATURES             Location/Qualifiers
+     source          1..761
+                     /organism="Orungo virus"
+                     /mol_type="genomic RNA"
+                     /isolate="UGMP 359"
+                     /isolation_source="Anopheles funestus"
+                     /host="Homo sapiens"
+                     /db_xref="taxon:40058"
+                     /segment="10"
+                     /country="Uganda"
+                     /collection_date="Sep-1959"
+                     /note="acronym: ORUV"
+     CDS             20..703
+                     /note="non-structural protein 3"
+                     /codon_start=1
+                     /product="NS3"
+                     /protein_id="AFX73397.1"
+                     /translation="MYRDLLNIHTEMRGPPSYEPSGLAQATAPTMRFGDREDEEGLLR
+                     ARELSLNVLTNAMTNTTGANEAIKNEKAMFGAYADALRDTPEIRVVKRRINERTLEKL
+                     HKMRRSLHGRRMFVRMLLAINVGLALLTSAVNVVRQSLDDFGKERWIVGGVWWLGEVV
+                     VTINFGTTVATLVLMRIHGALNAQLQTIKRDIYKKSSYNEAAAMHWKGEISLIEELAA
+                     SHVPAGSNV"
+ORIGIN      
+        1 gtataaaatt ccgttcgcaa tgtaccgtga cttgctgaat attcacactg aaatgagggg
+       61 cccgccatct tatgaaccta gtggcttagc tcaagcgaca gcaccgacta tgaggtttgg
+      121 ggatagagaa gatgaggaag gcctattgag ggcgcgcgag ctttcgctta atgtgttaac
+      181 gaatgctatg actaatacaa cgggtgcgaa tgaggcgatt aagaatgaga aagcgatgtt
+      241 tggggcatat gccgatgcac ttagggatac tccggagatt agggtggtga aaaggcggat
+      301 aaatgaacgt acgttagaaa agttgcataa aatgcgacgt tcgctgcacg gaagacgaat
+      361 gttcgtacga atgttgttgg cgataaatgt gggattggcg ctattaacct cggcagtgaa
+      421 tgtggtacgc cagtcgctag atgattttgg gaaagaaagg tggatagttg gtggagtgtg
+      481 gtggttaggt gaggtcgtcg ttacgattaa ttttggaacg actgttgcta cgttggtatt
+      541 aatgaggata catggcgcat taaacgcgca gcttcaaacc attaagcgtg acatatataa
+      601 gaaaagctcg tataatgagg ccgctgccat gcattggaaa ggtgaaatta gcttaattga
+      661 ggagctagcg gcgagccacg tacctgcggg atcgaatgtc tagtccgcga catcgaaaaa
+      721 ttcacttgtc caggtgaagc ccgtagaacg gatcgtctta c
+//
+

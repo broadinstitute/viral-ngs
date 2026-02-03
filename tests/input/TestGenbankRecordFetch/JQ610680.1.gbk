@@ -1,0 +1,87 @@
+LOCUS       JQ610680                1605 bp    RNA     linear   VRL 31-JAN-2014
+DEFINITION  Orungo virus isolate UGMP 359 segment 6, complete sequence.
+ACCESSION   JQ610680
+VERSION     JQ610680.1
+KEYWORDS    .
+SOURCE      Orungo virus (ORUV)
+  ORGANISM  Orungo virus
+            Viruses; dsRNA viruses; Reoviridae; Sedoreovirinae; Orbivirus.
+REFERENCE   1  (bases 1 to 1605)
+  AUTHORS   Mohd Jaafar,F., Belhouchet,M., Belaganahalli,M., Tesh,R.B.,
+            Mertens,P.P. and Attoui,H.
+  TITLE     Full-genome characterisation of orungo, lebombo and changuinola
+            viruses provides evidence for co-evolution of orbiviruses with
+            their arthropod vectors
+  JOURNAL   PLoS ONE 9 (1), E86392 (2014)
+   PUBMED   24475112
+  REMARK    Publication Status: Online-Only
+REFERENCE   2  (bases 1 to 1605)
+  AUTHORS   Attoui,H., Mohd Jaafar,F., Mertens,P.P.C. and Belhouchet,M.
+  TITLE     Direct Submission
+  JOURNAL   Submitted (01-FEB-2012) Vector-Borne Diseases, Institute for Animal
+            Health, Ash Road, Pirbright, Woking, Surrey GU24 0NF, United
+            Kingdom
+COMMENT     GenBank Accession Numbers JQ610675-JQ610684 represent sequences
+            from the 10 segments of Orungo virus.
+            
+            ##Assembly-Data-START##
+            Assembly Method       :: manually v. manually
+            Sequencing Technology :: Sanger dideoxy sequencing
+            ##Assembly-Data-END##
+FEATURES             Location/Qualifiers
+     source          1..1605
+                     /organism="Orungo virus"
+                     /mol_type="genomic RNA"
+                     /isolate="UGMP 359"
+                     /isolation_source="Anopheles funestus"
+                     /host="Homo sapiens"
+                     /db_xref="taxon:40058"
+                     /segment="6"
+                     /country="Uganda"
+                     /collection_date="Sep-1959"
+                     /note="acronym: ORUV"
+     CDS             22..1581
+                     /note="outer capsid protein"
+                     /codon_start=1
+                     /product="VP5"
+                     /protein_id="AFX73392.1"
+                     /translation="MGKFVKALKKIGRGTVKALTSDAAKKLYTTLGKAATRFAESEVG
+                     SAAIDGLIQGTAQTLLHGGSASENIKQAVVLGVLHSMETPADPLSPGEQGVYDKIKEI
+                     KREEKEDRFFEVYQEKIDEELGSDMKRMREVAKGDKQAIKEMGGEIKVIEKAFDGLIK
+                     IDKIQDMKLTQLYGALAKERTERTQDEIKMVNDYTGKIEALQSAITVERDAMQEEALQ
+                     EIIEMGTDVIETASEEVPIFGPAAANVVATGRMVEGTLKLKQVIEKLAGLDVSHTTRD
+                     RIEPKVINAILDHEGGVVPEKELAIGVYNKLQTVREHMAEHSHLKEMAIPRLQKLYTE
+                     HGDEWHPKIITQMKVAREHQPQIHIYCAPWESDDVFMLRVYAPHHIGCGLFLGVDLES
+                     EFIFYEDLIAENHVLRGGVIEVVGRNFRQAVREFLLMAASKIENTMHVKRLVRSSASS
+                     PIYLSSIHYECTFDEIKQNVLQIVHDEQLQMHLLRGPKHFQRRALMAAVVKGVKILEG
+                     PDTKALMLQGL"
+ORIGIN      
+        1 gtataaaata cctcggtcat catgggcaaa ttcgtaaagg ccctgaagaa aataggaagg
+       61 ggtacggtga aggcactgac gtctgacgct gcaaagaaac tttatacgac tttaggaaag
+      121 gcggcgacgc ggtttgctga aagcgaagtc ggcagcgcgg cgattgatgg attgatacaa
+      181 ggaacagcgc aaactttact gcacggaggc agcgcgagtg aaaatatcaa gcaagcggtt
+      241 gttttaggtg ttctccacag catggaaacg ccggcggacc ctttatcacc aggagagcaa
+      301 ggagtatatg ataagattaa ggaaattaaa cgagaagaaa aggaagatcg gtttttcgag
+      361 gtttaccaag aaaagattga cgaagagctt ggttcagata tgaagcgaat gcgagaagtg
+      421 gcaaaaggtg ataagcaggc catcaaggaa atgggtggtg aaattaaggt tatcgagaaa
+      481 gctttcgatg gattgattaa aatagataaa attcaagata tgaaattaac gcagttatat
+      541 ggcgcgctcg cgaaagagcg tacggagcgt acgcaggacg agatcaaaat ggttaacgac
+      601 tacactggaa aaattgaagc actgcaatcc gcgataacag ttgagcggga cgctatgcaa
+      661 gaggaggcgt tgcaggagat aatagaaatg ggaacggatg taattgaaac cgcctccgaa
+      721 gaggttccga tattcggccc tgcggctgcg aatgtagtcg caactggacg aatggttgag
+      781 ggcaccttaa agttgaagca agtaatcgag aaattagcag ggttagatgt ttcgcacacc
+      841 acaagggaca gaatcgagcc gaaagttata aacgctatac tagatcacga ggggggcgtc
+      901 gtaccggaaa aggaactagc gattggtgta tataataagc tgcagacagt cagagaacat
+      961 atggcggaac acagccatct aaaggaaatg gcaataccaa ggctgcaaaa gctgtacaca
+     1021 gaacacggcg atgagtggca tccaaagata attactcaaa tgaaggtagc gagagaacat
+     1081 cagccgcaaa tacatatata ttgcgctcca tgggaatcgg atgacgtgtt tatgttgcga
+     1141 gtgtacgcgc cgcatcatat agggtgtggt cttttcttag gagttgattt agagagtgaa
+     1201 ttcatatttt atgaggattt gatagcagag aaccacgtat tgcgtggtgg cgtcattgaa
+     1261 gtcgttggaa ggaacttcag gcaagcagtg cgcgaatttc ttttgatggc tgcgagcaag
+     1321 attgagaaca ctatgcatgt caagcggtta gtgagaagct cggcttcctc acctatctac
+     1381 ttgtcaagca tacactatga gtgtacattt gatgagataa aacagaacgt tttacagatc
+     1441 gtgcacgacg agcagttaca gatgcatctg ttacgtggtc cgaaacattt ccaaagacgt
+     1501 gctctgatgg cggctgttgt taagggtgtt aagatcttag aggggccaga tacgaaggcg
+     1561 ctcatgctac agggtttgta agtggctgaa aggtatcaag aatac
+//
+

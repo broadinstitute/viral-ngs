@@ -1,0 +1,14 @@
+>Feature LASV_NGA_2018_0998-1
+<1	195	gene
+			gene	Z
+<1	195	CDS
+			note	sequencing did not capture complete CDS
+			product	Z protein
+			transl_table	1
+<6915	290	gene
+			gene	L
+<6913	290	CDS
+			note	sequencing did not capture complete CDS
+			product	polymerase
+			transl_table	1
+

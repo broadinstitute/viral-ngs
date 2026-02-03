@@ -1,0 +1,13 @@
+>Feature LASV_NGA_2018_0541-2
+<1	1470	gene
+			gene	GPC
+<1	1470	CDS
+			note	sequencing did not capture complete CDS
+			product	glycoprotein precursor
+			transl_table	1
+3247	1538	gene
+			gene	NP
+3247	1538	CDS
+			product	nucleoprotein
+			transl_table	1
+

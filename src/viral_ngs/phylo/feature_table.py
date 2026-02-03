@@ -1,0 +1,335 @@
+#!/usr/bin/env python
+
+import re
+import os
+
+import phylo.feature_table_types
+
+class SeqPosition(object):
+    def __init__(self, position, location_operator=None, allow_fuzzy=True):
+        self.position = int(position)
+        self.location_operator = location_operator
+        self.allow_fuzzy = allow_fuzzy
+
+    def __str__(self):
+        if self.allow_fuzzy:
+            return "{op}{pos}".format(op=self.location_operator if self.location_operator else "", pos=str(self.position))
+        else:
+            return str(self.position)
+
+    def __int__(self):
+        return self.position
+
+    def is_fuzzy(self):
+        return self.locaton_operator
+
+    def __eq__(self, other):
+        return self.position == other.position
+
+    def __ne__(self, other):
+        return self.position != other.position
+
+    def __lt__(self, other):
+        return self.position < other.position
+
+    def __le__(self, other):
+        return self.position <= other.position
+
+    def __gt__(self, other):
+        return self.position > other.position
+
+    def __ge__(self, other):
+        return self.position >= other.position
+
+class SeqQualifier(object):
+    def __init__(self, qualifier_key, qualifier_value):
+        self.qualifier_key   = qualifier_key
+        self.qualifier_value = qualifier_value
+
+    def __str__(self):
+        if self.qualifier_value:
+            return "\t\t\t{k}\t{v}".format(k=self.qualifier_key,v=self.qualifier_value)
+        else:
+            return "\t\t\t{k}".format(k=self.qualifier_key)
+
+class SeqLocation(object):
+    def __init__(self, start_pos, end_pos, feature_type=None):
+        self.start = start_pos
+        self.end = end_pos
+        self.feature_type = feature_type
+
+    def __str__(self):
+        if self.feature_type:
+            return "{start}\t{end}\t{type}".format(
+                start=self.start, end=self.end, type=self.feature_type
+            )
+        else:
+            return "{start}\t{end}".format(start=self.start, end=self.end)
+
+    def __eq__(self, other):
+        return ((self.start, self.end) == (other.start, other.end))
+
+    def __ne__(self, other):
+        return ((self.start, self.end) != (other.start, other.end))
+
+    def __lt__(self, other):
+        return self.start < other.start or (self.start==other.start and self.end < other.end)
+
+    def __le__(self, other):
+        return self.start <= other.start or (self.start==other.start and self.end <= other.end)
+
+    def __gt__(self, other):
+        return self.start > other.start or (self.start==other.start and self.end > other.end)
+
+    def __ge__(self, other):
+        return self.start >= other.start or (self.start==other.start and self.end >= other.end)
+
+class SeqFeature(object):
+    def __init__(self, locations=None, feature_type=None):
+        self.locations = locations or []
+        self.type = feature_type
+        self.qualifiers = []
+
+    def add_location(self, location):
+        self.locations.append(location)
+
+    def add_location(self, start, location_operator_start, end, location_operator_end, allow_fuzzy=True, *args, **kwargs):
+        self.locations.append(SeqLocation(SeqPosition(start, location_operator_start, allow_fuzzy=allow_fuzzy), SeqPosition(end, location_operator_end, allow_fuzzy=allow_fuzzy)))
+        # sort with each insertion
+        self.sort()
+
+    def sort(self):
+        #pass
+        self.locations = sorted(self.locations)
+
+    def add_qualifier(self, qualifier_key, qualifier_value, *args, **kwargs):
+        self.qualifiers.append(SeqQualifier(qualifier_key, qualifier_value))
+
+    def add_note(self, note_text):
+        self.add_qualifier("note", note_text)
+
+    @property
+    def lines(self):
+        if len(self.locations):
+            first_loc = self.locations.pop(0)
+            first_loc.feature_type = self.type
+            yield first_loc
+            for l in self.locations:
+                yield l
+            # yield notes first
+            for q in self.qualifiers:
+                if q.qualifier_key == "note":
+                    yield q
+            for q in self.qualifiers:
+                if q.qualifier_key != "note":
+                    yield q
+
+class AttrDict(dict):
+    """
+        Expose (string) dictionary keys as attributes.
+        Danger: can cause collisions between dict item keys
+                and dict built-ins (the former will override).
+                Only to be used with trusted input for dict keys
+        Note: memory leak Python < 2.7.4 / Python3 < 3.2.3
+              see: https://bugs.python.org/issue1469629
+    """
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
+class FeatureTable(object):
+    # get feature table keys from extensive map
+    _default_feature_types = sorted(phylo.feature_table_types.ft_types.keys())
+
+    def __init__(self, filepath=None, valid_feature_types=None):
+        self.refID = None
+        self._features = []
+        self.valid_feature_types = valid_feature_types or self._default_feature_types
+
+        self.feature_line_regex_map = {        
+            "feature_table_header"             : re.compile(r"^>Feature (gb\||ref\||emb\||dbj\|)(?P<refID>.*)\|.*$"),
+            "feature_first_location_line"      : re.compile(r"^(?P<location_operator_start>[<>])?(?P<start>\d+)\t(?P<location_operator_end>[<>])?(?P<end>\d+)\t(?P<feature_type>" + "|".join(self.valid_feature_types) + ")$"),
+            "feature_subsequent_location_line" : re.compile(r"^(?P<location_operator_start>[<>])?(?P<start>\d+)\t(?P<location_operator_end>[<>])?(?P<end>\d+)\t*$"),
+            "offset_line"                      : re.compile(r"^(?:\[offset=(?P<offset>-?\d+)\])$"),
+            "feature_qualifier_line"           : re.compile(r"^\t{3}(?P<qualifier_key>[^\t]*)(?:\t(?P<qualifier_value>[^\t]*))?$")
+        }
+
+        if filepath:
+            self.read_feature_table(filepath)
+
+    def _parse_line(self, line):
+        for k,r in self.feature_line_regex_map.items():
+            m = r.match(line)
+            if m:
+                return_dict = AttrDict(m.groupdict())
+                return_dict["line_type"] = k
+                #return_dict["raw_line"] = line
+                return return_dict
+        raise LookupError(r"Error parsing feature table line: '%s'" % line)
+
+    @property
+    def features(self):
+        return self._features
+
+    @property
+    def default_feature_types(self):
+        return self._default_feature_values.keys()
+    
+
+    def add_feature(self, feature):
+        self._features.append(feature)
+
+    def read_feature_table(self, filepath, map_function=None, allow_fuzzy=True):
+        """
+            Read a Genbank-style feature table in tsv/Sequin format
+            This applies any offsets present in the input to the positions seen (no offsets in output).
+            The map_function accepts two ints: a position interval, and returns two ints
+            representing remapped feature coordinates. 
+        """
+        with open(os.path.realpath(os.path.normpath(filepath)), 'rt') as inf:
+            feature_in_progress = None
+            offset = 0
+            for line in inf:
+                line = line.rstrip('\r\n')
+                if not line:
+                    continue
+
+                l = self._parse_line(line)
+                if not self.refID and l.line_type == "feature_table_header":
+                    self.refID = l.refID
+                elif l.line_type == "feature_first_location_line":
+                    if feature_in_progress:
+                        self.features.append(feature_in_progress)
+                        feature_in_progress = None
+                    
+                    feature_in_progress = SeqFeature(feature_type=l.feature_type)
+                    l.start = int(l.start) + int(offset)
+                    l.end = int(l.end) + int(offset)
+
+                    if map_function:
+                        l.start, l.end = map_function(l.start, l.end)
+
+                    feature_in_progress.add_location(allow_fuzzy=allow_fuzzy,**l)
+                elif l.line_type == "feature_subsequent_location_line":
+                    l.start = int(l.start) + int(offset)
+                    l.end = int(l.end) + int(offset)
+
+                    if map_function:
+                        l.start, l.end = map_function(l.start, l.end)
+
+                    feature_in_progress.add_location(allow_fuzzy=allow_fuzzy,**l)
+                elif l.line_type == "feature_qualifier_line":
+                    feature_in_progress.add_qualifier(**l)
+                elif l.line_type == "offset_line":
+                    offset = int(l.offset)
+
+            if feature_in_progress:
+                self.features.append(feature_in_progress)
+                feature_in_progress = None
+
+        if not self.refID:
+            raise Exception("The feature table file did not have a header line in the format '%s'" % self.feature_line_regex_map["feature_table_header"].pattern)
+
+    def _is_valid_location(self, location):
+        """Check if a location has valid, non-None coordinates."""
+        if location.start is None or location.end is None:
+            return False
+        if location.start.position is None or location.end.position is None:
+            return False
+        # Ensure positions are integers (not strings)
+        try:
+            int(location.start.position)
+            int(location.end.position)
+        except (ValueError, TypeError):
+            return False
+        return True
+
+    def remap_locations(self, map_function=None):
+        """
+            map_function should accept two SeqLocation objects and the containing feature, and return two (mapped) SeqLocation objects
+                         if (None,None) is returned, the location will not be included in the remapped location list
+        """
+        if map_function:
+            for feature in self.features:
+                remapped_locations = []
+                intervals_dropped = False
+                for location in feature.locations:
+
+                    location.start, location.end = map_function(location.start,location.end, feature)
+                    # only include locations that are valid
+                    if self._is_valid_location(location):
+                        remapped_locations.append(location)
+                    else:
+                        # Mark that we've dropped intervals
+                        intervals_dropped = True
+                        # Add note when intervals are dropped
+                        if not any(q.qualifier_key == "note" and "sequencing did not capture" in q.qualifier_value
+                                  for q in feature.qualifiers):
+                            feature.add_note("sequencing did not capture all intervals comprising CDS")
+
+                # Filter out invalid intervals for CDS features
+                if feature.type == "CDS" and len(remapped_locations) > 0:
+                    filtered_locations = []
+                    seen_positions = set()
+                    for loc in remapped_locations:
+                        start_pos = int(loc.start.position)
+                        end_pos = int(loc.end.position)
+                        interval_key = (min(start_pos, end_pos), max(start_pos, end_pos))
+                        # Skip duplicate or single-base intervals
+                        if interval_key not in seen_positions and start_pos != end_pos:
+                            filtered_locations.append(loc)
+                            seen_positions.add(interval_key)
+                        else:
+                            # Mark that we dropped an interval
+                            intervals_dropped = True
+                    # If we filtered out intervals, add note
+                    if intervals_dropped and len(filtered_locations) < len(remapped_locations):
+                        if not any(q.qualifier_key == "note" and "sequencing did not capture" in q.qualifier_value
+                                  for q in feature.qualifiers):
+                            feature.add_note("sequencing did not capture all intervals comprising CDS")
+                    remapped_locations = filtered_locations
+
+                feature.locations = remapped_locations
+
+                # Drop CDS features with insufficient total length
+                if feature.type == "CDS" and len(remapped_locations) > 0:
+                    total_length = sum(abs(int(loc.end.position) - int(loc.start.position)) + 1
+                                       for loc in remapped_locations)
+                    if total_length < 3:  # Less than one codon
+                        feature.locations = []
+
+                # Drop multi-interval features with internal partial symbols
+                # Per NCBI spec, < only valid at 5' end, > only at 3' end of entire feature
+                # Issue #74: table2asn rejects "Feature's location has internal partials"
+                if len(feature.locations) > 1:
+                    has_internal_partial = False
+                    for i, loc in enumerate(feature.locations):
+                        is_first = (i == 0)
+                        is_last = (i == len(feature.locations) - 1)
+
+                        # Check for partial symbols on non-terminal intervals
+                        # < should only appear on the first interval's start
+                        if loc.start.location_operator == '<' and not is_first:
+                            has_internal_partial = True
+                        # > should only appear on the last interval's end
+                        if loc.end.location_operator == '>' and not is_last:
+                            has_internal_partial = True
+                        # Also check reversed cases for strand considerations
+                        if loc.start.location_operator == '>' and not is_last:
+                            has_internal_partial = True
+                        if loc.end.location_operator == '<' and not is_first:
+                            has_internal_partial = True
+
+                    if has_internal_partial:
+                        feature.locations = []  # Drop the entire feature
+
+
+    def lines(self, exclude_patterns=None):
+        yield ">Feature {refID}".format(refID=self.refID)
+        for feature in self.features:
+            for l in feature.lines:
+                if not exclude_patterns:
+                    yield l
+                else:                    
+                    if not any(re.search(pattern, str(l)) for pattern in exclude_patterns):
+                       yield l
