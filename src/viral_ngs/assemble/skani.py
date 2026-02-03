@@ -6,9 +6,9 @@
 __author__ = "dpark@broadinstitute.org"
 
 import logging
-import tools
-import util.file
-import util.misc
+import viral_ngs.core
+import viral_ngs.core.file
+import viral_ngs.core.misc
 import csv
 import os
 import os.path
@@ -59,11 +59,11 @@ class UndirectedGraph:
         return clusters
 
 
-class SkaniTool(tools.Tool):
+class SkaniTool(viral_ngs.core.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [viral_ngs.core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(SkaniTool, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -110,12 +110,12 @@ class SkaniTool(tools.Tool):
         # build the skani command
         tool_cmd = [self.install_and_get_path(), subcommand]
         tool_cmd.extend(map(str, args))
-        tool_cmd.extend(["-t", "{}".format(util.misc.sanitize_thread_count(threads))])
+        tool_cmd.extend(["-t", "{}".format(viral_ngs.core.misc.sanitize_thread_count(threads))])
 
         # run the command
         _log.debug(' '.join(tool_cmd) + ' > ' + outfile)
         with open(outfile, 'w') as outf:
-            util.misc.run_and_save(tool_cmd, outf=outf)
+            viral_ngs.core.misc.run_and_save(tool_cmd, outf=outf)
 
     def triangle(self, ref_fastas, outfile_ani, other_args = (), threads=None):
         ''' skani triangle computes an all-to-all ANI distance matrix for a set of sequences
@@ -144,7 +144,7 @@ class SkaniTool(tools.Tool):
         for ref_fasta in ref_fastas:
             g.add_node(ref_fasta)
 
-        with util.file.tempfname('.skani_matrix.ani') as tmp_matrix_ani:
+        with viral_ngs.core.file.tempfname('.skani_matrix.ani') as tmp_matrix_ani:
             # run skani triangle
             self.triangle(ref_fastas, tmp_matrix_ani,
                           ['-m', m, '-c', c, '-s', s, '--min-af', min_af] + list(other_args), threads=threads)
@@ -165,7 +165,7 @@ class SkaniTool(tools.Tool):
         '''
 
         max_hits_args = [] if n is None else ['-n', n]
-        with util.file.tempfname('.skani_dist.tsv') as tmp_tsv:
+        with viral_ngs.core.file.tempfname('.skani_dist.tsv') as tmp_tsv:
             self.dist(contigs_fasta, ref_fastas, tmp_tsv,
                     ['-m', m, '-c', c, '-s', s, '--min-af', min_af] + max_hits_args + list(other_args), threads=threads)
             self._sort_skani_table_by_product(tmp_tsv, out_file)

@@ -1,0 +1,48 @@
+# viral-ngs assemble image
+# Builds on core, adds genome assembly tools
+#
+# This provides:
+# - All core bioinformatics tools (from core image)
+# - Assembly tools: SPAdes, MUMmer, MAFFT, Muscle, Gap2Seq, etc.
+# - ANI/clustering tools: skani, fastani, sourmash
+#
+# Usage:
+#   docker build --build-arg BASEIMAGE=quay.io/broadinstitute/viral-ngs:main-core -t viral-ngs:assemble -f docker/Dockerfile.assemble .
+
+ARG BASEIMAGE=quay.io/broadinstitute/viral-ngs:main-core
+FROM ${BASEIMAGE}
+
+LABEL maintainer="viral-ngs@broadinstitute.org"
+LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-ngs"
+
+# Enable conda environment activation for RUN commands
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+
+# Copy requirements and dependency installation script
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt /tmp/requirements/
+COPY docker/install-conda-deps.sh /tmp/
+
+# Install conda dependencies (assembly tools)
+# Install all requirements together in single resolver call for proper dependency resolution
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt
+
+# Copy source code (includes assembly module)
+COPY src/ /opt/viral-ngs/source/src/
+COPY scripts/ /opt/viral-ngs/source/scripts/
+COPY pyproject.toml README.md LICENSE /opt/viral-ngs/source/
+
+# Install viral-ngs package
+WORKDIR /opt/viral-ngs/source
+ARG VERSION=0.0.0.dev0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
+RUN pip install --no-cache-dir .
+
+# Verify installation
+RUN python -c "from viral_ngs.core import read_utils, illumina; print('Core modules OK')" && \
+    python -c "from viral_ngs import assembly; print('Assembly module OK')" && \
+    python -c "from viral_ngs.assemble import spades, mummer, mafft, skani; print('Assembly tools OK')"
+
+# Clean up
+RUN rm -rf /tmp/requirements /tmp/install-conda-deps.sh
+
+CMD ["/bin/bash"]

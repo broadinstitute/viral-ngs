@@ -1,0 +1,27 @@
+# Conda dependencies for viral-ngs assemble module
+#
+# These are bioinformatics tools used for genome assembly.
+# Install with core.txt in a single resolver call for proper dependency resolution.
+
+# Assemblers and alignment tools
+gap2seq=3.1.1a
+mafft>=7.525
+mummer4>=4.0.1
+muscle=3.8.1551
+spades>=4.2.0
+
+# Read simulation and sampling
+rasusa>=2.1.1
+wgsim>=1.0
+
+# Sequence comparison / ANI tools
+fastani>=1.34
+skani>=0.3.0
+sourmash-minimal>=4.8.11
+
+# Perl packages for FASTA trimming script
+perl-bio-easel
+sequip=0.11
+
+# Note: sourmash_plugin_branchwater has resolver problems, excluded for now
+# Note: mashtree, kwip excluded (compatibility issues)

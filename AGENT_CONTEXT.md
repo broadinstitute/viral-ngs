@@ -428,9 +428,10 @@ When working on this migration:
 ## Next Steps
 
 1. Read `MONOREPO_IMPLEMENTATION_PLAN.md` for the detailed task list
-2. **Phase 3a**: Migrate viral-assemble with git history preservation using `git filter-repo`
-3. Work through phases sequentially
-4. Verify each phase before moving to the next
+2. **Phase 3b**: Migrate viral-phylo with git history preservation using `git filter-repo`
+3. **Phase 3c**: Migrate viral-classify with git history preservation
+4. Work through phases sequentially
+5. Verify each phase before moving to the next
 
 ## What Was Done in Phase 0 & 1
 
@@ -472,6 +473,16 @@ When working on this migration:
 - Added seaborn to core.txt for data visualization
 - Updated pyproject.toml with Python dependencies for pip-based installs
 - Note: qsv is x86-only (no ARM64 build), excluded for multi-arch support
+
+### Phase 3a: viral-assemble (Complete)
+- Imported viral-assemble with full git history (3,448 commits, tags with `assemble-` prefix)
+- Structure: `assembly.py` at `src/viral_ngs/assembly.py`, tool wrappers in `src/viral_ngs/assemble/`
+- Updated all imports to `viral_ngs.core.*` and `viral_ngs.assemble.*` pattern
+- Created `docker/requirements/assemble.txt` with assembly tools (SPAdes, MUMmer, MAFFT, etc.)
+- Created `docker/Dockerfile.assemble` building on core image
+- Tests organized in `tests/unit/assemble/`, core tests moved to `tests/unit/core/`
+- Added `build-on-core` job to GitHub Actions for images depending on core
+- Imported `scripts/fasta-trim-terminal-ambigs.pl` Perl script
 
 ## Reference Repositories
 

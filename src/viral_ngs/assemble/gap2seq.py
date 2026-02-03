@@ -16,21 +16,21 @@ import time
 
 import Bio.Seq
 
-import tools
-import tools.samtools
-import util.file
-import util.misc
+import viral_ngs.core
+import viral_ngs.core.samtools
+import viral_ngs.core.file
+import viral_ngs.core.misc
 
 TOOL_NAME = 'Gap2Seq'
 
 log = logging.getLogger(__name__)
 
-class Gap2SeqTool(tools.Tool):
+class Gap2SeqTool(viral_ngs.core.Tool):
     """Tool wrapper for the Gap2Seq gap-closing tool."""
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [viral_ngs.core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(Gap2SeqTool, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -52,8 +52,8 @@ class Gap2SeqTool(tools.Tool):
         more_args = functools.reduce(operator.concat, 
                                      [(('--' if len(arg) > 1 else '-') + arg.replace('_','-'), str(val))
                                       for arg, val in kwargs.items()], ())
-        with util.file.tmp_dir('_gap2seq_run_dir') as gap2seq_run_dir:
-            with util.file.pushd_popd(gap2seq_run_dir):
+        with viral_ngs.core.file.tmp_dir('_gap2seq_run_dir') as gap2seq_run_dir:
+            with viral_ngs.core.file.pushd_popd(gap2seq_run_dir):
                 self.execute(file_args+args+more_args)
 
     def gapfill(self, in_scaffold, in_bam, out_scaffold, solid_kmer_thresholds=(3,), kmer_sizes=(90, 80, 70, 60, 50, 40, 31),
@@ -83,12 +83,12 @@ class Gap2SeqTool(tools.Tool):
             random_seed: random seed for choosing random paths (0 to use current time)
         
         """
-        solid_kmer_thresholds = sorted(util.misc.make_seq(solid_kmer_thresholds), reverse=True)
-        kmer_sizes = sorted(util.misc.make_seq(kmer_sizes), reverse=True)
+        solid_kmer_thresholds = sorted(viral_ngs.core.misc.make_seq(solid_kmer_thresholds), reverse=True)
+        kmer_sizes = sorted(viral_ngs.core.misc.make_seq(kmer_sizes), reverse=True)
         stop_time = time.time() + 60*time_soft_limit_minutes
-        threads = util.misc.sanitize_thread_count(threads, tool_max_cores_value=0)
-        util.misc.chk(out_scaffold != in_scaffold)
-        with tools.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as reads, util.file.tmp_dir('_gap2seq_dir') as gap2seq_dir:
+        threads = viral_ngs.core.misc.sanitize_thread_count(threads, tool_max_cores_value=0)
+        viral_ngs.core.misc.chk(out_scaffold != in_scaffold)
+        with viral_ngs.core.samtools.SamtoolsTool().bam2fq_tmp(in_bam) as reads, viral_ngs.core.file.tmp_dir('_gap2seq_dir') as gap2seq_dir:
 
             # We call Gap2Seq for a range of parameter combinations.  Output of each call is input to the next call, so
             # each call only deals with gaps not closed by prior calls.  We first try to close using higher-quality kmers,

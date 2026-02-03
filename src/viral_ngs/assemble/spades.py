@@ -13,22 +13,22 @@ import tempfile
 
 import Bio.SeqIO
 
-import tools
-import tools.samtools
-import tools.picard
-import util.file
-import util.misc
+import viral_ngs.core
+import viral_ngs.core.samtools
+import viral_ngs.core.picard
+import viral_ngs.core.file
+import viral_ngs.core.misc
 
 TOOL_NAME = 'spades.py'
 
 log = logging.getLogger(__name__)
 
-class SpadesTool(tools.Tool):
+class SpadesTool(viral_ngs.core.Tool):
     '''Tool wrapper for SPAdes tool (St. Petersburg Assembler)'''
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [viral_ngs.core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(SpadesTool, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -74,15 +74,15 @@ class SpadesTool(tools.Tool):
                 http://cab.spbu.ru/files/release3.11.1/rnaspades_manual.html#sec2.4 .
         '''
 
-        threads = util.misc.sanitize_thread_count(threads)
+        threads = viral_ngs.core.misc.sanitize_thread_count(threads)
 
-        util.file.make_empty(contigs_out)
+        viral_ngs.core.file.make_empty(contigs_out)
         contigs_cumul_count = 0
 
         if ((reads_fwd and reads_bwd and os.path.getsize(reads_fwd) > 0 and os.path.getsize(reads_bwd) > 0) or
             (reads_unpaired and os.path.getsize(reads_unpaired) > 0)):
 
-            with util.file.tmp_dir('_spades') as spades_dir:
+            with viral_ngs.core.file.tmp_dir('_spades') as spades_dir:
                 log.debug('spades_dir=' + spades_dir)
                 args = []
                 if reads_fwd and reads_bwd and os.path.getsize(reads_fwd) > 0 and os.path.getsize(reads_bwd) > 0:
@@ -102,7 +102,7 @@ class SpadesTool(tools.Tool):
                 except Exception as e:
                     if always_succeed:
                         log.warning('SPAdes failed: {}'.format(e))
-                        util.file.make_empty(transcripts_fname)
+                        viral_ngs.core.file.make_empty(transcripts_fname)
                     else:
                         raise
 
@@ -111,7 +111,7 @@ class SpadesTool(tools.Tool):
                     msg = 'SPAdes failed to make contigs.fasta'
                     if always_succeed:
                         log.warning(msg)
-                        util.file.make_empty(transcripts_fname)
+                        viral_ngs.core.file.make_empty(transcripts_fname)
                     else:
                         raise RuntimeError(msg)
 
@@ -124,12 +124,12 @@ class SpadesTool(tools.Tool):
                 contigs_cumul = os.path.join(spades_dir, 'contigs_cumul.{}.fasta'.format(contigs_cumul_count))
                 contigs_cumul_count += 1
 
-                util.file.concat(inputFilePaths=(contigs_out, transcripts_fname), outputFilePath=contigs_cumul, append=True)
+                viral_ngs.core.file.concat(inputFilePaths=(contigs_out, transcripts_fname), outputFilePath=contigs_cumul, append=True)
                 shutil.copyfile(contigs_cumul, contigs_out)
 
-            # end: with util.file.tmp_dir('_spades') as spades_dir
+            # end: with viral_ngs.core.file.tmp_dir('_spades') as spades_dir
         # if input non-empty
     # end: def assemble(self, reads_fwd, reads_bwd, contigs_out, reads_unpaired=None, contigs_trusted=None, ...)
-# end: class SpadesTool(tools.Tool)
+# end: class SpadesTool(viral_ngs.core.Tool)
 
 

@@ -1,10 +1,10 @@
-# Unit tests for assembly.py
+# Unit tests for viral_ngs.assembly.py
 
 __author__ = "dpark@broadinstitute.org"
 
-import assembly
-import util.cmd
-import util.file
+import viral_ngs.assembly
+import viral_ngs.core.cmd
+import viral_ngs.core.file
 import Bio.SeqIO
 import Bio.Data.IUPACData
 import unittest
@@ -19,24 +19,24 @@ import tempfile
 import argparse
 import itertools
 import pytest
-import assemble.mummer
-import assemble.skani
-import tools.minimap2
-import tools.novoalign
-import tools.picard
-from test import TestCaseWithTmp, _CPUS
+import viral_ngs.assemble.mummer
+import viral_ngs.assemble.skani
+import viral_ngs.core.minimap2
+import viral_ngs.core.novoalign
+import viral_ngs.core.picard
+from tests import TestCaseWithTmp, _CPUS
 
 
 def makeFasta(seqs, outFasta):
     with open(outFasta, 'wt') as outf:
-        for line in util.file.fastaMaker(seqs):
+        for line in viral_ngs.core.file.fastaMaker(seqs):
             outf.write(line)
 
 
 class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
-        for cmd_name, parser_fun in assembly.__commands__:
+        for cmd_name, parser_fun in viral_ngs.assembly.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
@@ -45,23 +45,23 @@ class TestRefineAssemble(TestCaseWithTmp):
     ''' Test edge cases of the de novo assembly pipeline '''
 
     def test_empty_input_bam_assembly(self):
-        novoalign = tools.novoalign.NovoalignTool()
+        novoalign = viral_ngs.core.novoalign.NovoalignTool()
         novoalign.install()
 
         # prep inputs
-        orig_ref = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
-        inFasta = util.file.mkstempfname('.ref.fasta')
+        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta')
+        inFasta = viral_ngs.core.file.mkstempfname('.ref.fasta')
         shutil.copyfile(orig_ref, inFasta)
         novoalign.index_fasta(inFasta)
 
-        inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
 
-        outFasta = util.file.mkstempfname('.refined.fasta')
+        outFasta = viral_ngs.core.file.mkstempfname('.refined.fasta')
 
         # run refine_assembly
         args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
                 "-r Random -l 30 -g 40 -x 20 -t 502 -c {}".format(_CPUS)]
-        args = assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
+        args = viral_ngs.assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
         args.func_main(args)
 
         # the expected output is an empty fasta file
@@ -69,20 +69,20 @@ class TestRefineAssemble(TestCaseWithTmp):
         self.assertTrue(os.path.getsize(outFasta) == 0)
 
     def test_aligned_empty_input_bam_assembly(self):
-        mm2 = tools.minimap2.Minimap2()
-        samtools = tools.samtools.SamtoolsTool()
-        with util.file.tempfname('.ref.fasta') as inFasta:
-            with util.file.tempfname('.bam') as inBam:
-                with util.file.tempfname('.refined.fasta') as outFasta:
-                    with util.file.tempfname('.vcf.gz') as outVcf:
-                        shutil.copyfile(os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta'), inFasta)
-                        mm2.align_bam(os.path.join(util.file.get_test_input_path(), 'empty.bam'), inFasta, inBam,
+        mm2 = viral_ngs.core.minimap2.Minimap2()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
+        with viral_ngs.core.file.tempfname('.ref.fasta') as inFasta:
+            with viral_ngs.core.file.tempfname('.bam') as inBam:
+                with viral_ngs.core.file.tempfname('.refined.fasta') as outFasta:
+                    with viral_ngs.core.file.tempfname('.vcf.gz') as outVcf:
+                        shutil.copyfile(os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta'), inFasta)
+                        mm2.align_bam(os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam'), inFasta, inBam,
                             options=['-x', 'sr'])
                         samtools.index(inBam)
 
                         # run refine_assembly
                         args = [inFasta, inBam, outFasta, "--already_realigned_bam", inBam, '--outVcf', outVcf]
-                        args = assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
+                        args = viral_ngs.assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
                         args.func_main(args)
 
                         # the expected output is an empty fasta file
@@ -92,22 +92,22 @@ class TestRefineAssemble(TestCaseWithTmp):
                         self.assertTrue(os.path.getsize(outVcf) > 0)
 
     def test_empty_input_fasta_assembly(self):
-        novoalign = tools.novoalign.NovoalignTool()
+        novoalign = viral_ngs.core.novoalign.NovoalignTool()
         novoalign.install()
 
         # make the input fasta empty
-        inFasta = util.file.mkstempfname('.input.fasta')
-        util.file.touch(inFasta)
+        inFasta = viral_ngs.core.file.mkstempfname('.input.fasta')
+        viral_ngs.core.file.touch(inFasta)
         novoalign.index_fasta(inFasta)
 
-        inBam = os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
 
-        outFasta = util.file.mkstempfname('.refined.fasta')
+        outFasta = viral_ngs.core.file.mkstempfname('.refined.fasta')
 
         # run refine_assembly
         args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
                 "-r Random -l 30 -g 40 -x 20 -t 502 -c {}".format(_CPUS)]
-        args = assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
+        args = viral_ngs.assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
         args.func_main(args)
 
         # the expected output is an empty fasta file
@@ -116,22 +116,22 @@ class TestRefineAssemble(TestCaseWithTmp):
 
 
     def test_empty_input_succeed(self):
-        novoalign = tools.novoalign.NovoalignTool()
+        novoalign = viral_ngs.core.novoalign.NovoalignTool()
         novoalign.install()
 
         # make the input fasta empty
-        inFasta = util.file.mkstempfname('.input.fasta')
-        util.file.touch(inFasta)
+        inFasta = viral_ngs.core.file.mkstempfname('.input.fasta')
+        viral_ngs.core.file.touch(inFasta)
         novoalign.index_fasta(inFasta)
 
-        inBam = os.path.join(util.file.get_test_input_path(), 'empty.bam')
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
 
-        outFasta = util.file.mkstempfname('.refined.fasta')
+        outFasta = viral_ngs.core.file.mkstempfname('.refined.fasta')
 
         # run refine_assembly
         args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
                 "-r Random -l 30 -g 40 -x 20 -t 502 -c {}".format(_CPUS)]
-        args = assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
+        args = viral_ngs.assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
         print(args)
         args.func_main(args)
 
@@ -144,11 +144,11 @@ class TestAssembleSpades(TestCaseWithTmp):
     ''' Test the assemble_spades command (no validation of output) '''
 
     def test_assembly(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
-        with util.file.tempfname('.fasta') as outFasta:
-            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, min_contig_len=180, out_fasta=outFasta)
+        with viral_ngs.core.file.tempfname('.fasta') as outFasta:
+            viral_ngs.assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, min_contig_len=180, out_fasta=outFasta)
             self.assertGreater(os.path.getsize(outFasta), 0)
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
             #import sys
@@ -156,12 +156,12 @@ class TestAssembleSpades(TestCaseWithTmp):
             self.assertEqual(contig_lens, [200, 201, 210, 222, 243, 244, 268, 294, 300, 328, 348, 376, 381, 430])
 
     def test_assembly_with_previously_assembled_contigs(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'G5012.3.subset.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
         previously_assembled_contigs = os.path.join(inDir, 'trinity_contigs.fasta')
-        with util.file.tempfname('.fasta') as outFasta:
-            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, contigs_untrusted=previously_assembled_contigs,
+        with viral_ngs.core.file.tempfname('.fasta') as outFasta:
+            viral_ngs.assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, contigs_untrusted=previously_assembled_contigs,
                                      out_fasta=outFasta, mem_limit_gb=1)
             self.assertGreater(os.path.getsize(outFasta), 0)
             contig_lens = list(sorted(len(seq.seq) for seq in Bio.SeqIO.parse(outFasta, 'fasta')))
@@ -170,19 +170,19 @@ class TestAssembleSpades(TestCaseWithTmp):
             self.assertEqual(contig_lens, [200, 201, 210, 222, 243, 244, 268, 294, 300, 328, 348, 376, 381, 430])
 
     def test_empty_input_succeed(self):
-        inDir = util.file.get_test_input_path()
+        inDir = viral_ngs.core.file.get_test_input_path()
         inBam = os.path.join(inDir, 'empty.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
-        with util.file.tempfname('fasta') as outFasta:
-            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta)
+        with viral_ngs.core.file.tempfname('fasta') as outFasta:
+            viral_ngs.assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta)
             self.assertEqual(os.path.getsize(outFasta), 0)
 
     def test_always_succeed(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         inBam = os.path.join(inDir, '..', 'almost-empty.bam')
         clipDb = os.path.join(inDir, 'clipDb.fasta')
-        with util.file.tempfname('.fasta') as outFasta:
-            assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta, spades_opts='--bad-option',
+        with viral_ngs.core.file.tempfname('.fasta') as outFasta:
+            viral_ngs.assembly.assemble_spades(in_bam=inBam, clip_db=clipDb, out_fasta=outFasta, spades_opts='--bad-option',
                                      always_succeed=True)
             self.assertEqual(os.path.getsize(outFasta), 0)
 
@@ -196,14 +196,14 @@ class TestAmbiguityBases(unittest.TestCase):
         bases = ('A', 'C', 'T', 'G')
         for i in range(1, 5):
             for alleles in itertools.permutations(bases, i):
-                out = assembly.alleles_to_ambiguity(alleles)
+                out = viral_ngs.assembly.alleles_to_ambiguity(alleles)
                 self.assertEqual(1, len(out))
                 self.assertEqual(out, out.upper())
 
 
 class TestUndirectedGraph(unittest.TestCase):
     def test_simple(self):
-        g = assemble.skani.UndirectedGraph()
+        g = viral_ngs.assemble.skani.UndirectedGraph()
         g.add_edge('a', 'b')
         g.add_edge('a', 'c')
         g.add_edge('b', 'd')
@@ -211,14 +211,14 @@ class TestUndirectedGraph(unittest.TestCase):
         self.assertEqual(actual, [{'a', 'b', 'c', 'd'}])
 
     def test_disconnected(self):
-        g = assemble.skani.UndirectedGraph()
+        g = viral_ngs.assemble.skani.UndirectedGraph()
         g.add_edge('a', 'b')
         g.add_edge('c', 'd')
         actual = list(sorted(g.get_clusters()))
         self.assertEqual(actual, [{'a', 'b'}, {'c', 'd'}])
 
     def test_both(self):
-        g = assemble.skani.UndirectedGraph()
+        g = viral_ngs.assemble.skani.UndirectedGraph()
         g.add_edge(1, 2)
         g.add_edge(11,12)
         g.add_edge(18,15)
@@ -236,10 +236,10 @@ class TestOrderAndOrient(TestCaseWithTmp):
     ''' Test the MUMmer-based order_and_orient command '''
 
     def test_varicella_big(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.hhv3.fasta')
-        assembly.order_and_orient(
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.hhv3.fasta'),
             os.path.join(inDir, 'ref.hhv3.fasta'),
             outFasta)
@@ -248,35 +248,35 @@ class TestOrderAndOrient(TestCaseWithTmp):
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_lassa_multisegment(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.lasv.fasta')
-        assembly.order_and_orient(
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.lasv.fasta'),
-            os.path.join(util.file.get_test_input_path(), 'ref.lasv.fasta'),
+            os.path.join(viral_ngs.core.file.get_test_input_path(), 'ref.lasv.fasta'),
             outFasta)
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
     def test_lassa_multisegment_refsel(self):
-        with util.file.tempfnames(('.out.fasta', '.out_ref.fasta', '.stats.tsv')) \
+        with viral_ngs.core.file.tempfnames(('.out.fasta', '.out_ref.fasta', '.stats.tsv')) \
              as (outFasta, outReference, outStats):
             contigs, expected, expectedStats = self.inputs('contigs.lasv.fasta', 
                                                            'expected.lasv.fasta', 
                                                            'expected.refsel.lasv.stats.tsv')
             refs = [self.input('ref.lasv.{}.fasta'.format(strain))
                     for strain in ('josiah', 'pinneo', 'KGH_G502', 'BNI_Nig08_A19', 'nomatch')]
-            assembly.order_and_orient(contigs, refs, outFasta,
+            viral_ngs.assembly.order_and_orient(contigs, refs, outFasta,
                                       outReference=outReference, outStats=outStats)
             self.assertEqualContents(outFasta, expected)
             self.assertEqualFasta(outReference, refs[0])
             self.assertEqualContents(outStats, expectedStats)
 
     def test_influenza_multisegment(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.influenza.fasta')
-        assembly.order_and_orient(
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.influenza.fasta'),
             os.path.join(inDir, 'ref.influenza.fasta'),
             outFasta)
@@ -285,12 +285,12 @@ class TestOrderAndOrient(TestCaseWithTmp):
 
     def test_ebov_palindrome(self):
         # this tests a scenario where show-aligns has more alignments than show-tiling
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.ebov.doublehit.fasta')
-        assembly.order_and_orient(
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.ebov.doublehit.fasta'),
-            os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta'),
+            os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta'),
             outFasta)
         self.assertEqual(
             str(Bio.SeqIO.read(outFasta, 'fasta').seq),
@@ -298,21 +298,21 @@ class TestOrderAndOrient(TestCaseWithTmp):
 
     def test_ebov_palindrome_refsel(self):
         # this tests a scenario where show-aligns has more alignments than show-tiling
-        with util.file.tempfnames(('.out.fasta', '.stats.tsv')) as (outFasta, outStats):
+        with viral_ngs.core.file.tempfnames(('.out.fasta', '.stats.tsv')) as (outFasta, outStats):
             contigs, expected, expectedStats = self.inputs('contigs.ebov.doublehit.fasta',
                                                                  'expected.ebov.doublehit.fasta',
                                                                  'expected.refsel.ebov.stats.tsv')
             refs = self.inputs('ref.ebov.lbr.fasta','ref.ebov.sle.fasta','ref.ebov.gin.fasta')
-            assembly.order_and_orient(contigs, refs, outFasta, outStats=outStats)
+            viral_ngs.assembly.order_and_orient(contigs, refs, outFasta, outStats=outStats)
             self.assertEqualFastaSeqs(outFasta, expected)
             self.assertEqualContents(outStats, expectedStats)
 
     def test_hiv_wraparound(self):
         # this tests a misassembly from Trinity and checks that we still use some of the contig
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.hiv.wrapped.fasta')
-        assembly.order_and_orient(
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.hiv.wrapped.fasta'),
             os.path.join(inDir, 'ref.hiv.fasta'),
             outFasta)
@@ -322,12 +322,12 @@ class TestOrderAndOrient(TestCaseWithTmp):
 
     def test_alternate_contigs(self):
         # this tests that --outAlternateContigs works as expected
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
-        altFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
+        altFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.hiv.big_indel.fasta')
         expectedAlt = os.path.join(inDir, 'expected.hiv.big_indel.alternates.fasta')
-        assembly.order_and_orient(
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.hiv.big_indel.fasta'),
             os.path.join(inDir, 'ref.hiv.fasta'),
             outFasta,
@@ -337,22 +337,22 @@ class TestOrderAndOrient(TestCaseWithTmp):
 
     @unittest.skip('promer alignments not implemented for custom scaffolding step')
     def test_lassa_protein(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.lasv.promer.fasta')
-        assembly.order_and_orient(
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.lasv.fasta'),
-            os.path.join(util.file.get_test_input_path(), 'ref.lasv.fasta'),
+            os.path.join(viral_ngs.core.file.get_test_input_path(), 'ref.lasv.fasta'),
             outFasta,
             aligner='promer')
         self.assertEqualContents(outFasta, expected)
         os.unlink(outFasta)
 
     def test_multi_overlap(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.ebov.small.fasta')
-        assembly.order_and_orient(
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.ebov.fasta'),
             os.path.join(inDir, 'ref.ebov.small.fasta'),
             outFasta)
@@ -361,15 +361,15 @@ class TestOrderAndOrient(TestCaseWithTmp):
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_ambig_align(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         contigs_gz = os.path.join(inDir, 'contigs.lasv.ambig.fasta.gz')
-        contigs = util.file.mkstempfname('.fasta')
-        with util.file.open_or_gzopen(contigs_gz, 'rb') as f_in:
+        contigs = viral_ngs.core.file.mkstempfname('.fasta')
+        with viral_ngs.core.file.open_or_gzopen(contigs_gz, 'rb') as f_in:
             with open(contigs, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
         expected = os.path.join(inDir, 'expected.lasv.ambig.fasta')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.order_and_orient(
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
+        viral_ngs.assembly.order_and_orient(
             contigs,
             os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
             outFasta)
@@ -378,15 +378,15 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqual(get_seqs(outFasta), get_seqs(expected))
 
     def test_ambig_align_ebov(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         contigs_gz = os.path.join(inDir, 'contigs.ebov.ambig.fasta.gz')
-        contigs = util.file.mkstempfname('.fasta')
-        with util.file.open_or_gzopen(contigs_gz, 'rb') as f_in:
+        contigs = viral_ngs.core.file.mkstempfname('.fasta')
+        with viral_ngs.core.file.open_or_gzopen(contigs_gz, 'rb') as f_in:
             with open(contigs, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
         expected = os.path.join(inDir, 'expected.ebov.ambig.fasta')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.order_and_orient(
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
+        viral_ngs.assembly.order_and_orient(
             contigs,
             os.path.join(inDir, 'ref.ebov.makona_C15.fasta'),
             outFasta)
@@ -395,33 +395,33 @@ class TestOrderAndOrient(TestCaseWithTmp):
         self.assertEqual(get_seqs(outFasta), get_seqs(expected))
 
     def test_obscure_mummer3_bug(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.lasv.bug.fasta')
         # under mummer3, this fails with a weird error in nucmer,
         # causing a CalledProcessError. We want this to succeed
         # nucmer, but fail later on due to IncompleteAssemblyError
-        self.assertRaises(assembly.IncompleteAssemblyError,
-            assembly.order_and_orient,
+        self.assertRaises(viral_ngs.assembly.IncompleteAssemblyError,
+            viral_ngs.assembly.order_and_orient,
             os.path.join(inDir, 'contig.mummer3_fail_lasv.fasta'),
             os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
             outFasta)
 
     def test_not_all_segments_fail(self):
         # IncompleteAssemblyError is thrown when only some but not all segments are recovered
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
-        self.assertRaises(assembly.IncompleteAssemblyError,
-            assembly.order_and_orient,
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
+        self.assertRaises(viral_ngs.assembly.IncompleteAssemblyError,
+            viral_ngs.assembly.order_and_orient,
             os.path.join(inDir, 'contigs.lasv.one_small.fasta'),
             os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
             outFasta)
 
     def test_not_all_segments_succeed(self):
         # ... unless we specifically allow for partial outputs
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.order_and_orient(
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
+        viral_ngs.assembly.order_and_orient(
             os.path.join(inDir, 'contigs.lasv.one_small.fasta'),
             os.path.join(inDir, 'ref.lasv.ISTH2376.fasta'),
             outFasta,
@@ -429,10 +429,10 @@ class TestOrderAndOrient(TestCaseWithTmp):
 
     def test_empty_output_succeed(self):
         # a completely empty output should be possible if we allow it
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         emptyFasta = os.path.join(inDir, '..', 'empty.fasta')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.order_and_orient(
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
+        viral_ngs.assembly.order_and_orient(
             emptyFasta,
             os.path.join(inDir, 'ref.influenza.fasta'),
             outFasta,
@@ -444,20 +444,20 @@ class TestGap2Seq(TestCaseWithTmp):
 
     def test_gapfill(self):
         join = os.path.join
-        inDir = util.file.get_test_input_path()
+        inDir = viral_ngs.core.file.get_test_input_path()
         in_scaffold = join(inDir, 'TestOrderAndOrient', 'expected.ebov.doublehit.fasta')
-        with util.file.tempfname(suffix='.filled.fasta') as filled:
-            assembly.gapfill_gap2seq(in_scaffold=in_scaffold,
+        with viral_ngs.core.file.tempfname(suffix='.filled.fasta') as filled:
+            viral_ngs.assembly.gapfill_gap2seq(in_scaffold=in_scaffold,
                                      in_bam=join(inDir, 'G5012.3.testreads.bam'),
                                      out_scaffold=filled, random_seed=23923937, threads=1)
             shutil.copyfile(filled, '/tmp/filled.fasta')
             self.assertEqualContents(filled, join(inDir, 'TestGap2Seq', 'expected.ebov.doublehit.gapfill.fasta'))
 
     def test_empty_fasta_input(self):
-        inDir = util.file.get_test_input_path()
+        inDir = viral_ngs.core.file.get_test_input_path()
         empty_fasta = os.path.join(inDir, 'empty.fasta')
-        out_fasta = util.file.mkstempfname('.fasta')
-        assembly.gapfill_gap2seq(in_scaffold=empty_fasta,
+        out_fasta = viral_ngs.core.file.mkstempfname('.fasta')
+        viral_ngs.assembly.gapfill_gap2seq(in_scaffold=empty_fasta,
                                     in_bam=os.path.join(inDir, 'G5012.3.testreads.bam'),
                                     out_scaffold=out_fasta, random_seed=23923937, threads=1)
         self.assertEqualContents(out_fasta, empty_fasta)
@@ -468,11 +468,11 @@ class TestImputeFromReference(TestCaseWithTmp):
 
     @unittest.skip('requires 10 mins and 16GB RAM')
     def test_varicella_big_muscle(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.hhv3.muscle.fasta')
-        inDirBase = util.file.get_test_input_path()
-        assembly.impute_from_reference(
+        inDirBase = viral_ngs.core.file.get_test_input_path()
+        viral_ngs.assembly.impute_from_reference(
             os.path.join(inDirBase, 'TestOrderAndOrient', 'expected.hhv3.fasta'),
             os.path.join(inDirBase, 'TestOrderAndOrient', 'ref.hhv3.fasta'),
             outFasta,
@@ -485,11 +485,11 @@ class TestImputeFromReference(TestCaseWithTmp):
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_varicella_big_mummer(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.hhv3.mummer.fasta')
-        inDirBase = util.file.get_test_input_path()
-        assembly.impute_from_reference(
+        inDirBase = viral_ngs.core.file.get_test_input_path()
+        viral_ngs.assembly.impute_from_reference(
             os.path.join(inDirBase, 'TestOrderAndOrient', 'expected.hhv3.fasta'),
             os.path.join(inDirBase, 'TestOrderAndOrient', 'ref.hhv3.fasta'),
             outFasta,
@@ -503,10 +503,10 @@ class TestImputeFromReference(TestCaseWithTmp):
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_muscle(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.sub.ebov.impute.fasta')
-        assembly.impute_from_reference(
+        viral_ngs.assembly.impute_from_reference(
             os.path.join(inDir, 'test.pseudo.fasta'),
             os.path.join(inDir, 'ref.sub.ebov.fasta'),
             outFasta,
@@ -520,10 +520,10 @@ class TestImputeFromReference(TestCaseWithTmp):
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_mafft(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.sub.ebov.impute.fasta')
-        assembly.impute_from_reference(
+        viral_ngs.assembly.impute_from_reference(
             os.path.join(inDir, 'test.pseudo.fasta'),
             os.path.join(inDir, 'ref.sub.ebov.fasta'),
             outFasta,
@@ -537,10 +537,10 @@ class TestImputeFromReference(TestCaseWithTmp):
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_small_mummer(self):
-        inDir = util.file.get_test_input_path(self)
-        outFasta = util.file.mkstempfname('.fasta')
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
         expected = os.path.join(inDir, 'expected.sub.ebov.impute.fasta')
-        assembly.impute_from_reference(
+        viral_ngs.assembly.impute_from_reference(
             os.path.join(inDir, 'test.pseudo.fasta'),
             os.path.join(inDir, 'ref.sub.ebov.fasta'),
             outFasta,
@@ -554,10 +554,10 @@ class TestImputeFromReference(TestCaseWithTmp):
             str(Bio.SeqIO.read(expected, 'fasta').seq))
 
     def test_empty_fasta_input(self):
-        inDir = util.file.get_test_input_path(self)
+        inDir = viral_ngs.core.file.get_test_input_path(self)
         empty_fasta = os.path.join(inDir, '..', 'empty.fasta')
-        outFasta = util.file.mkstempfname('.fasta')
-        assembly.impute_from_reference(
+        outFasta = viral_ngs.core.file.mkstempfname('.fasta')
+        viral_ngs.assembly.impute_from_reference(
             empty_fasta,
             os.path.join(inDir, 'ref.sub.ebov.fasta'),
             outFasta,
@@ -580,8 +580,8 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             No EBOV references should be selected.
         '''
 
-        inDir = os.path.join(util.file.get_test_input_path(), 'TestOrderAndOrient')
-        with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
+        inDir = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestOrderAndOrient')
+        with viral_ngs.core.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
             as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
             contigs = os.path.join(inDir, 'contigs.lasv.fasta')
             refs =  [os.path.join(inDir, 'ref.lasv.{}.fasta'.format(strain))
@@ -589,7 +589,7 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
                     [os.path.join(inDir, 'ref.ebov.{}.fasta'.format(strain))
                       for strain in ('lbr', 'sle', 'gin')]
 
-            assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
+            viral_ngs.assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
 
             with open(out_clusters_filtered, 'r') as inf:
                 clusters = inf.readlines()
@@ -603,14 +603,14 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             Test that skani_dist tolerates empty (or practically empty) input query fasta
         '''
 
-        inDir = os.path.join(util.file.get_test_input_path(), 'TestOrderAndOrient')
-        with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
+        inDir = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestOrderAndOrient')
+        with viral_ngs.core.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
             as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
             contigs = os.path.join(inDir, 'contigs.lasv.one_small.fasta')
             refs =  [os.path.join(inDir, 'ref.ebov.{}.fasta'.format(strain))
                       for strain in ('lbr', 'sle', 'gin')]
 
-            assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
+            viral_ngs.assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
 
             with open(out_clusters_filtered, 'r') as inf:
                 clusters = inf.readlines()
@@ -624,14 +624,14 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             Test that skani_dist tolerates empty outputs (no matches)
         '''
 
-        inDir = os.path.join(util.file.get_test_input_path(), 'TestOrderAndOrient')
-        with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
+        inDir = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestOrderAndOrient')
+        with viral_ngs.core.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
             as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
             contigs = os.path.join(inDir, 'contigs.lasv.fasta')
             refs =  [os.path.join(inDir, 'ref.ebov.{}.fasta'.format(strain))
                       for strain in ('lbr', 'sle', 'gin')]
 
-            assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
+            viral_ngs.assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
 
             with open(out_clusters_filtered, 'r') as inf:
                 clusters = inf.readlines()
@@ -645,13 +645,13 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
             Test that skani.find_closest_reference output tsv is sorted by the product
             of ANI * Total_bases_covered (and not just the default ANI-based sort order)
         '''
-        inDir = util.file.get_test_input_path(self)
-        with util.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        with viral_ngs.core.file.tempfnames(('.skani.dist.out', '.skani.dist.filtered', '.clusters.filtered')) \
             as (out_skani_dist, out_skani_dist_filtered, out_clusters_filtered):
             contigs = os.path.join(inDir, 'USA-MA-Broad_BWH-19947-2023.l000013249603_C5.HTKJ7DRX3.1.acellular.dedup.assembly1-spades.fasta')
             refs =  glob.glob(os.path.join(inDir, 'RVA*.fa'))
 
-            assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
+            viral_ngs.assembly.skani_contigs_to_refs(contigs, refs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, threads=1)
 
             with open(out_clusters_filtered, 'r') as inf:
                 clusters = inf.readlines()
@@ -664,8 +664,8 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
 
     def test_sort_skani_table_empty_file(self):
         """Test _sort_skani_table_by_product handles completely empty input file"""
-        skani = assemble.skani.SkaniTool()
-        with util.file.tempfnames(('.empty.tsv', '.out.tsv')) as (in_tsv, out_tsv):
+        skani = viral_ngs.assemble.skani.SkaniTool()
+        with viral_ngs.core.file.tempfnames(('.empty.tsv', '.out.tsv')) as (in_tsv, out_tsv):
             # Create empty file (0 bytes)
             open(in_tsv, 'w').close()
 
@@ -681,14 +681,14 @@ class TestSkaniReferenceSelection(TestCaseWithTmp):
 
     def test_sort_skani_table_header_only(self):
         """Test _sort_skani_table_by_product handles header-only input file"""
-        skani = assemble.skani.SkaniTool()
+        skani = viral_ngs.assemble.skani.SkaniTool()
         header = 'Ref_file\tQuery_file\tANI\tAlign_fraction_ref\tAlign_fraction_query\t' \
                  'Ref_name\tQuery_name\tNum_ref_contigs\tNum_query_contigs\tANI_5_percentile\t' \
                  'ANI_95_percentile\tStandard_deviation\tRef_90_ctg_len\tRef_50_ctg_len\t' \
                  'Ref_10_ctg_len\tQuery_90_ctg_len\tQuery_50_ctg_len\tQuery_10_ctg_len\t' \
                  'Avg_chain_len\tTotal_bases_covered\n'
 
-        with util.file.tempfnames(('.header.tsv', '.out.tsv')) as (in_tsv, out_tsv):
+        with viral_ngs.core.file.tempfnames(('.header.tsv', '.out.tsv')) as (in_tsv, out_tsv):
             with open(in_tsv, 'w') as f:
                 f.write(header)
 
@@ -705,21 +705,21 @@ class TestMutableSequence(unittest.TestCase):
     ''' Test the MutableSequence class '''
 
     def test_bad_coords(self):
-        self.assertRaises(Exception, assembly.MutableSequence, 'chr', 0, 4)
-        self.assertRaises(Exception, assembly.MutableSequence, 'chr', 5, 4)
-        self.assertRaises(Exception, assembly.MutableSequence, 'chr', -2, 4)
-        self.assertRaises(Exception, assembly.MutableSequence, 'chr', 5, 6, 'G')
+        self.assertRaises(Exception, viral_ngs.assembly.MutableSequence, 'chr', 0, 4)
+        self.assertRaises(Exception, viral_ngs.assembly.MutableSequence, 'chr', 5, 4)
+        self.assertRaises(Exception, viral_ngs.assembly.MutableSequence, 'chr', -2, 4)
+        self.assertRaises(Exception, viral_ngs.assembly.MutableSequence, 'chr', 5, 6, 'G')
 
     def test_good_coords(self):
-        x = assembly.MutableSequence('chr', 1, 5)
-        x = assembly.MutableSequence('chr', 5, 5)
-        x = assembly.MutableSequence('chr', 100, 2000)
-        x = assembly.MutableSequence('chr name with spaces 5 @#$ --', 1, 5)
-        x = assembly.MutableSequence('chr', 5, 5, 'A')
-        x = assembly.MutableSequence('chr', 5, 6, 'AT')
+        x = viral_ngs.assembly.MutableSequence('chr', 1, 5)
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 5)
+        x = viral_ngs.assembly.MutableSequence('chr', 100, 2000)
+        x = viral_ngs.assembly.MutableSequence('chr name with spaces 5 @#$ --', 1, 5)
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 5, 'A')
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 6, 'AT')
 
     def test_modify_one(self):
-        x = assembly.MutableSequence('chr', 5, 8, 'ATCG')
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 8, 'ATCG')
         self.assertRaises(Exception, x.modify, 4, 'G')
         self.assertRaises(Exception, x.modify, 9, 'G')
         self.assertEqual(x.emit(), ('chr', 'ATCG'))
@@ -737,13 +737,13 @@ class TestMutableSequence(unittest.TestCase):
         self.assertEqual(x.emit(), ('chr', 'GjGY'))
 
     def test_modify_blank(self):
-        x = assembly.MutableSequence('chr', 5, 8)
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 8)
         self.assertEqual(x.emit(), ('chr', 'NNNN'))
         x.modify(6, 'G')
         self.assertEqual(x.emit(), ('chr', 'NGNN'))
 
     def test_modify_insertions(self):
-        x = assembly.MutableSequence('chr', 5, 8, 'ATCG')
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 8, 'ATCG')
         x.modify(6, 'insert')
         self.assertEqual(x.emit(), ('chr', 'AinsertCG'))
         x.modify(8, 'tail')
@@ -752,7 +752,7 @@ class TestMutableSequence(unittest.TestCase):
         self.assertEqual(x.emit(), ('chr', 'headAinsertCtail'))
 
     def test_modify_deletions(self):
-        x = assembly.MutableSequence('chr', 5, 8, 'ATCG')
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 8, 'ATCG')
         self.assertRaises(Exception, x.replace, 6, 9, 'AT')
         x.replace(6, 7, 'CT')
         self.assertEqual(x.emit(), ('chr', 'ACTG'))
@@ -768,12 +768,12 @@ class TestMutableSequence(unittest.TestCase):
         self.assertEqual(x.emit(), ('chr', 'AyzG'))
 
     def test_modify_deletions_simple(self):
-        x = assembly.MutableSequence('chr', 5, 8, 'ATCG')
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 8, 'ATCG')
         x.replace(6, 7, 'T')
         self.assertEqual(x.emit(), ('chr', 'ATG'))
 
     def test_modify_deletions_remember(self):
-        x = assembly.MutableSequence('chr', 5, 8, 'ATCG')
+        x = viral_ngs.assembly.MutableSequence('chr', 5, 8, 'ATCG')
         x.replace(6, 7, 'T')
         self.assertEqual(x.emit(), ('chr', 'ATG'))
         x.modify(7, 'x')
@@ -788,37 +788,37 @@ class TestManualSnpCaller(unittest.TestCase):
     def test_missing_dp(self):
         ''' VCF files might contain rows with no calls or any kind of data and that's okay. '''
         row = ['chr10', '105', '.', 'G', '.', '.', '.', '.', 'GT', './.']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
         self.assertEqual(out, [])
 
     def test_dp_inaccurate(self):
         ''' The DP might not equal the sum of the ADs and that's okay apparently. '''
         row = ['chr10', '105', '.', 'G', 'A', '.', '.', '.', 'GT:DP:AD', '0/1/1:5:2,2']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
         self.assertEqual(set(out[0][4]), set(['G', 'A']))
         row = ['chr10', '105', '.', 'G', 'A', '.', '.', '.', 'GT:DP:AD', '0/1/1:2:3,3']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(set(out[0][4]), set(['G', 'A']))
         row = ['chr10', '105', '.', 'G', 'A', '.', '.', '.', 'GT:DP:AD', '0/1/1:10:2,0']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(out, [])
 
     def test_invariant_sites(self):
         ''' Invariant site handling is slightly different in code, so test it specially. '''
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT:DP', '0/0:3']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(out, [('LASV.l', 1, 1, 's1', ['T'])])
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT', '0/0']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=0))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=0))
         self.assertEqual(out, [('LASV.l', 1, 1, 's1', ['T'])])
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT', '0/0']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
         self.assertEqual(out, [])
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT', './.']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
         self.assertEqual(out, [])
         row = ['LASV.l', '1', '.', 'T', '.', '.', '.', '.', 'GT:DP', './.:10']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=1))
         self.assertEqual(out, [('LASV.l', 1, 1, 's1', ['T'])])
 
     def test_het_edgecases(self):
@@ -834,57 +834,57 @@ class TestManualSnpCaller(unittest.TestCase):
                 2A, 2T -> A/T
          '''
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:3,4,5,0']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(set(out[0][4]), set(['G', 'A', 'C']))
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:2,3,0,3']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(set(out[0][4]), set(['A', 'T']))
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:0,2,0,2']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(out, [])
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:0,2,0,2']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=2))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=2))
         self.assertEqual(set(out[0][4]), set(['A', 'T']))
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:2,0,3,0']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(out[0][4], ['C'])
         row = ['thecontig', '105000', '.', 'G', 'A,C,T', '.', '.', '.', 'GT:AD', '0/1:0,2,3,4']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(out[0][4], ['T'])
 
     def test_indels(self):
         ''' Indel handling '''
         row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,10,1']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(set(out[0][4]), set(['GA']))
         row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,5,2']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(set(out[0][4]), set(['G', 'GA']))
         row = ['thecontig', '105000', '.', 'G', 'GA,T', '.', '.', '.', 'GT:AD', '0/1:5,5,3']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1'], min_dp=3))
         self.assertEqual(set(out[0][4]), set(['G', 'GA', 'T']))
         row = ['thecontig', '105000', '.', 'AT', 'A', '.', '.', '.', 'GT:AD', '0/1:2,10']
-        out = list(assembly.vcfrow_parse_and_call_snps(row, ['s1']))
+        out = list(viral_ngs.assembly.vcfrow_parse_and_call_snps(row, ['s1']))
         self.assertEqual(out, [('thecontig', 105000, 105001, 's1', ['A'])])
 
     def test_vcf_to_seqs_indels1(self):
         input = ['thecontig', '5', '.', 'AT', 'A', '.', '.', '.', 'GT:AD', '0/1:2,10']
-        actual = assembly.vcf_to_seqs([input], {'thecontig': 10}, ['s1'], min_dp=2)
+        actual = viral_ngs.assembly.vcf_to_seqs([input], {'thecontig': 10}, ['s1'], min_dp=2)
         actual = list(actual)[0][1].strip('N')
         self.assertEqual(actual, 'A')
-        actual = assembly.vcf_to_seqs([input], {'thecontig': 10}, ['s1'], min_dp=2)
+        actual = viral_ngs.assembly.vcf_to_seqs([input], {'thecontig': 10}, ['s1'], min_dp=2)
         actual = list(actual)[0][1]
         self.assertEqual(actual, 'NNNNANNNN')
 
     def test_vcf_to_seqs_indels2(self):
         ''' More end-to-end indel handling '''
-        myInputDir = util.file.get_test_input_path(self)
+        myInputDir = viral_ngs.core.file.get_test_input_path(self)
         input = os.path.join(myInputDir, 'indel.vcf.gz')
         expected = os.path.join(myInputDir, 'output.fasta')
         chrlens = {'EBOV_2014_G6060.1': 18962}
         samples = ['G6060.1']
         expected = str(Bio.SeqIO.read(expected, 'fasta').seq)
-        actual = assembly.vcf_to_seqs(util.file.read_tabfile(input), chrlens, samples, min_dp=2)
+        actual = viral_ngs.assembly.vcf_to_seqs(viral_ngs.core.file.read_tabfile(input), chrlens, samples, min_dp=2)
         actual = list(actual)[0][1].strip('N')
         self.assertEqual(actual, expected)
 
@@ -893,8 +893,8 @@ class TestDeambigAndTrimFasta(TestCaseWithTmp):
     ''' Test the deambig_fasta and trim_fasta commands. '''
 
     def run_method(self, inseqs, parser_fun):
-        fasta_in = util.file.mkstempfname()
-        fasta_out = util.file.mkstempfname()
+        fasta_in = viral_ngs.core.file.mkstempfname()
+        fasta_out = viral_ngs.core.file.mkstempfname()
         makeFasta([(str(i), inseqs[i]) for i in range(len(inseqs))], fasta_in)
         args = parser_fun(argparse.ArgumentParser()).parse_args([fasta_in, fasta_out])
         args.func_main(args)
@@ -905,7 +905,7 @@ class TestDeambigAndTrimFasta(TestCaseWithTmp):
         inseqs = ['NNnnNNnNaslkdfjasdkfNNNN', 'NNNnnN', 'NNN123', 'ATCG']
         expected = ['aslkdfjasdkf', '', '123', 'ATCG']
         expected = dict((str(i), expected[i]) for i in range(len(expected)))
-        fasta_in, fasta_out = self.run_method(inseqs, assembly.parser_trim_fasta)
+        fasta_in, fasta_out = self.run_method(inseqs, viral_ngs.assembly.parser_trim_fasta)
         with open(fasta_out, 'rt') as fa:
             for record in Bio.SeqIO.parse(fa, 'fasta'):
                 self.assertIn(record.id, expected)
@@ -919,7 +919,7 @@ class TestDeambigAndTrimFasta(TestCaseWithTmp):
         keys = keys + [k.lower() for k in keys]
         vals = vals + vals
         inseq = ''.join(keys)
-        fasta_in, fasta_out = self.run_method([inseq], assembly.parser_deambig_fasta)
+        fasta_in, fasta_out = self.run_method([inseq], viral_ngs.assembly.parser_deambig_fasta)
         with open(fasta_out, 'rt') as fa:
             for rec in Bio.SeqIO.parse(fa, 'fasta'):
                 self.assertEqual(rec.id, '0')
@@ -933,41 +933,41 @@ class TestContigChooser(unittest.TestCase):
 
     def test_no_seqs(self):
         for test_len in (7,2,228,52):
-            actual = assemble.mummer.contig_chooser([], test_len)
+            actual = viral_ngs.assemble.mummer.contig_chooser([], test_len)
             self.assertEqual(actual, ['N' * test_len])
 
     def test_one_seq(self):
         for test_seq in ('A', '', 'GACTGATG', 'non-biological :characters!'):
-            actual = assemble.mummer.contig_chooser([test_seq], 90)
+            actual = viral_ngs.assemble.mummer.contig_chooser([test_seq], 90)
             self.assertEqual(actual, [test_seq])
 
     def test_most_popular_seq(self):
         alt_seqs = ['AA', 'aa', 'GGA', 'T', 'GGA']
         expected_choice = 'GGA'
         expected_alts = set(('AA', 'aa', 'T'))
-        actual = assemble.mummer.contig_chooser(alt_seqs, 2)
+        actual = viral_ngs.assemble.mummer.contig_chooser(alt_seqs, 2)
         self.assertEqual(actual[0], expected_choice)
         self.assertEqual(set(actual[1:]), expected_alts)
 
     def test_most_popular_seq_len(self):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
-        actual = assemble.mummer.contig_chooser(alt_seqs, 2)
+        actual = viral_ngs.assemble.mummer.contig_chooser(alt_seqs, 2)
         self.assertEqual(actual[0], 'aa')
         self.assertEqual(set(actual[1:]), set(('AA', 'GGA', 'T', 'GGC')))
-        actual = assemble.mummer.contig_chooser(alt_seqs, 3)
+        actual = viral_ngs.assemble.mummer.contig_chooser(alt_seqs, 3)
         self.assertEqual(actual[0], 'GGA')
         self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC']
-        actual = assemble.mummer.contig_chooser(alt_seqs, 20)
+        actual = viral_ngs.assemble.mummer.contig_chooser(alt_seqs, 20)
         self.assertEqual(actual[0], 'GGA')
         self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
-        actual = assemble.mummer.contig_chooser(alt_seqs, 1)
+        actual = viral_ngs.assemble.mummer.contig_chooser(alt_seqs, 1)
         self.assertEqual(actual[0], 'GGA')
         self.assertEqual(set(actual[1:]), set(('AA', 'aa', 'T', 'GGC')))
 
     def test_same_as_ref_len(self):
         alt_seqs = ['AA', 'GGA', 'aa', 'GGA', 'T', 'GGC', 'aa']
-        actual = assemble.mummer.contig_chooser(alt_seqs, 1)
+        actual = viral_ngs.assemble.mummer.contig_chooser(alt_seqs, 1)
         self.assertEqual(actual[0], 'T')
 
 
@@ -979,12 +979,12 @@ class TestWgsimTool(TestCaseWithTmp):
         wgsim = assemble.wgsim.WgsimTool()
 
         # Create test fasta with multiple sequences
-        in_fasta = util.file.mkstempfname('.fasta')
+        in_fasta = viral_ngs.core.file.mkstempfname('.fasta')
         seqs = [('seq1', 'ACGTACGTACGT'), ('seq2', 'GGGGCCCCAAAA'), ('seq3', 'TTTTTTTTTTTT')]
         makeFasta(seqs, in_fasta)
 
         # Slice to seq2
-        out_fasta = util.file.mkstempfname('.sliced.fasta')
+        out_fasta = viral_ngs.core.file.mkstempfname('.sliced.fasta')
         wgsim.slice_fasta(in_fasta, out_fasta, seq_id='seq2')
 
         # Verify only seq2 is in output
@@ -998,12 +998,12 @@ class TestWgsimTool(TestCaseWithTmp):
         wgsim = assemble.wgsim.WgsimTool()
 
         # Create test fasta
-        in_fasta = util.file.mkstempfname('.fasta')
+        in_fasta = viral_ngs.core.file.mkstempfname('.fasta')
         seqs = [('seq1', 'ACGTACGTACGTACGT')]
         makeFasta(seqs, in_fasta)
 
         # Slice to positions 5-10 (1-based inclusive)
-        out_fasta = util.file.mkstempfname('.sliced.fasta')
+        out_fasta = viral_ngs.core.file.mkstempfname('.sliced.fasta')
         wgsim.slice_fasta(in_fasta, out_fasta, seq_id='seq1', start=5, end=10)
 
         # Verify sliced sequence
@@ -1016,12 +1016,12 @@ class TestWgsimTool(TestCaseWithTmp):
         wgsim = assemble.wgsim.WgsimTool()
 
         # Create test fasta
-        in_fasta = util.file.mkstempfname('.fasta')
+        in_fasta = viral_ngs.core.file.mkstempfname('.fasta')
         seqs = [('seq1', 'ACGTACGT'), ('seq2', 'GGGGCCCC')]
         makeFasta(seqs, in_fasta)
 
         # Slice with no params
-        out_fasta = util.file.mkstempfname('.sliced.fasta')
+        out_fasta = viral_ngs.core.file.mkstempfname('.sliced.fasta')
         wgsim.slice_fasta(in_fasta, out_fasta)
 
         # Verify all sequences are in output (no-op)
@@ -1060,7 +1060,7 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
     def setUp(self):
         super(TestSimulateIlluminaReads, self).setUp()
-        self.in_fasta = os.path.join(util.file.get_test_input_path(), 'ref.lasv.fasta')
+        self.in_fasta = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ref.lasv.fasta')
         # Calculate expected sequence lengths
         self.seq_lengths = {}
         for record in Bio.SeqIO.parse(self.in_fasta, 'fasta'):
@@ -1068,7 +1068,7 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
     def count_bam_reads(self, bam_file):
         ''' Count the number of reads in a BAM file '''
-        samtools = tools.samtools.SamtoolsTool()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
         read_count = int(subprocess.check_output(
             [samtools.install_and_get_path(), 'view', '-c', bam_file]
         ).decode('UTF-8').strip())
@@ -1084,13 +1084,13 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
     def test_simulate_uniform_coverage(self):
         ''' Test simulating reads with uniform coverage across all sequences '''
-        out_bam = util.file.mkstempfname('.bam')
+        out_bam = viral_ngs.core.file.mkstempfname('.bam')
         coverage = 20.0
         read_length = 150
 
         # Run simulate_illumina_reads with uniform coverage
         args = [self.in_fasta, out_bam, str(coverage), '--read_length', str(read_length), '--random_seed', '12345']
-        args = assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
+        args = viral_ngs.assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
         args.func_main(args)
 
         # Verify BAM was created
@@ -1113,7 +1113,7 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
     def test_simulate_per_sequence_coverage(self):
         ''' Test simulating reads with per-sequence coverage specification '''
-        out_bam = util.file.mkstempfname('.bam')
+        out_bam = viral_ngs.core.file.mkstempfname('.bam')
         read_length = 150
 
         # Get sequence IDs
@@ -1123,7 +1123,7 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
         # Run simulate_illumina_reads with per-sequence coverage
         args = [self.in_fasta, out_bam, coverage_spec, '--read_length', str(read_length), '--random_seed', '12345']
-        args = assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
+        args = viral_ngs.assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
         args.func_main(args)
 
         # Verify BAM was created
@@ -1146,8 +1146,8 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
     def test_simulate_bed_coverage(self):
         ''' Test simulating reads with BED file coverage specification '''
-        out_bam = util.file.mkstempfname('.bam')
-        bed_file = util.file.mkstempfname('.bed')
+        out_bam = viral_ngs.core.file.mkstempfname('.bam')
+        bed_file = viral_ngs.core.file.mkstempfname('.bed')
         read_length = 150
 
         # Get sequence IDs
@@ -1162,7 +1162,7 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
 
         # Run simulate_illumina_reads with BED file
         args = [self.in_fasta, out_bam, bed_file, '--read_length', str(read_length), '--random_seed', '12345']
-        args = assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
+        args = viral_ngs.assembly.parser_simulate_illumina_reads(argparse.ArgumentParser()).parse_args(args)
         args.func_main(args)
 
         # Verify BAM was created
@@ -1190,8 +1190,8 @@ class TestFastaTrimTerminalAmbigs(TestCaseWithTmp):
     def test_script_runs_successfully(self):
         ''' Test that fasta-trim-terminal-ambigs.pl can run without errors '''
         # Create a test FASTA with terminal ambiguous bases
-        in_fasta = util.file.mkstempfname('.fasta')
-        out_fasta = util.file.mkstempfname('.trimmed.fasta')
+        in_fasta = viral_ngs.core.file.mkstempfname('.fasta')
+        out_fasta = viral_ngs.core.file.mkstempfname('.trimmed.fasta')
 
         # Create sequences with terminal Ns and ambiguous bases
         test_seqs = [
@@ -1217,7 +1217,7 @@ class TestFastaTrimTerminalAmbigs(TestCaseWithTmp):
     def test_script_with_3rules_option(self):
         ''' Test fasta-trim-terminal-ambigs.pl with --3rules option '''
         # Use the ebov-makona.fasta from test inputs
-        in_fasta = os.path.join(util.file.get_test_input_path(), 'ebov-makona.fasta')
+        in_fasta = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta')
 
         # Run with --3rules and standard parameters
         script_path = os.path.join(os.path.dirname(__file__), '..', '..', 'fasta-trim-terminal-ambigs.pl')

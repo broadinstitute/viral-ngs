@@ -7,9 +7,9 @@ __author__ = "tomkinsc@broadinstitute.org"
 
 from Bio import SeqIO
 import logging
-import tools
-import util.file
-import util.misc
+import viral_ngs.core
+import viral_ngs.core.file
+import viral_ngs.core.misc
 import os
 import os.path
 import shutil
@@ -20,11 +20,11 @@ TOOL_NAME = "mafft"
 _log = logging.getLogger(__name__)
 
 
-class MafftTool(tools.Tool):
+class MafftTool(viral_ngs.core.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [viral_ngs.core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(MafftTool, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -87,7 +87,7 @@ class MafftTool(tools.Tool):
             tempFileSuffix = ""
             for filePath in inputFiles:
                 tempFileSuffix += "__" + os.path.basename(filePath)
-            tempCombinedInputFile = util.file.mkstempfname('__combined.{}'.format(tempFileSuffix))
+            tempCombinedInputFile = viral_ngs.core.file.mkstempfname('__combined.{}'.format(tempFileSuffix))
             with open(tempCombinedInputFile, "w") as outfile:
                 for f in inputFiles:
                     with open(f, "r") as infile:
@@ -110,7 +110,7 @@ class MafftTool(tools.Tool):
 
         if not (retree or localpair or globalpair):
             tool_cmd.append("--auto")
-        tool_cmd.extend(["--thread", "{}".format(util.misc.sanitize_thread_count(threads))])
+        tool_cmd.extend(["--thread", "{}".format(viral_ngs.core.misc.sanitize_thread_count(threads))])
 
         if localpair and globalpair:
             raise Exception("Alignment type must be either local or global, not both.")
@@ -146,7 +146,7 @@ class MafftTool(tools.Tool):
 
         # run the MAFFT alignment
         with open(outFile, 'w') as outf:
-            util.misc.run_and_save(tool_cmd, outf=outf)
+            viral_ngs.core.misc.run_and_save(tool_cmd, outf=outf)
 
         if len(tempCombinedInputFile):
             # remove temp FASTA file

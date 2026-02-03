@@ -22,26 +22,25 @@ import csv
 import itertools
 from collections import OrderedDict, defaultdict
 
-# from viral-core
-import util.cmd
-import util.file
-import util.misc
-import read_utils
-import tools
-import tools.picard
-import tools.samtools
-import tools.gatk
-import tools.novoalign
+# from viral_ngs.core
+import viral_ngs.core.cmd
+import viral_ngs.core.file
+import viral_ngs.core.misc
+import viral_ngs.core.read_utils
+import viral_ngs.core.picard
+import viral_ngs.core.samtools
+import viral_ngs.core.gatk
+import viral_ngs.core.novoalign
 
-# intra-module
-import assemble.vcf
-import assemble.spades
-import assemble.mafft
-import assemble.mummer
-import assemble.muscle
-import assemble.gap2seq
-import assemble.skani
-import assemble.wgsim
+# intra-module (assembly tool wrappers)
+import viral_ngs.assemble.vcf
+import viral_ngs.assemble.spades
+import viral_ngs.assemble.mafft
+import viral_ngs.assemble.mummer
+import viral_ngs.assemble.muscle
+import viral_ngs.assemble.gap2seq
+import viral_ngs.assemble.skani
+import viral_ngs.assemble.wgsim
 
 # third-party
 import numpy
@@ -82,15 +81,15 @@ def assemble_spades(
     if outReads:
         trim_rmdup_bam = outReads
     else:
-        trim_rmdup_bam = util.file.mkstempfname('.subsamp.bam')
+        trim_rmdup_bam = viral_ngs.core.file.mkstempfname('.subsamp.bam')
 
-    read_utils.trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=n_reads,
+    viral_ngs.core.read_utils.trim_rmdup_subsamp_reads(in_bam, clip_db, trim_rmdup_bam, n_reads=n_reads,
                                         trim_opts=dict(maxinfo_target_length=35, maxinfo_strictness=.2))
 
-    with tools.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True
+    with viral_ngs.core.picard.SamToFastqTool().execute_tmp(trim_rmdup_bam, includeUnpaired=True, illuminaClipping=True
                                                    ) as (reads_fwd, reads_bwd, reads_unpaired):
         try:
-            assemble.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
+            viral_ngs.assemble.spades.SpadesTool().assemble(reads_fwd=reads_fwd, reads_bwd=reads_bwd, reads_unpaired=reads_unpaired,
                                                contigs_untrusted=contigs_untrusted, contigs_trusted=contigs_trusted,
                                                contigs_out=out_fasta, filter_contigs=filter_contigs,
                                                min_contig_len=min_contig_len,
@@ -127,8 +126,8 @@ def parser_assemble_spades(parser=argparse.ArgumentParser()):
                         help='only output contigs longer than this many bp')
     parser.add_argument('--spadesOpts', dest='spades_opts', default='--rnaviral', help='(advanced) Extra flags to pass to the SPAdes assembler')
     parser.add_argument('--memLimitGb', dest='mem_limit_gb', default=4, type=int, help='Max memory to use, in GB (default: %(default)s)')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, assemble_spades, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, assemble_spades, split_args=True)
     return parser
 
 
@@ -139,7 +138,7 @@ def gapfill_gap2seq(in_scaffold, in_bam, out_scaffold, threads=None, mem_limit_g
     ''' This step runs the Gap2Seq tool to close gaps between contigs in a scaffold.
     '''
     try:
-        assemble.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
+        viral_ngs.assemble.gap2seq.Gap2SeqTool().gapfill(in_scaffold, in_bam, out_scaffold, gap2seq_opts=gap2seq_opts, threads=threads,
                                             mem_limit_gb=mem_limit_gb, time_soft_limit_minutes=time_soft_limit_minutes, 
                                             random_seed=random_seed)
     except Exception as e:
@@ -161,8 +160,8 @@ def parser_gapfill_gap2seq(parser=argparse.ArgumentParser(description='Close gap
                         'fill any gaps.')
     parser.add_argument('--gap2seqOpts', dest='gap2seq_opts', default='', help='(advanced) Extra command-line options to pass to Gap2Seq')
     parser.add_argument('--randomSeed', dest='random_seed', default=0, help='Random seed; 0 means use current time')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, gapfill_gap2seq, split_args=True)
     return parser
 
 __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
@@ -171,7 +170,7 @@ __commands__.append(('gapfill_gap2seq', parser_gapfill_gap2seq))
 def cluster_references_ani(inRefs, outClusters, m=15, s=50, c=10, min_af=15, threads=None):
     ''' This step uses the skani triangle tool to define clusters of highly-related genomes.
     '''
-    skani = assemble.skani.SkaniTool()
+    skani = viral_ngs.assemble.skani.SkaniTool()
     clusters = skani.find_reference_clusters(inRefs, m=m, s=s, c=c, min_af=min_af, threads=threads)
     with open(outClusters, 'w') as outf:
         for cluster in clusters:
@@ -184,8 +183,8 @@ def parser_cluster_references_ani(parser=argparse.ArgumentParser(description='Cl
     parser.add_argument('-s', type=int, default=50, help='screen out pairs with < percent identity using k-mer sketching (default: %(default)s)')
     parser.add_argument('-c', type=int, default=10, help='compression factor (k-mer subsampling ratio) (default: %(default)s)')
     parser.add_argument('--min_af', dest='min_af', type=int, default=15, help='minimum alignment fraction (default: %(default)s)')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, cluster_references_ani, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, cluster_references_ani, split_args=True)
     return parser
 
 __commands__.append(('cluster_references_ani', parser_cluster_references_ani))
@@ -193,13 +192,13 @@ __commands__.append(('cluster_references_ani', parser_cluster_references_ani))
 
 def skani_contigs_to_refs(inContigs, inRefs, out_skani_dist, out_skani_dist_filtered, out_clusters_filtered, m=15, s=50, c=10, min_af=15, n=None, threads=None):
 
-    skani = assemble.skani.SkaniTool()
+    skani = viral_ngs.assemble.skani.SkaniTool()
     clusters = skani.find_reference_clusters(inRefs, m=m, s=s, c=c, min_af=min_af, threads=threads)
     skani.find_closest_reference(inContigs, inRefs, out_skani_dist, m=m, s=s, c=c, n=n, min_af=min_af, threads=threads)
     refs_hit = set()
     refs_hit_by_cluster = set()
 
-    dist_header = util.file.readFlatFileHeader(out_skani_dist)
+    dist_header = viral_ngs.core.file.readFlatFileHeader(out_skani_dist)
     with open(out_skani_dist, 'r') as inf:
         with open(out_skani_dist_filtered, 'w') as outf:
             writer = csv.DictWriter(outf, dist_header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
@@ -230,8 +229,8 @@ def parser_skani_contigs_to_refs(parser=argparse.ArgumentParser(description='Fin
     parser.add_argument('-c', type=int, default=10, help='compression factor (k-mer subsampling ratio) (default: %(default)s)')
     parser.add_argument('-n', type=int, default=None, help='maximum number of hits to report (default: unlimited)')
     parser.add_argument('--min_af', dest='min_af', type=int, default=15, help='minimum alignment fraction (default: %(default)s)')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, skani_contigs_to_refs, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, skani_contigs_to_refs, split_args=True)
     return parser
 
 __commands__.append(('skani_contigs_to_refs', parser_skani_contigs_to_refs))        
@@ -248,11 +247,11 @@ def _order_and_orient_orig(inFasta, inReference, outFasta,
         sequence of aligned contigs (with runs of N's in between the de novo
         contigs).
     '''
-    mummer = assemble.mummer.MummerTool()
+    mummer = viral_ngs.assemble.mummer.MummerTool()
     #if trimmed_contigs:
     #    trimmed = trimmed_contigs
     #else:
-    #    trimmed = util.file.mkstempfname('.trimmed.contigs.fasta')
+    #    trimmed = viral_ngs.core.file.mkstempfname('.trimmed.contigs.fasta')
     #mummer.trim_contigs(inReference, inFasta, trimmed,
     #        aligner=aligner, circular=circular, extend=False, breaklen=breaklen,
     #        min_pct_id=min_pct_id, min_contig_len=min_contig_len,
@@ -294,9 +293,9 @@ def order_and_orient(inFasta, inReference, outFasta,
         contigs).
     '''
 
-    chk = util.cmd.check_input
+    chk = viral_ngs.core.cmd.check_input
 
-    ref_segments_all = [tuple(Bio.SeqIO.parse(inRef, 'fasta')) for inRef in util.misc.make_seq(inReference)]
+    ref_segments_all = [tuple(Bio.SeqIO.parse(inRef, 'fasta')) for inRef in viral_ngs.core.misc.make_seq(inReference)]
     chk(ref_segments_all, 'No references given')
     chk(len(set(map(len, ref_segments_all))) == 1, 'All references must have the same number of segments')
     if n_genome_segments:
@@ -314,16 +313,16 @@ def order_and_orient(inFasta, inReference, outFasta,
     log.info('n_genome_segments={} n_refs={}'.format(n_genome_segments, n_refs))
     ref_ids = []
 
-    with util.file.tempfnames(suffixes=[ '.{}.ref.fasta'.format(ref_num) for ref_num in range(n_refs)]) as refs_fasta, \
-         util.file.tempfnames(suffixes=[ '.{}.scaffold.fasta'.format(ref_num) for ref_num in range(n_refs)]) as scaffolds_fasta, \
-         util.file.tempfnames(suffixes=[ '.{}.altcontig.fasta'.format(ref_num) for ref_num in range(n_refs)]) as alt_contigs_fasta:
+    with viral_ngs.core.file.tempfnames(suffixes=[ '.{}.ref.fasta'.format(ref_num) for ref_num in range(n_refs)]) as refs_fasta, \
+         viral_ngs.core.file.tempfnames(suffixes=[ '.{}.scaffold.fasta'.format(ref_num) for ref_num in range(n_refs)]) as scaffolds_fasta, \
+         viral_ngs.core.file.tempfnames(suffixes=[ '.{}.altcontig.fasta'.format(ref_num) for ref_num in range(n_refs)]) as alt_contigs_fasta:
 
         for ref_num in range(n_refs):
             this_ref_segs = ref_segments_all[ref_num*n_genome_segments : (ref_num+1)*n_genome_segments]
             ref_ids.append(this_ref_segs[0].id)
             Bio.SeqIO.write(this_ref_segs, refs_fasta[ref_num], 'fasta')
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=util.misc.sanitize_thread_count(threads)) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=viral_ngs.core.misc.sanitize_thread_count(threads)) as executor:
             retvals = executor.map(functools.partial(_call_order_and_orient_orig, inFasta=inFasta,
                 breaklen=breaklen, maxgap=maxgap, minmatch=minmatch, mincluster=mincluster, min_pct_id=min_pct_id,
                 min_contig_len=min_contig_len, min_pct_contig_aligned=min_pct_contig_aligned),
@@ -461,8 +460,8 @@ def parser_order_and_orient(parser=argparse.ArgumentParser()):
     #parser.add_argument("--trimmed_contigs",
     #                    default=None,
     #                    help="optional output file for trimmed contigs")
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, order_and_orient, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, order_and_orient, split_args=True)
     return parser
 
 
@@ -532,7 +531,7 @@ def impute_from_reference(
 
                     # error if PoorAssembly
                     minLength = len(refSeqObj) * minLengthFraction
-                    non_n_count = util.misc.unambig_count(asmSeqObj.seq)
+                    non_n_count = viral_ngs.core.misc.unambig_count(asmSeqObj.seq)
                     seq_len = len(asmSeqObj)
                     log.info(
                         "Assembly Quality - segment {idx} - name {segname} - contig len {len_actual} / {len_desired} ({min_frac}) - unambiguous bases {unamb_actual} / {unamb_desired} ({min_unamb})".format(
@@ -550,11 +549,11 @@ def impute_from_reference(
                         raise PoorAssemblyError(idx + 1, seq_len, non_n_count, minLength, len(refSeqObj))
 
                     # prepare temp input and output files
-                    tmpOutputFile = util.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
-                    concat_file = util.file.mkstempfname('.ref_and_actual.fasta')
-                    ref_file = util.file.mkstempfname('.ref.fasta')
-                    actual_file = util.file.mkstempfname('.actual.fasta')
-                    aligned_file = util.file.mkstempfname('.'+aligner+'.fasta')
+                    tmpOutputFile = viral_ngs.core.file.mkstempfname(prefix='seq-out-{idx}-'.format(idx=idx), suffix=".fasta")
+                    concat_file = viral_ngs.core.file.mkstempfname('.ref_and_actual.fasta')
+                    ref_file = viral_ngs.core.file.mkstempfname('.ref.fasta')
+                    actual_file = viral_ngs.core.file.mkstempfname('.actual.fasta')
+                    aligned_file = viral_ngs.core.file.mkstempfname('.'+aligner+'.fasta')
                     refName = refSeqObj.id
                     with open(concat_file, 'wt') as outf:
                         Bio.SeqIO.write([refSeqObj, asmSeqObj], outf, "fasta")
@@ -565,19 +564,19 @@ def impute_from_reference(
 
                     # align scaffolded genome to reference (choose one of three aligners)
                     if aligner == 'mafft':
-                        assemble.mafft.MafftTool().execute(
+                        viral_ngs.assemble.mafft.MafftTool().execute(
                             [ref_file, actual_file], aligned_file, False, True, True, False, False, None
                         )
                     elif aligner == 'muscle':
                         if len(refSeqObj) > 40000:
-                            assemble.muscle.MuscleTool().execute(
+                            viral_ngs.assemble.muscle.MuscleTool().execute(
                                 concat_file, aligned_file, quiet=False,
                                 maxiters=2, diags=True
                             )
                         else:
-                            assemble.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
+                            viral_ngs.assemble.muscle.MuscleTool().execute(concat_file, aligned_file, quiet=False)
                     elif aligner == 'mummer':
-                        assemble.mummer.MummerTool().align_one_to_one(ref_file, actual_file, aligned_file)
+                        viral_ngs.assemble.mummer.MummerTool().align_one_to_one(ref_file, actual_file, aligned_file)
 
                     # run modify_contig
                     args = [
@@ -598,15 +597,15 @@ def impute_from_reference(
                     tempFastas.append(tmpOutputFile)
 
     # merge outputs
-    util.file.concat(tempFastas, outFasta)
+    viral_ngs.core.file.concat(tempFastas, outFasta)
     for tmpFile in tempFastas:
         os.unlink(tmpFile)
 
     # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
     if index:
-        tools.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
-        tools.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
-        tools.novoalign.NovoalignTool().index_fasta(outFasta)
+        viral_ngs.core.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
+        viral_ngs.core.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
+        viral_ngs.core.novoalign.NovoalignTool().index_fasta(outFasta)
 
     return 0
 
@@ -652,8 +651,8 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
         action="store_true",
         dest="index"
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, impute_from_reference, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, impute_from_reference, split_args=True)
     return parser
 
 
@@ -691,23 +690,23 @@ def refine_assembly(
 
     # if the input fasta is empty, create an empty output fasta and return
     if (os.path.getsize(inFasta) == 0):
-        util.file.touch(outFasta)
+        viral_ngs.core.file.touch(outFasta)
         if outVcf:
-            with util.file.open_or_gzopen(outVcf, 'wt') as outf:
+            with viral_ngs.core.file.open_or_gzopen(outVcf, 'wt') as outf:
                 outf.write('##fileformat=VCFv4.3')
                 outf.write('\t'.join(('#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))+'\n')
         return 0
 
     # Get tools
-    picard_index = tools.picard.CreateSequenceDictionaryTool()
-    picard_mkdup = tools.picard.MarkDuplicatesTool()
-    samtools = tools.samtools.SamtoolsTool()
-    novoalign = tools.novoalign.NovoalignTool(license_path=novoalign_license_path)
-    gatk = tools.gatk.GATKTool(path=gatk_path)
+    picard_index = viral_ngs.core.picard.CreateSequenceDictionaryTool()
+    picard_mkdup = viral_ngs.core.picard.MarkDuplicatesTool()
+    samtools = viral_ngs.core.samtools.SamtoolsTool()
+    novoalign = viral_ngs.core.novoalign.NovoalignTool(license_path=novoalign_license_path)
+    gatk = viral_ngs.core.gatk.GATKTool(path=gatk_path)
 
     # Sanitize fasta header & create deambiguated genome for GATK
-    deambigFasta = util.file.mkstempfname('.deambig.fasta')
-    with util.file.fastas_with_sanitized_ids(inFasta, use_tmp=True) as sanitized_fastas:
+    deambigFasta = viral_ngs.core.file.mkstempfname('.deambig.fasta')
+    with viral_ngs.core.file.fastas_with_sanitized_ids(inFasta, use_tmp=True) as sanitized_fastas:
         deambig_fasta(sanitized_fastas[0], deambigFasta)
     picard_index.execute(deambigFasta, overwrite=True)
     samtools.faidx(deambigFasta, overwrite=True)
@@ -716,33 +715,33 @@ def refine_assembly(
         realignBam = already_realigned_bam
         if samtools.isEmpty(realignBam):
             # GATK errors out on empty bam input, so just do this ourselves
-            util.file.touch(outFasta)
+            viral_ngs.core.file.touch(outFasta)
             if outVcf:
-                with util.file.open_or_gzopen(outVcf, 'wt') as outf:
+                with viral_ngs.core.file.open_or_gzopen(outVcf, 'wt') as outf:
                     outf.write('##fileformat=VCFv4.3')
                     outf.write('\t'.join(('#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT'))+'\n')
             return 0
     else:
         # Novoalign reads to self
-        novoBam = util.file.mkstempfname('.novoalign.bam')
+        novoBam = viral_ngs.core.file.mkstempfname('.novoalign.bam')
         min_qual = 0 if keep_all_reads else 1
         novoalign.index_fasta(deambigFasta)
         novoalign.execute(inBam, deambigFasta, novoBam, options=novo_params.split(), min_qual=min_qual, JVMmemory=JVMmemory)
-        rmdupBam = util.file.mkstempfname('.rmdup.bam')
+        rmdupBam = viral_ngs.core.file.mkstempfname('.rmdup.bam')
         opts = ['CREATE_INDEX=true']
         if not keep_all_reads:
             opts.append('REMOVE_DUPLICATES=true')
         picard_mkdup.execute([novoBam], rmdupBam, picardOptions=opts, JVMmemory=JVMmemory)
         os.unlink(novoBam)
-        realignBam = util.file.mkstempfname('.realign.bam')
+        realignBam = viral_ngs.core.file.mkstempfname('.realign.bam')
         gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
         os.unlink(rmdupBam)
         if outBam:
             shutil.copyfile(realignBam, outBam)
 
     # Modify original assembly with VCF calls from GATK
-    tmpVcf = util.file.mkstempfname('.vcf.gz')
-    tmpFasta = util.file.mkstempfname('.fasta')
+    tmpVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
+    tmpFasta = viral_ngs.core.file.mkstempfname('.fasta')
     gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
     if already_realigned_bam is None:
         os.unlink(realignBam)
@@ -840,7 +839,7 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--JVMmemory',
-        default=tools.gatk.GATKTool.jvmMemDefault,
+        default=viral_ngs.core.gatk.GATKTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
     )
     parser.add_argument(
@@ -855,8 +854,8 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         dest="novoalign_license_path",
         help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, refine_assembly, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, refine_assembly, split_args=True)
     return parser
 
 
@@ -874,8 +873,8 @@ def parser_filter_short_seqs(parser=argparse.ArgumentParser()):
         help="Format for output sequence (default: %(default)s)",
         default="fasta"
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, main_filter_short_seqs)
+    viral_ngs.core.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    viral_ngs.core.cmd.attach_main(parser, main_filter_short_seqs)
     return parser
 
 
@@ -883,12 +882,12 @@ def main_filter_short_seqs(args):
     '''Check sequences in inFile, retaining only those that are at least minLength'''
     # orig by rsealfon, edited by dpark
     # TO DO: make this more generalized to accept multiple minLengths (for multiple chromosomes/segments)
-    with util.file.open_or_gzopen(args.inFile) as inf:
-        with util.file.open_or_gzopen(args.outFile, 'w') as outf:
+    with viral_ngs.core.file.open_or_gzopen(args.inFile) as inf:
+        with viral_ngs.core.file.open_or_gzopen(args.outFile, 'w') as outf:
             Bio.SeqIO.write(
                 [
                     s for s in Bio.SeqIO.parse(inf, args.format)
-                    if len(s) >= args.minLength and util.misc.unambig_count(s.seq) >= len(s) * args.minUnambig
+                    if len(s) >= args.minLength and viral_ngs.core.misc.unambig_count(s.seq) >= len(s) * args.minUnambig
                 ], outf, args.output_format
             )
     return 0
@@ -973,8 +972,8 @@ def parser_modify_contig(parser=argparse.ArgumentParser()):
         action="store_true",
         dest="call_reference_ambiguous"
     )
-    util.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, main_modify_contig)
+    viral_ngs.core.cmd.common_args(parser, (('tmp_dir', None), ('loglevel', None), ('version', None)))
+    viral_ngs.core.cmd.attach_main(parser, main_modify_contig)
     return parser
 
 
@@ -1022,7 +1021,7 @@ def main_modify_contig(args):
             name = args.name
         else:
             name = aln[consensus_idx].name
-        for line in util.file.fastaMaker([(name, mc.get_stripped_consensus())]):
+        for line in viral_ngs.core.file.fastaMaker([(name, mc.get_stripped_consensus())]):
             f.write(line)
     return 0
 
@@ -1334,8 +1333,8 @@ def parser_vcf_to_fasta(parser=argparse.ArgumentParser()):
         help="output sequence names (default: reference names in VCF file)",
         default=[]
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, main_vcf_to_fasta)
+    viral_ngs.core.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    viral_ngs.core.cmd.attach_main(parser, main_vcf_to_fasta)
     return parser
 
 
@@ -1350,7 +1349,7 @@ def main_vcf_to_fasta(args):
     assert args.min_dp >= 0
     assert 0.0 <= args.major_cutoff < 1.0
 
-    with assemble.vcf.VcfReader(args.inVcf) as vcf:
+    with viral_ngs.assemble.vcf.VcfReader(args.inVcf) as vcf:
         chrlens = dict(vcf.chrlens())
         samples = vcf.samples()
 
@@ -1364,7 +1363,7 @@ def main_vcf_to_fasta(args):
         chr_idx = 0
         for chr_idx, (header, seq) in enumerate(
             vcf_to_seqs(
-                util.file.read_tabfile(args.inVcf),
+                viral_ngs.core.file.read_tabfile(args.inVcf),
                 chrlens,
                 samples,
                 min_dp=args.min_dp,
@@ -1376,7 +1375,7 @@ def main_vcf_to_fasta(args):
                 seq = seq.strip('Nn')
             if args.name:
                 header = args.name[chr_idx % len(args.name)]
-            for line in util.file.fastaMaker([(header, seq)]):
+            for line in viral_ngs.core.file.fastaMaker([(header, seq)]):
                 outf.write(line)
 
     # done
@@ -1390,8 +1389,8 @@ __commands__.append(('vcf_to_fasta', parser_vcf_to_fasta))
 def parser_trim_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument("inFasta", help="Input fasta file")
     parser.add_argument("outFasta", help="Output (trimmed) fasta file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, trim_fasta, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    viral_ngs.core.cmd.attach_main(parser, trim_fasta, split_args=True)
     return parser
 
 
@@ -1402,7 +1401,7 @@ def trim_fasta(inFasta, outFasta):
     with open(outFasta, 'wt') as outf:
         with open(inFasta, 'rt') as inf:
             for record in Bio.SeqIO.parse(inf, 'fasta'):
-                for line in util.file.fastaMaker([(record.id, str(record.seq).strip('Nn'))]):
+                for line in viral_ngs.core.file.fastaMaker([(record.id, str(record.seq).strip('Nn'))]):
                     outf.write(line)
     log.info("done")
     return 0
@@ -1422,10 +1421,10 @@ def deambig_fasta(inFasta, outFasta):
         random unambiguous base from among the possibilities described by the ambiguity
         code.  Write output to fasta file.
     '''
-    with util.file.open_or_gzopen(outFasta, 'wt') as outf:
-        with util.file.open_or_gzopen(inFasta, 'rt') as inf:
+    with viral_ngs.core.file.open_or_gzopen(outFasta, 'wt') as outf:
+        with viral_ngs.core.file.open_or_gzopen(inFasta, 'rt') as inf:
             for record in Bio.SeqIO.parse(inf, 'fasta'):
-                for line in util.file.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
+                for line in viral_ngs.core.file.fastaMaker([(record.id, ''.join(map(deambig_base, str(record.seq))))]):
                     outf.write(line)
     return 0
 
@@ -1433,8 +1432,8 @@ def deambig_fasta(inFasta, outFasta):
 def parser_deambig_fasta(parser=argparse.ArgumentParser()):
     parser.add_argument("inFasta", help="Input fasta file")
     parser.add_argument("outFasta", help="Output fasta file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, deambig_fasta, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    viral_ngs.core.cmd.attach_main(parser, deambig_fasta, split_args=True)
     return parser
 
 
@@ -1443,10 +1442,10 @@ __commands__.append(('deambig_fasta', parser_deambig_fasta))
 
 def vcf_dpdiff(vcfs):
     for vcf in vcfs:
-        with assemble.vcf.VcfReader(vcf) as v:
+        with viral_ngs.assemble.vcf.VcfReader(vcf) as v:
             samples = v.samples()
         assert len(samples) == 1
-        for row in util.file.read_tabfile(vcf):
+        for row in viral_ngs.core.file.read_tabfile(vcf):
             dp1 = int(dict(x.split('=') for x in row[7].split(';') if x != '.').get('DP', 0))
             dp2 = 0
             if 'DP' in row[8].split(':'):
@@ -1462,8 +1461,8 @@ def vcf_dpdiff(vcfs):
 def parser_dpdiff(parser=argparse.ArgumentParser()):
     parser.add_argument("inVcfs", help="Input VCF file", nargs='+')
     parser.add_argument("outFile", help="Output flat file")
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, dpdiff, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    viral_ngs.core.cmd.attach_main(parser, dpdiff, split_args=True)
     return parser
 
 
@@ -1491,9 +1490,9 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
     gap = '-'
     ambiguous = 'N'
     unambiguous = set(list("GATCgatc"))
-    aligner = assemble.muscle.MuscleTool()
+    aligner = viral_ngs.assemble.muscle.MuscleTool()
 
-    per_chr_fastas = util.file.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
+    per_chr_fastas = viral_ngs.core.file.transposeChromosomeFiles([inFastaFileOne, inFastaFileTwo])
 
     results = OrderedDict()
     results["same_unambig"]  = 0
@@ -1515,7 +1514,7 @@ def alignment_summary(inFastaFileOne, inFastaFileTwo, outfileName=None, printCou
         ambig_both    = 0
         unambig_both  = 0
 
-        alignOutFileName = util.file.mkstempfname('.fasta')
+        alignOutFileName = viral_ngs.core.file.mkstempfname('.fasta')
         aligner.execute(chr_fasta, alignOutFileName, fmt="clw")
 
         with open(alignOutFileName, "r") as f:
@@ -1596,8 +1595,8 @@ def parser_alignment_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastaFileTwo', help='First fasta file for an alignment')
     parser.add_argument('--outfileName', help='Output file for counts in TSV format')
     parser.add_argument('--printCounts', help='', action='store_true')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, alignment_summary, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, alignment_summary, split_args=True)
     return parser
 __commands__.append(('alignment_summary', parser_alignment_summary))
 
@@ -1627,8 +1626,8 @@ def simulate_illumina_reads(
         sample_name: Sample name for read group
         library_name: Library name for read group
     '''
-    wgsim = assemble.wgsim.WgsimTool()
-    samtools = tools.samtools.SamtoolsTool()
+    wgsim = viral_ngs.assemble.wgsim.WgsimTool()
+    samtools = viral_ngs.core.samtools.SamtoolsTool()
 
     # Parse coverage specification into normalized format:
     # coverage_map[seq_id] = [(start, end, depth), ...]
@@ -1693,12 +1692,12 @@ def simulate_illumina_reads(
             num_pairs = wgsim.coverage_to_read_pairs(depth, region_len, read_length)
 
             # Slice fasta to region (will be no-op if region is whole sequence)
-            region_fasta = util.file.mkstempfname('.region.fasta')
+            region_fasta = viral_ngs.core.file.mkstempfname('.region.fasta')
             wgsim.slice_fasta(in_fasta, region_fasta, seq_id, start, end)
 
             # Generate reads for this region
-            fq1 = util.file.mkstempfname('.1.fastq')
-            fq2 = util.file.mkstempfname('.2.fastq')
+            fq1 = viral_ngs.core.file.mkstempfname('.1.fastq')
+            fq2 = viral_ngs.core.file.mkstempfname('.2.fastq')
             wgsim.execute(
                 region_fasta, fq1, fq2,
                 read_length=read_length,
@@ -1716,8 +1715,8 @@ def simulate_illumina_reads(
     if not temp_fastqs:
         raise ValueError("No reads generated - check coverage specification matches sequences in fasta")
 
-    merged_fq1 = util.file.mkstempfname('.merged.1.fastq')
-    merged_fq2 = util.file.mkstempfname('.merged.2.fastq')
+    merged_fq1 = viral_ngs.core.file.mkstempfname('.merged.1.fastq')
+    merged_fq2 = viral_ngs.core.file.mkstempfname('.merged.2.fastq')
 
     with open(merged_fq1, 'wb') as outf:
         for fq1, _ in temp_fastqs:
@@ -1755,15 +1754,15 @@ def parser_simulate_illumina_reads(parser=argparse.ArgumentParser()):
     parser.add_argument('--random_seed', type=int, default=None, help='Random seed for reproducibility (default: current time)')
     parser.add_argument('--sample_name', default='sample', help='Sample name for read group (default: %(default)s)')
     parser.add_argument('--library_name', default='lib1', help='Library name for read group (default: %(default)s)')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, simulate_illumina_reads, split_args=True)
+    viral_ngs.core.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, simulate_illumina_reads, split_args=True)
     return parser
 __commands__.append(('simulate_illumina_reads', parser_simulate_illumina_reads))
 
 
 def full_parser():
-    return util.cmd.make_parser(__commands__, __doc__)
+    return viral_ngs.core.cmd.make_parser(__commands__, __doc__)
 
 
 if __name__ == '__main__':
-    util.cmd.main_argparse(__commands__, __doc__)
+    viral_ngs.core.cmd.main_argparse(__commands__, __doc__)

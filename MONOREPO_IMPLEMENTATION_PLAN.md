@@ -260,12 +260,12 @@ git filter-repo --path-rename 'assembly.py:src/viral_ngs/assembly.py' \
 ```
 
 Tasks:
-1. [ ] Import with history
-2. [ ] Update imports
-3. [ ] Create `docker/requirements/assemble.txt`
-4. [ ] Create `docker/Dockerfile.assemble`
-5. [ ] Migrate tests
-6. [ ] Verify build and tests
+1. [x] Import with history (3,448 commits, tags prefixed with `assemble-`)
+2. [x] Update imports (`viral_ngs.core.*`, `viral_ngs.assemble.*`)
+3. [x] Create `docker/requirements/assemble.txt`
+4. [x] Create `docker/Dockerfile.assemble`
+5. [x] Migrate tests (to `tests/unit/assemble/`)
+6. [x] Add `build-on-core` job to GitHub Actions
 
 ### Phase 3b: viral-phylo
 

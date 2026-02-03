@@ -107,7 +107,94 @@ jobs:
       fail-fast: false
       matrix:
         flavor: [core]
-        # More flavors will be added in Phase 3: classify, assemble, phylo
+    outputs:
+      core-tag: ${{ steps.get-tag.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add expiration label for feature branches
+        if: github.ref_type == 'branch' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "" >> docker/Dockerfile.${{ matrix.flavor }}
+          echo "# Auto-expire feature branch images after 10 weeks" >> docker/Dockerfile.${{ matrix.flavor }}
+          echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.${{ matrix.flavor }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.QUAY_REPO }}
+            ${{ env.GHCR_REPO }}
+          flavor: |
+            suffix=-${{ matrix.flavor }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=pr
+            type=raw,value=${{ matrix.flavor }},enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Get core tag for downstream jobs
+        id: get-tag
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}-core" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}-core" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.${{ matrix.flavor }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-baseimage.outputs.baseimage-tag }}
+          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-${{ matrix.flavor }}
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1},mode=max', env.QUAY_REPO, matrix.flavor) || '' }}
+
+  # Build images that depend on core (assemble, classify, phylo)
+  build-on-core:
+    needs: build-derivatives
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [assemble]
+        # More flavors will be added: classify, phylo
 
     steps:
       - name: Checkout repository
@@ -168,6 +255,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-baseimage.outputs.baseimage-tag }}
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-derivatives.outputs.core-tag }}
           cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-${{ matrix.flavor }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1},mode=max', env.QUAY_REPO, matrix.flavor) || '' }}

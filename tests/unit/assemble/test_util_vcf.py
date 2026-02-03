@@ -2,8 +2,8 @@
 
 __author__ = "dpark@broadinstitute.org"
 
-import assemble.vcf
-import util.file
+import viral_ngs.assemble.vcf
+import viral_ngs.core.file
 import unittest
 '''
 TODO
@@ -41,21 +41,21 @@ class TestGenomePosition(unittest.TestCase):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
         invalids = [('SDF', 0), ('SDF', 124), ('ASDF', -1), ('lala', 48), ('lala', 200), ('sdf', 80), ('la', 2),
                     (None, 3)]
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         for c, p in invalids:
             self.assertRaises(Exception, gmap.get_gpos, c, p)
 
     def test_fail_OOB_get_chr_pos(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
         invalids = [0, -1, genome.totlen + 1, genome.totlen * 2]
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         for gpos in invalids:
             self.assertRaises(Exception, gmap.get_chr_pos, gpos)
 
     def test_fail_non_int_pos(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
         invalids = [('SDF', 5.3), ('lala', '10'), ('ASDF', None)]
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         for c, p in invalids:
             self.assertRaises(Exception, gmap.get_gpos, c, p)
             self.assertRaises(Exception, gmap.get_chr_pos, p)
@@ -64,7 +64,7 @@ class TestGenomePosition(unittest.TestCase):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
         knowns = [('SDF', 1, 1), ('SDF', 123, 123), ('ASDF', 1, 124), ('ASDF', 256, 379), ('lala', 1, 380),
                   ('lala', 47, 426)]
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         for c, p, gpos in knowns:
             self.assertEqual(gpos, gmap.get_gpos(c, p))
             self.assertEqual((c, p), gmap.get_chr_pos(gpos))
@@ -72,14 +72,14 @@ class TestGenomePosition(unittest.TestCase):
     def test_equality_1chrGenome(self):
         genome = StubGenome([('one chr', 10)])
         c = genome.chrs[0]
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         for i in range(1, genome.totlen + 1):
             self.assertEqual(i, gmap.get_gpos(c, i))  # c,p -> gpos should produce p=gpos
             self.assertEqual((c, i), gmap.get_chr_pos(i))  # gpos -> c,p should produce p=gpos
 
     def test_equality_3chrGenome(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         # test gpos -> c,p -> same gpos
         for gpos in range(1, genome.totlen + 1):
             c, p = gmap.get_chr_pos(gpos)
@@ -95,7 +95,7 @@ class TestGenomePosition(unittest.TestCase):
 
     def test_gpos_inbounds(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         for c, clen in genome.chrlen.items():
             for p in range(1, clen + 1):
                 gpos = gmap.get_gpos(c, p)
@@ -106,7 +106,7 @@ class TestGenomePosition(unittest.TestCase):
 
     def test_chr_pos_inbounds(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         for gpos in range(1, genome.totlen + 1):
             c, p = gmap.get_chr_pos(gpos)
             self.assertIsNotNone(c)
@@ -118,7 +118,7 @@ class TestGenomePosition(unittest.TestCase):
 
     def test_unique_gpos(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         seen = set()
         for c, clen in genome.chrlen.items():
             for p in range(1, clen + 1):
@@ -129,7 +129,7 @@ class TestGenomePosition(unittest.TestCase):
 
     def test_unique_chr_pos(self):
         genome = StubGenome([('SDF', 123), ('ASDF', 256), ('lala', 47)])
-        gmap = assemble.vcf.GenomePosition(genome)
+        gmap = viral_ngs.assemble.vcf.GenomePosition(genome)
         seen = set()
         for gpos in range(1, genome.totlen + 1):
             c, p = gmap.get_chr_pos(gpos)
@@ -142,7 +142,7 @@ class TestVcfReaderPositions(unittest.TestCase):
     ''' Test the OBO errors in the pysam-based VCFReader class (it's prone to such errors) '''
 
     def setUp(self):
-        self.vcf_fname = util.file.get_test_path() + '/input/one_gene.vcf.gz'
+        self.vcf_fname = viral_ngs.core.file.get_test_path() + '/input/one_gene.vcf.gz'
         self.vcf_window = ('Pf3D7_13_v3', 1724817, 1726997)
         try:
             self.basestring = basestring
@@ -151,13 +151,13 @@ class TestVcfReaderPositions(unittest.TestCase):
 
     def test_sample_names(self):
         expected = ['3D7', 'SenT001.08', 'SenT001.11', 'SenT002.07', 'SenT002.09']
-        vcfdb = assemble.vcf.VcfReader(self.vcf_fname)
+        vcfdb = viral_ngs.assemble.vcf.VcfReader(self.vcf_fname)
         self.assertEqual(expected, vcfdb.samples())
         for s in vcfdb.samples():
             self.assertIsInstance(s, self.basestring)
 
     def test_get_one_base(self):
-        vcfdb = assemble.vcf.VcfReader(self.vcf_fname)
+        vcfdb = viral_ngs.assemble.vcf.VcfReader(self.vcf_fname)
         genos = vcfdb.get_snp_genos(self.vcf_window[0], 1726432)
         alleles = [genos[s] for s in vcfdb.samples()]
         expected = ['T', 'T', 'T', 'G', 'T']
@@ -166,13 +166,13 @@ class TestVcfReaderPositions(unittest.TestCase):
             self.assertIsInstance(a, self.basestring)
 
     def test_get_positions_edges(self):
-        vcfdb = assemble.vcf.VcfReader(self.vcf_fname)
+        vcfdb = viral_ngs.assemble.vcf.VcfReader(self.vcf_fname)
         out = list(vcfdb.get_positions(self.vcf_window[0]))
         self.assertEqual(out[0][1], self.vcf_window[1])
         self.assertEqual(out[-1][2], self.vcf_window[2])
 
     def test_get_range_edges(self):
-        vcfdb = assemble.vcf.VcfReader(self.vcf_fname)
+        vcfdb = viral_ngs.assemble.vcf.VcfReader(self.vcf_fname)
         out = [p for c, p, alleles, genos in vcfdb.get_range(self.vcf_window[0])]
         self.assertEqual(out[0], self.vcf_window[1])
         self.assertEqual(out[-1], self.vcf_window[2])

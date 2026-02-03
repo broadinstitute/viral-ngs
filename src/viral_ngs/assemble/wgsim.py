@@ -7,10 +7,10 @@ __author__ = "dpark@broadinstitute.org"
 
 import logging
 import math
-import tools
-import tools.picard
-import util.file
-import util.misc
+import viral_ngs.core
+import viral_ngs.core.picard
+import viral_ngs.core.file
+import viral_ngs.core.misc
 import os
 import os.path
 import shutil
@@ -22,11 +22,11 @@ TOOL_NAME = "wgsim"
 
 _log = logging.getLogger(__name__)
 
-class WgsimTool(tools.Tool):
+class WgsimTool(viral_ngs.core.Tool):
 
     def __init__(self, install_methods=None):
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
+            install_methods = [viral_ngs.core.PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True)]
         super(WgsimTool, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -120,7 +120,7 @@ class WgsimTool(tools.Tool):
             platform: Platform for read group (default: ILLUMINA)
             platform_unit: Platform unit for read group (default: wgsim)
         '''
-        picard = tools.picard.FastqToSamTool()
+        picard = viral_ngs.core.picard.FastqToSamTool()
         picard.execute(
             in_fastq1, in_fastq2, sample_name, out_bam,
             picardOptions=[
