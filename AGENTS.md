@@ -174,7 +174,7 @@ __commands__.append(('command_name', parser_command_name))
 Tool wrappers in `core/`, `assemble/`, `classify/`, `phylo/`:
 
 ```python
-from viral_ngs import core
+import viral_ngs.core as core
 
 class SamtoolsTool(core.Tool):
     def __init__(self, install_methods=None):
@@ -195,8 +195,9 @@ class SamtoolsTool(core.Tool):
 
 ```python
 # Within command modules (illumina.py, assembly.py, etc.)
-from viral_ngs import core
-from viral_ngs.core import file as util_file, misc as util_misc
+import viral_ngs.core as core
+import viral_ngs.core.file as util_file
+import viral_ngs.core.misc as util_misc
 
 # Using tools
 samtools = core.samtools.SamtoolsTool()
@@ -218,8 +219,8 @@ from .misc import available_cpu_count
 ### Within subpackages (assemble/, classify/, phylo/)
 
 ```python
-from viral_ngs import core
-from viral_ngs.core import file as util_file
+import viral_ngs.core as core
+import viral_ngs.core.file as util_file
 
 # For other tools in same subpackage
 from . import mummer, mafft
@@ -388,8 +389,11 @@ Feature branch images get `quay.expires-after=10w` label for automatic cleanup.
 
 ```bash
 docker run --rm viral-ngs:core python -c "
-from viral_ngs import core
-from viral_ngs.core import samtools, picard, file, misc
+import viral_ngs.core
+import viral_ngs.core.samtools
+import viral_ngs.core.picard
+import viral_ngs.core.file
+import viral_ngs.core.misc
 print('Core imports OK')
 "
 ```
