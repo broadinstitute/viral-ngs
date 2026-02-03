@@ -1,5 +1,8 @@
 blast>=2.15.0
 bmtagger>=3.101
+kma>=1.4.0
 kmc>=3.2.1
 last>=1541
 perl>=5.22.0,<5.23.0
+kallisto>=0.51.1
+kb-python>=0.29.5

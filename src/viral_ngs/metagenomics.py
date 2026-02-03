@@ -9,6 +9,7 @@ __author__ = "yesimon@broadinstitute.org"
 import argparse
 import collections
 import csv
+import glob
 import gzip
 import io
 import itertools
@@ -25,6 +26,10 @@ import json
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+
+import anndata
+import numpy as np
+import pandas as pd
 import pysam
 
 import util.cmd
@@ -33,9 +38,11 @@ import util.misc
 import read_utils
 
 import classify.kaiju
+import classify.kma
 import classify.kraken
 import classify.kraken2
 import classify.krona
+import classify.kb
 
 __commands__ = []
 
@@ -804,6 +811,96 @@ def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, conf
 __commands__.append(('kraken2', parser_kraken2))
 
 
+def parser_kb(parser=argparse.ArgumentParser()):
+    """Argument parser for the kb_python wrapper.
+
+    Args:
+        parser (_type_, optional): _description_. Defaults to argparse.ArgumentParser().
+
+    Returns:
+        argparse.ArgumentParser: The parser with arguments added.
+    """
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--index', help='kb index file.')
+    parser.add_argument('--t2g', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--kmer_len', type=int, help='k-mer size (default: 31bp)', default=31)
+    parser.add_argument('--parity', choices=['single', 'paired'], help='Library parity (default: single)', default='single')
+    parser.add_argument('--technology', choices=['10xv2', '10xv3', '10xv3-3prime', '10xv3-5prime', 'dropseq', 
+                                                 'indrop', 'celseq', 'celseq2', 'smartseq2', 'bulk'], 
+                        help='Technology used to generate the data (default: bulk)', default='bulk')
+    parser.add_argument('--h5ad', action='store_true', help='Output HDF5 file (default: False)', default=False)
+    parser.add_argument('--loom', action='store_true', help='Output Loom file (default: False)', default=False)
+    parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
+    parser.add_argument('--out_dir', help='Output directory (default: kb_out)', default='kb_out')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kb_python, split_args=True)
+    return parser
+def kb_python(in_bam, index=None, t2g=None, kmer_len=31, parity='single', technology='bulk', h5ad=False, loom=False, protein=False, out_dir=None, threads=None):
+    """Runs kb count on the input BAM files.
+
+    Args:
+        in_bam (list): List of input BAM files.
+        out_dir (str): Output directory. Defaults to None.
+        index (str): Path to the kb index file.
+        t2g (list|str): Transcript-to-gene mapping file(s).
+        kmer_len (int, optional): K-mer size for the alignment. Defaults to 31.
+        parity (str, optional): Library parity (default: single). Defaults to 'single'.
+        technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
+        h5ad (bool, optional): Whether to output HDF5 file. Defaults to False.
+        loom (bool, optional): Whether to output Loom file. Defaults to False.
+        protein (bool, optional): Whether the sequence contains amino acids. Defaults to False.
+        threads (int, optional): Number of threads to use. Defaults to None.
+    """
+
+    assert out_dir, ('Output directory must be specified.')
+    kb_tool = classify.kb.kb()
+    kb_tool.classify(
+        in_bam=in_bam,
+        out_dir=out_dir,
+        index_file=index,
+        t2g_file=t2g,
+        k=kmer_len,
+        parity=parity,
+        technology=technology,
+        h5ad=h5ad,
+        loom=loom,
+        protein=protein,
+        num_threads=threads
+    )
+__commands__.append(('kb', parser_kb))
+
+def parser_kma(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='KMA database prefix.')
+    parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--outPrefixes', nargs='+', help='KMA output prefixes.')
+    parser.add_argument('--threads', type=int, help='Number of threads.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_kma, split_args=True)
+    return parser
+
+def main_kma(db, inBams, outPrefixes=None, threads=None):
+    if outPrefixes and len(inBams) != len(outPrefixes):
+        raise ValueError(f"Number of input BAMs ({len(inBams)}) must match number of output prefixes ({len(outPrefixes)})")
+    kma_tool = classify.kma.KMA()
+    for in_bam, out_prefix in itertools.zip_longest(inBams, outPrefixes):
+        kma_tool.classify(in_bam, db, out_prefix, num_threads=threads)
+
+__commands__.append(('kma', parser_kma))
+
+def parser_kma_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('ref_fasta', help='Reference FASTA file.')
+    parser.add_argument('db_prefix', help='Output database prefix.')
+    parser.add_argument('--threads', type=int, help='Number of threads.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, main_kma_build, split_args=True)
+    return parser
+
+def main_kma_build(ref_fasta, db_prefix, threads=None):
+    kma_tool = classify.kma.KMA()
+    kma_tool.build(ref_fasta, db_prefix, num_threads=threads)
+
+__commands__.append(('kma_build', parser_kma_build))
+
 def parser_krakenuniq(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Kraken database directory.')
     parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
@@ -1531,6 +1628,230 @@ def taxlevel_plurality(summary_file, tax_heading, out_report, min_reads):
 
 __commands__.append(('taxlevel_plurality', parser_kraken_taxlevel_plurality))
 
+def parser_kb_extract(parser=argparse.ArgumentParser()):
+    """Argument parser for the kb_python extract command.
+
+    Args:
+        parser (argparse.ArgumentParser): Argument parser instance. Defaults to argparse.ArgumentParser().
+
+    Returns:
+        argparse.ArgumentParser: The parser with arguments added.
+    """
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--index', help='kb index file.')
+    parser.add_argument('--t2g', help='Transcript to gene mapping file.')
+    parser.add_argument('--out_dir', dest='out_dir', help='Output directory (default: kb_out)', default='kb_out')
+    parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
+    parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.', default=None)
+    parser.add_argument('--h5ad', help='Path to the output h5ad file. Can pull IDs to extract from this file.', default=None)
+    parser.add_argument('--threshold', type=int, help='Minimum read count threshold for a target to be extracted (only used when extractin IDs from h5ad; default: %(default)s)', default=1)
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kb_extract, split_args=True)
+    return parser
+def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None, threshold=None):
+    """Runs kb extract on the input BAM file.
+
+    Args:
+        in_bam (str): Input BAM file.
+        index (str): Path to the kb index file.
+        t2g (str): Path to the transcript-to-gene mapping file.
+        targets (str): Comma-separated list of target sequences to extract.
+        protein (bool): True if sequence contains amino acids. Defaults to False.
+        out_dir (str): Output directory. Defaults to None.
+        h5ad (str): Path to the output h5ad file. Can pull IDs to extract from this file. Defaults to None.
+        threshold (int, optional): Minimum read count threshold for a target to be extracted. Defaults to 1.
+        threads (int, optional): Number of threads to use. Defaults to None.
+    """
+    assert out_dir, ('Output directory must be specified.')
+
+    kb_tool = classify.kb.kb()
+    
+    target_ids = targets.split(',') if targets else []
+    if not target_ids or len(target_ids) == 0:
+        # TODO: This extraction method expects only to have a single row h5ad (i.e. 1 sample). This should be handled more robustly.
+        log.warning('No targets specified for extraction. Trying to extract IDs from h5ad.')
+        target_ids = kb_tool.extract_hit_ids_from_h5ad(h5ad, threshold=threshold)
+        log.info("Target IDs extracted from h5ad: {}".format(target_ids))
+        if len(target_ids) == 0:
+            raise ValueError('No targets specified for extraction and no IDs found in h5ad.')
+
+    kb_tool.extract(
+        in_bam=in_bam,
+        index_file=index,
+        target_ids=target_ids,
+        out_dir=out_dir,
+        t2g_file=t2g,
+        protein=protein,
+        num_threads=threads
+    )
+__commands__.append(('kb_extract', parser_kb_extract))
+
+def parser_kb_top_taxa(parser=argparse.ArgumentParser()):
+    parser.add_argument('counts_tar', help='Input kb count tarball (tar.zst format).')
+    parser.add_argument('--id-to-tax-map', dest='id_to_tax_map', help='ID to taxonomy mapping file (CSV format).')
+    parser.add_argument('--target-taxon', dest='target_taxon', default='Viruses', help='Target taxonomic category to analyze (default: Viruses).')
+    parser.add_argument('out_report', help='Tab-delimited output file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kb_top_taxa, split_args=True)
+    return parser
+
+def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruses'):
+    """Identifies the most abundant taxon (of any rank) contributing to a taxa node of interest in kb count output.
+
+    It is intended to highlight the primary contributor of taxonomic signal within a taxonomic category of interest,
+    for example, the most abundant virus among all viruses.
+
+    Args:
+        counts_tar (str): Path to the input kb count tarball (tar.zst format).
+        out_report (str): Path to the output report file.
+        id_to_tax_map (str, optional): Path to the ID to taxonomy mapping file (CSV format).
+        target_taxon (str): The taxonomic category to analyze (default: 'Viruses').
+    """
+    kb_tool = classify.kb.kb()
+
+    # Extract and read h5ad file from tarball
+    with util.file.tmp_dir() as tmp_dir:
+        util.file.extract_tarball(counts_tar, tmp_dir)
+        h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", '*.h5ad'))
+
+        assert len(h5ad_files) == 1, "Expected exactly one .h5ad file in the counts tarball, found {}".format(len(h5ad_files))
+        h5ad_file = h5ad_files[0]
+
+        # Use kb helper to parse h5ad file
+        gene_counts = kb_tool.parse_h5ad_counts(h5ad_file)
+
+        # Build results data with taxonomy information
+        results_data = []
+
+        if id_to_tax_map:
+            # Load taxonomy mapping
+            tax_map_df = pd.read_csv(id_to_tax_map)
+            tax_map_df = tax_map_df.replace('.', np.nan)
+
+            # Standardize column name: handle both 'ID' and 'id'
+            if 'ID' in tax_map_df.columns:
+                tax_map_df = tax_map_df.rename(columns={'ID': 'id'})
+            elif 'id' not in tax_map_df.columns:
+                # If neither exists, use the first column as 'id'
+                tax_map_df = tax_map_df.rename(columns={tax_map_df.columns[0]: 'id'})
+
+            # Get the farthest (most specific) non-empty taxonomy for each gene
+            # Define taxonomy rank columns in order from broad to specific
+            taxonomy_columns = [col for col in ['phylum', 'class', 'order', 'family', 'genus', 'species']
+                              if col in tax_map_df.columns]
+
+            def get_farthest_taxa(row):
+                # Only consider taxonomy columns, in reverse order (most specific first)
+                for col in reversed(taxonomy_columns):
+                    if pd.notna(row[col]) and row[col] != '':
+                        return row[col]
+                return 'Unknown'
+
+            tax_map_df['farthest_taxa'] = tax_map_df.apply(get_farthest_taxa, axis=1)
+
+            # Get the root taxonomy category
+            if 'root' in tax_map_df.columns:
+                tax_map_df['tax_category'] = tax_map_df['root']
+            elif 'phylum' in tax_map_df.columns:
+                tax_map_df['tax_category'] = tax_map_df['phylum']
+            else:
+                # Assume first column after 'id' is the root category
+                tax_map_df['tax_category'] = tax_map_df.iloc[:, 1]
+
+            # OPTIMIZATION: Set 'id' as index for O(1) lookups instead of O(n) filtering
+            tax_map_df = tax_map_df.set_index('id')
+
+            # Filter by target taxon - optimized with index-based lookup
+            for gene_id, count in gene_counts:
+                # Skip genes with 0 counts
+                if count == 0:
+                    continue
+                if gene_id in tax_map_df.index:
+                    tax_info = tax_map_df.loc[gene_id]
+                    tax_category = tax_info['tax_category']
+                    if tax_category == target_taxon:
+                        # Use species name if available, otherwise use farthest_taxa
+                        species_name = tax_info.get('species', tax_info['farthest_taxa']) if 'species' in tax_info.index else tax_info['farthest_taxa']
+                        if pd.isna(species_name) or species_name == '':
+                            species_name = tax_info['farthest_taxa']
+
+                        results_data.append({
+                            'palmdb_id': gene_id,
+                            'sotu_id': species_name,
+                            'count': int(count),
+                            'tax_category': tax_category,
+                            'farthest_taxa': tax_info['farthest_taxa']
+                        })
+        else:
+            # No taxonomy mapping - report all genes
+            for gene_id, count in gene_counts:
+                # Skip genes with 0 counts
+                if count == 0:
+                    continue
+                results_data.append({
+                    'palmdb_id': gene_id,
+                    'sotu_id': gene_id,
+                    'count': int(count),
+                    'tax_category': 'Unknown',
+                    'farthest_taxa': gene_id
+                })
+
+        # Create output
+        if not results_data:
+            out = [{'focal_taxon_name': target_taxon, 'focal_taxon_count': 0, 'pct_of_focal': 0.0,
+                    'palmdb_id': '', 'hit_id': '', 'hit_lowest_taxa_name': '', 'hit_reads': 0}]
+        else:
+            results_df = pd.DataFrame(results_data)
+            total_focal_count = results_df['count'].sum()
+            results_df = results_df.sort_values(by='count', ascending=False).reset_index(drop=True)
+
+            # OPTIMIZATION: Use vectorized operations instead of iterrows()
+            results_df['focal_taxon_name'] = target_taxon
+            results_df['focal_taxon_count'] = total_focal_count
+            results_df['pct_of_focal'] = 100.0 * results_df['count'] / total_focal_count
+
+            # Create output dict
+            out = results_df.rename(columns={
+                'sotu_id': 'hit_id',
+                'farthest_taxa': 'hit_lowest_taxa_name',
+                'count': 'hit_reads'
+            })[['focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal']].to_dict('records')
+
+    # Write output
+    with util.file.open_or_gzopen(out_report, 'wt') as outf:
+        header = ('focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal')
+        writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
+        writer.writeheader()
+        writer.writerows(out)
+
+__commands__.append(('kb_top_taxa', parser_kb_top_taxa))
+
+def parser_kb_merge_h5ads(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_count_tars', nargs='+', help='Input kb count tarballs to merge (tar.zst format).')
+    parser.add_argument('--out-h5ad', dest='out_h5ad', help='Output merged h5ad file.')
+    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kb_merge_h5ads, split_args=True)
+    return parser
+def kb_merge_h5ads(in_count_tars, out_h5ad, tmp_dir=None):
+    '''
+    Merge multiple kb count output tarballs into a single h5ad file with sample metadata.
+
+    Extracts h5ad files from counts_unfiltered folder and adds sample names from matrix.cells.
+
+    Args:
+        in_count_tars (list): List of input kb count tarballs (tar.zst format).
+        out_h5ad (str): Path to the output h5ad file.
+        tmp_dir (str, optional): Temporary directory for extraction.
+    '''
+    assert out_h5ad, ('Output h5ad file must be specified.')
+    kb_tool = classify.kb.kb()
+    kb_tool.merge_h5ads(
+        in_count_tars=in_count_tars,
+        out_h5ad=out_h5ad,
+        tmp_dir_parent=tmp_dir
+    )
+
+__commands__.append(('kb_merge_h5ads', parser_kb_merge_h5ads))
 
 def parser_krona_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Krona taxonomy database output directory.')
@@ -1595,6 +1916,38 @@ def kraken2_build(db,
         num_threads=threads)
 
 __commands__.append(('kraken2_build', parser_kraken2_build))
+
+
+def parser_kb_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('ref_fasta', help='Reference sequence fasta file.')
+    parser.add_argument('--index', help='kb output index file.')
+    parser.add_argument('--workflow', choices=['standard', 'nac', 'kite', 'custom'],
+                        default='standard', help='Type of index to create (default: %(default)s).')
+    parser.add_argument('--kmer_len', type=int, help='k-mer length (default: 31).')
+    parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
+    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util.cmd.attach_main(parser, kb_build, split_args=True)
+    return parser
+def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, threads=None):
+    '''
+    Builds a kb index from a reference fasta file.
+
+    Args:
+        ref_fasta (str): Path to the reference sequence fasta file.
+        index (str): Path to the output kb index file.
+        workflow (str): Type of index to create. Options are 'standard', 'nac', 'kite', 'custom'.
+        kmer_len (int): k-mer length (default: 31).
+        protein (bool): True if sequence contains amino acids (default: False).
+        threads (int): Number of threads to use (default: None).
+    '''
+    kb_tool = classify.kb.kb()
+    kb_tool.build(ref_fasta,
+                        index=index,
+                        workflow=workflow,
+                        kmer_len=kmer_len,
+                        protein=protein,
+                        num_threads=threads)
+__commands__.append(('kb_build', parser_kb_build))
 
 
 def parser_krakenuniq_build(parser=argparse.ArgumentParser()):
@@ -1683,8 +2036,6 @@ def krakenuniq_build(db, library, taxonomy=None, subsetTaxonomy=None,
         krakenuniq_tool.execute('krakenuniq-build', db, '', options={'--clean': None})
 # KrakenUniq disabled from future versions for now, pending conda rebuild of @yesimon's custom fork & dependencies
 #__commands__.append(('krakenuniq_build', parser_krakenuniq_build))
-
-
 
 def full_parser():
     return util.cmd.make_parser(__commands__, __doc__)
