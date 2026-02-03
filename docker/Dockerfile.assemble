@@ -40,7 +40,7 @@ RUN pip install --no-cache-dir . && \
     echo "${VERSION}" > /opt/viral-ngs/source/VERSION
 
 # Verify installation
-RUN python -c "from viral_ngs.core import read_utils, illumina; print('Core modules OK')" && \
+RUN python -c "from viral_ngs import read_utils, illumina; print('Core modules OK')" && \
     python -c "from viral_ngs import assembly; print('Assembly module OK')" && \
     python -c "from viral_ngs.assemble import spades, mummer, mafft, skani; print('Assembly tools OK')"
 
