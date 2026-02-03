@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-See [AGENTS.md](AGENTS.md) for comprehensive project context and development guidelines.
+**IMPORTANT**: Always read [AGENTS.md](AGENTS.md) at the start of every session before doing any work. It contains comprehensive project context and development guidelines that are essential for working in this codebase.
 
 ## Quick Reference
 
