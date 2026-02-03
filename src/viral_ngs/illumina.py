@@ -735,11 +735,11 @@ def run_picard_fastq_to_sam_for_splitcode_demux(
     output_bam = os.path.join(outdir, f"{sample_library_id}.bam")
 
     # Convert dict to Picard options list
-    picard = picard.FastqToSamTool()
-    picard_opts = picard.dict_to_picard_opts(picard_opts_dict)
+    picard_tool = picard.FastqToSamTool()
+    picard_opts = picard_tool.dict_to_picard_opts(picard_opts_dict)
 
     # Execute Picard FastqToSam
-    picard.execute(
+    picard_tool.execute(
         bc_r1,
         bc_r2,
         sample_name,
@@ -749,8 +749,8 @@ def run_picard_fastq_to_sam_for_splitcode_demux(
     )
 
     # Count read pairs
-    samtools = samtools.SamtoolsTool()
-    total_reads = samtools.count(output_bam)
+    samtools_tool = samtools.SamtoolsTool()
+    total_reads = samtools_tool.count(output_bam)
     read_pairs = total_reads // 2
 
     return (sample_name, output_bam, read_pairs, sample_library_id)
@@ -1064,8 +1064,8 @@ def splitcode_demux_fastqs(
             platform_unit = f"{flowcell}.{lane}.{barcode_str}"
 
         # Use samtools import for multi-threaded FASTQ→BAM conversion
-        samtools = samtools.SamtoolsTool()
-        samtools.import_fastq(
+        samtools_tool = samtools.SamtoolsTool()
+        samtools_tool.import_fastq(
             fastq_r1,
             fastq_r2,
             output_bam,
@@ -1079,8 +1079,7 @@ def splitcode_demux_fastqs(
         )
 
         # Generate metrics with consistent schema (nested samples dict)
-        samtools = samtools.SamtoolsTool()
-        total_reads = samtools.count(output_bam)
+        total_reads = samtools_tool.count(output_bam)
         # Divide by 2 because samtools.count() returns total reads (R1+R2),
         # but we want to report read pairs
         read_pairs = total_reads // 2
@@ -2560,7 +2559,7 @@ def main_guess_barcodes(
         some number of negative controls
     """
 
-    bh = util.illumina_indices.IlluminaBarcodeHelper(
+    bh = IlluminaBarcodeHelper(
         in_barcodes, in_picard_metrics, rows_limit
     )
     guessed_barcodes = bh.find_uncertain_barcodes(
@@ -2670,13 +2669,13 @@ def miseq_fastq_to_bam(
     picardOpts["READ_GROUP_NAME"] = flowcell
 
     # run Picard
-    picard = picard.FastqToSamTool()
-    picard.execute(
+    picard_tool = picard.FastqToSamTool()
+    picard_tool.execute(
         inFastq1,
         inFastq2,
         sampleName,
         outBam,
-        picardOptions=picard.dict_to_picard_opts(picardOpts),
+        picardOptions=picard_tool.dict_to_picard_opts(picardOpts),
         JVMmemory=JVMmemory,
     )
     return 0
@@ -3062,7 +3061,7 @@ def splitcode_demux(
     inline_barcodes = sorted(list(set(barcodes_df["barcode_3"].values)))
 
     # Instantiate the splitcode and samtools tools
-    samtools = samtools.SamtoolsTool()
+    samtools_tool = samtools.SamtoolsTool()
 
     demux_bams_to_sample_library_id_map         = defaultdict(list)
     pool_id_to_sample_library_id_map            = defaultdict(list)
