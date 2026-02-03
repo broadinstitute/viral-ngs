@@ -5,5 +5,4 @@ mafft>=7.508
 mummer4>=4.0.0rc1
 muscle>=3.8
 snpeff>=4.3.1t
-table2asn>=1.28
 vphaser2>=2.0

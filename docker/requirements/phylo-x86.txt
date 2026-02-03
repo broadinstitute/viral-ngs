@@ -1,0 +1,6 @@
+# Phylogenetic tools - x86-only (no ARM64 builds available)
+# These packages are skipped on ARM64 architecture
+
+# table2asn: Creates sequence records for GenBank submission
+# Replaces tbl2asn, but binary-only x86 distribution
+table2asn>=1.28

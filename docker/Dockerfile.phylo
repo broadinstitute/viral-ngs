@@ -5,7 +5,7 @@
 # - All core bioinformatics tools (from core image)
 # - Alignment tools: MAFFT, MUMmer, MUSCLE
 # - Variant calling: V-Phaser2, LoFreq
-# - Annotation: SnpEff, table2asn
+# - Annotation: SnpEff, table2asn (x86-only)
 #
 # Usage:
 #   docker build --build-arg BASEIMAGE=quay.io/broadinstitute/viral-ngs:main-core -t viral-ngs:phylo -f docker/Dockerfile.phylo .
@@ -20,12 +20,14 @@ LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-n
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 # Copy requirements and dependency installation script
-COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/phylo.txt /tmp/requirements/
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/phylo.txt docker/requirements/phylo-x86.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install conda dependencies (phylo tools)
 # Install all requirements together in single resolver call for proper dependency resolution
-RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/phylo.txt
+# Then install x86-only packages (skipped on ARM)
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/phylo.txt && \
+    /tmp/install-conda-deps.sh --x86-only /tmp/requirements/phylo-x86.txt
 
 # Copy source code (includes phylo module)
 COPY src/ /opt/viral-ngs/source/src/

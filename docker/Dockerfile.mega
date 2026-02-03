@@ -20,11 +20,13 @@ LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-n
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 # Copy requirements and dependency installation script
-COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt docker/requirements/classify.txt docker/requirements/phylo.txt /tmp/requirements/
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt docker/requirements/classify.txt docker/requirements/phylo.txt docker/requirements/phylo-x86.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install ALL conda dependencies in single resolver call for proper dependency resolution
-RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt /tmp/requirements/classify.txt /tmp/requirements/phylo.txt
+# Then install x86-only packages (skipped on ARM)
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt /tmp/requirements/classify.txt /tmp/requirements/phylo.txt && \
+    /tmp/install-conda-deps.sh --x86-only /tmp/requirements/phylo-x86.txt
 
 # Copy source code (includes all modules)
 COPY src/ /opt/viral-ngs/source/src/
