@@ -611,7 +611,7 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
     # Define colors
     unique_library_ids = df_lut["library_id"].nunique()
     log.debug(f"Number of distinct library_id values (pools) present: {unique_library_ids}")
-    log.debug(f"library_id values (pools): {", ".join(sorted(list(set(df_lut['library_id'].astype(str)))))}")
+    log.debug(f"library_id values (pools): {', '.join(sorted(list(set(df_lut['library_id'].astype(str)))))}")
 
     tab20_colors = plt.cm.tab20.colors
     pool_colors  = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
