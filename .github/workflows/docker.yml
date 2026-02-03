@@ -1,4 +1,4 @@
-name: Build Docker Images
+name: Build and Test
 
 on:
   push:
@@ -16,6 +16,63 @@ env:
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
 
 jobs:
+  # Determine which paths changed to enable smart test filtering
+  paths-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      assemble: ${{ steps.filter.outputs.assemble }}
+      classify: ${{ steps.filter.outputs.classify }}
+      phylo: ${{ steps.filter.outputs.phylo }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - 'src/viral_ngs/*.py'
+              - 'src/viral_ngs/core/**'
+              - 'src/viral_ngs/util/**'
+              - 'tests/unit/core/**'
+              - 'tests/conftest.py'
+              - 'docker/requirements/core.txt'
+              - 'docker/requirements/core-x86.txt'
+              - 'docker/requirements/baseimage.txt'
+              - 'docker/Dockerfile.core'
+              - 'docker/Dockerfile.baseimage'
+              - 'pyproject.toml'
+            assemble:
+              - 'src/viral_ngs/assemble/**'
+              - 'src/viral_ngs/assembly.py'
+              - 'tests/unit/assemble/**'
+              - 'docker/requirements/assemble.txt'
+              - 'docker/Dockerfile.assemble'
+            classify:
+              - 'src/viral_ngs/classify/**'
+              - 'src/viral_ngs/metagenomics.py'
+              - 'src/viral_ngs/taxon_filter.py'
+              - 'src/viral_ngs/kmer_utils.py'
+              - 'tests/unit/classify/**'
+              - 'docker/requirements/classify.txt'
+              - 'docker/Dockerfile.classify'
+            phylo:
+              - 'src/viral_ngs/phylo/**'
+              - 'src/viral_ngs/interhost.py'
+              - 'src/viral_ngs/intrahost.py'
+              - 'src/viral_ngs/ncbi.py'
+              - 'tests/unit/phylo/**'
+              - 'docker/requirements/phylo.txt'
+              - 'docker/requirements/phylo-x86.txt'
+              - 'docker/Dockerfile.phylo'
+            docker:
+              - 'docker/**'
+              - '.github/workflows/docker.yml'
+
   # Calculate version from git describe (once, shared by all jobs)
   get-version:
     runs-on: ubuntu-latest
@@ -129,18 +186,13 @@ jobs:
           cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-baseimage
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-baseimage,mode=max', env.QUAY_REPO) || '' }}
 
-  # Build derivative images (depend on baseimage)
-  build-derivatives:
+  # Build core image (depends on baseimage)
+  build-core:
     needs: [get-version, build-baseimage]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        flavor: [core]
     outputs:
       core-tag: ${{ steps.get-tag.outputs.tag }}
 
@@ -173,9 +225,9 @@ jobs:
       - name: Add expiration label for feature branches
         if: github.ref_type == 'branch' && github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/')
         run: |
-          echo "" >> docker/Dockerfile.${{ matrix.flavor }}
-          echo "# Auto-expire feature branch images after 10 weeks" >> docker/Dockerfile.${{ matrix.flavor }}
-          echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.${{ matrix.flavor }}
+          echo "" >> docker/Dockerfile.core
+          echo "# Auto-expire feature branch images after 10 weeks" >> docker/Dockerfile.core
+          echo "LABEL quay.expires-after=10w" >> docker/Dockerfile.core
 
       - name: Extract metadata (tags, labels)
         id: meta
@@ -185,13 +237,13 @@ jobs:
             ${{ env.QUAY_REPO }}
             ${{ env.GHCR_REPO }}
           flavor: |
-            suffix=-${{ matrix.flavor }}
+            suffix=-core
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=ref,event=pr
-            type=raw,value=${{ matrix.flavor }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=core,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Get core tag for downstream jobs
         id: get-tag
@@ -206,7 +258,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.${{ matrix.flavor }}
+          file: docker/Dockerfile.core
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -214,12 +266,12 @@ jobs:
           build-args: |
             BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-baseimage.outputs.baseimage-tag }}
             VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-${{ matrix.flavor }}
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1},mode=max', env.QUAY_REPO, matrix.flavor) || '' }}
+          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-core
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-core,mode=max', env.QUAY_REPO) || '' }}
 
-  # Build images that depend on core (assemble, classify, phylo)
-  build-on-core:
-    needs: [get-version, build-derivatives]
+  # Build derivative images that depend on core
+  build-derivatives:
+    needs: [get-version, build-core]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -289,14 +341,14 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-derivatives.outputs.core-tag }}
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-${{ matrix.flavor }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-{1},mode=max', env.QUAY_REPO, matrix.flavor) || '' }}
 
   # Build mega image (all tools combined) - depends on core
   build-mega:
-    needs: [get-version, build-derivatives]
+    needs: [get-version, build-core]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -360,7 +412,300 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-derivatives.outputs.core-tag }}
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-mega
           cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-mega,mode=max', env.QUAY_REPO) || '' }}
+
+  # ============================================================================
+  # TEST JOBS - Run after corresponding images are built
+  # Each test runs in its flavor's Docker container
+  # ============================================================================
+
+  # Test core - runs after core image is built
+  test-core:
+    needs: [paths-filter, get-version, build-core]
+    if: needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # For PRs, build locally since image wasn't pushed
+      - name: Build test image (PR only)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.core
+          platforms: linux/amd64
+          load: true
+          tags: viral-ngs:test-core
+          build-args: |
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-core
+
+      - name: Set image name
+        id: image
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "name=viral-ngs:test-core" >> $GITHUB_OUTPUT
+          else
+            echo "name=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run core tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ steps.image.outputs.name }} \
+            pytest tests/unit/core/ \
+              -v --tb=short \
+              --cov=viral_ngs \
+              --cov-report=xml:/workspace/coverage-core.xml \
+              -x
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-core.xml
+          flags: core
+          name: codecov-core
+          fail_ci_if_error: false
+
+  # Test assemble - runs after assemble image is built
+  test-assemble:
+    needs: [paths-filter, get-version, build-core, build-derivatives]
+    if: needs.paths-filter.outputs.assemble == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image (PR only)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.assemble
+          platforms: linux/amd64
+          load: true
+          tags: viral-ngs:test-assemble
+          build-args: |
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-assemble
+
+      - name: Get assemble tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}-assemble" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}-assemble" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set image name
+        id: image
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "name=viral-ngs:test-assemble" >> $GITHUB_OUTPUT
+          else
+            echo "name=${{ env.QUAY_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run assemble tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ steps.image.outputs.name }} \
+            pytest tests/unit/assemble/ \
+              -v --tb=short \
+              --cov=viral_ngs \
+              --cov-report=xml:/workspace/coverage-assemble.xml \
+              -x
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-assemble.xml
+          flags: assemble
+          name: codecov-assemble
+          fail_ci_if_error: false
+
+  # Test classify - runs after classify image is built
+  test-classify:
+    needs: [paths-filter, get-version, build-core, build-derivatives]
+    if: needs.paths-filter.outputs.classify == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image (PR only)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.classify
+          platforms: linux/amd64
+          load: true
+          tags: viral-ngs:test-classify
+          build-args: |
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-classify
+
+      - name: Get classify tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}-classify" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}-classify" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set image name
+        id: image
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "name=viral-ngs:test-classify" >> $GITHUB_OUTPUT
+          else
+            echo "name=${{ env.QUAY_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run classify tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ steps.image.outputs.name }} \
+            pytest tests/unit/classify/ \
+              -v --tb=short \
+              --cov=viral_ngs \
+              --cov-report=xml:/workspace/coverage-classify.xml \
+              -x
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-classify.xml
+          flags: classify
+          name: codecov-classify
+          fail_ci_if_error: false
+
+  # Test phylo - runs after phylo image is built
+  test-phylo:
+    needs: [paths-filter, get-version, build-core, build-derivatives]
+    if: needs.paths-filter.outputs.phylo == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image (PR only)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.phylo
+          platforms: linux/amd64
+          load: true
+          tags: viral-ngs:test-phylo
+          build-args: |
+            BASEIMAGE=${{ env.QUAY_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: type=registry,ref=${{ env.QUAY_REPO }}:cache-phylo
+
+      - name: Get phylo tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}-phylo" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}-phylo" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set image name
+        id: image
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "name=viral-ngs:test-phylo" >> $GITHUB_OUTPUT
+          else
+            echo "name=${{ env.QUAY_REPO }}:${{ steps.tag.outputs.tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run phylo tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ steps.image.outputs.name }} \
+            pytest tests/unit/phylo/ \
+              -v --tb=short \
+              --cov=viral_ngs \
+              --cov-report=xml:/workspace/coverage-phylo.xml \
+              -x
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-phylo.xml
+          flags: phylo
+          name: codecov-phylo
+          fail_ci_if_error: false

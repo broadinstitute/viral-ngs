@@ -133,7 +133,8 @@ viral-ngs/
 │       ├── core-x86.txt        # x86-only packages
 │       ├── assemble.txt
 │       ├── classify.txt
-│       └── phylo.txt
+│       ├── phylo.txt
+│       └── phylo-x86.txt       # x86-only phylo packages
 │
 ├── tests/
 │   ├── conftest.py
@@ -311,17 +312,37 @@ docker build --build-arg BASEIMAGE=viral-ngs:core \
 
 ### GitHub Actions Workflow
 
-The `.github/workflows/docker.yml` workflow:
+The `.github/workflows/docker.yml` workflow handles building and testing:
 
-1. **get-version**: Extract version from git describe
-2. **build-baseimage**: Build base image with conda/python
-3. **build-derivatives**: Build core image
-4. **build-on-core**: Build assemble, classify, phylo, mega in parallel
+**Build Jobs:**
+1. **paths-filter**: Detect which code paths changed (using `dorny/paths-filter`)
+2. **get-version**: Extract version from git describe
+3. **build-baseimage**: Build base image with conda/python
+4. **build-core**: Build core image (depends on baseimage)
+5. **build-derivatives**: Build assemble, classify, phylo in parallel (depend on core)
+6. **build-mega**: Build all-in-one image (depends on core)
+
+**Test Jobs:**
+- **test-core**: Runs after build-core, tests `tests/unit/core/`
+- **test-assemble**: Runs after build-derivatives, tests `tests/unit/assemble/`
+- **test-classify**: Runs after build-derivatives, tests `tests/unit/classify/`
+- **test-phylo**: Runs after build-derivatives, tests `tests/unit/phylo/`
+
+**Smart Test Scoping:**
+Tests only run when relevant code changes:
+- Core tests: `src/viral_ngs/*.py`, `core/**`, `util/**`, `tests/unit/core/**`
+- Assemble tests: `assemble/**`, `assembly.py`, or core changes
+- Classify tests: `classify/**`, `metagenomics.py`, `taxon_filter.py`, or core changes
+- Phylo tests: `phylo/**`, `interhost.py`, `intrahost.py`, `ncbi.py`, or core changes
+- Docker changes trigger all tests
+
+**Coverage:**
+Each test job uploads coverage to Codecov with flavor-specific flags.
 
 ### Multi-Architecture Support
 
 - Images built for `linux/amd64` and `linux/arm64`
-- x86-only packages (novoalign, mvicuna) handled gracefully on ARM
+- x86-only packages (novoalign, mvicuna, table2asn) handled gracefully on ARM
 - Cache stored on Quay.io registry (GHA 10GB limit too small)
 
 ### Feature Branch Images
