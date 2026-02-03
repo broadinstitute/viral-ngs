@@ -8,6 +8,8 @@ import unittest
 import argparse
 import itertools
 
+from tests import TestCaseWithTmp
+
 
 class TestCommandHelp(unittest.TestCase):
 
@@ -25,7 +27,7 @@ def makeTempFasta(seqs):
     return fn
 
 
-class TestCoordMapper(test.TestCaseWithTmp):
+class TestCoordMapper(TestCaseWithTmp):
 
     def setUp(self):
         super(TestCoordMapper, self).setUp()
@@ -95,7 +97,7 @@ class TestCoordMapper(test.TestCaseWithTmp):
             self.cm.mapAtoB('nonexistentchr')
 
 
-class TestCoordMapperMultipleSeqs(test.TestCaseWithTmp):
+class TestCoordMapperMultipleSeqs(TestCaseWithTmp):
 
     def setUp(self):
         super(TestCoordMapperMultipleSeqs, self).setUp()
@@ -203,7 +205,7 @@ class TestCoordMapperMultipleSeqs(test.TestCaseWithTmp):
         self.assertRaises(KeyError, self.cm.mapChr, 'nonexistentchr', 'chr1')
 
 
-class TestSpecificAlignments(test.TestCaseWithTmp):
+class TestSpecificAlignments(TestCaseWithTmp):
     """ For the most part, CoordMapper2Seqs is tested implicitly when
         CoordMapper is tested. Focus here on special cases that are hard
         or impossible to get out of the aligner.
@@ -281,7 +283,7 @@ class TestSpecificAlignments(test.TestCaseWithTmp):
             self.assertEqual(cm.mapChr('s2', 's3', x), ('s3', y))
         for x, y in ((1, 1), (2, 2), (3, 2), (4, 3)):
             self.assertEqual(cm.mapChr('s3', 's2', x), ('s2', y))
-        for a, b in iterviral_ngs.core.combinations(('s2', 's4', 's5'), 2):
+        for a, b in itertools.combinations(('s2', 's4', 's5'), 2):
             for i in (1, 2, 3):
                 self.assertEqual(cm.mapChr(a, b, i), (b, i))
                 self.assertEqual(cm.mapChr(b, a, i), (a, i))

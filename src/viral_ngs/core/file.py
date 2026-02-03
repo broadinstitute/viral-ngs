@@ -61,8 +61,17 @@ class StringNotFoundException(Exception):
 
 def get_project_path():
     '''Return the absolute path of the top-level project, assumed to be the
-       parent of the directory containing this script.'''
-    # abspath converts relative to absolute path; expanduser interprets ~
+       parent of the directory containing this script.
+
+       When package is pip-installed (e.g., in Docker), the relative path from
+       __file__ won't work. In that case, check for VIRAL_NGS_SOURCE_DIR env var
+       or fall back to cwd if it contains a tests/ directory.
+    '''
+    # Check for explicit environment variable first (useful for Docker/CI)
+    if 'VIRAL_NGS_SOURCE_DIR' in os.environ:
+        return os.environ['VIRAL_NGS_SOURCE_DIR']
+
+    # Try relative path from this file (works in source checkout)
     path = __file__  # path to this script
     path = os.path.expanduser(path)  # interpret ~
     path = os.path.abspath(path)  # convert to absolute path
@@ -70,6 +79,17 @@ def get_project_path():
     path = os.path.dirname(path)  # containing directory: viral_ngs
     path = os.path.dirname(path)  # containing directory: src
     path = os.path.dirname(path)  # containing directory: project root
+
+    # If tests directory exists at calculated path, use it
+    if os.path.isdir(os.path.join(path, 'tests')):
+        return path
+
+    # Fall back to current working directory if it has tests/
+    cwd = os.getcwd()
+    if os.path.isdir(os.path.join(cwd, 'tests')):
+        return cwd
+
+    # Last resort: return calculated path even if tests/ doesn't exist
     return path
 
 
