@@ -31,7 +31,7 @@ from .core import prinseq
 from .core import picard
 from .core import samtools
 from .core.file import mkstempfname
-from .errors import QCError
+from .core.errors import QCError
 
 from .classify import blast
 from .classify import last

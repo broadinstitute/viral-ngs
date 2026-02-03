@@ -183,6 +183,7 @@ from . import file
 from . import stats
 from . import cmd
 from . import illumina_indices
+from . import illumina_utils
 
 # Remaining core modules
 from . import errors

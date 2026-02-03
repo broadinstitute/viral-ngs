@@ -1,5 +1,8 @@
 '''A few miscellaneous tools. '''
+import array
+import bisect
 import collections
+import collections.abc
 import contextlib
 import copy
 import functools
@@ -12,11 +15,16 @@ import multiprocessing
 import operator
 import os, os.path
 import re
+import shutil
+import sqlite3
 import subprocess
 import sys
 import threading
 import time
 import yaml
+
+import Bio.SeqIO
+import pysam
 
 from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
 
@@ -675,3 +683,679 @@ def convert_size_str(input_size_str, output_unit="m", round_number=True):
                 return str(round(max(1,float(size_in_bytes)/unit2factor[output_unit])))+output_unit
             else:
                 return str(float(size_in_bytes)/unit2factor[output_unit])+output_unit
+
+
+# =========== ReadIdStore =================
+
+class ReadIdStore:
+    """
+    SQLite-backed store for read IDs with O(1) memory footprint.
+
+    Uses SQLite for disk-based storage with automatic deduplication via
+    UNIQUE constraint. Supports random sampling for downsampling operations.
+    """
+
+    def __init__(self, db_path):
+        """
+        Initialize the read ID store.
+
+        Args:
+            db_path: Path to SQLite database file (typically in tmpdir)
+        """
+        self.db_path = db_path
+        self.conn = sqlite3.connect(db_path)
+        # Performance pragmas (safe since db_path is in tmpdir)
+        self.conn.execute('PRAGMA synchronous = OFF')
+        self.conn.execute('PRAGMA journal_mode = OFF')
+        self.conn.execute('PRAGMA cache_size = -64000')  # 64MB cache (negative = KiB)
+        self.conn.execute('PRAGMA temp_store = MEMORY')
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS read_ids (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                read_id TEXT UNIQUE NOT NULL
+            )
+        ''')
+        self.conn.commit()
+
+    def add_from_fastq(self, fastq_path):
+        """
+        Extract read IDs from a FASTQ file and add to the store.
+
+        Handles paired-end reads by stripping /1 or /2 suffixes.
+        Duplicates are automatically ignored via INSERT OR IGNORE.
+
+        Args:
+            fastq_path: Path to FASTQ file (can be gzipped)
+
+        Returns:
+            Number of new read IDs added
+        """
+        cursor = self.conn.cursor()
+        count_before = len(self)
+
+        with util_file.open_or_gzopen(fastq_path, 'rt') as inf:
+            line_num = 0
+            batch = []
+            for line in inf:
+                if (line_num % 4) == 0:
+                    idVal = line.rstrip('\n')[1:]
+                    # Remove /1 or /2 suffix if present (paired-end reads)
+                    if idVal.endswith('/1') or idVal.endswith('/2'):
+                        idVal = idVal[:-2]
+                    batch.append((idVal,))
+
+                    # Batch inserts for performance
+                    if len(batch) >= 10000:
+                        cursor.executemany(
+                            'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                            batch
+                        )
+                        batch = []
+                line_num += 1
+
+            # Insert remaining batch
+            if batch:
+                cursor.executemany(
+                    'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                    batch
+                )
+
+        self.conn.commit()
+        return len(self) - count_before
+
+    def add_from_readlist(self, readlist_path):
+        """
+        Add read IDs from a text file (one ID per line).
+
+        Args:
+            readlist_path: Path to text file with one read ID per line.
+                           Empty lines and whitespace are stripped.
+        """
+        with util_file.open_or_gzopen(readlist_path, 'rt') as f:
+            self.extend(line.strip() for line in f if line.strip())
+
+    def __len__(self):
+        """Return the number of unique read IDs in the store."""
+        cursor = self.conn.execute('SELECT COUNT(*) FROM read_ids')
+        return cursor.fetchone()[0]
+
+    def __iter__(self):
+        """Iterate over all read IDs in insertion order. O(1) memory."""
+        cursor = self.conn.execute('SELECT read_id FROM read_ids ORDER BY id')
+        for row in cursor:
+            yield row[0]
+
+    def __contains__(self, read_id):
+        """Check if a read ID exists in the store."""
+        cursor = self.conn.execute(
+            'SELECT 1 FROM read_ids WHERE read_id = ? LIMIT 1',
+            (read_id,)
+        )
+        return cursor.fetchone() is not None
+
+    def contains_batch(self, read_ids, batch_size=10000):
+        """
+        Check multiple read IDs for membership in batched queries.
+
+        Args:
+            read_ids: List of read ID strings to check
+            batch_size: Number of IDs to query at once (default 10000)
+
+        Returns:
+            Set of read IDs that exist in the store
+        """
+        found = set()
+        batch = []
+        for read_id in read_ids:
+            batch.append(read_id)
+            if len(batch) >= batch_size:
+                placeholders = ','.join('?' * len(batch))
+                cursor = self.conn.execute(
+                    f'SELECT read_id FROM read_ids WHERE read_id IN ({placeholders})',
+                    batch
+                )
+                found.update(row[0] for row in cursor)
+                batch = []
+        if batch:
+            placeholders = ','.join('?' * len(batch))
+            cursor = self.conn.execute(
+                f'SELECT read_id FROM read_ids WHERE read_id IN ({placeholders})',
+                batch
+            )
+            found.update(row[0] for row in cursor)
+        return found
+
+    def add(self, read_id):
+        """
+        Add a single read ID to the store.
+
+        Args:
+            read_id: The read ID string to add
+
+        Returns:
+            True if the read ID was added, False if it already existed
+        """
+        cursor = self.conn.execute(
+            'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+            (read_id,)
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def extend(self, read_ids):
+        """
+        Add multiple read IDs to the store efficiently.
+
+        Uses executemany for batch insertion. O(1) memory - processes
+        the input iterable in chunks.
+
+        Args:
+            read_ids: Iterable of read ID strings
+
+        Returns:
+            Number of new read IDs added
+        """
+        count_before = len(self)
+        cursor = self.conn.cursor()
+
+        # Process in batches for memory efficiency
+        batch = []
+        for read_id in read_ids:
+            batch.append((read_id,))
+            if len(batch) >= 10000:
+                cursor.executemany(
+                    'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                    batch
+                )
+                batch = []
+
+        # Insert remaining batch
+        if batch:
+            cursor.executemany(
+                'INSERT OR IGNORE INTO read_ids (read_id) VALUES (?)',
+                batch
+            )
+
+        self.conn.commit()
+        return len(self) - count_before
+
+    def __delitem__(self, read_id):
+        """
+        Delete a read ID from the store.
+
+        Args:
+            read_id: The read ID string to delete
+
+        Raises:
+            KeyError: If the read ID does not exist
+        """
+        cursor = self.conn.execute(
+            'DELETE FROM read_ids WHERE read_id = ?',
+            (read_id,)
+        )
+        self.conn.commit()
+        if cursor.rowcount == 0:
+            raise KeyError(read_id)
+
+    def discard(self, read_id):
+        """
+        Remove a read ID if it exists, without raising an error if absent.
+
+        Args:
+            read_id: The read ID string to remove
+        """
+        self.conn.execute(
+            'DELETE FROM read_ids WHERE read_id = ?',
+            (read_id,)
+        )
+        self.conn.commit()
+
+    def write_to_file(self, out_path, max_reads=None):
+        """
+        Write read IDs to a file.
+
+        Args:
+            out_path: Output file path
+            max_reads: If specified, randomly sample this many read IDs
+
+        Returns:
+            Number of read IDs written
+        """
+        if max_reads is not None and max_reads < len(self):
+            # Random sampling using ORDER BY RANDOM()
+            query = 'SELECT read_id FROM read_ids ORDER BY RANDOM() LIMIT ?'
+            cursor = self.conn.execute(query, (max_reads,))
+        else:
+            # Return all in insertion order
+            query = 'SELECT read_id FROM read_ids ORDER BY id'
+            cursor = self.conn.execute(query)
+
+        count = 0
+        with open(out_path, 'wt') as outf:
+            for row in cursor:
+                outf.write(row[0] + '\n')
+                count += 1
+
+        return count
+
+    def shrink_to_subsample(self, n):
+        """
+        Destructively shrink the store to a random subsample of n elements.
+
+        This modifies the store in-place, keeping exactly n randomly selected
+        read IDs and deleting all others. If the store has n or fewer elements,
+        no changes are made.
+
+        Args:
+            n: Number of read IDs to keep
+
+        Note:
+            Uses SQLite's ORDER BY RANDOM() for random selection. The operation
+            is O(N log N) where N is the current store size due to random sorting.
+        """
+        current_size = len(self)
+        if current_size <= n:
+            return  # Nothing to do
+
+        # Delete all rows except n randomly selected ones
+        self.conn.execute('''
+            DELETE FROM read_ids
+            WHERE id NOT IN (
+                SELECT id FROM read_ids
+                ORDER BY RANDOM()
+                LIMIT ?
+            )
+        ''', (n,))
+        self.conn.commit()
+
+    def filter_bam_by_ids(self, inBam, outBam, include=True):
+        """
+        Filter a BAM file to reads matching (or not matching) IDs in this store.
+
+        This is a faster, O(1) memory replacement for picard.FilterSamReadsTool.
+        Headers are fully preserved from input to output.
+
+        Args:
+            inBam: Input BAM file path
+            outBam: Output BAM file path
+            include: If True, keep only reads with IDs in the store (inclusion list).
+                     If False, keep only reads with IDs NOT in the store (exclusion list).
+
+        Note:
+            For paired-end reads, both mates share the same QNAME so both will be
+            kept or excluded together based on whether the QNAME is in the store.
+        """
+        # Lazy import to avoid circular dependency
+        from . import samtools as samtools_module
+
+        # Handle empty input BAM
+        samtools_tool = samtools_module.SamtoolsTool()
+        if samtools_tool.isEmpty(inBam):
+            shutil.copyfile(inBam, outBam)
+            return
+
+        # Handle empty read ID store
+        if len(self) == 0:
+            if include:
+                # Include mode with empty list = empty output (keep header only)
+                with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
+                    with pysam.AlignmentFile(outBam, 'wb', header=inb.header) as outf:
+                        pass  # Write header only, no reads
+            else:
+                # Exclude mode with empty list = keep all reads
+                shutil.copyfile(inBam, outBam)
+            return
+
+        # Hybrid approach: samtools subprocess pipes + batched SQLite queries
+        start = time.time()
+        read_count = 0
+        write_count = 0
+        lookup_time = 0.0
+        batch_size = 50000
+
+        samtools_path = samtools_tool.install_and_get_path()
+
+        # Read: samtools view -h --no-PG input.bam -> SAM text (with header, no PG added)
+        # Write: samtools view -b --no-PG -o output.bam - (converts SAM to BAM, no PG added)
+        read_proc = subprocess.Popen(
+            [samtools_path, 'view', '-h', '--no-PG', inBam],
+            stdout=subprocess.PIPE)
+        write_proc = subprocess.Popen(
+            [samtools_path, 'view', '-b', '-@', '2', '--no-PG', '-o', outBam, '-'],
+            stdin=subprocess.PIPE)
+
+        try:
+            batch = []  # [(line, qname), ...]
+            for line in read_proc.stdout:
+                # Header lines (start with @) are passed through unchanged
+                if line.startswith(b'@'):
+                    write_proc.stdin.write(line)
+                    continue
+
+                read_count += 1
+
+                # Parse only QNAME (first field before tab)
+                tab_pos = line.find(b'\t')
+                qname = line[:tab_pos].decode()
+                batch.append((line, qname))
+
+                if len(batch) >= batch_size:
+                    t0 = time.time()
+                    found = self.contains_batch([q for _, q in batch])
+                    lookup_time += time.time() - t0
+
+                    for ln, q in batch:
+                        if (include and q in found) or (not include and q not in found):
+                            write_proc.stdin.write(ln)
+                            write_count += 1
+                    batch = []
+
+            # Process remaining batch
+            if batch:
+                t0 = time.time()
+                found = self.contains_batch([q for _, q in batch])
+                lookup_time += time.time() - t0
+
+                for ln, q in batch:
+                    if (include and q in found) or (not include and q not in found):
+                        write_proc.stdin.write(ln)
+                        write_count += 1
+        finally:
+            write_proc.stdin.close()
+            write_proc.wait()
+            read_proc.wait()
+
+        elapsed = time.time() - start
+        log.debug(f"PERF: filter_time={elapsed:.2f}s lookup_time={lookup_time:.2f}s "
+                  f"reads={read_count} written={write_count} batch_size={batch_size}")
+
+    def close(self):
+        """Close the database connection."""
+        self.conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+
+# =========== CoordMapper =================
+
+class CoordMapperError(Exception):
+    def __init___(self, *args, **kwargs):
+        super(CoordMapperError, self).__init__(self, *args, **kwargs)
+
+
+class CoordMapper(collections.abc.MutableMapping):
+    """ Map (chrom, coordinate) between genome A and genome B.
+        Coordinates are 1-based.
+        Indels are handled as follows after corresponding sequences are aligned:
+            Return (chrom, None) if base is past either end of other sequence.
+            If a base maps to a gap in the other species, return the index
+                of the closest upstream non-gap base.
+            If a base is followed by a gap then instead of returning an integer,
+                return a two-element list representing the interval in the
+                other species that aligns to this base and the subsequent gap.
+        Assumption: the aligner tool will never align two gaps, and will never
+            put gaps in opposite species adjacent to each other without aligning
+            a pair of real bases in between.
+    """
+
+    def __init__(self, alignerTool=None):
+        """ The two genomes are described by fasta files with the same number of
+            chromosomes, and corresponding chromosomes must be in same order.
+
+            Args:
+                alignerTool: Aligner tool class (e.g., muscle.MuscleTool).
+                             If None, defaults to muscle.MuscleTool (lazy import).
+        """
+        from collections import OrderedDict
+
+        # {
+        #    chrA : {chrB: mapperAB, chrC: mapperAC},
+        #    chrB : {chrA: mapperBA, chrC: mapperBC},
+        #    chrC : {chrA: mapperCA, chrB: mapperCB}
+        # }
+        self.chrMaps = OrderedDict()
+        self.chrMapsUngapped = OrderedDict()
+
+        if alignerTool is None:
+            # Lazy import to avoid circular dependency
+            from ..phylo import muscle
+            alignerTool = muscle.MuscleTool
+        self.alignerTool = alignerTool()
+
+    def __getitem__(self, key):
+        return self.chrMaps[key]
+
+    def __setitem__(self, key, value):
+        raise TypeError("'%s' object does not support item assignment" % self.__class__.__name__)
+
+    def __delitem__(self, key):
+        raise TypeError("'%s' object does not support item deletion" % self.__class__.__name__)
+
+    def __len__(self):
+        return len(self.chrMaps)
+
+    def __iter__(self):
+        for i in self.chrMaps:
+            yield i
+
+    def __contains__(self, key):
+        if key in self.chrMaps:
+            return True
+        else:
+            return False
+
+    def keys(self):
+        return self.chrMaps.keys()
+
+    def mapAtoB(self, fromChrom, fromPos=None, side=0):
+        """ Map (chrom, coordinate) from genome A to genome B.
+            If fromPos is None, map only the chromosome name
+            If side is:
+                < 0, return the left-most position on B
+                ==0, return either the unique position on B or a [left,right] list
+                > 0, return the right-most position on B
+        """
+        if len(self.chrMaps.keys()) != 4:
+            raise LookupError(
+                "CoordMapper.mapAtoB expects two input sequences and is provided only as a legacy function")
+
+        return self.mapChr(fromChrom, list(self.chrMaps[fromChrom].keys())[0], fromPos, side)
+
+    def mapBtoA(self, fromChrom, fromPos=None, side=0):
+        """ Map (chrom, coordinate) from genome B to genome A.
+            If fromPos is None, map only the chromosome name
+            If side is:
+                < 0, return the left-most position on A
+                ==0, return either the unique position on A or a [left,right] list
+                > 0, return the right-most position on A
+        """
+        if len(self.chrMaps.keys()) != 4:
+            raise LookupError(
+                "CoordMapper.mapBtoA expects two input sequences and is provided only as a legacy function")
+
+        return self.mapChr(fromChrom, list(self.chrMaps[fromChrom].keys())[0], fromPos, side)
+
+    def mapChr(self, fromChrom, toChrom, fromPos=None, side=0):
+        """ Map (chrom, coordinate) from seq "fromChrom" to seq "toChrom".
+            If fromPos is None, map only the chromosome name
+            If side is:
+                < 0, return the left-most position on A
+                ==0, return either the unique position on A or a [left,right] list
+                > 0, return the right-most position on A
+        """
+
+        if fromChrom not in self.chrMaps:
+            raise KeyError("chr '%s' not found in CoordMapper relation map" % fromChrom)
+        if toChrom not in self.chrMaps[fromChrom].keys():
+            raise KeyError("chr '%s' not found in CoordMapper relation map" % toChrom)
+
+        mapper = self.chrMaps[fromChrom][toChrom]
+
+        if fromPos is None:
+            return toChrom
+        toPos = mapper(fromPos, 0)
+        if isinstance(toPos, collections.abc.Sequence) and side != 0:
+            toPos = toPos[0] if side < 0 else toPos[1]
+        return (toChrom, toPos)
+
+    def load_alignments(self, aligned_files, a_idx=None, b_idx=None):
+        """ Loads aligned sequences into a CoordMapper instance.
+            Any number of sequences >1 may be read in.
+            Mappers may be accessed via CoordMapper.chrMaps where chrMaps may look like:
+            ```
+            {
+                chrA : {chrB: mapperAB, chrC: mapperAC},
+                chrB : {chrA: mapperBA, chrC: mapperBC},
+                chrC : {chrA: mapperCA, chrB: mapperCB}
+            }
+            ```
+        """
+        from collections import OrderedDict
+
+        for alignOutFileName in aligned_files:
+            with open(alignOutFileName, 'rt') as alignOutFile:
+                seqs = list(Bio.SeqIO.parse(alignOutFile, 'fasta'))
+
+                # if mapping between specific sequences is specified
+                if a_idx is not None and b_idx is not None:
+                    assert a_idx >= 0 and b_idx >= 0
+                    assert a_idx < len(seqs) and b_idx < len(seqs)
+
+                    mapper = CoordMapper2Seqs(seqs[a_idx].seq, seqs[b_idx].seq)
+                    self.chrMaps.setdefault(seqs[a_idx].id, OrderedDict())
+                    mapDict = OrderedDict()
+                    mapDict[seqs[b_idx].id] = mapper
+                    self.chrMaps[seqs[a_idx].id] = mapDict
+
+                    mapper = CoordMapper2Seqs(seqs[b_idx].seq, seqs[a_idx].seq)
+                    self.chrMaps.setdefault(seqs[b_idx].id, OrderedDict())
+                    mapDict = OrderedDict()
+                    mapDict[seqs[a_idx].id] = mapper
+                    self.chrMaps[seqs[b_idx].id] = mapDict
+                # otherwise, map all possible pairwise itertools.permutations
+                else:
+                    for (seq1, seq2) in itertools.permutations(seqs, 2):
+                        if (seq1.id == seq2.id):
+                            raise KeyError("duplicate sequence names '%s', '%s'" % (seq1.id, seq2.id))
+
+                        self.chrMaps.setdefault(seq1.id, OrderedDict())
+                        self.chrMapsUngapped.setdefault(seq1.id, OrderedDict())
+                        # if the sequence we are mapping onto is already in the map
+                        # raise an error
+                        # (could occur if same sequence is read in from multiple files)
+                        if (seq2.id in self.chrMaps[seq1.id]):
+                            raise KeyError(
+                                "duplicate sequence name '%s' already in chrMap for %s" % (seq2.id, seq1.id))
+
+                        mapper = CoordMapper2Seqs(seq1.seq, seq2.seq)
+                        mapDict = self.chrMaps[seq1.id]
+                        mapDict[seq2.id] = mapper
+                        self.chrMaps[seq1.id] = mapDict
+
+    def align_and_load_sequences(self, unaligned_fasta_files, aligner=None):
+        aligner = self.alignerTool if aligner is None else aligner
+
+        # transpose
+        per_chr_fastas = util_file.transposeChromosomeFiles(unaligned_fasta_files)
+        if not per_chr_fastas:
+            raise Exception('no input sequences')
+        # align
+        alignOutFileNames = []
+        for alignInFileName in per_chr_fastas:
+            alignOutFileName = util_file.mkstempfname('.fasta')
+            aligner.execute(alignInFileName, alignOutFileName)
+            alignOutFileNames.append(alignOutFileName)
+            os.unlink(alignInFileName)
+        # read in
+        self.load_alignments(alignOutFileNames)
+        # clean up
+        for f in alignOutFileNames:
+            os.unlink(f)
+
+
+class CoordMapper2Seqs(object):
+    """ Map 1-based coordinates between two aligned sequences.
+        Result is a coordinate or an interval, as described in CoordMapper main
+            comment string.
+        Return None if beyond end.
+        Input sequences must be already-aligned iterators through bases with
+            gaps represented by dashes and all other characters assumed to be
+            real bases.
+        Assumptions:
+            - Sequences (including gaps) are same length.
+            - Each sequence has at least one real base.
+            - A gap is never aligned to a gap.
+            - A gap in one sequence is never adjacent to a gap in the other;
+                there must always be an intervening real base between two gaps.
+    """
+    #
+    # Implementation:
+    #     mapArrays is a pair of arrays of equal length such that
+    #     (mapArrays[0][n], mapArrays[1][n]) are the coordinates of a pair of
+    #     aligned real bases on the two sequences. The only pairs that are
+    #     included are the first, the last, and the pair immediately following
+    #     any gap. Pairs are in increasing order. Coordinate mapping
+    #     requires binary search in one of the arrays.
+    #     Total space required, in bytes, is const + 8 * (number of indels).
+    #     Time for a map in either direction is O(log(number of indels)).
+    #
+
+    def __init__(self, seq0, seq1):
+        self.mapArrays = [array.array('I'), array.array('I')]
+        baseCount0 = 0  # Number of real bases in seq0 up to and including cur pos
+        baseCount1 = 0  # Number of real bases in seq1 up to and including cur pos
+        beforeStart = True  # Haven't yet reached first pair of aligned real bases
+        gapSinceLast = False  # Have encounted a gap since last pair in mapArrays
+        for b0, b1 in itertools.zip_longest(seq0, seq1):
+            if b0 is None or b1 is None:
+                raise Exception('CoordMapper2Seqs: sequences must be same length.')
+            realBase0 = b0 != '-'
+            realBase1 = b1 != '-'
+            baseCount0 += realBase0
+            baseCount1 += realBase1
+            if realBase0 and realBase1:
+                if beforeStart or gapSinceLast:
+                    self.mapArrays[0].append(baseCount0)
+                    self.mapArrays[1].append(baseCount1)
+                    gapSinceLast = False
+                    beforeStart = False
+                finalPos0 = baseCount0  # Last pair of aligned real bases so far
+                finalPos1 = baseCount1  # Last pair of aligned real bases so far
+            else:
+                gapSinceLast = True
+        if len(self.mapArrays[0]) > 0:
+            if self.mapArrays[0][-1] != finalPos0:
+                self.mapArrays[0].append(finalPos0)
+                self.mapArrays[1].append(finalPos1)
+
+    def __call__(self, fromPos, fromWhich):
+        """ fromPos: 1-based coordinate
+            fromWhich: if 0, map from 1st sequence to 2nd, o.w. 2nd to 1st."""
+        if len(self.mapArrays[0]) == 0:
+            raise Exception('CoordMapper2Seqs: no aligned bases.')
+        if fromPos != int(fromPos):
+            raise TypeError('CoordMapper2Seqs: pos %s is not an integer' % fromPos)
+        fromArray = self.mapArrays[fromWhich]
+        toArray = self.mapArrays[1 - fromWhich]
+        if fromPos < fromArray[0] or fromPos > fromArray[-1]:
+            result = None
+        elif fromPos == fromArray[-1]:
+            result = toArray[-1]
+        else:
+            insertInd = bisect.bisect(fromArray, fromPos)
+            prevFromPos = fromArray[insertInd - 1]
+            nextFromPos = fromArray[insertInd]
+            prevToPos = toArray[insertInd - 1]
+            nextToPos = toArray[insertInd]
+            assert (prevFromPos <= fromPos < nextFromPos)
+            prevPlusOffset = prevToPos + (fromPos - prevFromPos)
+            if fromPos == nextFromPos - 1 and prevPlusOffset < nextToPos - 1:
+                result = [prevPlusOffset, nextToPos - 1]
+            else:
+                result = min(prevPlusOffset, nextToPos - 1)
+        return result
