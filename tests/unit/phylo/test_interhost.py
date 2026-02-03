@@ -14,7 +14,7 @@ from tests import TestCaseWithTmp
 class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
-        for cmd_name, parser_fun in interhost.__commands__:
+        for cmd_name, parser_fun in viral_ngs.interhost.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
@@ -33,7 +33,7 @@ class TestCoordMapper(TestCaseWithTmp):
         super(TestCoordMapper, self).setUp()
         self.genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
         self.genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC'), ('second_chr', 'AGTCGGTTTCCAC'),])
-        self.cm = interhost.CoordMapper()
+        self.cm = viral_ngs.interhost.CoordMapper()
         self.cm.align_and_load_sequences([self.genomeA, self.genomeB])
 
     def test_no_indels(self):
@@ -85,7 +85,7 @@ class TestCoordMapper(TestCaseWithTmp):
         genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
         genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC')])
         with self.assertRaises(viral_ngs.core.file.TranspositionError):
-            cm = interhost.CoordMapper()
+            cm = viral_ngs.interhost.CoordMapper()
             cm.align_and_load_sequences([genomeA, genomeB])
 
     def test_map_chr_only(self):
@@ -111,7 +111,7 @@ class TestCoordMapperMultipleSeqs(TestCaseWithTmp):
             ('second_chr', 'AGTCGGTTTCCAC'),
             ('third_chr', 'CACCTTTGGCTGA'),
         ])
-        self.cm = interhost.CoordMapper()
+        self.cm = viral_ngs.interhost.CoordMapper()
         self.cm.align_and_load_sequences([self.genomeA, self.genomeB])
 
     def test_legacy_call(self):
@@ -169,21 +169,21 @@ class TestCoordMapperMultipleSeqs(TestCaseWithTmp):
         genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'), ('chr2', 'AGTCGGTTTTCAG'),])
         genomeB = makeTempFasta([('first_chrom', 'GCACGTACGTATTTGCAAATC')])
         with self.assertRaises(Exception):
-            cm = interhost.CoordMapper()
+            cm = viral_ngs.interhost.CoordMapper()
             cm.align_and_load_sequences([genomeA, genomeB])
 
     def test_duplicate_chr_names_error(self):
         genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'),])
         genomeB = makeTempFasta([('chr1', 'GCACGTACGTATTTGCAAATC')])
         with self.assertRaises(Exception):
-            cm = interhost.CoordMapper()
+            cm = viral_ngs.interhost.CoordMapper()
             cm.align_and_load_sequences([genomeA, genomeB])
 
     def test_multiple_input_genomes(self):
         genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'),])
         genomeB = makeTempFasta([('first_chr', 'ATGCACTACGTATGCAAATCGG')])
         genomeC = makeTempFasta([('chr_one', 'ATGCACGTACGTATGCAATCGG')])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.align_and_load_sequences([genomeA, genomeB, genomeC])
         # check that toChrom is in the map
         self.assertEqual(cm.mapChr('chr1', 'chr_one'), 'chr_one')
@@ -192,7 +192,7 @@ class TestCoordMapperMultipleSeqs(TestCaseWithTmp):
         genomeA = makeTempFasta([('chr1', 'ATGCACGTACGTATGCAAATCGG'),])
         genomeB = makeTempFasta([])
         with self.assertRaises(Exception):
-            cm = interhost.CoordMapper()
+            cm = viral_ngs.interhost.CoordMapper()
             cm.align_and_load_sequences([genomeA, genomeB])
 
     def test_map_chr_only(self):
@@ -213,31 +213,31 @@ class TestSpecificAlignments(TestCaseWithTmp):
 
     def test_basic_alignment(self):
         alignment = makeTempFasta([('s1', 'ATCG'), ('s2', 'ACCG'), ('s3', 'AG-T'),])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.load_alignments([alignment])
 
     def test_unequal_len(self):
         alignment = makeTempFasta([('s1', 'AA'), ('s2', 'A'),])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         with self.assertRaises(Exception):
             cm.load_alignments([alignment])
 
     def test_no_real_bases_in_sample(self):
         alignment1 = makeTempFasta([('s1', 'AA'), ('s2', '--'),])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.load_alignments([alignment1])
         with self.assertRaises(Exception):
             cm.mapChr('s1', 's2', 1)
 
         alignment2 = makeTempFasta([('s1', '--'), ('s2', 'AA'), ('s3', 'TT'),])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.load_alignments([alignment2])
         with self.assertRaises(Exception):
             cm.mapChr('s2', 's1', 1)
 
     def test_no_real_bases_at_position(self):
         alignment = makeTempFasta([('s1', 'AT-G'), ('s2', 'AC-G'), ('s3', 'AG-T'),])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.load_alignments([alignment])
         for i in (1, 2, 3):
             self.assertEqual(cm.mapChr('s1', 's2', i), ('s2', i))
@@ -249,7 +249,7 @@ class TestSpecificAlignments(TestCaseWithTmp):
 
     def test_aligned_gaps(self):
         alignment = makeTempFasta([('s1', 'ATCG'), ('s2', 'AC-G'), ('s3', 'AG-T'),])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.load_alignments([alignment])
         for i in (1, 2, 3):
             self.assertEqual(cm.mapChr('s2', 's3', i), ('s3', i))
@@ -269,7 +269,7 @@ class TestSpecificAlignments(TestCaseWithTmp):
             ('s4', 'A-C-G'),
             ('s5', 'A--CG'),
         ])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.load_alignments([alignment])
         for x, y in ((1, 1), (2, 2), (3, 2), (4, 2), (5, 3)):
             self.assertEqual(cm.mapChr('s1', 's2', x), ('s2', y))
@@ -290,7 +290,7 @@ class TestSpecificAlignments(TestCaseWithTmp):
 
     def test_one_real_base(self):
         alignment = makeTempFasta([('s1', 'AC-'), ('s2', '-CA'),])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.load_alignments([alignment])
         self.assertEqual(cm.mapChr('s1', 's2', 1), ('s2', None))
         self.assertEqual(cm.mapChr('s1', 's2', 2), ('s2', 1))
@@ -299,7 +299,7 @@ class TestSpecificAlignments(TestCaseWithTmp):
 
     def test_exactly_two_pairs(self):
         alignment = makeTempFasta([('s1', 'A--T'), ('s2', 'AGGT'),])
-        cm = interhost.CoordMapper()
+        cm = viral_ngs.interhost.CoordMapper()
         cm.load_alignments([alignment])
         self.assertEqual(cm.mapChr('s1', 's2', 1), ('s2', [1, 3]))
         self.assertEqual(cm.mapChr('s1', 's2', 2), ('s2', 4))

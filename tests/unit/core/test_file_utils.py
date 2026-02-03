@@ -15,7 +15,7 @@ from tests import TestCaseWithTmp
 
 class TestCommandHelp(unittest.TestCase):
     def test_help_parser_for_each_command(self):
-        for cmd_name, parser_func in file_utils.__commands__:
+        for cmd_name, parser_func in viral_ngs.file_utils.__commands__:
             parser = parser_func(argparse.ArgumentParser())
             helpstring = parser.format_help()
 

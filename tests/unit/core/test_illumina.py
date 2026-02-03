@@ -23,7 +23,7 @@ from tests import TestCaseWithTmp, assert_equal_bam_reads
 class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
-        for cmd_name, parser_fun in illumina.__commands__:
+        for cmd_name, parser_fun in viral_ngs.illumina.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 
