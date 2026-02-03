@@ -31,10 +31,21 @@ jobs:
       - name: Get version from git describe
         id: version
         run: |
-          # Get version like: v3.4.5 or v3.4.5-3-gabcdef
-          VERSION=$(git describe --tags --always)
-          # Strip leading 'v' if present for semver compatibility
-          VERSION=${VERSION#v}
+          # Get version like: v1.25.0 or v1.25.0-42-gabcdef
+          # Use --match 'v*' to only match version tags (not archive/* tags)
+          RAW_VERSION=$(git describe --tags --always --match 'v*')
+          # Strip leading 'v' if present
+          RAW_VERSION=${RAW_VERSION#v}
+
+          # Convert to PEP 440 format for setuptools_scm
+          # git describe: 1.25.0-42-gabcdef -> PEP 440: 1.25.0.dev42+gabcdef
+          if [[ "$RAW_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)-g([a-f0-9]+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}.dev${BASH_REMATCH[2]}+g${BASH_REMATCH[3]}"
+          else
+            # Clean version tag (e.g., 1.25.0)
+            VERSION="$RAW_VERSION"
+          fi
+
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Detected version: ${VERSION}"
 
