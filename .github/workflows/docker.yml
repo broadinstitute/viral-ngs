@@ -19,6 +19,8 @@ jobs:
   # Determine which paths changed to enable smart test filtering
   paths-filter:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       core: ${{ steps.filter.outputs.core }}
       assemble: ${{ steps.filter.outputs.assemble }}
@@ -76,6 +78,8 @@ jobs:
   # Calculate version from git describe (once, shared by all jobs)
   get-version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -427,6 +431,9 @@ jobs:
     needs: [paths-filter, get-version, build-core]
     if: needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout repository
@@ -493,6 +500,9 @@ jobs:
     needs: [paths-filter, get-version, build-core, build-derivatives]
     if: needs.paths-filter.outputs.assemble == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout repository
@@ -567,6 +577,9 @@ jobs:
     needs: [paths-filter, get-version, build-core, build-derivatives]
     if: needs.paths-filter.outputs.classify == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout repository
@@ -641,6 +654,9 @@ jobs:
     needs: [paths-filter, get-version, build-core, build-derivatives]
     if: needs.paths-filter.outputs.phylo == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout repository
