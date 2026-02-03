@@ -968,5 +968,9 @@ def full_parser():
     return cmd.make_parser(__commands__, __doc__)
 
 
-if __name__ == '__main__':
+def main():
     cmd.main_argparse(__commands__, __doc__)
+
+
+if __name__ == '__main__':
+    main()

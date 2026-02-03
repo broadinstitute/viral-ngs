@@ -52,12 +52,22 @@ dev = [
 
 [project.scripts]
 # Command-line entry points for viral-ngs tools
+# Core commands
 illumina = "viral_ngs.illumina:main"
 read_utils = "viral_ngs.read_utils:main"
 reports = "viral_ngs.reports:main"
 file_utils = "viral_ngs.file_utils:main"
 broad_utils = "viral_ngs.broad_utils:main"
+# Assembly commands
 assembly = "viral_ngs.assembly:main"
+# Classification commands
+metagenomics = "viral_ngs.metagenomics:main"
+taxon_filter = "viral_ngs.taxon_filter:main"
+kmer_utils = "viral_ngs.kmer_utils:main"
+# Phylogenetics commands
+interhost = "viral_ngs.interhost:main"
+intrahost = "viral_ngs.intrahost:main"
+ncbi = "viral_ngs.ncbi:main"
 
 [project.urls]
 Homepage = "https://github.com/broadinstitute/viral-ngs"
