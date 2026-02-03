@@ -13,22 +13,22 @@ import tarfile
 import anndata
 import pandas as pd
 
-import tools
-import tools.picard
-import tools.samtools
-import util.file
-import util.misc
+from viral_ngs import core
+from viral_ngs.core import picard
+from viral_ngs.core import samtools
+from viral_ngs.core import file
+from viral_ngs.core import misc
 from builtins import super
 
 log = logging.getLogger(__name__)
 
-class kb(tools.Tool):
+class kb(core.Tool):
     SUBCOMMANDS = ['count', 'ref', 'extract']
 
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.PrexistingUnixCommand(shutil.which('kb'), require_executability=False))
+            install_methods.append(core.PrexistingUnixCommand(shutil.which('kb'), require_executability=False))
         super(kb, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -108,7 +108,7 @@ class kb(tools.Tool):
         '''
         # build db
         build_opts = {
-            '-t': util.misc.sanitize_thread_count(num_threads)
+            '-t': misc.sanitize_thread_count(num_threads)
         }
         if kmer_len:
             build_opts['-k'] = kmer_len
@@ -136,13 +136,13 @@ class kb(tools.Tool):
           protein: ref_fasta file contains amino acid sequences
           num_threads: number of threads to use
         """
-        if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+        if samtools.SamtoolsTool().isEmpty(in_bam):
             return
 
         opts = {
             '-i': index_file,
             '-g': t2g_file,
-            '-t': util.misc.sanitize_thread_count(num_threads),
+            '-t': misc.sanitize_thread_count(num_threads),
             '--parity': parity
         }
         if k:
@@ -156,9 +156,9 @@ class kb(tools.Tool):
         if protein:
             opts['--aa'] = None
  
-        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
-        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
-        tmp_fastq3 = util.file.mkstempfname('.s.fastq')
+        tmp_fastq1 = file.mkstempfname('.1.fastq')
+        tmp_fastq2 = file.mkstempfname('.2.fastq')
+        tmp_fastq3 = file.mkstempfname('.s.fastq')
         tmp_interleaved = None
         try:
             if in_bam.lower().endswith('.fastq') or in_bam.lower().endswith('.fq') or in_bam.lower().endswith('.fastq.gz') or in_bam.lower().endswith('.fq.gz'):
@@ -168,25 +168,25 @@ class kb(tools.Tool):
                 # Input is already FASTQ, use it directly (don't delete it later)
                 self.execute('kb count', out_dir, args=[in_bam], options=opts)
             else:
-                if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+                if samtools.SamtoolsTool().isEmpty(in_bam):
                     return
 
                 # Do not convert this to samtools bam2fq unless we can figure out how to replicate
                 # the clipping functionality of Picard SamToFastq
-                picard = tools.picard.SamToFastqTool()
+                picard = picard.SamToFastqTool()
                 picard_opts = {
-                    'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                    'CLIPPING_ATTRIBUTE': picard.SamToFastqTool.illumina_clipping_attribute,
                     'CLIPPING_ACTION': 'X'
                 }
                 picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
-                            picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                            picardOptions=picard.PicardTools.dict_to_picard_opts(picard_opts),
                             JVMmemory=picard.jvmMemDefault)
 
                 # Detect if input bam was paired by checking fastq 2
                 if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
                     self.execute('kb count', out_dir, args=[tmp_fastq3], options=opts)
                 else:
-                    tmp_interleaved = util.file.mkstempfname('.interleaved.fastq')
+                    tmp_interleaved = file.mkstempfname('.interleaved.fastq')
                     with open(tmp_fastq1, 'rb') as fastq1, open(tmp_fastq2, 'rb') as fastq2, open(tmp_interleaved, 'wb') as interleaved:
                         while True:
                             read1 = [fastq1.readline() for _ in range(4)]
@@ -242,14 +242,14 @@ class kb(tools.Tool):
             '-i': index_file,
             '-g': t2g_file,
             '-ts': target_ids,  # Pass as list for multi-value option
-            '-t': util.misc.sanitize_thread_count(num_threads)
+            '-t': misc.sanitize_thread_count(num_threads)
         }
         if protein:
             opts['--aa'] = None
             
-        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
-        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
-        tmp_fastq3 = util.file.mkstempfname('.s.fastq')
+        tmp_fastq1 = file.mkstempfname('.1.fastq')
+        tmp_fastq2 = file.mkstempfname('.2.fastq')
+        tmp_fastq3 = file.mkstempfname('.s.fastq')
         tmp_interleaved = None
         try:
             if in_bam.lower().endswith('.fastq') or in_bam.lower().endswith('.fq') or in_bam.lower().endswith('.fastq.gz') or in_bam.lower().endswith('.fq.gz'):
@@ -259,25 +259,25 @@ class kb(tools.Tool):
                 # Input is already FASTQ, use it directly (don't delete it later)
                 self.execute('kb extract', out_dir, args=[in_bam], options=opts)
             else:
-                if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+                if samtools.SamtoolsTool().isEmpty(in_bam):
                     return
 
                 # Do not convert this to samtools bam2fq unless we can figure out how to replicate
                 # the clipping functionality of Picard SamToFastq
-                picard = tools.picard.SamToFastqTool()
+                picard = picard.SamToFastqTool()
                 picard_opts = {
-                    'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                    'CLIPPING_ATTRIBUTE': picard.SamToFastqTool.illumina_clipping_attribute,
                     'CLIPPING_ACTION': 'X'
                 }
                 picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
-                            picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                            picardOptions=picard.PicardTools.dict_to_picard_opts(picard_opts),
                             JVMmemory=picard.jvmMemDefault)
 
                 # Detect if input bam was paired by checking fastq 2
                 if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
                     self.execute('kb extract', out_dir, args=[tmp_fastq3], options=opts)
                 else:
-                    tmp_interleaved = util.file.mkstempfname('.interleaved.fastq')
+                    tmp_interleaved = file.mkstempfname('.interleaved.fastq')
                     with open(tmp_fastq1, 'rb') as fastq1, open(tmp_fastq2, 'rb') as fastq2, open(tmp_interleaved, 'wb') as interleaved:
                         while True:
                             read1 = [fastq1.readline() for _ in range(4)]
@@ -316,7 +316,7 @@ class kb(tools.Tool):
         Returns:
           Path to the extracted h5ad file
         """
-        util.file.extract_tarball(count_tar, tmp_dir)
+        file.extract_tarball(count_tar, tmp_dir)
         
         # Find h5ad file in counts_unfiltered folder
         h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", "*.h5ad"))
@@ -339,7 +339,7 @@ class kb(tools.Tool):
         """
         # Check if input is a tarball
         if tarfile.is_tarfile(h5ad_or_tarball) or h5ad_or_tarball.endswith('.tar.zst'):
-            with util.file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
+            with file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
                 log.debug(f"Extracting {h5ad_or_tarball} to temporary directory {tmp_dir}")
                 h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(h5ad_or_tarball, tmp_dir)
                 
@@ -401,7 +401,7 @@ class kb(tools.Tool):
 
         for count_tar in in_count_tars:
             # Extract tarball to temporary directory
-            with util.file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
+            with file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
                 log.debug(f"Extracting {count_tar} to temporary directory {tmp_dir}")
                 h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(count_tar, tmp_dir)
                 log.debug(f"Extracted h5ad file: {h5ad_file}")
@@ -465,7 +465,7 @@ class kb(tools.Tool):
         """
         ## Check if file passed in is a tarball, if so we need to grab the h5ad
         if tarfile.is_tarfile(h5ad_file) or h5ad_file.endswith('.tar.zst'):
-            with util.file.tmp_dir() as tmp_dir:
+            with file.tmp_dir() as tmp_dir:
                 h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(h5ad_file, tmp_dir)
                 log.debug(f"Reading h5ad file from tarball: {h5ad_file}")
                 adata = anndata.read_h5ad(h5ad_file)

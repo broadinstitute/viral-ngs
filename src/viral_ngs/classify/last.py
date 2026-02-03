@@ -7,17 +7,17 @@ import shutil
 import subprocess
 
 # within this module
-import util.file
-import util.misc
-import tools
-import tools.samtools
+from viral_ngs.core import file
+from viral_ngs.core import misc
+from viral_ngs import core
+from viral_ngs.core import samtools
 
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "last"
 
 
-class LastTools(tools.Tool):
+class LastTools(core.Tool):
     """
     "Abstract" base class for tools in the 'last' suite.
     Subclasses must define class members subtool_name #and subtool_name_on_broad.
@@ -26,8 +26,8 @@ class LastTools(tools.Tool):
     def __init__(self, install_methods=None):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else TOOL_NAME
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [core.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
+        core.Tool.__init__(self, install_methods=install_methods)
 
 
 class Lastal(LastTools):
@@ -43,7 +43,7 @@ class Lastal(LastTools):
         ):
 
             # convert BAM to interleaved FASTQ with no /1 /2 appended to the read IDs
-            fastq_pipe = tools.samtools.SamtoolsTool().bam2fq_pipe(inBam)
+            fastq_pipe = samtools.SamtoolsTool().bam2fq_pipe(inBam)
 
             # run lastal and emit list of read IDs
             # -P 0 = use threads = core count
@@ -56,7 +56,7 @@ class Lastal(LastTools):
                 '-L', max_length_for_initial_matches,
                 '-m', max_initial_matches_per_position,
                 '-Q', '1',
-                '-P', str(util.misc.sanitize_thread_count(threads, tool_max_cores_value=0)),
+                '-P', str(misc.sanitize_thread_count(threads, tool_max_cores_value=0)),
                 '-N', '1', '-i', '1G', '-f', 'tab',
                 db,
             ]
@@ -112,8 +112,8 @@ class Lastdb(LastTools):
         if len(fasta_files) == 1 and not fasta_files[0].endswith('.gz'):
             input_fasta = fasta_files[0]
         else:
-            input_fasta = util.file.mkstempfname(".fasta")
-            util.file.cat(input_fasta, fasta_files) # automatically decompresses gz inputs
+            input_fasta = file.mkstempfname(".fasta")
+            file.cat(input_fasta, fasta_files) # automatically decompresses gz inputs
 
         self.execute(input_fasta, output_directory, output_file_prefix)    
 
@@ -137,7 +137,7 @@ class Lastdb(LastTools):
         # execute the lastdb command
         # lastdb writes files to the current working directory, so we need to set
         # it to the desired output location
-        with util.file.pushd_popd(os.path.realpath(outputDirectory)):
+        with file.pushd_popd(os.path.realpath(outputDirectory)):
             _log.debug(" ".join(tool_cmd))
             subprocess.check_call(tool_cmd)
 

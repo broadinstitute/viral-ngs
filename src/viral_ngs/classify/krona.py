@@ -1,16 +1,16 @@
-import tools
+from viral_ngs import core
 import os.path
 import subprocess
 import shutil
 from builtins import super
-import util.file
+from viral_ngs.core import file
 
 TOOL_NAME = 'krona'
 
-class Krona(tools.Tool):
+class Krona(core.Tool):
     def __init__(self, install_methods=None):
         if not install_methods:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which('ktImportTaxonomy'))]
+            install_methods = [core.PrexistingUnixCommand(shutil.which('ktImportTaxonomy'))]
         super(Krona, self).__init__(install_methods=install_methods)
 
     @property
@@ -77,7 +77,7 @@ class Krona(tools.Tool):
         env = os.environ.copy()
         env['PATH'] = '{}:{}'.format(bin_path, env['PATH'])
 
-        util.file.mkdir_p(db_dir)
+        file.mkdir_p(db_dir)
 
         # get taxdump.tar.gz
         if taxdump_tar_gz:

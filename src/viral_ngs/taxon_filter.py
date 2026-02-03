@@ -22,21 +22,21 @@ import contextlib
 from Bio import SeqIO
 import pysam
 
-import util.cmd
-import util.file
-import util.misc
-import tools
-import tools.minimap2
-import tools.prinseq
-import tools.picard
-import tools.samtools
-from util.file import mkstempfname
-from errors import QCError
+from .core import cmd
+from .core import file
+from .core import misc
+from . import core
+from .core import minimap2
+from .core import prinseq
+from .core import picard
+from .core import samtools
+from .core.file import mkstempfname
+from .errors import QCError
 
-import classify.blast
-import classify.last
-import classify.bmtagger
-import read_utils
+from .classify import blast
+from .classify import last
+from .classify import bmtagger
+from . import read_utils
 
 '''
 #Adding logging configuration to identify issues/ time spent
@@ -94,12 +94,12 @@ def parser_deplete(parser=argparse.ArgumentParser()):
     parser.add_argument("--chunkSize", type=int, default=1000000, help='blastn chunk size (default: %(default)s)')
     parser.add_argument(
         '--JVMmemory',
-        default=tools.picard.PicardTools.jvmMemDefault,
+        default=picard.PicardTools.jvmMemDefault,
         help='JVM virtual memory size for Picard RevertSam (default: %(default)s)'
     )
     parser = read_utils.parser_revert_sam_common(parser)
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_deplete)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_deplete)
 
     return parser
 
@@ -115,7 +115,7 @@ def main_deplete(args):
     #
     # via the SAM/BAM spec, if the file is aligned, an SQ line should be present
     # in the header. Using pysam, we can check this if header['SQ'])>0
-    #   https://samtools.github.io/hts-specs/SAMv1.pdf
+    #   https://samcore.github.io/hts-specs/SAMv1.pdf
 
     # if the user has requested a revertBam
 
@@ -161,10 +161,10 @@ def main_deplete(args):
     )
 
     if os.path.getsize(args.revertBam) == 0:
-        with util.file.tempfname('.empty.sam') as empty_sam:
-            samtools = tools.samtools.SamtoolsTool()
-            samtools.dumpHeader(args.inBam, empty_sam)
-            samtools.view(['-b'], empty_sam, args.revertBam)
+        with file.tempfname('.empty.sam') as empty_sam:
+            samtools = samcore.SamtoolsTool()
+            samcore.dumpHeader(args.inBam, empty_sam)
+            samcore.view(['-b'], empty_sam, args.revertBam)
 
     return 0
 
@@ -194,16 +194,16 @@ def filter_lastal_bam(
     '''
     neg_control_prefixes = neg_control_prefixes or ["neg","water","NTC"]
 
-    with util.file.tmp_dir('-lastdb') as tmp_db_dir:
+    with file.tmp_dir('-lastdb') as tmp_db_dir:
         # index db if necessary
-        lastdb = classify.last.Lastdb()
+        lastdb = last.Lastdb()
         if not lastdb.is_indexed(db):
             db = lastdb.build_database(db, os.path.join(tmp_db_dir, 'lastdb'))
 
         # Stream lastal hits directly into ReadIdStore
         db_path = os.path.join(tmp_db_dir, 'read_ids.db')
         with read_utils.ReadIdStore(db_path) as store:
-            store.extend(classify.last.Lastal().get_hits(
+            store.extend(last.Lastal().get_hits(
                 inBam, db,
                 max_gapless_alignments_per_position,
                 min_length_for_initial_matches,
@@ -275,8 +275,8 @@ def parser_filter_lastal_bam(parser=argparse.ArgumentParser()):
         nargs='*',
         help='Bam file name prefixes to interpret as negative controls, space-separated (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, filter_lastal_bam, split_args=True)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, filter_lastal_bam, split_args=True)
     return parser
 
 
@@ -299,11 +299,11 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168):
     outBam: the output BAM files to hold the unmatched reads.
     srprism_memory: srprism memory in megabytes.
     """
-    bmtaggerPath = classify.bmtagger.BmtaggerShTool().install_and_get_path()
+    bmtaggerPath = bmtagger.BmtaggerShTool().install_and_get_path()
 
     # bmtagger calls several executables in the same directory, and blastn;
     # make sure they are accessible through $PATH
-    blastnPath = classify.blast.BlastnTool().install_and_get_path()
+    blastnPath = blast.BlastnTool().install_and_get_path()
     path = os.environ['PATH'].split(os.pathsep)
     for t in (bmtaggerPath, blastnPath):
         d = os.path.dirname(t)
@@ -312,10 +312,10 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168):
     path = os.pathsep.join(path)
     os.environ['PATH'] = path
 
-    with util.file.tempfname('.1.fastq') as inReads1:
-        tools.samtools.SamtoolsTool().bam2fq(inBam, inReads1)
+    with file.tempfname('.1.fastq') as inReads1:
+        samcore.SamtoolsTool().bam2fq(inBam, inReads1)
 
-        with util.file.tempfname('.bmtagger.conf') as bmtaggerConf:
+        with file.tempfname('.bmtagger.conf') as bmtaggerConf:
             with open(bmtaggerConf, 'w') as f:
                 # Default srprismopts: "-b 100000000 -n 5 -R 0 -r 1 -M 7168"
                 print('srprismopts="-b 100000000 -n 5 -R 0 -r 1 -M {srprism_memory} --paired false"'.format(srprism_memory=srprism_memory), file=f)
@@ -327,10 +327,10 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168):
                     '-1', inReads1, '-o', matchesFile
                 ]
                 log.debug(' '.join(cmdline))
-                util.misc.run_and_print(cmdline, check=True)
+                misc.run_and_print(cmdline, check=True)
 
                 # Load matches into ReadIdStore and filter BAM (exclude matching reads)
-                with util.file.tmp_dir(suffix='_bmtagger_filter') as filter_tmpdir:
+                with file.tmp_dir(suffix='_bmtagger_filter') as filter_tmpdir:
                     db_path = os.path.join(filter_tmpdir, 'read_ids.db')
                     with read_utils.ReadIdStore(db_path) as store:
                         store.add_from_readlist(matchesFile)
@@ -349,8 +349,8 @@ def parser_deplete_bam_bmtagger(parser=argparse.ArgumentParser()):
     parser.add_argument('outBam', help='Output BAM file.')
     parser.add_argument('--srprismMemory', dest="srprism_memory", type=int, default=7168, help='Memory for srprism.')
     parser = read_utils.parser_revert_sam_common(parser)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_deplete_bam_bmtagger)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_deplete_bam_bmtagger)
     return parser
 
 def main_deplete_bam_bmtagger(args):
@@ -390,10 +390,10 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
         merge_compressed_files(refDbs, tmpDb, sep='\n')
         refDbs = [tmpDb]
 
-    samtools = tools.samtools.SamtoolsTool()
+    samtools = samcore.SamtoolsTool()
     tmpBamIn = inBam
     for db in refDbs:
-        if not samtools.isEmpty(tmpBamIn):
+        if not samcore.isEmpty(tmpBamIn):
             tmpBamOut = mkstempfname('.bam')
             deplete_method(tmpBamIn, db, tmpBamOut, **kwargs)
             if tmpBamIn != inBam:
@@ -417,8 +417,8 @@ def _run_blastn_chunk(db, input_fasta, out_hits, blast_threads, task=None, outfm
     #Might need to remove this path, not absolute
     #os.environ['BLASTDB']= 'viral-classify/blast'
     try:
-        with util.file.open_or_gzopen(out_hits, 'wt') as outf:
-            for line in classify.blast.BlastnTool().get_hits_fasta(input_fasta, db, threads=blast_threads, task=task, outfmt=outfmt, output_type=output_type):
+        with file.open_or_gzopen(out_hits, 'wt') as outf:
+            for line in blast.BlastnTool().get_hits_fasta(input_fasta, db, threads=blast_threads, task=task, outfmt=outfmt, output_type=output_type):
                 outf.write(line + '\n')
         log.info("_run_blastn_chunk completed succesfully.")
     except Exception as e:
@@ -441,16 +441,16 @@ def blastn_chunked_fasta(fasta, db, out_hits, chunkSize=1000000, threads=None, t
     MIN_CHUNK_SIZE = 20000
 
     # just in case blast is not installed, install it once, not many times in parallel!
-    classify.blast.BlastnTool().install()
+    blast.BlastnTool().install()
 
     # clamp threadcount to number of CPU cores
-    threads = util.misc.sanitize_thread_count(threads)
+    threads = misc.sanitize_thread_count(threads)
 
     # determine size of input data; records in fasta file
-    number_of_reads = util.file.fasta_length(fasta)
+    number_of_reads = file.fasta_length(fasta)
     log.debug("number of reads in fasta file %s" % number_of_reads)
     if number_of_reads == 0:
-        util.file.make_empty(out_hits)
+        file.make_empty(out_hits)
 
     # divide (max, single-thread) chunksize by thread count
     # to find the  absolute max chunk size per thread
@@ -483,7 +483,7 @@ def blastn_chunked_fasta(fasta, db, out_hits, chunkSize=1000000, threads=None, t
     input_fastas = []
     with open(fasta, "rt") as fastaFile:
         record_iter = SeqIO.parse(fastaFile, "fasta")
-        for batch in util.misc.batch_iterator(record_iter, chunkSize):
+        for batch in misc.batch_iterator(record_iter, chunkSize):
             chunk_fasta = mkstempfname('.fasta')
 
             with open(chunk_fasta, "wt") as handle:
@@ -509,7 +509,7 @@ def blastn_chunked_fasta(fasta, db, out_hits, chunkSize=1000000, threads=None, t
             executor.submit(_run_blastn_chunk, db, input_fastas[i], hits_files[i], blast_threads, task=task, outfmt=outfmt, max_target_seqs=max_target_seqs, output_type=output_type)
 
     # merge results and clean up
-    util.file.cat(out_hits, hits_files)
+    file.cat(out_hits, hits_files)
     for i in range(num_chunks):
         os.unlink(input_fastas[i])
         os.unlink(hits_files[i])
@@ -523,19 +523,19 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000):
     with extract_build_or_use_database(db, blastn_build_db, 'nin', tmp_suffix="-blastn_db_unpack", db_prefix="blastn") as (db_prefix,tempDir):
         if chunkSize:
             ## chunk up input and perform blastn in several parallel threads
-            with util.file.tempfname('.fasta') as reads_fasta:
-                tools.samtools.SamtoolsTool().bam2fa(inBam, reads_fasta)
+            with file.tempfname('.fasta') as reads_fasta:
+                samcore.SamtoolsTool().bam2fa(inBam, reads_fasta)
                 log.info("running blastn on %s against %s", inBam, db)
                 blastn_chunked_fasta(reads_fasta, db_prefix, blast_hits, chunkSize, threads)
 
         else:
             ## pipe tools together and run blastn multithreaded
             with open(blast_hits, 'wt') as outf:
-                for read_id in classify.blast.BlastnTool().get_hits_bam(inBam, db_prefix, threads=threads):
+                for read_id in blast.BlastnTool().get_hits_bam(inBam, db_prefix, threads=threads):
                     outf.write(read_id + '\n')
 
     # Load blast hits into ReadIdStore and filter BAM (exclude matching reads)
-    with util.file.tmp_dir(suffix='_blastn_filter') as filter_tmpdir:
+    with file.tmp_dir(suffix='_blastn_filter') as filter_tmpdir:
         db_path = os.path.join(filter_tmpdir, 'read_ids.db')
         with read_utils.ReadIdStore(db_path) as store:
             store.add_from_readlist(blast_hits)
@@ -551,7 +551,7 @@ def chunk_blast_hits(inFasta, db, blast_hits_output, threads=None, chunkSize=100
     else:
         #Pipe tools together and run blastn multithreaded
         with open(blast_hits_output, 'wt') as outf:
-            for output in classify.blast.BlastnTool().get_hits_fasta(inFasta, db, threads, task=task, outfmt=outfmt, max_target_seqs=max_target_seqs, output_type=output_type):
+            for output in blast.BlastnTool().get_hits_fasta(inFasta, db, threads, task=task, outfmt=outfmt, max_target_seqs=max_target_seqs, output_type=output_type):
                 #Account for read_ids extract only or full blast output run. Default = read_lines.
                 if output_type == 'read_id':
                     # Extract the first clmn in the output (assuming its the read ID)
@@ -571,8 +571,8 @@ def parser_chunk_blast_hits(parser=argparse.ArgumentParser()):
     parser.add_argument("-outfmt", type=str, default=6, help="Custom output formats(default: %(default)s)")
     parser.add_argument("-max_target_seqs", type=int, default=1, help="BLAST will return the first (if set to default) database hits for a sequence query. (default: %(default)s)")
     parser.add_argument("--output_type", default= "read_id", choices=["read_id", "full_line"], help="Specify the type of output: 'read_id' for read IDs only, or 'full_line' for full BLAST output lines. Default is 'read_id'. Useful when adding taxonomy IDs to outfmt type 6.")
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, chunk_blast_hits)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, chunk_blast_hits)
     return parser
 
 def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
@@ -582,8 +582,8 @@ def parser_deplete_blastn_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
     parser.add_argument("--chunkSize", type=int, default=1000000, help='FASTA chunk size (default: %(default)s)')
     parser = read_utils.parser_revert_sam_common(parser)
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_deplete_blastn_bam)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_deplete_blastn_bam)
     return parser
 
 
@@ -608,7 +608,7 @@ def extract_build_or_use_database(db, db_build_command, db_extension_to_expect, 
     '''
     db_extension_to_expect = file extension, sans dot prefix
     '''
-    with util.file.tmp_dir(tmp_suffix) as tempDbDir:
+    with file.tmp_dir(tmp_suffix) as tempDbDir:
         db_dir = ""
         if os.path.exists(db):
             if os.path.isfile(db):
@@ -622,7 +622,7 @@ def extract_build_or_use_database(db, db_build_command, db_extension_to_expect, 
                     db_dir = tempDbDir
                 else:
                     # this is a tarball with prebuilt indexes
-                    db_dir = util.file.extract_tarball(db, tempDbDir)
+                    db_dir = file.extract_tarball(db, tempDbDir)
             else:
                 # this is a directory
                 db_dir = db
@@ -648,21 +648,21 @@ def deplete_bwa_bam(inBam, db, outBam, threads=None, clear_tags=True, tags_to_cl
     'Use bwa to remove reads from an unaligned bam that match at least one of the databases.'
     tags_to_clear = tags_to_clear or []
 
-    threads = util.misc.sanitize_thread_count(threads)
+    threads = misc.sanitize_thread_count(threads)
 
     with extract_build_or_use_database(db, bwa_build_db, 'bwt', tmp_suffix="-bwa_db_unpack", db_prefix="bwa") as (db_prefix,tempDbDir):
-        with util.file.tempfname('.aligned.sam') as aligned_sam:
-            tools.bwa.Bwa().align_mem_bam(inBam, db_prefix, aligned_sam, threads=threads, should_index=False, JVMmemory=JVMmemory)
-        #with util.file.fifo(name='filtered.sam') as filtered_sam:
-            with util.file.tempfname('.filtered.sam') as filtered_sam:
+        with file.tempfname('.aligned.sam') as aligned_sam:
+            core.bwa.Bwa().align_mem_bam(inBam, db_prefix, aligned_sam, threads=threads, should_index=False, JVMmemory=JVMmemory)
+        #with file.fifo(name='filtered.sam') as filtered_sam:
+            with file.tempfname('.filtered.sam') as filtered_sam:
                 # filter proper pairs
-                tools.samtools.SamtoolsTool().view(['-h','-F0x2'], aligned_sam, filtered_sam)
+                samcore.SamtoolsTool().view(['-h','-F0x2'], aligned_sam, filtered_sam)
 
                 picardOptions = []
                 if clear_tags:
                     for tag in tags_to_clear:
                         picardOptions.append("ATTRIBUTE_TO_CLEAR={}".format(tag))
-                tools.picard.RevertSamTool().execute(
+                picard.RevertSamTool().execute(
                    filtered_sam,
                    outBam,
                    picardOptions=['SORT_ORDER=queryname'] + picardOptions,
@@ -679,12 +679,12 @@ def parser_deplete_bwa_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('outBam', help='Ouput BAM file with matching reads removed.')
     parser.add_argument(
         '--JVMmemory',
-        default=tools.picard.PicardTools.jvmMemDefault,
+        default=picard.PicardTools.jvmMemDefault,
         help='JVM virtual memory size for Picard RevertSam (default: %(default)s)'
     )
     parser = read_utils.parser_revert_sam_common(parser)
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_deplete_bwa_bam)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_deplete_bwa_bam)
     return parser
 
 def main_deplete_bwa_bam(args):
@@ -715,13 +715,13 @@ def deplete_minimap2_bam(inBam, db, outBam, threads=None):
     outBam: output BAM file with matching reads removed.
     threads: number of threads for minimap2 alignment.
     '''
-    with util.file.tmp_dir(suffix='_minimap2_deplete') as tmpdir:
+    with file.tmp_dir(suffix='_minimap2_deplete') as tmpdir:
         idxstats_file = os.path.join(tmpdir, 'idxstats.txt')
         hitList = os.path.join(tmpdir, 'read_ids.txt')
         db_path = os.path.join(tmpdir, 'read_ids.db')
 
         # Use minimap2 idxstats to get list of mapped read IDs
-        tools.minimap2.Minimap2().idxstats(
+        minimap2.Minimap2().idxstats(
             inBam, db, idxstats_file,
             outReadlist=hitList,
             threads=threads
@@ -738,8 +738,8 @@ def parser_deplete_minimap2_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('refDbs', nargs='+', help='One or more reference FASTA files to deplete from input.')
     parser.add_argument('outBam', help='Output BAM file with matching reads removed.')
     parser = read_utils.parser_revert_sam_common(parser)
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_deplete_minimap2_bam)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_deplete_minimap2_bam)
     return parser
 
 
@@ -777,7 +777,7 @@ def lastal_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    classify.last.Lastdb().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+    last.Lastdb().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
 
 
 def parser_lastal_build_db(parser=argparse.ArgumentParser()):
@@ -787,8 +787,8 @@ def parser_lastal_build_db(parser=argparse.ArgumentParser()):
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, lastal_build_db, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, lastal_build_db, split_args=True)
     return parser
 
 
@@ -802,7 +802,7 @@ def merge_compressed_files(inFiles, outFile, sep=''):
     ''' Take a collection of input text files, possibly compressed,
         and concatenate into a single output text file.
     '''
-    with util.file.open_or_gzopen(outFile, 'wt') as outf:
+    with file.open_or_gzopen(outFile, 'wt') as outf:
         first = True
         for infname in inFiles:
             if not first:
@@ -810,7 +810,7 @@ def merge_compressed_files(inFiles, outFile, sep=''):
                     outf.write(sep)
             else:
                 first = False
-            with util.file.open_or_gzopen(infname, 'rt', newline=None) as inf:
+            with file.open_or_gzopen(infname, 'rt', newline=None) as inf:
                 shutil.copyfileobj(inf, outf)
 
 # ========================
@@ -824,13 +824,13 @@ def bwa_build_db(inputFasta, outputDirectory, outputFilePrefix):
 
     new_fasta = None
     if not (inputFasta.endswith('.fasta') or inputFasta.endswith('.fa')):
-        new_fasta = util.file.mkstempfname('.fasta')
-        with util.file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
+        new_fasta = file.mkstempfname('.fasta')
+        with file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
             shutil.copyfileobj(inf, outf)
         inputFasta = new_fasta
 
     # make the output path if it does not exist
-    util.file.mkdir_p(outputDirectory)
+    file.mkdir_p(outputDirectory)
 
     if outputFilePrefix:
         outPrefix = outputFilePrefix
@@ -839,7 +839,7 @@ def bwa_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    tools.bwa.Bwa().index(inputFasta, output=os.path.join(outputDirectory, outPrefix))
+    core.bwa.Bwa().index(inputFasta, output=os.path.join(outputDirectory, outPrefix))
 
     if new_fasta is not None:
         os.unlink(new_fasta)
@@ -852,8 +852,8 @@ def parser_bwa_build_db(parser=argparse.ArgumentParser()):
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, bwa_build_db, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, bwa_build_db, split_args=True)
     return parser
 
 
@@ -871,8 +871,8 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
 
     new_fasta = None
     if not (inputFasta.endswith('.fasta') or inputFasta.endswith('.fa')):
-        new_fasta = util.file.mkstempfname('.fasta')
-        with util.file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
+        new_fasta = file.mkstempfname('.fasta')
+        with file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
             shutil.copyfileobj(inf, outf)
         inputFasta = new_fasta
 
@@ -883,7 +883,7 @@ def blastn_build_db(inputFasta, outputDirectory, outputFilePrefix):
         fileNameSansExtension = os.path.splitext(baseName)[0]
         outPrefix = fileNameSansExtension
 
-    blastdb_path = classify.blast.MakeblastdbTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
+    blastdb_path = blast.MakeblastdbTool().build_database(inputFasta, os.path.join(outputDirectory, outPrefix))
 
     if new_fasta is not None:
         os.unlink(new_fasta)
@@ -896,8 +896,8 @@ def parser_blastn_build_db(parser=argparse.ArgumentParser()):
         '--outputFilePrefix',
         help='Prefix for the output file name (default: inputFasta name, sans ".fasta" extension)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, blastn_build_db, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, blastn_build_db, split_args=True)
     return parser
 
 
@@ -914,8 +914,8 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=1
 
     new_fasta = None
     if not (inputFasta.endswith('.fasta') or inputFasta.endswith('.fa')):
-        new_fasta = util.file.mkstempfname('.fasta')
-        with util.file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
+        new_fasta = file.mkstempfname('.fasta')
+        with file.open_or_gzopen(inputFasta, 'rt', newline=None) as inf, open(new_fasta, 'wt') as outf:
             shutil.copyfileobj(inf, outf)
         inputFasta = new_fasta
 
@@ -927,10 +927,10 @@ def bmtagger_build_db(inputFasta, outputDirectory, outputFilePrefix, word_size=1
         outPrefix = fileNameSansExtension
 
     log.debug("building bmtagger and srprism databases on {}".format(os.path.join(outputDirectory, outPrefix)))
-    bmtooldb_path = classify.bmtagger.BmtoolTool().build_database(
+    bmtooldb_path = bmtagger.BmtoolTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".bitmask"), word_size=word_size
     )
-    srprismdb_path = classify.bmtagger.SrprismTool().build_database(
+    srprismdb_path = bmtagger.SrprismTool().build_database(
         inputFasta, os.path.join(outputDirectory, outPrefix + ".srprism")
     )
 
@@ -954,8 +954,8 @@ def parser_bmtagger_build_db(parser=argparse.ArgumentParser()):
         default=18,
         help='Database word size (default: %(default)s)'
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, bmtagger_build_db, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, bmtagger_build_db, split_args=True)
     return parser
 
 
@@ -965,8 +965,8 @@ __commands__.append(('bmtagger_build_db', parser_bmtagger_build_db))
 
 
 def full_parser():
-    return util.cmd.make_parser(__commands__, __doc__)
+    return cmd.make_parser(__commands__, __doc__)
 
 
 if __name__ == '__main__':
-    util.cmd.main_argparse(__commands__, __doc__)
+    cmd.main_argparse(__commands__, __doc__)

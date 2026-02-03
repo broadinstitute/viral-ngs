@@ -5,9 +5,9 @@ import os
 import shutil
 import subprocess
 
-import tools
-import tools.samtools
-import util.misc
+from viral_ngs import core
+from viral_ngs.core import samtools
+from viral_ngs.core import misc
 
 TOOL_NAME = "blastn"
 
@@ -24,7 +24,7 @@ logging.basicConfig(
 '''
 _log = logging.getLogger(__name__)
 
-class BlastTools(tools.Tool):
+class BlastTools(core.Tool):
     """'Abstract' base class for tools in the blast+ suite.
        Subclasses must define class member subtool_name."""
 
@@ -36,13 +36,13 @@ class BlastTools(tools.Tool):
         ]
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "blastn"
         if install_methods is None:
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
+            install_methods = [core.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
         super(BlastTools, self).__init__(install_methods=install_methods)
 
     def execute(self, *args):
         cmd = [self.install_and_get_path()]
         cmd.extend(args)
-        util.misc.run_and_print(cmd, buffered=True, check=True)
+        misc.run_and_print(cmd, buffered=True, check=True)
 
 
 class BlastnTool(BlastTools):
@@ -56,7 +56,7 @@ class BlastnTool(BlastTools):
             _log.warning(f"Invalid output_type '{output_type}' specified. Defaulting to 'read_id'.")
             output_type = 'read_id'
         # run blastn and emit list of read IDs
-        threads = util.misc.sanitize_thread_count(threads)
+        threads = misc.sanitize_thread_count(threads)
         cmd = [self.install_and_get_path(),
             '-db', db,
             '-word_size', 16,
@@ -105,7 +105,7 @@ class BlastnTool(BlastTools):
        
     def get_hits_bam(self, inBam, db, threads=None):
         return self.get_hits_pipe(
-            tools.samtools.SamtoolsTool().bam2fa_pipe(inBam),
+            samtools.SamtoolsTool().bam2fa_pipe(inBam),
             db,
             threads=threads)
 
@@ -139,8 +139,8 @@ class MakeblastdbTool(BlastTools):
         # if more than one fasta file is specified, join them
         # otherwise if only one is specified, just use it
         if len(fasta_files) > 1:
-            input_fasta = util.file.mkstempfname("fasta")
-            util.file.cat(input_fasta, fasta_files)
+            input_fasta = file.mkstempfname("fasta")
+            file.cat(input_fasta, fasta_files)
         elif len(fasta_files) == 1:
             input_fasta = fasta_files[0]
         else:

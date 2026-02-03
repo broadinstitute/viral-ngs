@@ -15,13 +15,13 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import pytest
 
-import kmer_utils
-import read_utils
-import util.cmd
-import util.file
-import util.misc
-import classify.kmc
-import tools.samtools
+from viral_ngs import kmer_utils
+from viral_ngs import read_utils
+from viral_ngs.core import cmd as util_cmd
+from viral_ngs.core import file as util_file
+from viral_ngs.core import misc as util_misc
+from viral_ngs.classify import kmc
+from viral_ngs.core import samtools
 
 
 _log = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -47,13 +47,13 @@ def _seq_as_str(s):  # pylint: disable=invalid-name
 
 def _yield_seq_recs(seq_file):
     """Yield sequence records from the file, regardless of file format."""
-    with util.file.tmp_dir(suffix='_seqs_as_strs') as t_dir:
+    with util_file.tmp_dir(suffix='_seqs_as_strs') as t_dir:
         if seq_file.endswith('.bam'):
             t_fa = os.path.join(t_dir, 'bam2fa.fasta')
-            tools.samtools.SamtoolsTool().bam2fa(seq_file, t_fa, append_mate_num=True)
+            samtools.SamtoolsTool().bam2fa(seq_file, t_fa, append_mate_num=True)
             seq_file = t_fa
-        with util.file.open_or_gzopen(seq_file, 'rt') as seq_f:
-            for rec in Bio.SeqIO.parse(seq_f, util.file.uncompressed_file_type(seq_file)[1:]):
+        with util_file.open_or_gzopen(seq_file, 'rt') as seq_f:
+            for rec in Bio.SeqIO.parse(seq_f, util_file.uncompressed_file_type(seq_file)[1:]):
                 yield rec
 
 def _list_seq_recs(seq_file):
@@ -64,7 +64,7 @@ def _list_seq_recs(seq_file):
 def _yield_seqs_as_strs(seqs):
     """Yield sequence(s) from `seqs` as strs.  seqs can be a str/SeqRecord/Seq, a filename of a sequence file,
     or an iterable of these.  If a filename of a sequence file, all sequences from that file are yielded."""
-    for seq in util.misc.make_seq(seqs, (str, SeqRecord, Seq)):
+    for seq in util_misc.make_seq(seqs, (str, SeqRecord, Seq)):
         seq = _seq_as_str(seq)
         if not any(seq.endswith(ext) for ext in '.fasta .fasta.gz .fastq .fastq.gz .bam'):
             yield seq
@@ -80,7 +80,7 @@ def _list_seqs_as_strs(seqs):
 def _getargs(args, valid_args):
     """Extract valid args from an argparse.Namespace or a dict.  Returns a dict containing keys from `args`
     that are in `valid_args`; `valid_args` is a space-separated list of valid args."""
-    return util.misc.subdict(vars(args) if isinstance(args, argparse.Namespace) else args, valid_args.split())
+    return util_misc.subdict(vars(args) if isinstance(args, argparse.Namespace) else args, valid_args.split())
 
 def _strip_mate_num(rec_id):
     """Name of a read, with any /1 or /2 at the end removed"""
@@ -188,8 +188,8 @@ class KmcPy(object):
         for rec in in_recs:
             seq = str(rec.seq)
             seq_kmer_counts = self.compute_kmer_counts(seq, kmer_size=kmer_size, single_strand=single_strand,
-                                                       min_occs=1, max_occs=util.misc.MAX_INT32,
-                                                       counter_cap=util.misc.MAX_INT32)
+                                                       min_occs=1, max_occs=util_misc.MAX_INT32,
+                                                       counter_cap=util_misc.MAX_INT32)
             assert not single_strand
             seq_occs = sum([seq_count for kmer, seq_count in seq_kmer_counts.items() \
                             if kmer in db_kmers])
@@ -222,7 +222,7 @@ class KmcPy(object):
             result = collections.Counter({k: (kmer_counts_1[k] + kmer_counts_2[k])
                                           for k in (set(kmer_counts_1.keys()) | set(kmer_counts_2.keys()))})
         elif op == 'kmers_subtract':
-            result = collections.Counter(util.misc.subdict(kmer_counts_1,
+            result = collections.Counter(util_misc.subdict(kmer_counts_1,
                                                            set(kmer_counts_1.keys()) - set(kmer_counts_2.keys())))
         elif op == 'counters_subtract':
             result = kmer_counts_1 - kmer_counts_2
@@ -236,11 +236,11 @@ kmcpy = KmcPy()
 
 def _inp(fname):
     """Return full path to a test input file for this module"""
-    return os.path.join(util.file.get_test_input_path(), 'TestKmers', fname)
+    return os.path.join(util_file.get_test_input_path(), 'TestKmers', fname)
 
 def _stringify(arg):
     """Return a string based on `arg`, suitable for use as a pytest test id"""
-    return util.file.string_to_file_name(str(arg))
+    return util_file.string_to_file_name(str(arg))
 
 def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
     """Build a database of kmers from given sequence file(s) using given options.
@@ -264,12 +264,12 @@ def _do_build_kmer_db(t_dir, val_cache, seq_files, kmer_db_opts):
     _log.debug('constructing kmer db: %s', key)
 
     k_db = os.path.join(t_dir, 'bld_kmer_db_{}'.format(hash(key)))
-    assert not classify.kmc.KmcTool().is_kmer_db(k_db)
+    assert not kmc.KmcTool().is_kmer_db(k_db)
     seq_files = list(map(_inp, seq_files.split()))
-    kmer_db_args = util.cmd.run_cmd(module=kmer_utils, cmd='build_kmer_db',
+    kmer_db_args = util_cmd.run_cmd(module=kmer_utils, cmd='build_kmer_db',
                                     args=seq_files + [k_db] + kmer_db_opts.split() + ['--memLimitGb', 4]).args_parsed
-    assert classify.kmc.KmcTool().is_kmer_db(k_db)
-    kmc_kmer_counts=classify.kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
+    assert kmc.KmcTool().is_kmer_db(k_db)
+    kmc_kmer_counts=kmc.KmcTool().get_kmer_counts(k_db, threads=kmer_db_args.threads)
     _log.debug('KMER_DB_FIXTURE: param=%s counts=%d db=%s', key, len(kmc_kmer_counts), k_db)
     return val_cache.setdefault(key, argparse.Namespace(kmer_db=k_db,
                                                         kmc_kmer_counts=kmc_kmer_counts,
@@ -308,9 +308,9 @@ def test_build_kmer_db(kmer_db_fixture):
     _test_build_kmer_db(kmer_db_fixture)
 
 def _test_build_kmer_db(kmer_db_fixture):
-    assert classify.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
+    assert kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
 
-    kmer_db_info = classify.kmc.KmcTool().get_kmer_db_info(kmer_db_fixture.kmer_db)
+    kmer_db_info = kmc.KmcTool().get_kmer_db_info(kmer_db_fixture.kmer_db)
     assert kmer_db_info.kmer_size == kmer_db_fixture.kmer_db_args.kmer_size
     assert kmer_db_info.min_occs == kmer_db_fixture.kmer_db_args.min_occs
     assert kmer_db_info.max_occs == kmer_db_fixture.kmer_db_args.max_occs
@@ -359,12 +359,12 @@ def _test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function
       reads_bam: reads to filter with kmers extracted from kmers_fasta
 
     """
-    assert classify.kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
+    assert kmc.KmcTool().is_kmer_db(kmer_db_fixture.kmer_db)
 
     reads_file = _inp(reads_file)
-    reads_file_out = os.path.join(tmpdir_function, 'reads_out' + util.file.uncompressed_file_type(reads_file))
+    reads_file_out = os.path.join(tmpdir_function, 'reads_out' + util_file.uncompressed_file_type(reads_file))
 
-    filter_args = util.cmd.run_cmd(module=kmer_utils, cmd='filter_reads',
+    filter_args = util_cmd.run_cmd(module=kmer_utils, cmd='filter_reads',
                                    args=[kmer_db_fixture.kmer_db, 
                                          reads_file, reads_file_out] + filter_opts.split()).args_parsed
 
@@ -376,7 +376,7 @@ def _test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function
 
     reads_file_out_ids_txt = reads_file_out+'.ids.txt'
     read_utils.read_names(reads_file_out, reads_file_out_ids_txt)
-    reads_out_ids = util.file.slurp_file(reads_file_out_ids_txt).strip().split()
+    reads_out_ids = util_file.slurp_file(reads_file_out_ids_txt).strip().split()
 
     _log.debug('FILT %d %d %s %s %s', len(_list_seq_recs(reads_file)), len(_list_seq_recs(reads_file_out)),
                kmer_db_fixture.kmer_db, reads_file, filter_opts)
@@ -403,12 +403,12 @@ def test_filter_reads(kmer_db_fixture, reads_file, filter_opts, tmpdir_function)
 
 
 @pytest.mark.parametrize("kmer_db_fixture", KMER_DBS_EMPTY+KMER_DBS_SMALL[:1], ids=_stringify, indirect=["kmer_db_fixture"])
-@pytest.mark.parametrize("set_to_val", [1, util.misc.MAX_INT32])
+@pytest.mark.parametrize("set_to_val", [1, util_misc.MAX_INT32])
 def test_kmer_set_counts(kmer_db_fixture, tmpdir_function, set_to_val):
     db_with_set_counts = os.path.join(tmpdir_function, 'set_counts_db')
-    util.cmd.run_cmd(module=kmer_utils, cmd='kmers_set_counts',
+    util_cmd.run_cmd(module=kmer_utils, cmd='kmers_set_counts',
                      args=[kmer_db_fixture.kmer_db, set_to_val, db_with_set_counts])
-    new_counts = classify.kmc.KmcTool().get_kmer_counts(db_with_set_counts)
+    new_counts = kmc.KmcTool().get_kmer_counts(db_with_set_counts)
     assert set(new_counts.keys()) == set(kmer_db_fixture.kmc_kmer_counts.keys())
     assert not new_counts  or  set(new_counts.values()) == set([set_to_val])
 
@@ -421,10 +421,10 @@ def test_kmers_binary_op(kmer_db_fixture, kmer_db_fixture2, op, tmpdir_function)
     _log.debug('fixture1args=%s', kmer_db_fixture.kmer_db_args)
     _log.debug('fixture2args=%s', kmer_db_fixture2.kmer_db_args)
     _log.debug('op=%s', op)
-    args = util.cmd.run_cmd(module=kmer_utils, cmd='kmers_binary_op',
+    args = util_cmd.run_cmd(module=kmer_utils, cmd='kmers_binary_op',
                             args=[op, kmer_db_fixture.kmer_db, kmer_db_fixture2.kmer_db, db_result]).args_parsed
 
-    kmc_counts = classify.kmc.KmcTool().get_kmer_counts(db_result)
+    kmc_counts = kmc.KmcTool().get_kmer_counts(db_result)
     kmcpy_counts = kmcpy.binary_op(op, kmer_db_fixture.kmc_kmer_counts, kmer_db_fixture2.kmc_kmer_counts,
                                    result_counter_cap=args.result_counter_cap)
 

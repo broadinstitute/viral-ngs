@@ -12,21 +12,21 @@ import subprocess
 import sys
 import tempfile
 
-import tools
-import tools.picard
-import tools.samtools
-import util.file
-import util.misc
+from viral_ngs import core
+from viral_ngs.core import picard
+from viral_ngs.core import samtools
+from viral_ngs.core import file
+from viral_ngs.core import misc
 from builtins import super
 
 log = logging.getLogger(__name__)
 
-class Kraken2(tools.Tool):
+class Kraken2(core.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.PrexistingUnixCommand(shutil.which('kraken2'), require_executability=False))
+            install_methods.append(core.PrexistingUnixCommand(shutil.which('kraken2'), require_executability=False))
         super(Kraken2, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -54,12 +54,12 @@ class Kraken2(tools.Tool):
 
         # all the library download and dustmasking can be *easily* parallelized
         with concurrent.futures.ProcessPoolExecutor(
-            max_workers=util.misc.sanitize_thread_count(num_threads)) as executor:
+            max_workers=misc.sanitize_thread_count(num_threads)) as executor:
 
             futs = []
             # use or fetch taxonomy database
             if tax_db:
-                util.file.mkdir_p(db)
+                file.mkdir_p(db)
                 futs.append(executor.submit(shutil.copytree, tax_db, os.path.join(db, 'taxonomy')))
             else:
                 if protein:
@@ -94,7 +94,7 @@ class Kraken2(tools.Tool):
         # build db
         build_opts = {
             '--build': None,
-            '--threads': util.misc.sanitize_thread_count(num_threads)
+            '--threads': misc.sanitize_thread_count(num_threads)
         }
         if k:
             build_opts['--kmer-len'] = k
@@ -114,7 +114,7 @@ class Kraken2(tools.Tool):
 
         # clean db
         self.execute('kraken2-build', db, None, options={
-                '--threads':util.misc.sanitize_thread_count(num_threads),
+                '--threads':misc.sanitize_thread_count(num_threads),
                 '--clean': None
                 })
 
@@ -122,7 +122,7 @@ class Kraken2(tools.Tool):
         with open(output, 'wt') as outf:
             subprocess.check_call('kraken2-inspect',
                 '--db', db,
-                '--threads', util.misc.sanitize_thread_count(num_threads),
+                '--threads', misc.sanitize_thread_count(num_threads),
                 stdout=outf)
 
     def execute(self, command, db, output, args=None, options=None):
@@ -172,7 +172,7 @@ class Kraken2(tools.Tool):
           out_reads: Output file of command.
         """
 
-        if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+        if samtools.SamtoolsTool().isEmpty(in_bam):
             # kraken cannot deal with empty input
             if out_reads:
                 with open(out_reads, 'wt') as outf:
@@ -183,7 +183,7 @@ class Kraken2(tools.Tool):
             return
 
         opts = {
-            '--threads': util.misc.sanitize_thread_count(num_threads)
+            '--threads': misc.sanitize_thread_count(num_threads)
         }
         if out_report:
             opts['--report'] = out_report
@@ -196,18 +196,18 @@ class Kraken2(tools.Tool):
         if minimum_hit_groups:
             opts['--minimum-hit-groups'] = minimum_hit_groups
 
-        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
-        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
-        tmp_fastq3 = util.file.mkstempfname('.s.fastq')
+        tmp_fastq1 = file.mkstempfname('.1.fastq')
+        tmp_fastq2 = file.mkstempfname('.2.fastq')
+        tmp_fastq3 = file.mkstempfname('.s.fastq')
         # Do not convert this to samtools bam2fq unless we can figure out how to replicate
         # the clipping functionality of Picard SamToFastq
-        picard = tools.picard.SamToFastqTool()
+        picard = picard.SamToFastqTool()
         picard_opts = {
-            'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+            'CLIPPING_ATTRIBUTE': picard.SamToFastqTool.illumina_clipping_attribute,
             'CLIPPING_ACTION': 'X'
         }
         picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
-                       picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                       picardOptions=picard.PicardTools.dict_to_picard_opts(picard_opts),
                        JVMmemory=picard.jvmMemDefault)
 
         if out_report:

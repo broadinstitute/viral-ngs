@@ -1,0 +1,51 @@
+# viral-ngs classify image
+# Builds on core, adds metagenomic classification tools
+#
+# This provides:
+# - All core bioinformatics tools (from core image)
+# - Classification: Kraken2, Krona, BLAST, LAST, BMTagger
+# - K-mer tools: KMC, KMA
+# - Pseudoalignment: kallisto/kb-python
+#
+# Usage:
+#   docker build --build-arg BASEIMAGE=quay.io/broadinstitute/viral-ngs:main-core -t viral-ngs:classify -f docker/Dockerfile.classify .
+
+ARG BASEIMAGE=quay.io/broadinstitute/viral-ngs:main-core
+FROM ${BASEIMAGE}
+
+LABEL maintainer="viral-ngs@broadinstitute.org"
+LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-ngs"
+
+# Enable conda environment activation for RUN commands
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+
+# Copy requirements and dependency installation script
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/classify.txt /tmp/requirements/
+COPY docker/install-conda-deps.sh /tmp/
+
+# Install conda dependencies (classify tools)
+# Install all requirements together in single resolver call for proper dependency resolution
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/classify.txt
+
+# Copy source code (includes classify module)
+COPY src/ /opt/viral-ngs/source/src/
+COPY scripts/ /opt/viral-ngs/source/scripts/
+COPY pyproject.toml README.md LICENSE /opt/viral-ngs/source/
+
+# Install viral-ngs package
+# VERSION is passed from GitHub Actions via git describe
+WORKDIR /opt/viral-ngs/source
+ARG VERSION
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
+RUN pip install --no-cache-dir . && \
+    echo "${VERSION}" > /opt/viral-ngs/source/VERSION
+
+# Verify installation
+RUN python -c "from viral_ngs import read_utils, illumina; print('Core modules OK')" && \
+    python -c "from viral_ngs import metagenomics, taxon_filter, kmer_utils; print('Classify command modules OK')" && \
+    python -c "from viral_ngs.classify import blast, bmtagger, kraken2, krona, kma, kmc, last; print('Classify tools OK')"
+
+# Clean up
+RUN rm -rf /tmp/requirements /tmp/install-conda-deps.sh
+
+CMD ["/bin/bash"]

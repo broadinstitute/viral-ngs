@@ -32,17 +32,15 @@ import numpy as np
 import pandas as pd
 import pysam
 
-import util.cmd
-import util.file
-import util.misc
-import read_utils
+from .core import cmd
+from .core import file
+from .core import misc
+from . import read_utils
 
-import classify.kaiju
-import classify.kma
-import classify.kraken
-import classify.kraken2
-import classify.krona
-import classify.kb
+from .classify import kma
+from .classify import kraken2
+from .classify import krona
+from .classify import kb
 
 __commands__ = []
 
@@ -118,7 +116,7 @@ class TaxonomyDb(object):
     def load_gi_single_dmp(self, dmp_path):
         '''Load a gi->taxid dmp file from NCBI taxonomy.'''
         gi_array = {}
-        with util.file.open_or_gzopen(dmp_path) as f:
+        with file.open_or_gzopen(dmp_path) as f:
             for i, line in enumerate(f):
                 gi, taxid = line.strip().split('\t')
                 gi = int(gi)
@@ -134,7 +132,7 @@ class TaxonomyDb(object):
             names = {}
         else:
             names = collections.defaultdict(list)
-        for line in util.file.open_or_gzopen(names_db):
+        for line in file.open_or_gzopen(names_db):
             parts = line.strip().split('|')
             taxid = int(parts[0])
             name = parts[1].strip()
@@ -151,7 +149,7 @@ class TaxonomyDb(object):
         '''Load ranks and parents arrays from NCBI taxonomy.'''
         ranks = {}
         parents = {}
-        with util.file.open_or_gzopen(nodes_db) as f:
+        with file.open_or_gzopen(nodes_db) as f:
             for line in f:
                 parts = line.strip().split('|')
                 taxid = int(parts[0])
@@ -271,8 +269,8 @@ class TaxonomyDb(object):
         if outReads:
             lca_tsv = outReads
         else:
-            lca_tsv = util.file.mkstempfname('.tsv')
-        with util.file.open_or_gzopen(lca_tsv, 'wt') as lca:
+            lca_tsv = file.mkstempfname('.tsv')
+        with file.open_or_gzopen(lca_tsv, 'wt') as lca:
             hits = self.sam_lca(bam_aligned, lca, top_percent=10, unique_only=unique_only)
         with open(outReport, 'w') as f:
             for line in self.kraken_dfs_report(hits):
@@ -605,8 +603,8 @@ def parser_subset_taxonomy(parser=argparse.ArgumentParser()):
         "--skipDeadAccession", action='store_true',
         help="Skip dead accession to taxid mapping files"
     )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, subset_taxonomy, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, subset_taxonomy, split_args=True)
     return parser
 def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=None,
                     whitelistTreeTaxids=None, whitelistTreeTaxidFile=None,
@@ -622,7 +620,7 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
     filtered to only include those in the whitelist files. Finally, taxids +
     parents for the gis/accessions will also be included.
     '''
-    util.file.mkdir_p(os.path.join(outputDb, 'accession2taxid'))
+    file.mkdir_p(os.path.join(outputDb, 'accession2taxid'))
     db = TaxonomyDb(tax_dir=taxDb, load_nodes=True)
 
     taxids = set()
@@ -648,8 +646,8 @@ def subset_taxonomy(taxDb, outputDb, whitelistTaxids=None, whitelistTaxidFile=No
         output_path = os.path.join(outputDb, path)
 
         input_path = maybe_compressed(input_path)
-        with util.file.open_or_gzopen(input_path, 'rt') as f, \
-             util.file.open_or_gzopen(output_path, 'wt') as out_f:
+        with file.open_or_gzopen(input_path, 'rt') as f, \
+             file.open_or_gzopen(output_path, 'wt') as out_f:
             if header:
                 out_f.write(f.readline())  # Cannot use next(f) for python2
             for line in f:
@@ -715,8 +713,8 @@ def parser_filter_taxids_to_focal_hits(parser=argparse.ArgumentParser()):
     parser.add_argument("min_read_count", type=int, help="ignore focal_report_tsv entries below this read count")
     parser.add_argument("output_tsv",  help="Output TSV file where first column is a taxid")
 
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, filter_taxids_to_focal_hits, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, filter_taxids_to_focal_hits, split_args=True)
     return parser
 def filter_taxids_to_focal_hits(taxids_tsv, focal_report_tsv, taxdb_dir, min_read_count, output_tsv):
     '''
@@ -731,14 +729,14 @@ def filter_taxids_to_focal_hits(taxids_tsv, focal_report_tsv, taxdb_dir, min_rea
 
     # load focal hits
     hits = set()
-    with util.file.open_or_gzopen(focal_report_tsv, "rt") as inf:
+    with file.open_or_gzopen(focal_report_tsv, "rt") as inf:
         for row in csv.DictReader(inf, delimiter='\t'):
             if int(row['reads_excl_children']) >= min_read_count:
                 hits.add(int(row['taxon_id']))
 
     # filter taxids_tsv -> output_tsv
-    with util.file.open_or_gzopen(taxids_tsv, "rt") as inf:
-        with util.file.open_or_gzopen(output_tsv, "wt") as outf:
+    with file.open_or_gzopen(taxids_tsv, "rt") as inf:
+        with file.open_or_gzopen(output_tsv, "wt") as outf:
             for line in inf:
                 taxid = int(line.rstrip('\r\n').split('\t')[0])
                 ancestors = taxdb.get_ordered_ancestors(taxid)
@@ -795,8 +793,8 @@ def parser_kraken2(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--confidence', default=None, type=float, help='Kraken2 confidence score threshold (default %(default)s)'
     )
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken2, split_args=True)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, kraken2, split_args=True)
     return parser
 def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, minimum_hit_groups=None, threads=None):
     '''
@@ -804,7 +802,7 @@ def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, conf
     '''
 
     assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
-    kraken_tool = classify.kraken2.Kraken2()
+    kraken_tool = kraken2.Kraken2()
     kraken_tool.pipeline(db, inBams, out_reports=outReports, out_reads=outReads,
                          min_base_qual=min_base_qual, confidence=confidence,
                          minimum_hit_groups=minimum_hit_groups, num_threads=threads)
@@ -832,8 +830,8 @@ def parser_kb(parser=argparse.ArgumentParser()):
     parser.add_argument('--loom', action='store_true', help='Output Loom file (default: False)', default=False)
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
     parser.add_argument('--out_dir', help='Output directory (default: kb_out)', default='kb_out')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kb_python, split_args=True)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, kb_python, split_args=True)
     return parser
 def kb_python(in_bam, index=None, t2g=None, kmer_len=31, parity='single', technology='bulk', h5ad=False, loom=False, protein=False, out_dir=None, threads=None):
     """Runs kb count on the input BAM files.
@@ -853,7 +851,7 @@ def kb_python(in_bam, index=None, t2g=None, kmer_len=31, parity='single', techno
     """
 
     assert out_dir, ('Output directory must be specified.')
-    kb_tool = classify.kb.kb()
+    kb_tool = kb.kb()
     kb_tool.classify(
         in_bam=in_bam,
         out_dir=out_dir,
@@ -874,14 +872,14 @@ def parser_kma(parser=argparse.ArgumentParser()):
     parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
     parser.add_argument('--outPrefixes', nargs='+', help='KMA output prefixes.')
     parser.add_argument('--threads', type=int, help='Number of threads.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_kma, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_kma, split_args=True)
     return parser
 
 def main_kma(db, inBams, outPrefixes=None, threads=None):
     if outPrefixes and len(inBams) != len(outPrefixes):
         raise ValueError(f"Number of input BAMs ({len(inBams)}) must match number of output prefixes ({len(outPrefixes)})")
-    kma_tool = classify.kma.KMA()
+    kma_tool = kma.KMA()
     for in_bam, out_prefix in itertools.zip_longest(inBams, outPrefixes):
         kma_tool.classify(in_bam, db, out_prefix, num_threads=threads)
 
@@ -891,38 +889,15 @@ def parser_kma_build(parser=argparse.ArgumentParser()):
     parser.add_argument('ref_fasta', help='Reference FASTA file.')
     parser.add_argument('db_prefix', help='Output database prefix.')
     parser.add_argument('--threads', type=int, help='Number of threads.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, main_kma_build, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_kma_build, split_args=True)
     return parser
 
 def main_kma_build(ref_fasta, db_prefix, threads=None):
-    kma_tool = classify.kma.KMA()
+    kma_tool = kma.KMA()
     kma_tool.build(ref_fasta, db_prefix, num_threads=threads)
 
 __commands__.append(('kma_build', parser_kma_build))
-
-def parser_krakenuniq(parser=argparse.ArgumentParser()):
-    parser.add_argument('db', help='Kraken database directory.')
-    parser.add_argument('inBams', nargs='+', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--outReports', nargs='+', help='Kraken summary report output file. Multiple filenames space separated.')
-    parser.add_argument('--outReads', nargs='+', help='Kraken per read classification output file. Multiple filenames space separated.')
-    parser.add_argument(
-        '--filterThreshold', default=0.05, type=float, help='Kraken filter threshold (default %(default)s)'
-    )
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, krakenuniq, split_args=True)
-    return parser
-def krakenuniq(db, inBams, outReports=None, outReads=None, lockMemory=False, filterThreshold=None, threads=None):
-    '''
-        Classify reads by taxon using KrakenUniq
-    '''
-
-    assert outReads or outReports, ('Either --outReads or --outReport must be specified.')
-    kuniq_tool = classify.kraken.KrakenUniq()
-    kuniq_tool.pipeline(db, inBams, out_reports=outReports, out_reads=outReads,
-                        filter_threshold=filterThreshold, num_threads=threads)
-# Disable KrakenUniq from future versions for now, pending conda rebuild of @yesimon's fork and its dependencies
-#__commands__.append(('krakenuniq', parser_krakenuniq))
 
 
 def parser_krona(parser=argparse.ArgumentParser()):
@@ -936,9 +911,9 @@ def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('--magnitudeColumn', help='Column of magnitude. (default %(default)s)', type=int, default=None)
     parser.add_argument('--noHits', help='Include wedge for no hits.', action='store_true')
     parser.add_argument('--noRank', help='Include no rank assignments.', action='store_true')
-    parser.add_argument('--inputType', help='Handling for specialized report types.', default='tsv', choices=['tsv', 'kraken2', 'krakenuniq', 'kaiju'])
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    util.cmd.attach_main(parser, krona, split_args=True)
+    parser.add_argument('--inputType', help='Handling for specialized report types.', default='tsv', choices=['tsv', 'kraken2'])
+    cmd.common_args(parser, (('loglevel', None), ('version', None)))
+    cmd.attach_main(parser, krona, split_args=True)
     return parser
 def krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, magnitudeColumn=None, noHits=None, noRank=None,
           inputType=None, sample_name=None):
@@ -946,19 +921,19 @@ def krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColum
         Create an interactive HTML report from a tabular metagenomic report
     '''
 
-    krona_tool = classify.krona.Krona()
+    krona_tool = krona.Krona()
     if sample_name is not None:
         dataset_names = list(sample_name for fn in inReports)
     else:
         dataset_names = list(os.path.basename(fn) for fn in inReports)
 
-    with util.file.tmp_dir() as tmp_dir:
+    with file.tmp_dir() as tmp_dir:
         to_import = []
 
         if inputType == 'tsv':
             for inReport in inReports:
                 if inReport.endswith('.gz'):
-                    tmp_tsv = util.file.mkstempfname('.tsv', directory=tmp_dir)
+                    tmp_tsv = file.mkstempfname('.tsv', directory=tmp_dir)
                     with gzip.open(inReport, 'rb') as f_in:
                         with open(tmp_tsv, 'w') as f_out:
                             shutil.copyfileobj(f_in, f_out)
@@ -972,32 +947,6 @@ def krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColum
             scoreColumn=None
             magnitudeColumn=3
             to_import = inReports
-
-        elif inputType == 'krakenuniq':
-            queryColumn=None
-            taxidColumn=1
-            scoreColumn=3
-            magnitudeColumn=2
-            for inReport in inReports:
-                tmp_tsv = util.file.mkstempfname('.tsv', directory=tmp_dir)
-                with open(tmp_tsv, 'w') as f_out:
-                    report = classify.kraken.KrakenUniq().read_report(inReport)
-                    for taxid, (tax_reads, tax_kmers) in report.items():
-                        f_out.write('{}\t{}\t{}\n'.format(taxid, tax_reads, tax_kmers))
-                to_import.append(tmp_tsv)
-
-        elif inputType == 'kaiju':
-            queryColumn=None
-            taxidColumn=1
-            scoreColumn=None
-            magnitudeColumn=2
-            for inReport in inReports:
-                tmp_tsv = util.file.mkstempfname('.tsv', directory=tmp_dir)
-                with open(tmp_tsv, 'w') as f_out:
-                    report = classify.kaiju.Kaiju().read_report(inReport)
-                    for taxid, reads in report.items():
-                        f_out.write('{}\t{}\n'.format(taxid, reads))
-                to_import.append(tmp_tsv)
 
         else:
             raise NotImplementedError
@@ -1015,37 +964,7 @@ def krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColum
             no_rank=noRank
         )
 
-        if inputType == 'krakenuniq':
-            # Rename "Avg. score" to "Est. genome coverage"
-            html_lines = util.file.slurp_file(outHtml).split('\n')
-            tmp_tsv = util.file.mkstempfname('.tsv', directory=tmp_dir)
-            with open(tmp_tsv, 'w') as new_report:
-                for line in html_lines:
-                    if '<attribute display="Avg. score">score</attribute>' in line:
-                        line = line.replace('Avg. score', 'Est. unique kmers')
-                    print(line, file=new_report)
-            shutil.copyfile(tmp_tsv, outHtml)
-
 __commands__.append(('krona', parser_krona))
-
-
-def parser_kaiju(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('db', help='Kaiju database .fmi file.')
-    parser.add_argument('taxDb', help='Taxonomy database directory.')
-    parser.add_argument('outReport', help='Output taxonomy report.')
-    parser.add_argument('--outReads', help='Output LCA assignments for each read.')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kaiju, split_args=True)
-    return parser
-def kaiju(inBam, db, taxDb, outReport, outReads=None, threads=None):
-    '''
-        Classify reads by the taxon of the Lowest Common Ancestor (LCA)
-    '''
-
-    kaiju_tool = classify.kaiju.Kaiju()
-    kaiju_tool.classify(db, taxDb, inBam, output_report=outReport, output_reads=outReads, num_threads=threads)
-__commands__.append(('kaiju', parser_kaiju))
 
 
 def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
@@ -1056,95 +975,25 @@ def parser_metagenomic_report_merge(parser=argparse.ArgumentParser()):
         type=argparse.FileType('r')
     )
     parser.add_argument(
-        "--outSummaryReport",
-        dest="out_kraken_summary",
-        help="Path of human-readable metagenomic summary report, created by kraken-report"
+        "out_krona_input",
+        help="Output metagenomic report suitable for Krona input."
     )
-    parser.add_argument(
-        "--krakenDB",
-        dest="kraken_db",
-        help="Kraken database (needed for outSummaryReport)",
-        type=argparse.FileType('r')
-    )
-    parser.add_argument(
-        "--outByQueryToTaxonID", dest="out_krona_input", help="Output metagenomic report suitable for Krona input. "
-    )
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, metagenomic_report_merge, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, metagenomic_report_merge, split_args=True)
     return parser
-def metagenomic_report_merge(metagenomic_reports, out_kraken_summary, kraken_db, out_krona_input):
+def metagenomic_report_merge(metagenomic_reports, out_krona_input):
     '''
-        Merge multiple metegenomic reports into a single metagenomic report.
-        Any Krona input files created by this
+        Merge multiple metagenomic reports into a single metagenomic report suitable for Krona input.
     '''
-    assert out_kraken_summary or out_krona_input, (
-        "Either --outSummaryReport or --outByQueryToTaxonID must be specified"
-    )
-    assert kraken_db if out_kraken_summary else True, (
-        'A Kraken db must be provided via --krakenDB if outSummaryReport is specified'
-    )
-
-    # column numbers containing the query (sequence) ID and taxonomic ID
-    # these are one-indexed
-    # See: http://ccb.jhu.edu/software/kraken/MANUAL.html#output-format
-    # tool_data_columns = {
-    #     "kraken": (2, 3)
-    # }
-
-    # if we're creating a Krona input file
-    if out_krona_input:
-        # open the output file (as gz if necessary)
-        with util.file.open_or_gzopen(out_krona_input, "wt") as outf:
-            # create a TSV writer for the output file
-            output_writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
-
-            if metagenomic_reports:
-                # for each Kraken-format metag file specified, pull out the appropriate columns
-                # and write them to the TSV output
-                for metag_file in metagenomic_reports:
-                    with util.file.open_or_gzopen(metag_file.name, "rt") as inf:
-                        file_reader = csv.reader(inf, delimiter='\t')
-                        for row in file_reader:
-                            # for only the two relevant columns
-                            output_writer.writerow([f for f in row])
-
-    # create a human-readable summary of the Kraken reports
-    # kraken-report can only be used on kraken reports since it depends on queries being in its database
-    if out_kraken_summary:
-        # create temporary file to hold combined kraken report
-        tmp_metag_combined_txt = util.file.mkstempfname('.txt')
-
-        util.file.cat(tmp_metag_combined_txt, [metag_file.name for metag_file in metagenomic_reports])
-
-        kraken_tool = classify.kraken.Kraken()
-        kraken_tool.report(tmp_metag_combined_txt, kraken_db.name, out_kraken_summary)
+    with file.open_or_gzopen(out_krona_input, "wt") as outf:
+        output_writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
+        for metag_file in metagenomic_reports:
+            with file.open_or_gzopen(metag_file.name, "rt") as inf:
+                file_reader = csv.reader(inf, delimiter='\t')
+                for row in file_reader:
+                    output_writer.writerow([f for f in row])
 __commands__.append(('report_merge', parser_metagenomic_report_merge))
 
-
-
-def fasta_library_accessions(library):
-    '''Parse accession from ids of fasta files in library directory. '''
-    library_accessions = set()
-    for dirpath, dirnames, filenames in os.walk(library, followlinks=True):
-        for filename in filenames:
-            if not filename.endswith('.fna') and not filename.endswith('.fa') and not filename.endswith('.ffn'):
-                continue
-            filepath = os.path.join(dirpath, filename)
-            for seqr in SeqIO.parse(filepath, 'fasta'):
-                name = seqr.name
-                # Search for accession
-                mo = re.search(r'([A-Z]+_?\d+\.\d+)', name)
-                if mo:
-                    accession = mo.group(1)
-                    library_accessions.add(accession)
-    return library_accessions
-
-
-class KrakenBuildError(Exception):
-    '''Error while building kraken database.'''
-
-class KrakenUniqBuildError(KrakenBuildError):
-    '''Error while building KrakenUniq database.'''
 
 def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     parser.add_argument('in_bam', help='Input bam file.')
@@ -1159,8 +1008,8 @@ def parser_filter_bam_to_taxa(parser=argparse.ArgumentParser()):
     parser.add_argument('--read_id_col', type=int, dest="read_id_col", help='The (zero-indexed) number of the column in read_IDs_to_tax_IDs containing read IDs. (default: %(default)s)', default=1)
     parser.add_argument('--tax_id_col', type=int, dest="tax_id_col", help='The (zero-indexed) number of the column in read_IDs_to_tax_IDs containing Taxonomy IDs. (default: %(default)s)', default=2)
     parser.add_argument('--out_count', help='Write a file with the number of reads matching the specified taxa.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, filter_bam_to_taxa, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, filter_bam_to_taxa, split_args=True)
     return parser
 
 def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
@@ -1220,7 +1069,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
 
     def _matching_read_ids():
         """Generator that yields read IDs matching the specified taxa."""
-        for row in util.file.read_tabfile(read_IDs_to_tax_IDs):
+        for row in file.read_tabfile(read_IDs_to_tax_IDs):
             assert tax_id_col<len(row), "tax_id_col does not appear to be in range for number of columns present in mapping file"
             assert read_id_col<len(row), "read_id_col does not appear to be in range for number of columns present in mapping file"
             read_id = row[read_id_col]
@@ -1232,7 +1081,7 @@ def filter_bam_to_taxa(in_bam, read_IDs_to_tax_IDs, out_bam,
                 yield read_id_match.group(1)
 
     # Stream matching read IDs directly into ReadIdStore
-    with util.file.tmp_dir(suffix='_filter_taxa') as tmpdir:
+    with file.tmp_dir(suffix='_filter_taxa') as tmpdir:
         db_path = os.path.join(tmpdir, 'read_ids.db')
         with read_utils.ReadIdStore(db_path) as store:
             store.extend(_matching_read_ids())
@@ -1262,8 +1111,8 @@ def parser_kraken_taxlevel_summary(parser=argparse.ArgumentParser()):
     parser.add_argument('--zeroFill', action='store_true', dest="zero_fill", help='When absent from a sample, write zeroes (rather than leaving blank).')
     parser.add_argument('--noHist', action='store_true', dest="no_hist", help='Write out a report by-sample rather than a histogram.')
     parser.add_argument('--includeRoot', action='store_true', dest="include_root", help='Include the count of reads at the root level and the unclassified bin.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, taxlevel_summary, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, taxlevel_summary, split_args=True)
     return parser
 
 def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel_focus, top_n_entries, count_threshold, no_hist, zero_fill, include_root):
@@ -1338,7 +1187,7 @@ def taxlevel_summary(summary_files_in, json_out, csv_out, tax_headings, taxlevel
         # -----------------------------------------------------------------
 
 
-        with util.file.open_or_gzopen(f, 'rt') as inf:
+        with file.open_or_gzopen(f, 'rt') as inf:
             report_type=None
             should_process = False
             indent_of_selection = -1
@@ -1526,8 +1375,8 @@ def parser_kraken_taxlevel_plurality(parser=argparse.ArgumentParser()):
     parser.add_argument('tax_heading', help='The taxonomic heading to analyze.')
     parser.add_argument('out_report', help='tab-delimited output file.')
     parser.add_argument('--min_reads', type=int, dest="min_reads", help='Only include hits with more than min_reads (default: %(default)s)', default=1)
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, taxlevel_plurality, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, taxlevel_plurality, split_args=True)
     return parser
 
 def taxlevel_plurality(summary_file, tax_heading, out_report, min_reads):
@@ -1538,7 +1387,7 @@ def taxlevel_plurality(summary_file, tax_heading, out_report, min_reads):
     """
 
     keeper_rows = []
-    with util.file.open_or_gzopen(summary_file, 'rt') as inf:
+    with file.open_or_gzopen(summary_file, 'rt') as inf:
         report_type=None
         should_process = False
         indent_of_selection = -1
@@ -1620,7 +1469,7 @@ def taxlevel_plurality(summary_file, tax_heading, out_report, min_reads):
                 out.append(outrow)
 
     # write outputs
-    with util.file.open_or_gzopen(out_report, 'wt') as outf:
+    with file.open_or_gzopen(out_report, 'wt') as outf:
         header = ('focal_taxon_name', 'focal_taxon_count', 'order_within_focal', 'pct_of_focal', 'pct_of_total', 'reads_cumulative', 'reads_excl_children', 'taxon_rank', 'taxon_id', 'taxon_sci_name')
         writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
         writer.writeheader()
@@ -1645,8 +1494,8 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
     parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.', default=None)
     parser.add_argument('--h5ad', help='Path to the output h5ad file. Can pull IDs to extract from this file.', default=None)
     parser.add_argument('--threshold', type=int, help='Minimum read count threshold for a target to be extracted (only used when extractin IDs from h5ad; default: %(default)s)', default=1)
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kb_extract, split_args=True)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, kb_extract, split_args=True)
     return parser
 def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None, threshold=None):
     """Runs kb extract on the input BAM file.
@@ -1664,7 +1513,7 @@ def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=No
     """
     assert out_dir, ('Output directory must be specified.')
 
-    kb_tool = classify.kb.kb()
+    kb_tool = kb.kb()
     
     target_ids = targets.split(',') if targets else []
     if not target_ids or len(target_ids) == 0:
@@ -1691,8 +1540,8 @@ def parser_kb_top_taxa(parser=argparse.ArgumentParser()):
     parser.add_argument('--id-to-tax-map', dest='id_to_tax_map', help='ID to taxonomy mapping file (CSV format).')
     parser.add_argument('--target-taxon', dest='target_taxon', default='Viruses', help='Target taxonomic category to analyze (default: Viruses).')
     parser.add_argument('out_report', help='Tab-delimited output file.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kb_top_taxa, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, kb_top_taxa, split_args=True)
     return parser
 
 def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruses'):
@@ -1707,11 +1556,11 @@ def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruse
         id_to_tax_map (str, optional): Path to the ID to taxonomy mapping file (CSV format).
         target_taxon (str): The taxonomic category to analyze (default: 'Viruses').
     """
-    kb_tool = classify.kb.kb()
+    kb_tool = kb.kb()
 
     # Extract and read h5ad file from tarball
-    with util.file.tmp_dir() as tmp_dir:
-        util.file.extract_tarball(counts_tar, tmp_dir)
+    with file.tmp_dir() as tmp_dir:
+        file.extract_tarball(counts_tar, tmp_dir)
         h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", '*.h5ad'))
 
         assert len(h5ad_files) == 1, "Expected exactly one .h5ad file in the counts tarball, found {}".format(len(h5ad_files))
@@ -1818,7 +1667,7 @@ def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruse
             })[['focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal']].to_dict('records')
 
     # Write output
-    with util.file.open_or_gzopen(out_report, 'wt') as outf:
+    with file.open_or_gzopen(out_report, 'wt') as outf:
         header = ('focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal')
         writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
         writer.writeheader()
@@ -1829,8 +1678,8 @@ __commands__.append(('kb_top_taxa', parser_kb_top_taxa))
 def parser_kb_merge_h5ads(parser=argparse.ArgumentParser()):
     parser.add_argument('in_count_tars', nargs='+', help='Input kb count tarballs to merge (tar.zst format).')
     parser.add_argument('--out-h5ad', dest='out_h5ad', help='Output merged h5ad file.')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kb_merge_h5ads, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, kb_merge_h5ads, split_args=True)
     return parser
 def kb_merge_h5ads(in_count_tars, out_h5ad, tmp_dir=None):
     '''
@@ -1844,7 +1693,7 @@ def kb_merge_h5ads(in_count_tars, out_h5ad, tmp_dir=None):
         tmp_dir (str, optional): Temporary directory for extraction.
     '''
     assert out_h5ad, ('Output h5ad file must be specified.')
-    kb_tool = classify.kb.kb()
+    kb_tool = kb.kb()
     kb_tool.merge_h5ads(
         in_count_tars=in_count_tars,
         out_h5ad=out_h5ad,
@@ -1857,14 +1706,14 @@ def parser_krona_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Krona taxonomy database output directory.')
     parser.add_argument('--taxdump_tar_gz', help='NCBI taxdump.tar.gz file', default=None)
     parser.add_argument('--get_accessions', action='store_true', help='Fetch NCBI accession to taxid mappings. This is not required for processing kraken1/2/uniq hits, only for BLAST hits, and adds a significant amount of time and database space (default false).')
-    util.cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, krona_build, split_args=True)
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, krona_build, split_args=True)
     return parser
 def krona_build(db, taxdump_tar_gz=None, get_accessions=False):
     '''
     Builds a Krona taxonomy database
     '''
-    classify.krona.Krona().build_db(
+    krona.Krona().build_db(
         db, taxdump_tar_gz=taxdump_tar_gz, get_accessions=get_accessions)
 __commands__.append(('krona_build', parser_krona_build))
 
@@ -1886,8 +1735,8 @@ def parser_kraken2_build(parser=argparse.ArgumentParser()):
     parser.add_argument('--minimizerSpaces', type=int, help='(s) Number of characters in minimizer that are ignored in comparisons (kraken2 default: 7nt/0aa)')
     parser.add_argument('--protein', action='store_true', help='Build protein database (default false/nucleotide).')
     parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (default: none)')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kraken2_build, split_args=True)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, kraken2_build, split_args=True)
     return parser
 def kraken2_build(db,
                 tax_db=None, taxdump_out=None,
@@ -1904,7 +1753,7 @@ def kraken2_build(db,
     `>kraken:taxid|1234|`.
     '''
 
-    kraken_tool = classify.kraken2.Kraken2()
+    kraken_tool = kraken2.Kraken2()
     kraken_tool.build(db,
         tax_db=tax_db,
         standard_libraries=standard_libraries,
@@ -1925,8 +1774,8 @@ def parser_kb_build(parser=argparse.ArgumentParser()):
                         default='standard', help='Type of index to create (default: %(default)s).')
     parser.add_argument('--kmer_len', type=int, help='k-mer length (default: 31).')
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, kb_build, split_args=True)
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, kb_build, split_args=True)
     return parser
 def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, threads=None):
     '''
@@ -1940,7 +1789,7 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, 
         protein (bool): True if sequence contains amino acids (default: False).
         threads (int): Number of threads to use (default: None).
     '''
-    kb_tool = classify.kb.kb()
+    kb_tool = kb.kb()
     kb_tool.build(ref_fasta,
                         index=index,
                         workflow=workflow,
@@ -1950,96 +1799,9 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, 
 __commands__.append(('kb_build', parser_kb_build))
 
 
-def parser_krakenuniq_build(parser=argparse.ArgumentParser()):
-    parser.add_argument('db', help='Krakenuniq database output directory.')
-    parser.add_argument('--library', help='Input library directory of fasta files. If not specified, it will be read from the "library" subdirectory of "db".')
-    parser.add_argument('--taxonomy', help='Taxonomy db directory. If not specified, it will be read from the "taxonomy" subdirectory of "db".')
-    parser.add_argument('--subsetTaxonomy', action='store_true', help='Subset taxonomy based on library fastas.')
-    parser.add_argument('--minimizerLen', type=int, help='Minimizer length (krakenuniq default: 15)')
-    parser.add_argument('--kmerLen', type=int, help='k-mer length (krakenuniq default: 31)')
-    parser.add_argument('--maxDbSize', type=int, help='Maximum db size in GB (will shrink if too big)')
-    parser.add_argument('--clean', action='store_true', help='Clean by deleting other database files after build')
-    parser.add_argument('--workOnDisk', action='store_true', help='Work on disk instead of RAM. This is generally much slower unless the "db" directory lives on a RAM disk.')
-    util.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util.cmd.attach_main(parser, krakenuniq_build, split_args=True)
-    return parser
-def krakenuniq_build(db, library, taxonomy=None, subsetTaxonomy=None,
-                     threads=None, workOnDisk=False,
-                     minimizerLen=None, kmerLen=None, maxDbSize=None, clean=False):
-    '''
-    Builds a krakenuniq database from library directory of fastas and taxonomy
-    db directory. The --subsetTaxonomy option allows shrinking the taxonomy to
-    only include taxids associated with the library folders. For this to work,
-    the library fastas must have the standard accession id names such as
-    `>NC1234.1` or `>NC_01234.1`.
-
-    Setting the --minimizerLen (default: 16) small, such as 10, will drastically
-    shrink the db size for small inputs, which is useful for testing.
-
-    The built db may include symlinks to the original --library / --taxonomy
-    directories. If you want to build a static archiveable version of the
-    library, simply use the --clean option, which will also remove any
-    unnecessary files.
-    '''
-    util.file.mkdir_p(db)
-    library_dir = os.path.join(db, 'library')
-    library_exists = os.path.exists(library_dir)
-    if library:
-        try:
-            os.symlink(os.path.abspath(library), os.path.join(db, 'library'))
-        except FileExistsError:
-            pass
-    else:
-        if not library_exists:
-            raise FileNotFoundError('Library directory {} not found'.format(library_dir))
-
-    taxonomy_dir = os.path.join(db, 'taxonomy')
-    taxonomy_exists = os.path.exists(taxonomy_dir)
-    if taxonomy:
-        if taxonomy_exists:
-            raise KrakenUniqBuildError('Output db directory already contains taxonomy directory {}'.format(taxonomy_dir))
-        if subsetTaxonomy:
-            accessions = fasta_library_accessions(library)
-
-            whitelist_accession_f = util.file.mkstempfname()
-            with open(whitelist_accession_f, 'wt') as f:
-                for accession in accessions:
-                    print(accession, file=f)
-
-            # Context-managerize eventually
-            taxonomy_tmp = tempfile.mkdtemp()
-            subset_taxonomy(taxonomy, taxonomy_tmp, whitelistAccessionFile=whitelist_accession_f)
-            shutil.move(taxonomy_tmp, taxonomy_dir)
-        else:
-            os.symlink(os.path.abspath(taxonomy), taxonomy_dir)
-    else:
-        if not taxonomy_exists:
-            raise FileNotFoundError('Taxonomy directory {} not found'.format(taxonomy_dir))
-        if subsetTaxonomy:
-            raise KrakenUniqBuildError('Cannot subset taxonomy if already in db folder')
-
-    krakenuniq_tool = classify.kraken.KrakenUniq()
-    options = {'--build': None}
-    if threads:
-        options['--threads'] = threads
-    if minimizerLen:
-        options['--minimizer-len'] = minimizerLen
-    if kmerLen:
-        options['--kmer-len'] = kmerLen
-    if maxDbSize:
-        options['--max-db-size'] = maxDbSize
-    if workOnDisk:
-        options['--work-on-disk'] = None
-    krakenuniq_tool.build(db, options=options)
-
-    if clean:
-        krakenuniq_tool.execute('krakenuniq-build', db, '', options={'--clean': None})
-# KrakenUniq disabled from future versions for now, pending conda rebuild of @yesimon's custom fork & dependencies
-#__commands__.append(('krakenuniq_build', parser_krakenuniq_build))
-
 def full_parser():
-    return util.cmd.make_parser(__commands__, __doc__)
+    return cmd.make_parser(__commands__, __doc__)
 
 
 if __name__ == '__main__':
-    util.cmd.main_argparse(__commands__, __doc__)
+    cmd.main_argparse(__commands__, __doc__)

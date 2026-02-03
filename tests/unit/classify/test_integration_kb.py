@@ -6,14 +6,14 @@ from pathlib import Path
 import anndata
 import pytest
 
-import metagenomics
-import util.file
-import tools.picard
+from viral_ngs import metagenomics
+from viral_ngs.core import file as util_file
+from viral_ngs.core import picard
 
 
 @pytest.fixture(scope='module')
 def kb_inputs():
-    base = os.path.join(util.file.get_test_input_path(), 'TestKbPython')
+    base = os.path.join(util_file.get_test_input_path(), 'TestKbPython')
     fastq = os.path.join(base, 'SRR12340077.2.sample.fastq.gz')
     index = os.path.join(base, 'palmdb.corona.idx')
     t2g = os.path.join(base, 'palmdb_clustered_t2g.txt')
@@ -29,7 +29,7 @@ def kb_bam(tmp_path_factory, kb_inputs):
     workdir = tmp_path_factory.mktemp('kb_input_bam')
     bam_path = Path(workdir) / 'input.bam'
     try:
-        picard = tools.picard.FastqToSamTool()
+        picard = picard.FastqToSamTool()
         picard.execute(kb_inputs['fastq'], None, 'kb_sample', str(bam_path))
     except Exception as exc:
         pytest.skip(f"Unable to create BAM for kb tests: {exc}")
@@ -79,7 +79,7 @@ def kb_extract_result(tmp_path_factory, kb_inputs, kb_bam):
     _run_metagenomics(metagenomics.parser_kb_extract, argv, cwd=str(workdir))
     extracted = out_dir / 'u100031' / '1.fastq.gz'
     assert extracted.exists(), f"Expected extracted reads at {extracted}"
-    count = util.file.count_fastq_reads(str(extracted))
+    count = util_file.count_fastq_reads(str(extracted))
     return {'workdir': Path(workdir), 'reads': extracted, 'count': count}
 
 

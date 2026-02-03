@@ -2,17 +2,15 @@ import gzip
 import os
 from os.path import join
 import shutil
-import tools
-import classify.kaiju
-import tools.picard
-import classify.krona
-import util.file
+
+from viral_ngs.classify import krona as krona_module
+from viral_ngs.core import file
 
 # @pytest.fixture(scope='module')
 def krona():
-    krona = classify.krona.Krona()
-    krona.install()
-    return krona
+    krona_tool = krona_module.Krona()
+    krona_tool.install()
+    return krona_tool
 
 
 # @pytest.fixture(scope='module', params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
@@ -22,7 +20,7 @@ def db_type(request):
 
 # @pytest.fixture(scope='module')
 def krona_db(request, tmpdir_module, krona, db_type):
-    data_dir = join(util.file.get_test_input_path(), db_type)
+    data_dir = join(file.get_test_input_path(), db_type)
     db_dir = join(data_dir, 'db')
 
     db = join(tmpdir_module, 'krona_db_{}'.format(db_type))
@@ -38,7 +36,7 @@ def krona_db(request, tmpdir_module, krona, db_type):
 
 def taxonomy_db(request, tmpdir_module, db_type):
     taxonomy = join(tmpdir_module, db_type, 'taxonomy')
-    shutil.copytree(join(util.file.get_test_input_path(), db_type, 'db', 'taxonomy'),
+    shutil.copytree(join(file.get_test_input_path(), db_type, 'db', 'taxonomy'),
                     taxonomy)
     prot = join(taxonomy, 'accession2taxid', 'prot.accession2taxid')
     prot_gz = prot + '.gz'

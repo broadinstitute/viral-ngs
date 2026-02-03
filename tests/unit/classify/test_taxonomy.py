@@ -1,12 +1,12 @@
 import os.path
 from os.path import join
 
-import util.file
-import metagenomics
+from viral_ngs.core import file as util_file
+from viral_ngs import metagenomics
 
 
 def test_taxonomy_subset_zaire(request, tmpdir_factory):
-    data_dir = join(util.file.get_test_input_path(), 'TestMetagenomicsSimple')
+    data_dir = join(util_file.get_test_input_path(), 'TestMetagenomicsSimple')
     db_dir = join(data_dir, 'db', 'taxonomy')
     sub_dir = str(tmpdir_factory.mktemp('taxonomy_subset'))
     # Zaire species

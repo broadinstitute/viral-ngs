@@ -8,14 +8,14 @@ from os.path import join
 #import lxml.html.clean
 import pytest
 
-import metagenomics
+from viral_ngs import metagenomics
 import shutil
 import unittest
-import util.file
-import tools
-import classify.kraken2
-import classify.krona
-import tools.picard
+from viral_ngs.core import file as util_file
+from viral_ngs import core as tools
+from viral_ngs.classify import kraken2
+from viral_ngs.classify import krona
+from viral_ngs.core import picard
 import test.unit.fixtures
 
 
@@ -30,12 +30,12 @@ krona_db = pytest.fixture(scope='module')(test.unit.fixtures.krona_db)
 
 @pytest.fixture()
 def input_bam(db_type):
-    data_dir = join(util.file.get_test_input_path(), db_type)
+    data_dir = join(util_file.get_test_input_path(), db_type)
     return join(data_dir, 'test-reads.bam')
 
 @pytest.fixture(scope='module')
 def kraken2():
-    kraken2 = classify.kraken2.Kraken2()
+    kraken2 = kraken2.Kraken2()
     kraken2.install()
     return kraken2
 
@@ -47,13 +47,13 @@ def db_type(request):
 
 @pytest.fixture(scope='module')
 def kraken2_db(request, tmpdir_module, kraken2, db_type):
-    data_dir = join(util.file.get_test_input_path(), db_type)
+    data_dir = join(util_file.get_test_input_path(), db_type)
     db_dir = join(data_dir, 'db')
 
     db = join(tmpdir_module, 'kraken2_db_{}'.format(db_type))
     parser = metagenomics.parser_kraken2_build(argparse.ArgumentParser())
     cmd = [db, '--tax_db', join(db_dir, 'taxonomy')]
-    util.file.mkdir_p(db)
+    util_file.mkdir_p(db)
     shutil.copytree(os.path.join(db_dir, 'library'), os.path.join(db, 'library'))
 
     parser.parse_args(cmd)
@@ -63,16 +63,16 @@ def kraken2_db(request, tmpdir_module, kraken2, db_type):
 
 
 def test_kraken2(kraken2_db, input_bam):
-    out_report = util.file.mkstempfname('.report')
-    out_reads = util.file.mkstempfname('.reads')
+    out_report = util_file.mkstempfname('.report')
+    out_reads = util_file.mkstempfname('.reads')
     cmd = [kraken2_db, input_bam, '--outReports', out_report, '--outReads', out_reads]
     parser = metagenomics.parser_kraken2(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
 
-    with util.file.open_or_gzopen(out_reads, 'r') as inf:
+    with util_file.open_or_gzopen(out_reads, 'r') as inf:
         assert len(inf.read()) > 0
-    with util.file.open_or_gzopen(out_report) as inf:
+    with util_file.open_or_gzopen(out_report) as inf:
         report_lines = [x.strip().split('\t') for x in inf.readlines()]
         report_lines = [x for x in report_lines if x]
 
@@ -92,15 +92,15 @@ def test_kraken2(kraken2_db, input_bam):
 
 
 def test_kraken2_krona(kraken2_db, krona_db, input_bam):
-    out_report = util.file.mkstempfname('.report')
-    out_reads = util.file.mkstempfname('.reads.gz')
+    out_report = util_file.mkstempfname('.report')
+    out_reads = util_file.mkstempfname('.reads.gz')
 
     cmd = [kraken2_db, input_bam, '--outReport', out_report, '--outReads', out_reads]
     parser = metagenomics.parser_kraken2(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
 
-    out_html = util.file.mkstempfname('.krona.html')
+    out_html = util_file.mkstempfname('.krona.html')
     parser = metagenomics.parser_krona(argparse.ArgumentParser())
     args = parser.parse_args(['--inputType', 'kraken2', out_report, krona_db, out_html])
     args.func_main(args)
@@ -121,15 +121,15 @@ def test_kraken2_krona(kraken2_db, krona_db, input_bam):
 def test_kraken2_on_empty(kraken2_db, input_bam):
     if 'TestMetagenomicsViralMix' not in kraken2_db:
         return
-    input_bam = join(util.file.get_test_input_path(), 'empty.bam')
-    out_report = util.file.mkstempfname('.report')
-    out_reads = util.file.mkstempfname('.reads')
+    input_bam = join(util_file.get_test_input_path(), 'empty.bam')
+    out_report = util_file.mkstempfname('.report')
+    out_reads = util_file.mkstempfname('.reads')
     cmd = [kraken2_db, input_bam, '--outReport', out_report, '--outReads', out_reads]
     parser = metagenomics.parser_kraken2(argparse.ArgumentParser())
     args = parser.parse_args(cmd)
     args.func_main(args)
 
-    with util.file.open_or_gzopen(out_reads, 'r') as inf:
+    with util_file.open_or_gzopen(out_reads, 'r') as inf:
         assert len(inf.read()) == 0
 
     #assert is_gz_file(out_reads)

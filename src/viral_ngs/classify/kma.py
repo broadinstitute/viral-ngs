@@ -7,21 +7,21 @@ import os.path
 import shutil
 import subprocess
 
-import tools
-import tools.picard
-import tools.samtools
-import util.file
-import util.misc
+from viral_ngs import core
+from viral_ngs.core import picard
+from viral_ngs.core import samtools
+from viral_ngs.core import file
+from viral_ngs.core import misc
 from builtins import super
 
 log = logging.getLogger(__name__)
 
-class KMA(tools.Tool):
+class KMA(core.Tool):
 
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
-            install_methods.append(tools.PrexistingUnixCommand(shutil.which('kma'), require_executability=False))
+            install_methods.append(core.PrexistingUnixCommand(shutil.which('kma'), require_executability=False))
         super(KMA, self).__init__(install_methods=install_methods)
 
     def version(self):
@@ -80,7 +80,7 @@ class KMA(tools.Tool):
             '-o': db_prefix
         }
         if num_threads:
-            opts['-t'] = util.misc.sanitize_thread_count(num_threads)
+            opts['-t'] = misc.sanitize_thread_count(num_threads)
 
         self.execute('kma_index', options=opts)
 
@@ -93,24 +93,24 @@ class KMA(tools.Tool):
           out_prefix: Output prefix for KMA result files.
           num_threads: Number of threads to use.
         '''
-        if tools.samtools.SamtoolsTool().isEmpty(in_bam):
+        if samtools.SamtoolsTool().isEmpty(in_bam):
             log.warning("Input BAM is empty, skipping KMA classification")
             with open(out_prefix + '.res', 'wt') as outf:
                 pass
             return
 
-        tmp_fastq1 = util.file.mkstempfname('.1.fastq')
-        tmp_fastq2 = util.file.mkstempfname('.2.fastq')
-        tmp_fastq3 = util.file.mkstempfname('.s.fastq')
+        tmp_fastq1 = file.mkstempfname('.1.fastq')
+        tmp_fastq2 = file.mkstempfname('.2.fastq')
+        tmp_fastq3 = file.mkstempfname('.s.fastq')
 
         try:
-            picard = tools.picard.SamToFastqTool()
+            picard = picard.SamToFastqTool()
             picard_opts = {
-                'CLIPPING_ATTRIBUTE': tools.picard.SamToFastqTool.illumina_clipping_attribute,
+                'CLIPPING_ATTRIBUTE': picard.SamToFastqTool.illumina_clipping_attribute,
                 'CLIPPING_ACTION': 'X'
             }
             picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
-                           picardOptions=tools.picard.PicardTools.dict_to_picard_opts(picard_opts),
+                           picardOptions=picard.PicardTools.dict_to_picard_opts(picard_opts),
                            JVMmemory=picard.jvmMemDefault)
 
             opts = {
@@ -118,7 +118,7 @@ class KMA(tools.Tool):
                 '-o': out_prefix
             }
             if num_threads:
-                opts['-t'] = util.misc.sanitize_thread_count(num_threads)
+                opts['-t'] = misc.sanitize_thread_count(num_threads)
 
             # SamToFastq outputs paired reads to tmp_fastq1/2 and unpaired to tmp_fastq3.
             # For true paired-end data, tmp_fastq2 will be larger than tmp_fastq3.

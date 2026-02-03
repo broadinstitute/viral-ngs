@@ -14,10 +14,10 @@ import pytest
 import mock
 from mock import patch
 
-import tools.picard
-import metagenomics
-import util.file
-import util.misc
+from viral_ngs.core import picard
+from viral_ngs import metagenomics
+from viral_ngs.core import file as util_file
+from viral_ngs.core import misc as util_misc
 from test import TestCaseWithTmp, assert_equal_bam_reads, _CPUS
 
 if six.PY2:
@@ -38,15 +38,15 @@ class TestKronaCalls(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        patcher = patch('classify.krona.Krona', autospec=True)
+        patcher = patch('krona.Krona', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_krona = patcher.start()
 
-        self.inTsv = util.file.mkstempfname('.tsv')
+        self.inTsv = util_file.mkstempfname('.tsv')
         self.db = tempfile.mkdtemp('db')
 
     def test_krona_import_taxonomy(self):
-        out_html = util.file.mkstempfname('.html')
+        out_html = util_file.mkstempfname('.html')
         metagenomics.krona([self.inTsv], self.db, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7,
                            noHits=True, noRank=True, inputType='tsv')
         self.mock_krona().import_taxonomy.assert_called_once_with(
@@ -123,7 +123,7 @@ def ranks():
 
 @pytest.fixture
 def simple_m8():
-    test_path = join(util.file.get_test_input_path(),
+    test_path = join(util_file.get_test_input_path(),
                              'TestTaxonomy')
     return open(join(test_path, 'simple.m8'))
 
@@ -170,7 +170,7 @@ def test_rank_code():
 
 
 def test_blast_records(simple_m8):
-    test_path = join(util.file.get_test_input_path(),
+    test_path = join(util_file.get_test_input_path(),
                              'TestTaxonomy')
     with simple_m8 as f:
         records = list(metagenomics.blast_records(f))
@@ -180,7 +180,7 @@ def test_blast_records(simple_m8):
 
 
 def test_blast_lca(taxa_db_simple, simple_m8):
-    test_path = join(util.file.get_test_input_path(),
+    test_path = join(util_file.get_test_input_path(),
                              'TestTaxonomy')
     expected = textwrap.dedent("""\
     C\tM04004:13:000000000-AGV3H:1:1101:12068:2105\t2
@@ -290,10 +290,10 @@ def test_kaiju(mocker):
 class TestBamFilter(TestCaseWithTmp):
     def test_bam_filter_simple(self):
         temp_dir = tempfile.gettempdir()
-        input_dir = util.file.get_test_input_path(self)
-        taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
+        input_dir = util_file.get_test_input_path(self)
+        taxonomy_dir = os.path.join(util_file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
 
-        filtered_bam = util.file.mkstempfname('.bam')
+        filtered_bam = util_file.mkstempfname('.bam')
         args = [
             os.path.join(input_dir,"input.bam"),
             os.path.join(input_dir,"input.kraken-reads.tsv.gz"),
@@ -311,10 +311,10 @@ class TestBamFilter(TestCaseWithTmp):
 
     def test_bam_filter_by_tax_id(self):
         temp_dir = tempfile.gettempdir()
-        input_dir = util.file.get_test_input_path(self)
-        taxonomy_dir = os.path.join(util.file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
+        input_dir = util_file.get_test_input_path(self)
+        taxonomy_dir = os.path.join(util_file.get_test_input_path(),"TestMetagenomicsSimple","db","taxonomy")
 
-        filtered_bam = util.file.mkstempfname('.bam')
+        filtered_bam = util_file.mkstempfname('.bam')
         args = [
             os.path.join(input_dir,"input.bam"),
             os.path.join(input_dir,"input.kraken-reads.tsv.gz"),

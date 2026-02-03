@@ -3,23 +3,23 @@ import os
 
 import pytest
 
-import classify.kb
-import util.file
-import util.misc
+from viral_ngs.classify import kb
+from viral_ngs.core import file as util_file
+from viral_ngs.core import misc as util_misc
 
 
 @pytest.fixture
 def kb_tool(mocker):
-    mocker.patch('classify.kb.shutil.which', return_value='/usr/bin/kb')
-    return classify.kb.kb()
+    mocker.patch('kb.shutil.which', return_value='/usr/bin/kb')
+    return kb.kb()
 
 
 @pytest.fixture
 def kb_inputs():
-    base = os.path.join(util.file.get_test_input_path(), 'TestKbPython')
+    base = os.path.join(util_file.get_test_input_path(), 'TestKbPython')
     paths = {
         'fastq': os.path.join(base, 'SRR12340077.2.sample.fastq.gz'),
-        'bam': os.path.join(util.file.get_test_input_path(), 'G5012.3.testreads.bam'),
+        'bam': os.path.join(util_file.get_test_input_path(), 'G5012.3.testreads.bam'),
         'index': os.path.join(base, 'palmdb.corona.idx'),
         't2g': os.path.join(base, 'palmdb_clustered_t2g.txt'),
     }
@@ -29,21 +29,21 @@ def kb_inputs():
 
 
 def _mock_common_io(mocker, mkstemp_paths, *, is_empty=False):
-    mocker.patch('classify.kb.util.file.mkstempfname', side_effect=mkstemp_paths)
-    mocker.patch('classify.kb.os.unlink')
+    mocker.patch('kb.util_file.mkstempfname', side_effect=mkstemp_paths)
+    mocker.patch('kb.os.unlink')
 
-    picard_cls = mocker.patch('classify.kb.tools.picard.SamToFastqTool', autospec=True)
+    picard_cls = mocker.patch('kb.picard.SamToFastqTool', autospec=True)
     picard_cls.illumina_clipping_attribute = 'XT'
     picard = picard_cls.return_value
     picard.jvmMemDefault = '4G'
     picard.execute.return_value = None
-    mocker.patch('classify.kb.tools.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts')
+    mocker.patch('kb.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts')
 
-    samtools_cls = mocker.patch('classify.kb.tools.samtools.SamtoolsTool', autospec=True)
+    samtools_cls = mocker.patch('kb.samtools.SamtoolsTool', autospec=True)
     samtools = samtools_cls.return_value
     samtools.isEmpty.return_value = is_empty
 
-    mock_popen = mocker.patch('classify.kb.subprocess.Popen', autospec=True)
+    mock_popen = mocker.patch('kb.subprocess.Popen', autospec=True)
     mock_process = mock_popen.return_value
     mock_process.communicate.return_value = ('', '')
     mock_process.returncode = 0
@@ -55,7 +55,7 @@ def _mock_common_io(mocker, mkstemp_paths, *, is_empty=False):
 
 
 def test_build_invokes_kb_ref_with_expected_arguments(mocker, kb_tool, kb_inputs):
-    mock_popen = mocker.patch('classify.kb.subprocess.Popen', autospec=True)
+    mock_popen = mocker.patch('kb.subprocess.Popen', autospec=True)
     mock_process = mock_popen.return_value
     mock_process.communicate.return_value = ('', '')
     mock_process.returncode = 0
@@ -64,12 +64,12 @@ def test_build_invokes_kb_ref_with_expected_arguments(mocker, kb_tool, kb_inputs
 
     args = mock_popen.call_args[0][0]
     assert ['kb', 'ref'] == args[:2]
-    assert util.misc.list_contains(['-i', kb_inputs['index']], args)
-    assert util.misc.list_contains(['-k', '27'], args)
-    assert util.misc.list_contains(['--workflow', 'custom'], args)
+    assert util_misc.list_contains(['-i', kb_inputs['index']], args)
+    assert util_misc.list_contains(['-k', '27'], args)
+    assert util_misc.list_contains(['--workflow', 'custom'], args)
     assert '--aa' in args
-    expected_threads = str(util.misc.sanitize_thread_count(9))
-    assert util.misc.list_contains(['-t', expected_threads], args)
+    expected_threads = str(util_misc.sanitize_thread_count(9))
+    assert util_misc.list_contains(['-t', expected_threads], args)
     assert args[-1] == kb_inputs['fastq']
 
 
@@ -83,21 +83,21 @@ def test_classify_runs_kb_count_single_end_from_bam(mocker, kb_tool, kb_inputs):
         'single.s.fastq': 10,
     }
     # Use get() with a default value to handle files not in the map (e.g., /proc/self/status)
-    mocker.patch('classify.kb.os.path.getsize', side_effect=lambda path: size_map.get(path, 1000))
+    mocker.patch('kb.os.path.getsize', side_effect=lambda path: size_map.get(path, 1000))
     
     # Mock glob to prevent h5ad metadata addition code from running
-    mocker.patch('classify.kb.glob.glob', return_value=[])
+    mocker.patch('kb.glob.glob', return_value=[])
 
     kb_tool.classify(kb_inputs['bam'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'], num_threads=3, loom=True)
 
     args = mocks['popen'].call_args[0][0]
     assert ['kb', 'count'] == args[:2]
     assert args[-1] == 'single.s.fastq'
-    assert util.misc.list_contains(['--parity', 'single'], args)
+    assert util_misc.list_contains(['--parity', 'single'], args)
     assert '--loom' in args
     assert '--h5ad' not in args
-    expected_threads = str(util.misc.sanitize_thread_count(3))
-    assert util.misc.list_contains(['-t', expected_threads], args)
+    expected_threads = str(util_misc.sanitize_thread_count(3))
+    assert util_misc.list_contains(['-t', expected_threads], args)
     mocks['picard_execute'].assert_called_once_with(
         kb_inputs['bam'],
         'single.1.fastq',
@@ -110,29 +110,29 @@ def test_classify_runs_kb_count_single_end_from_bam(mocker, kb_tool, kb_inputs):
 
 def test_classify_runs_kb_count_with_fastq_input(mocker, kb_tool, kb_inputs):
     """Test classify with FASTQ input - should skip Picard and use file directly"""
-    mocker.patch('classify.kb.os.path.exists', return_value=True)
+    mocker.patch('kb.os.path.exists', return_value=True)
     
-    mock_popen = mocker.patch('classify.kb.subprocess.Popen', autospec=True)
+    mock_popen = mocker.patch('kb.subprocess.Popen', autospec=True)
     mock_process = mock_popen.return_value
     mock_process.communicate.return_value = ('', '')
     mock_process.returncode = 0
 
-    samtools_cls = mocker.patch('classify.kb.tools.samtools.SamtoolsTool', autospec=True)
+    samtools_cls = mocker.patch('kb.samtools.SamtoolsTool', autospec=True)
     samtools = samtools_cls.return_value
     samtools.isEmpty.return_value = False
     
     # Mock glob to prevent h5ad metadata addition code from running
-    mocker.patch('classify.kb.glob.glob', return_value=[])
+    mocker.patch('kb.glob.glob', return_value=[])
 
     kb_tool.classify(kb_inputs['fastq'], kb_inputs['index'], 'out_dir', kb_inputs['t2g'], num_threads=3, h5ad=True)
 
     args = mock_popen.call_args[0][0]
     assert ['kb', 'count'] == args[:2]
     assert args[-1] == kb_inputs['fastq']
-    assert util.misc.list_contains(['--parity', 'single'], args)
+    assert util_misc.list_contains(['--parity', 'single'], args)
     assert '--h5ad' in args
-    expected_threads = str(util.misc.sanitize_thread_count(3))
-    assert util.misc.list_contains(['-t', expected_threads], args)
+    expected_threads = str(util_misc.sanitize_thread_count(3))
+    assert util_misc.list_contains(['-t', expected_threads], args)
 
 
 def test_classify_returns_early_when_bam_is_empty(mocker, kb_tool, kb_inputs):

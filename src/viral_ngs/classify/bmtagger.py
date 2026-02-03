@@ -1,19 +1,19 @@
-"tools.Tool for bmtagger.sh."
+"core.Tool for bmtagger.sh."
 
-import tools
-import util.file
+from viral_ngs import core
+from viral_ngs.core import file
 import os
 import logging
 import shutil
 import subprocess
-from tools import urlretrieve
+from urllib.request import urlretrieve
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = "bmtagger"
 TOOL_VERSION = "3.101"
 
 
-class BmtaggerTools(tools.Tool):
+class BmtaggerTools(core.Tool):
     '''
     "Abstract" base class for bmtagger.sh, bmfilter, extract_fullseq, srprism.
     Subclasses must define class member subtool_name.
@@ -32,8 +32,8 @@ class BmtaggerTools(tools.Tool):
         self.subtool_name = self.subtool_name if hasattr(self, "subtool_name") else "bmtagger.sh"
         if install_methods is None:
             install_methods = []
-            install_methods = [tools.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
-        tools.Tool.__init__(self, install_methods=install_methods)
+            install_methods = [core.PrexistingUnixCommand(shutil.which(self.subtool_name), require_executability=False)]
+        core.Tool.__init__(self, install_methods=install_methods)
 
     def execute(self, *args):
         cmd = [self.install_and_get_path()]
@@ -80,8 +80,8 @@ class BmtoolTool(BmtaggerTools):
         # if more than one fasta file is specified, join them
         # otherwise if only one is specified, just use it
         if len(fasta_files) > 1:
-            input_fasta = util.file.mkstempfname("fasta")
-            util.file.cat(input_fasta, fasta_files)
+            input_fasta = file.mkstempfname("fasta")
+            file.cat(input_fasta, fasta_files)
         elif len(fasta_files) == 1:
             input_fasta = fasta_files[0]
         else:
@@ -120,8 +120,8 @@ class SrprismTool(BmtaggerTools):
         # if more than one fasta file is specified, join them
         # otherwise if only one is specified, just use it
         if len(fasta_files) > 1:
-            input_fasta = util.file.mkstempfname("fasta")
-            util.file.cat(input_fasta, fasta_files)
+            input_fasta = file.mkstempfname("fasta")
+            file.cat(input_fasta, fasta_files)
         elif len(fasta_files) == 1:
             input_fasta = fasta_files[0]
         else:
