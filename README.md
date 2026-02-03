@@ -2,6 +2,7 @@
 
 [![Build and Test](https://github.com/broadinstitute/viral-ngs/actions/workflows/docker.yml/badge.svg)](https://github.com/broadinstitute/viral-ngs/actions/workflows/docker.yml)
 [![codecov](https://codecov.io/gh/broadinstitute/viral-ngs/graph/badge.svg)](https://codecov.io/gh/broadinstitute/viral-ngs)
+[![Documentation Status](https://readthedocs.org/projects/viral-ngs/badge/?version=latest)](https://viral-ngs.readthedocs.io/en/latest/?badge=latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Consolidated tools for viral NGS (Next-Generation Sequencing) data analysis.

@@ -19,7 +19,9 @@ import os
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.dirname(os.path.abspath('.')))
+# Add the project root to sys.path so viral_ngs package can be found
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(project_root, 'src'))
 
 # -- Mock out the heavyweight pip packages, esp those that require C ----
 import mock
@@ -69,7 +71,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'viral-ngs'
-copyright = '2023, Broad Institute Viral Genomics'
+copyright = '2026, Broad Institute Viral Genomics'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

@@ -1,0 +1,52 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+      - '**'
+    paths:
+      - 'docs/**'
+      - 'src/viral_ngs/**'
+      - '.readthedocs.yml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'src/viral_ngs/**'
+      - '.readthedocs.yml'
+      - '.github/workflows/docs.yml'
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git describe version
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r docs/requirements.txt
+          pip install -e .
+
+      - name: Build documentation
+        run: |
+          cd docs
+          sphinx-build -W -b html . _build/html
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/_build/html/
+          retention-days: 7
