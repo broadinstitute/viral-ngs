@@ -26,6 +26,7 @@ from .core import file as util_file, misc as util_misc, cmd as util_cmd
 from .core import samtools
 from .core import bwa
 from .core import fastqc
+from .core import picard
 from .core.stats import mean, median
 
 log = logging.getLogger(__name__)
