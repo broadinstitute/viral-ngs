@@ -15,7 +15,7 @@ from viral_ngs.core import file as util_file
 from viral_ngs.classify import last
 from viral_ngs.classify import bmtagger
 from viral_ngs.classify import blast
-from test import assert_equal_bam_reads, TestCaseWithTmp
+from tests import assert_equal_bam_reads, TestCaseWithTmp
 
 
 class TestDepleteHuman(TestCaseWithTmp):

@@ -8,7 +8,7 @@ import unittest
 import viral_ngs.core.file
 import viral_ngs.core
 from viral_ngs.intrahost import vphaser_main
-from test import TestCaseWithTmp, _CPUS
+from tests import TestCaseWithTmp, _CPUS
 
 
 #@unittest.skipIf(viral_ngs.core.is_osx(), "vphaser2 osx binary from bioconda has issues")

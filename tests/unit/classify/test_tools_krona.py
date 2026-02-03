@@ -7,7 +7,7 @@ from mock import patch
 from viral_ngs.core import file as util_file
 from viral_ngs.core import misc as util_misc
 from viral_ngs.classify import krona
-from test import TestCaseWithTmp
+from tests import TestCaseWithTmp
 
 
 class TestToolKrona(TestCaseWithTmp):

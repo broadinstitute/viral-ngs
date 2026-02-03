@@ -8,7 +8,7 @@ import subprocess
 import viral_ngs.core
 import viral_ngs.core.bwa
 import viral_ngs.core.samtools
-from test import TestCaseWithTmp
+from tests import TestCaseWithTmp
 
 class TestToolBwa(TestCaseWithTmp):
 

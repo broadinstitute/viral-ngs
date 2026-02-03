@@ -7,7 +7,7 @@ import unittest
 import viral_ngs.core
 import viral_ngs.core
 import viral_ngs.core.trimmomatic
-from test import TestCaseWithTmp, assert_equal_contents
+from tests import TestCaseWithTmp, assert_equal_contents
 
 class TestTrimmomatic(TestCaseWithTmp):
 

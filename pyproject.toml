@@ -28,6 +28,7 @@ keywords = ["bioinformatics", "genomics", "viral", "ngs", "sequencing"]
 # Note: For Docker-based usage, all deps (including bioinformatics tools) are
 # installed via conda. See docker/requirements/core.txt
 dependencies = [
+    "anndata",
     "arrow>=0.12.1",
     "biopython>=1.72",
     "jinja2>=2.11.3",

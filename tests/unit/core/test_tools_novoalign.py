@@ -9,7 +9,7 @@ import viral_ngs.core
 import viral_ngs.core.novoalign
 import viral_ngs.core.samtools
 import pysam
-from test import TestCaseWithTmp, assert_md5_equal_to_line_in_file
+from tests import TestCaseWithTmp, assert_md5_equal_to_line_in_file
 
 
 class TestToolNovoalign(TestCaseWithTmp):

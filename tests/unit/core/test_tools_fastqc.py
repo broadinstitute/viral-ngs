@@ -8,7 +8,7 @@ import zipfile
 from html.parser import HTMLParser
 import viral_ngs.core
 import viral_ngs.core.fastqc
-from test import TestCaseWithTmp
+from tests import TestCaseWithTmp
 
 
 class HTMLValidator(HTMLParser):

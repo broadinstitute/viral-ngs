@@ -11,7 +11,7 @@ import argparse
 # module-specific
 import viral_ngs.file_utils
 import viral_ngs.core
-from test import TestCaseWithTmp
+from tests import TestCaseWithTmp
 
 class TestCommandHelp(unittest.TestCase):
     def test_help_parser_for_each_command(self):

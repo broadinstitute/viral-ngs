@@ -15,7 +15,7 @@ import tempfile
 import viral_ngs.core
 import viral_ngs.core.bwa
 import viral_ngs.core.samtools
-from test import TestCaseWithTmp, assert_equal_bam_reads
+from tests import TestCaseWithTmp, assert_equal_bam_reads
 
 
 class TestCommandHelp(unittest.TestCase):

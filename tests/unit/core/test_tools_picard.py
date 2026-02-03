@@ -12,7 +12,7 @@ import viral_ngs.core
 import viral_ngs.core
 import viral_ngs.core.picard
 import viral_ngs.core.samtools
-from test import TestCaseWithTmp
+from tests import TestCaseWithTmp
 
 
 class TestToolPicard(TestCaseWithTmp):

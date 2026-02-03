@@ -18,7 +18,7 @@ from viral_ngs.core import picard
 from viral_ngs import metagenomics
 from viral_ngs.core import file as util_file
 from viral_ngs.core import misc as util_misc
-from test import TestCaseWithTmp, assert_equal_bam_reads, _CPUS
+from tests import TestCaseWithTmp, assert_equal_bam_reads, _CPUS
 
 if six.PY2:
     from StringIO import StringIO

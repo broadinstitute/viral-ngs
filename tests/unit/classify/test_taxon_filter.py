@@ -23,7 +23,7 @@ from viral_ngs.classify import last
 from viral_ngs.classify import bmtagger
 from viral_ngs.classify import blast
 
-from test import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
+from tests import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
 
 
 class TestCommandHelp(unittest.TestCase):

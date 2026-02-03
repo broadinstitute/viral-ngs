@@ -12,8 +12,8 @@ import argparse
 import viral_ngs.ncbi
 import viral_ngs.core.file
 import viral_ngs.phylo.genbank
-from test import (assert_equal_bam_reads, TestCaseWithTmp, assert_equal_contents,
-                  assert_md5_equal_to_line_in_file, assert_valid_feature_table)
+from tests import (assert_equal_bam_reads, TestCaseWithTmp, assert_equal_contents,
+                   assert_md5_equal_to_line_in_file, assert_valid_feature_table)
 
 
 class TestCommandHelp(unittest.TestCase):

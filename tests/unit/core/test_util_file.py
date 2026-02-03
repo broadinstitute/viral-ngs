@@ -10,7 +10,7 @@ import subprocess
 import tarfile
 import tempfile
 import viral_ngs.core
-from test import TestCaseWithTmp
+from tests import TestCaseWithTmp
 import pytest
 from mock import patch
 

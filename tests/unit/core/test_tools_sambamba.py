@@ -14,7 +14,7 @@ import viral_ngs.core
 import viral_ngs.core
 import viral_ngs.core.sambamba
 import viral_ngs.core.samtools
-from test import TestCaseWithTmp
+from tests import TestCaseWithTmp
 
 
 # Skip merge tests on ARM platforms where x86 emulation causes segfaults

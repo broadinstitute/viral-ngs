@@ -10,7 +10,7 @@ import subprocess
 import viral_ngs.core
 import viral_ngs.core.minimap2
 import viral_ngs.core.samtools
-from test import TestCaseWithTmp
+from tests import TestCaseWithTmp
 
 class TestToolMinimap2(TestCaseWithTmp):
 
