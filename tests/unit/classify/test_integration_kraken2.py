@@ -34,10 +34,10 @@ def input_bam(db_type):
     return join(data_dir, 'test-reads.bam')
 
 @pytest.fixture(scope='module')
-def kraken2():
-    kraken2 = kraken2.Kraken2()
-    kraken2.install()
-    return kraken2
+def kraken2_tool():
+    tool = kraken2.Kraken2()
+    tool.install()
+    return tool
 
 
 @pytest.fixture(scope='module', params=['TestMetagenomicsSimple', 'TestMetagenomicsViralMix'])
@@ -46,7 +46,7 @@ def db_type(request):
 
 
 @pytest.fixture(scope='module')
-def kraken2_db(request, tmpdir_module, kraken2, db_type):
+def kraken2_db(request, tmpdir_module, kraken2_tool, db_type):
     data_dir = join(util_file.get_test_input_path(), db_type)
     db_dir = join(data_dir, 'db')
 

@@ -39,7 +39,7 @@ def get_assembly_stats(sample,
                        raw_reads_dir='data/00_raw'):
     ''' Fetch assembly-level statistics for a given sample '''
     out = {'sample': sample}
-    samtools = samtools.SamtoolsTool()
+    samtools_tool = samtools.SamtoolsTool()
     header = ['sample',
               'reads_raw',
               'reads_cleaned',
@@ -62,9 +62,9 @@ def get_assembly_stats(sample,
     for adj in ('cleaned', 'taxfilt'):
         reads_bam = os.path.join(reads_dir, '.'.join((sample, adj, 'bam')))
         if os.path.isfile(reads_bam):
-            out['reads_' + adj] = samtools.count(reads_bam)
+            out['reads_' + adj] = samtools_tool.count(reads_bam)
     if os.path.isdir(raw_reads_dir):
-        out['reads_raw'] = sum(samtools.count(bam)
+        out['reads_raw'] = sum(samtools_tool.count(bam)
             # correct issue where sample names containing other sample names as substrings leads
             # to extra files being included in the count
             #
@@ -81,14 +81,14 @@ def get_assembly_stats(sample,
                 out['reads_raw'] = 'ambiguous filenames in raw reads directory!'
             else:
                 # just count the sample.bam reads
-                out['reads_raw'] = samtools.count(sample_raw_fname)
+                out['reads_raw'] = samtools_tool.count(sample_raw_fname)
 
     # pre-assembly stats
     out['assembled_trinity'] = os.path.isfile(os.path.join(assembly_tmp, sample +
                                                            '.assembly1-trinity.fasta')) and 1 or 0
     sub_bam = os.path.join(assembly_tmp, sample + '.subsamp.bam')
     if os.path.isfile(sub_bam):
-        out['trinity_in_reads'] = samtools.count(sub_bam)
+        out['trinity_in_reads'] = samtools_tool.count(sub_bam)
 
     # assembly stats
     assembly_fname = os.path.join(assembly_dir, sample + '.fasta')
@@ -107,9 +107,9 @@ def get_assembly_stats(sample,
     # read counts from align-to-self
     bam_fname = os.path.join(align_dir, sample + '.bam')
     if os.path.isfile(bam_fname):
-        out['aln2self_reads_tot'] = samtools.count(bam_fname)
-        out['aln2self_reads_aln'] = samtools.count(bam_fname, opts=['-F', '4'])
-        out['aln2self_reads_rmdup'] = samtools.count(bam_fname, opts=['-F', '1028'])
+        out['aln2self_reads_tot'] = samtools_tool.count(bam_fname)
+        out['aln2self_reads_aln'] = samtools_tool.count(bam_fname, opts=['-F', '4'])
+        out['aln2self_reads_rmdup'] = samtools_tool.count(bam_fname, opts=['-F', '1028'])
         if out['aln2self_reads_aln']:
             out['aln2self_pct_nondup'] = float(out['aln2self_reads_rmdup']) / out['aln2self_reads_aln']
 
@@ -561,13 +561,13 @@ def plot_coverage(
     binning_summary_statistic="max",
     out_summary=None
     ):
-    ''' 
+    '''
         Generate a coverage plot from an aligned bam file
     '''
-    samtools = samtools.SamtoolsTool()
+    samtools_tool = samtools.SamtoolsTool()
 
     # check if in_bam is aligned, if not raise an error
-    num_mapped_reads = samtools.count(in_bam, opts=["-F", "4"])
+    num_mapped_reads = samtools_tool.count(in_bam, opts=["-F", "4"])
     if num_mapped_reads == 0:
         raise Exception(
             """The bam file specified appears to have zero mapped reads. 'plot_coverage' requires an aligned bam file. You can try 'align_and_plot_coverage' if the plot input bam file contains reads and you don't mind a simple bwa alignment. \n File: %s"""
@@ -583,7 +583,7 @@ def plot_coverage(
     if plot_only_non_duplicates:
         # TODO: this is probably not necessary since "samtools depth" does not count marked duplicates
         # write a new bam file; exclude reads with the 1024 flag set (PCR or optical duplicates)
-        samtools.view(["-F", "1024", '-@', '3'], in_bam, bam_dupe_processed)
+        samtools_tool.view(["-F", "1024", '-@', '3'], in_bam, bam_dupe_processed)
     else:
         bam_dupe_processed = in_bam
 
@@ -591,7 +591,7 @@ def plot_coverage(
     bam_sorted = util_file.mkstempfname('.sorted.bam')
     should_remove_sorted = True
     if not util_file.bam_is_sorted(bam_dupe_processed):
-        samtools.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
+        samtools_tool.sort(bam_dupe_processed, bam_sorted, args=["-O", "bam"])
         if plot_only_non_duplicates:
             os.unlink(bam_dupe_processed)
     else:
@@ -601,7 +601,7 @@ def plot_coverage(
             should_remove_sorted = False
 
     # call samtools index
-    samtools.index(bam_sorted)
+    samtools_tool.index(bam_sorted)
 
     # call samtools depth
     opts = []
@@ -639,7 +639,7 @@ def plot_coverage(
         # "d=True" is the equivalent of passing "-d" to the bedtools CLI
         bt.genome_coverage(d=True).saveas(coverage_tsv_file)
     else:
-        samtools.depth(bam_sorted, coverage_tsv_file, opts)
+        samtools_tool.depth(bam_sorted, coverage_tsv_file, opts)
 
     # only remove the sorted bam if it is not the original input bam
     # which we use directly in some casess 
@@ -820,23 +820,23 @@ def align_and_plot_coverage(
         elif aligner=='bwa':
             aligner_options = '-1' # hidden option to work around kernel/cpu bug; disables multithreaded file read: https://github.com/lh3/bwa/issues/102
 
-    samtools = samtools.SamtoolsTool()
+    samtools_tool = samtools.SamtoolsTool()
 
     ref_indexed = util_file.mkstempfname('.reference.fasta')
     shutil.copyfile(ref_fasta, ref_indexed)
 
     aln_bam = util_file.mkstempfname('.bam')
     if aligner=="bwa":
-        bwa = bwa.Bwa()
-        
+        bwa_tool = bwa.Bwa()
 
-        bwa.index(ref_indexed)
+
+        bwa_tool.index(ref_indexed)
 
         bwa_opts = aligner_options.split()
         if sensitive:
             bwa_opts += "-k 12 -A 1 -B 1 -O 1 -E 1".split()
 
-        bwa.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts,
+        bwa_tool.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts,
                           min_score_to_filter=min_score_to_filter)
     elif aligner=="novoalign":
         
@@ -860,7 +860,7 @@ def align_and_plot_coverage(
     else:
         aln_bam_dupe_processed = aln_bam
 
-    samtools.sort(aln_bam_dupe_processed, bam_aligned)
+    samtools_tool.sort(aln_bam_dupe_processed, bam_aligned)
     os.unlink(aln_bam)
     
     if excludeDuplicates:

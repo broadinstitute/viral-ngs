@@ -389,8 +389,8 @@ class DownsampleSamTool(PicardTools):
         JVMmemory=None
     ):    # pylint: disable=W0221):
 
-        samtools = samtools.SamtoolsTool()
-        total_read_count = samtools.count(inBam)
+        samtools_tool = samtools.SamtoolsTool()
+        total_read_count = samtools_tool.count(inBam)
 
         if total_read_count == 0:
             _log.info("Input BAM has no reads. Copying to output.")

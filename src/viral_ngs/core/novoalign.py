@@ -77,12 +77,12 @@ class NovoalignTool(Tool):
         '''
         options = options or ["-r", "Random"]
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
 
         # fetch list of RGs
-        rgs = samtools.getReadGroups(inBam)
+        rgs = samtools_tool.getReadGroups(inBam)
 
-        rgs_list = list(samtools.getReadGroups(inBam).keys())
+        rgs_list = list(samtools_tool.getReadGroups(inBam).keys())
         if len(rgs) == 0:
             # Can't do this
             raise InvalidBamHeaderError("{} lacks read groups".format(inBam))
@@ -127,10 +127,10 @@ class NovoalignTool(Tool):
         '''
         options = options or ["-r", "Random"]
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
 
         # Require exactly one RG
-        rgs = rgs if rgs is not None else samtools.getReadGroups(inBam)
+        rgs = rgs if rgs is not None else samtools_tool.getReadGroups(inBam)
         if len(rgs) == 0:
             raise InvalidBamHeaderError("{} lacks read groups".format(inBam))
         elif len(rgs) == 1:
@@ -148,22 +148,22 @@ class NovoalignTool(Tool):
         else:
             # strip inBam to one read group
             tmp_bam = util_file.mkstempfname('.onebam.bam')
-            samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
+            samtools_tool.view(['-b', '-r', rgid], inBam, tmp_bam)
             # special exit if this file is empty
-            if samtools.count(tmp_bam) == 0:
+            if samtools_tool.count(tmp_bam) == 0:
                 return
 
             # simplify BAM header otherwise Novoalign gets confused
             one_rg_inBam = util_file.mkstempfname('.{}.in.bam'.format(rgid))
             headerFile = util_file.mkstempfname('.{}.header.txt'.format(rgid))
             with open(headerFile, 'wt') as outf:
-                for row in samtools.getHeader(inBam):
+                for row in samtools_tool.getHeader(inBam):
                     if len(row) > 0 and row[0] == '@RG':
                         if rgid != list(x[3:] for x in row if x.startswith('ID:'))[0]:
                             # skip all read groups that are not rgid
                             continue
                     outf.write('\t'.join(row) + '\n')
-            samtools.reheader(tmp_bam, headerFile, one_rg_inBam)
+            samtools_tool.reheader(tmp_bam, headerFile, one_rg_inBam)
             os.unlink(tmp_bam)
             os.unlink(headerFile)
 
@@ -179,7 +179,7 @@ class NovoalignTool(Tool):
         # Samtools filter (optional)
         if min_qual:
             tmp_bam2 = util_file.mkstempfname('.filtered.bam')
-            samtools.view(['-b', '-S', '-1', '-q', str(min_qual)], tmp_sam, tmp_bam2)
+            samtools_tool.view(['-b', '-S', '-1', '-q', str(min_qual)], tmp_sam, tmp_bam2)
             os.unlink(tmp_sam)
             tmp_sam = tmp_bam2
 

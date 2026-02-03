@@ -12,7 +12,6 @@ import subprocess
 
 from Bio import SeqIO
 
-from . import samtools, picard  # was: from viral_ngs import tools
 from . import samtools
 from . import picard
 from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
@@ -54,7 +53,7 @@ class Minimap2(Tool):
         threads = util_misc.sanitize_thread_count(threads)
 
         # fetch list of RGs
-        rgs = list(samtools.getReadGroups(inBam).keys())
+        rgs = list(samtools_tool.getReadGroups(inBam).keys())
 
         if len(rgs) == 0:
             # Can't do this
@@ -79,7 +78,7 @@ class Minimap2(Tool):
                     threads=threads,
                     should_index=False  # Don't index intermediate BAMs that will be merged
                 )
-                if not samtools.isEmpty(tmp_bam):
+                if not samtools_tool.isEmpty(tmp_bam):
                     align_bams.append(tmp_bam)
                 else:
                     log.warning("No alignment output for RG %s in file %s against %s", rg, inBam, refDb)
@@ -87,8 +86,8 @@ class Minimap2(Tool):
             if len(align_bams)==0:
                 log.warning("All read groups in file %s appear to be empty.", inBam)
                 with util_file.tempfname('.empty.sam') as empty_sam:
-                    samtools.dumpHeader(inBam, empty_sam)
-                    samtools.sort(empty_sam, outBam)
+                    samtools_tool.dumpHeader(inBam, empty_sam)
+                    samtools_tool.sort(empty_sam, outBam)
             else:
                 # Merge BAMs, sort, and index
                 picardOptions = ['SORT_ORDER=coordinate', 'USE_THREADING=true', 'CREATE_INDEX=true']
@@ -117,7 +116,7 @@ class Minimap2(Tool):
         samtools_tool = samtools.SamtoolsTool()
 
         # Require exactly one RG
-        rgs = samtools.getReadGroups(inBam)
+        rgs = samtools_tool.getReadGroups(inBam)
         if len(rgs) == 0:
             raise InvalidBamHeaderError("{} lacks read groups".format(inBam))
         elif len(rgs) == 1:
@@ -133,13 +132,13 @@ class Minimap2(Tool):
         removeInput = False
         if len(rgs) == 1:
             one_rg_inBam = inBam
-            samtools.SamtoolsTool().dumpHeader(one_rg_inBam, headerFile)
+            samtools_tool.dumpHeader(one_rg_inBam, headerFile)
         else:
             # strip inBam to one read group
             with util_file.tempfname('.onebam.bam') as tmp_bam:
-                samtools.view(['-1', '-r', rgid], inBam, tmp_bam)
+                samtools_tool.view(['-1', '-r', rgid], inBam, tmp_bam)
                 # special exit if this file is empty
-                if samtools.isEmpty(tmp_bam):
+                if samtools_tool.isEmpty(tmp_bam):
                     log.warning("No reads present for RG %s in file: %s", rgid, inBam)
                     shutil.copyfile(tmp_bam, outBam)
                     return
@@ -148,13 +147,13 @@ class Minimap2(Tool):
                 removeInput = True
                 
                 with open(headerFile, 'wt') as outf:
-                    for row in samtools.getHeader(inBam):
+                    for row in samtools_tool.getHeader(inBam):
                         if len(row) > 0 and row[0] == '@RG':
                             if rgid != list(x[3:] for x in row if x.startswith('ID:'))[0]:
                                 # skip all read groups that are not rgid
                                 continue
                         outf.write('\t'.join(row) + '\n')
-                samtools.reheader(tmp_bam, headerFile, one_rg_inBam)
+                samtools_tool.reheader(tmp_bam, headerFile, one_rg_inBam)
 
         # get the read group line to give to mm2
         readgroup_line = ""
@@ -187,7 +186,7 @@ class Minimap2(Tool):
             options.extend(('-x', preset))
 
         # perform actual alignment
-        if samtools.isEmpty(one_rg_inBam):
+        if samtools_tool.isEmpty(one_rg_inBam):
             log.warning("Input file %s appears to lack reads for RG '%s'", inBam, rgid)
             # minimap doesn't like empty inputs, so copy empty bam through
             # samtools.sort(one_rg_inBam, outBam)
@@ -213,20 +212,21 @@ class Minimap2(Tool):
         samtools_tool = samtools.SamtoolsTool()
 
         with util_file.tempfname('.aligned.sam') as aln_sam:
-            fastq_pipe = samtools.bam2fq_pipe(inReads)
+            fastq_pipe = samtools_tool.bam2fq_pipe(inReads)
             options.extend(('-a', refDb, '-', '-o', aln_sam))
             self.execute(options, stdin=fastq_pipe.stdout)
             if fastq_pipe.wait():
                 raise subprocess.CalledProcessError(fastq_pipe.returncode, "samtools.bam2fq_pipe() for {}".format(inReads))
-            samtools.sort(aln_sam, outAlign, threads=threads)
+            samtools_tool.sort(aln_sam, outAlign, threads=threads)
 
         # cannot index sam files; only do so if a bam/cram is desired
         if should_index and (outAlign.endswith(".bam") or outAlign.endswith(".cram")):
-            samtools.index(outAlign, threads=threads)
+            samtools_tool.index(outAlign, threads=threads)
 
     def scaffold(self, contigs_fasta, ref_fasta, outAlign, divergence=20, options=None, threads=None):
         options = [] if not options else options
 
+        samtools_tool = samtools.SamtoolsTool()
         threads = util_misc.sanitize_thread_count(threads)
         if '-t' not in options:
             options.extend(('-t', str(threads)))
@@ -243,11 +243,11 @@ class Minimap2(Tool):
         with util_file.tempfname('.aligned.sam') as aln_sam:
             options.extend(('-a', ref_fasta, contigs_fasta, '-o', aln_sam))
             self.execute(options)
-            samtools.sort(aln_sam, outAlign, threads=threads)
+            samtools_tool.sort(aln_sam, outAlign, threads=threads)
 
         # cannot index sam files; only do so if a bam/cram is desired
         if (outAlign.endswith(".bam") or outAlign.endswith(".cram")):
-            samtools.index(outAlign)
+            samtools_tool.index(outAlign)
 
     def idxstats(self, inReads, refDb, outIdxstats, outReadlist=None, threads=None):
         """
@@ -302,7 +302,7 @@ class Minimap2(Tool):
 
         try:
             # Start samtools bam2fq pipe for input (use 4 threads for BAM decompression)
-            fastq_pipe = samtools.bam2fq_pipe(inReads, threads=4)
+            fastq_pipe = samtools_tool.bam2fq_pipe(inReads, threads=4)
 
             # Start minimap2 process with PAF output to stdout
             tool_cmd = [self.install_and_get_path()] + options

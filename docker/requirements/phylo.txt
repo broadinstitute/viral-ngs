@@ -3,6 +3,6 @@ bamtools>=2.5.2
 lofreq>=2.1.5
 mafft>=7.508
 mummer4>=4.0.0rc1
-muscle>=3.8
+muscle=3.8.1551
 snpeff>=4.3.1t
 vphaser2>=2.0

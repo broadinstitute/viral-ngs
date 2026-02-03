@@ -201,12 +201,12 @@ class Kraken2(core.Tool):
         tmp_fastq3 = file.mkstempfname('.s.fastq')
         # Do not convert this to samtools bam2fq unless we can figure out how to replicate
         # the clipping functionality of Picard SamToFastq
-        picard = picard.SamToFastqTool()
+        picard_tool = picard.SamToFastqTool()
         picard_opts = {
             'CLIPPING_ATTRIBUTE': picard.SamToFastqTool.illumina_clipping_attribute,
             'CLIPPING_ACTION': 'X'
         }
-        picard.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
+        picard_tool.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
                        picardOptions=picard.PicardTools.dict_to_picard_opts(picard_opts),
                        JVMmemory=picard.jvmMemDefault)
 

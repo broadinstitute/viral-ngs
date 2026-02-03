@@ -11,7 +11,6 @@ import subprocess
 import shutil
 import concurrent.futures
 
-from . import samtools, picard  # was: from viral_ngs import tools
 from . import samtools
 from . import picard
 from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
@@ -58,11 +57,11 @@ class Bwa(Tool):
                       min_score_to_filter=None, threads=None, JVMmemory=None, invert_filter=False, should_index=True):
         options = options or []
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
         threads = util_misc.sanitize_thread_count(threads)
 
         # fetch list of RGs
-        rgs = list(samtools.getReadGroups(inBam).keys())
+        rgs = list(samtools_tool.getReadGroups(inBam).keys())
 
         if len(rgs) == 0:
             # Can't do this
@@ -138,10 +137,10 @@ class Bwa(Tool):
         """
         options = options or []
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
 
         # Require exactly one RG
-        rgs = samtools.getReadGroups(inBam)
+        rgs = samtools_tool.getReadGroups(inBam)
         if len(rgs) == 0:
             raise InvalidBamHeaderError("{} lacks read groups".format(inBam))
         elif len(rgs) == 1:
@@ -157,27 +156,27 @@ class Bwa(Tool):
         removeInput = False
         if len(rgs) == 1:
             one_rg_inBam = inBam
-            samtools.SamtoolsTool().dumpHeader(one_rg_inBam, headerFile)
+            samtools_tool.dumpHeader(one_rg_inBam, headerFile)
         else:
             # strip inBam to one read group
             with util_file.tempfname('.onebam.bam') as tmp_bam:
-                samtools.view(['-b', '-r', rgid], inBam, tmp_bam)
+                samtools_tool.view(['-b', '-r', rgid], inBam, tmp_bam)
                 # special exit if this file is empty
-                if samtools.count(tmp_bam) == 0:
+                if samtools_tool.count(tmp_bam) == 0:
                     log.warning("No reads present for RG %s in file: %s", rgid, inBam)
                     return
                 # simplify BAM header otherwise Novoalign gets confused
                 one_rg_inBam = util_file.mkstempfname('.{}.in.bam'.format(rgid))
                 removeInput = True
-                
+
                 with open(headerFile, 'wt') as outf:
-                    for row in samtools.getHeader(inBam):
+                    for row in samtools_tool.getHeader(inBam):
                         if len(row) > 0 and row[0] == '@RG':
                             if rgid != list(x[3:] for x in row if x.startswith('ID:'))[0]:
                                 # skip all read groups that are not rgid
                                 continue
                         outf.write('\t'.join(row) + '\n')
-                samtools.reheader(tmp_bam, headerFile, one_rg_inBam)
+                samtools_tool.reheader(tmp_bam, headerFile, one_rg_inBam)
 
         # perform actual alignment
 
@@ -212,10 +211,10 @@ class Bwa(Tool):
         if '-t' not in options:
             options.extend(('-t', str(threads)))
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
 
         aln_sam = util_file.mkstempfname('.aligned.sam')
-        fastq_pipe = samtools.bam2fq_pipe(inReads)
+        fastq_pipe = samtools_tool.bam2fq_pipe(inReads)
         self.execute('mem', options + ['-p', refDb, '-'], stdout=aln_sam, stdin=fastq_pipe.stdout)
 
         if fastq_pipe.poll():
@@ -231,12 +230,12 @@ class Bwa(Tool):
             aln_sam_filtered = aln_sam
 
  
-        samtools.sort(aln_sam_filtered, outAlign, threads=threads)
+        samtools_tool.sort(aln_sam_filtered, outAlign, threads=threads)
         os.unlink(aln_sam_filtered)
 
         # cannot index sam files; only do so if a bam/cram is desired
         if should_index and (outAlign.endswith(".bam") or outAlign.endswith(".cram")):
-            samtools.index(outAlign)
+            samtools_tool.index(outAlign)
 
     def filter_sam_on_alignment_score(self, in_sam, out_sam, min_score_to_filter,
                                       bwa_options, invert_filter=False):
