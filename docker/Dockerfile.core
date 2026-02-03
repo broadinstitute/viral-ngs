@@ -42,7 +42,8 @@ RUN pip install --no-cache-dir . && \
 # Verify installation
 RUN python -c "from viral_ngs import read_utils, illumina, reports; print('Command modules OK')" && \
     python -c "from viral_ngs.core import samtools, picard, bwa; print('Tool wrappers OK')" && \
-    python -c "from viral_ngs.core import file, misc, cmd; print('Utilities OK')"
+    python -c "from viral_ngs.core import file, misc, cmd; print('Utilities OK')" && \
+    read_utils --version
 
 # Clean up
 RUN rm -rf /tmp/requirements /tmp/install-conda-deps.sh
