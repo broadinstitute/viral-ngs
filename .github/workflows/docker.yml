@@ -238,7 +238,7 @@ jobs:
           # Add expiration annotation for feature branches (copied to Quay by crane)
           EXPIRE_ANNOTATION=""
           if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation "index:quay.expires-after=10w"'
+            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
           fi
 
           # Create manifest with OCI annotations
@@ -407,7 +407,7 @@ jobs:
           # Add expiration annotation for feature branches (copied to Quay by crane)
           EXPIRE_ANNOTATION=""
           if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation "index:quay.expires-after=10w"'
+            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
           fi
 
           docker buildx imagetools create \
@@ -573,7 +573,7 @@ jobs:
           # Add expiration annotation for feature branches (copied to Quay by crane)
           EXPIRE_ANNOTATION=""
           if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation "index:quay.expires-after=10w"'
+            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
           fi
 
           docker buildx imagetools create \
@@ -739,7 +739,7 @@ jobs:
           # Add expiration annotation for feature branches (copied to Quay by crane)
           EXPIRE_ANNOTATION=""
           if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation "index:quay.expires-after=10w"'
+            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
           fi
 
           docker buildx imagetools create \
@@ -905,7 +905,7 @@ jobs:
           # Add expiration annotation for feature branches (copied to Quay by crane)
           EXPIRE_ANNOTATION=""
           if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation "index:quay.expires-after=10w"'
+            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
           fi
 
           docker buildx imagetools create \
@@ -1065,7 +1065,7 @@ jobs:
           # Add expiration annotation for feature branches (copied to Quay by crane)
           EXPIRE_ANNOTATION=""
           if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation "index:quay.expires-after=10w"'
+            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
           fi
 
           docker buildx imagetools create \
