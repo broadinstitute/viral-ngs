@@ -260,17 +260,17 @@ def test_coverage_lca(taxa_db):
     assert metagenomics.coverage_lca([9], taxa_db.parents) is None
 
 @pytest.mark.skip(reason="KrakenUniq disabled from future versions for now, pending conda rebuild of @yesimon's custom fork")
-def test_krakenuniq(mocker):
-    p = mocker.patch('classify.kraken.KrakenUniq.pipeline')
-    args = [
-        'db',
-        'input.bam',
-        '--outReports', 'output.report',
-        '--outReads', 'output.reads',
-    ]
-    args = metagenomics.parser_krakenuniq(argparse.ArgumentParser()).parse_args(args)
-    args.func_main(args)
-    p.assert_called_with('db', ['input.bam'], num_threads=mock.ANY, filter_threshold=mock.ANY, out_reports=['output.report'], out_reads=['output.reads'])
+def test_krakenuniq():
+    with patch('viral_ngs.metagenomics.kraken.KrakenUniq.pipeline') as p:
+        args = [
+            'db',
+            'input.bam',
+            '--outReports', 'output.report',
+            '--outReads', 'output.reads',
+        ]
+        args = metagenomics.parser_krakenuniq(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+        p.assert_called_with('db', ['input.bam'], num_threads=mock.ANY, filter_threshold=mock.ANY, out_reports=['output.report'], out_reads=['output.reads'])
 
 
 class TestBamFilter(TestCaseWithTmp):

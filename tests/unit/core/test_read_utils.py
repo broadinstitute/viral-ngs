@@ -979,7 +979,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         for out_bam in output_bams:
             self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
 
-    @unittest.skipIf(IS_ARM, "Dedup after uses mvicuna which requires x86-only bioconda package")
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_downsample_with_dedup_after(self):
         """ Also tests subdir output """
         temp_dir = tempfile.mkdtemp()
@@ -993,7 +993,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         for out_bam in output_bams:
             self.assertLess(self.samtools.count(out_bam), target_count, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
 
-    @unittest.skipIf(IS_ARM, "Dedup before uses mvicuna which requires x86-only bioconda package")
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_downsample_with_dedup_before(self):
         """ Also tests subdir output """
         temp_dir = tempfile.mkdtemp()
