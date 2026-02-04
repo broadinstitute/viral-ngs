@@ -1071,7 +1071,12 @@ jobs:
   # Test core (x86)
   test-core:
     needs: [paths-filter, get-version, create-manifest-core]
-    if: needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
+    if: |
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      github.ref_type == 'tag' ||
+      needs.paths-filter.outputs.core == 'true' ||
+      needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -1110,6 +1115,7 @@ jobs:
               -n auto
 
       - name: Upload coverage to Codecov
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref_type == 'tag'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -1162,7 +1168,13 @@ jobs:
   # Test assemble (x86)
   test-assemble:
     needs: [paths-filter, get-version, create-manifest-assemble]
-    if: needs.paths-filter.outputs.assemble == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
+    if: |
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      github.ref_type == 'tag' ||
+      needs.paths-filter.outputs.assemble == 'true' ||
+      needs.paths-filter.outputs.core == 'true' ||
+      needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -1201,6 +1213,7 @@ jobs:
               -n auto
 
       - name: Upload coverage to Codecov
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref_type == 'tag'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -1253,7 +1266,13 @@ jobs:
   # Test classify (x86)
   test-classify:
     needs: [paths-filter, get-version, create-manifest-classify]
-    if: needs.paths-filter.outputs.classify == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
+    if: |
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      github.ref_type == 'tag' ||
+      needs.paths-filter.outputs.classify == 'true' ||
+      needs.paths-filter.outputs.core == 'true' ||
+      needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -1292,6 +1311,7 @@ jobs:
               -n auto
 
       - name: Upload coverage to Codecov
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref_type == 'tag'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -1344,7 +1364,13 @@ jobs:
   # Test phylo (x86)
   test-phylo:
     needs: [paths-filter, get-version, create-manifest-phylo]
-    if: needs.paths-filter.outputs.phylo == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
+    if: |
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      github.ref_type == 'tag' ||
+      needs.paths-filter.outputs.phylo == 'true' ||
+      needs.paths-filter.outputs.core == 'true' ||
+      needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -1383,6 +1409,7 @@ jobs:
               -n auto
 
       - name: Upload coverage to Codecov
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref_type == 'tag'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
