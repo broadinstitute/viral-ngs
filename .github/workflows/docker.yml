@@ -165,6 +165,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-main
@@ -203,6 +204,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-main
@@ -235,19 +237,12 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          # Add expiration annotation for feature branches (copied to Quay by crane)
-          EXPIRE_ANNOTATION=""
-          if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
-          fi
-
           # Create manifest with OCI annotations
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
-            $EXPIRE_ANNOTATION \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64 \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
@@ -324,6 +319,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -367,6 +363,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -404,18 +401,11 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          # Add expiration annotation for feature branches (copied to Quay by crane)
-          EXPIRE_ANNOTATION=""
-          if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
-          fi
-
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
-            $EXPIRE_ANNOTATION \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64 \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
@@ -490,6 +480,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -533,6 +524,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -570,18 +562,11 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          # Add expiration annotation for feature branches (copied to Quay by crane)
-          EXPIRE_ANNOTATION=""
-          if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
-          fi
-
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
-            $EXPIRE_ANNOTATION \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64 \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
@@ -656,6 +641,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -699,6 +685,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -736,18 +723,11 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          # Add expiration annotation for feature branches (copied to Quay by crane)
-          EXPIRE_ANNOTATION=""
-          if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
-          fi
-
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
-            $EXPIRE_ANNOTATION \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64 \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
@@ -822,6 +802,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -865,6 +846,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -902,18 +884,11 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          # Add expiration annotation for feature branches (copied to Quay by crane)
-          EXPIRE_ANNOTATION=""
-          if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
-          fi
-
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
-            $EXPIRE_ANNOTATION \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64 \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
@@ -988,6 +963,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -1031,6 +1007,7 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
+          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -1062,18 +1039,11 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          # Add expiration annotation for feature branches (copied to Quay by crane)
-          EXPIRE_ANNOTATION=""
-          if [[ "${{ github.ref_type }}" == "branch" && "${{ github.ref_name }}" != "main" ]]; then
-            EXPIRE_ANNOTATION='--annotation index:quay.expires-after=10w'
-          fi
-
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
-            $EXPIRE_ANNOTATION \
             --tag ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }} \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64 \
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
