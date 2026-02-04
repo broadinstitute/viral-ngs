@@ -817,6 +817,7 @@ class TestAlignAndFix(TestCaseWithTmp):
         self.refFasta = viral_ngs.core.file.mkstempfname('.ref.fasta')
         shutil.copyfile(orig_ref, self.refFasta)
 
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_novoalign(self):
         self.simple_execution('novoalign')
 
@@ -978,6 +979,7 @@ class TestDownsampleBams(TestCaseWithTmp):
         for out_bam in output_bams:
             self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
 
+    @unittest.skipIf(IS_ARM, "Dedup after uses mvicuna which requires x86-only bioconda package")
     def test_downsample_with_dedup_after(self):
         """ Also tests subdir output """
         temp_dir = tempfile.mkdtemp()
