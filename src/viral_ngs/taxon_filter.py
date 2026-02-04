@@ -162,9 +162,9 @@ def main_deplete(args):
 
     if os.path.getsize(args.revertBam) == 0:
         with file.tempfname('.empty.sam') as empty_sam:
-            samtools = samcore.SamtoolsTool()
-            samcore.dumpHeader(args.inBam, empty_sam)
-            samcore.view(['-b'], empty_sam, args.revertBam)
+            samtools_tool = samtools.SamtoolsTool()
+            samtools_tool.dumpHeader(args.inBam, empty_sam)
+            samtools_tool.view(['-b'], empty_sam, args.revertBam)
 
     return 0
 
@@ -313,7 +313,7 @@ def deplete_bmtagger_bam(inBam, db, outBam, srprism_memory=7168):
     os.environ['PATH'] = path
 
     with file.tempfname('.1.fastq') as inReads1:
-        samcore.SamtoolsTool().bam2fq(inBam, inReads1)
+        samtools.SamtoolsTool().bam2fq(inBam, inReads1)
 
         with file.tempfname('.bmtagger.conf') as bmtaggerConf:
             with open(bmtaggerConf, 'w') as f:
@@ -390,10 +390,10 @@ def multi_db_deplete_bam(inBam, refDbs, deplete_method, outBam, **kwargs):
         merge_compressed_files(refDbs, tmpDb, sep='\n')
         refDbs = [tmpDb]
 
-    samtools = samcore.SamtoolsTool()
+    samtools_tool = samtools.SamtoolsTool()
     tmpBamIn = inBam
     for db in refDbs:
-        if not samcore.isEmpty(tmpBamIn):
+        if not samtools_tool.isEmpty(tmpBamIn):
             tmpBamOut = mkstempfname('.bam')
             deplete_method(tmpBamIn, db, tmpBamOut, **kwargs)
             if tmpBamIn != inBam:
@@ -524,7 +524,7 @@ def deplete_blastn_bam(inBam, db, outBam, threads=None, chunkSize=1000000):
         if chunkSize:
             ## chunk up input and perform blastn in several parallel threads
             with file.tempfname('.fasta') as reads_fasta:
-                samcore.SamtoolsTool().bam2fa(inBam, reads_fasta)
+                samtools.SamtoolsTool().bam2fa(inBam, reads_fasta)
                 log.info("running blastn on %s against %s", inBam, db)
                 blastn_chunked_fasta(reads_fasta, db_prefix, blast_hits, chunkSize, threads)
 
@@ -656,7 +656,7 @@ def deplete_bwa_bam(inBam, db, outBam, threads=None, clear_tags=True, tags_to_cl
         #with file.fifo(name='filtered.sam') as filtered_sam:
             with file.tempfname('.filtered.sam') as filtered_sam:
                 # filter proper pairs
-                samcore.SamtoolsTool().view(['-h','-F0x2'], aligned_sam, filtered_sam)
+                samtools.SamtoolsTool().view(['-h','-F0x2'], aligned_sam, filtered_sam)
 
                 picardOptions = []
                 if clear_tags:

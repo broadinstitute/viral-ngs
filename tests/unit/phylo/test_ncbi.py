@@ -50,7 +50,7 @@ class TestFeatureReader(TestCaseWithTmp):
 
     def test_seq_location_str_format(self):
         """Test SeqLocation string format - continuation lines should not have trailing tabs."""
-        from phylo.feature_table import SeqLocation, SeqPosition
+        from viral_ngs.phylo.feature_table import SeqLocation, SeqPosition
 
         # First line with feature type - should have 3 columns
         first = SeqLocation(SeqPosition(100), SeqPosition(200), feature_type='CDS')

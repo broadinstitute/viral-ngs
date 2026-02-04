@@ -6,3 +6,6 @@
 # Aligners (bioconda, x86 only)
 mvicuna=1.0
 novoalign=3.09.04
+
+# CD-HIT auxiliary tools (includes cd-hit-dup for duplicate removal)
+cd-hit-auxtools>=4.6.8

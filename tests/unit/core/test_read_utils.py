@@ -7,6 +7,7 @@ import argparse
 import filecmp
 import os
 import glob
+import platform
 
 import pysam
 import viral_ngs.read_utils
@@ -16,6 +17,10 @@ import viral_ngs.core
 import viral_ngs.core.bwa
 import viral_ngs.core.samtools
 from tests import TestCaseWithTmp, assert_equal_bam_reads
+
+# Skip tests requiring x86-only tools on ARM platforms
+IS_ARM = platform.machine() in ('arm64', 'aarch64')
+SKIP_X86_ONLY_REASON = "Requires x86-only bioconda package (not available on ARM)"
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -236,6 +241,7 @@ class TestFastqBam(TestCaseWithTmp):
 
 
 class TestRmdupUnaligned(TestCaseWithTmp):
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_mvicuna_canned_input(self):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
 
@@ -249,6 +255,7 @@ class TestRmdupUnaligned(TestCaseWithTmp):
 
         self.assertEqual(samtools.count(output_bam), samtools.count(expected_bam))
 
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_mvicuna_empty_input(self):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
         empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
@@ -259,6 +266,7 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         )
         self.assertEqual(samtools.count(output_bam), 0)
 
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_cdhit_canned_input(self):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
 
@@ -272,6 +280,7 @@ class TestRmdupUnaligned(TestCaseWithTmp):
 
         self.assertEqual(samtools.count(output_bam), 1772)
 
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_cdhit_empty_input(self):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
         empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')

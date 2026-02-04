@@ -1204,7 +1204,7 @@ class TestFastaTrimTerminalAmbigs(TestCaseWithTmp):
         makeFasta(test_seqs, in_fasta)
 
         # Run fasta-trim-terminal-ambigs.pl
-        script_path = os.path.join(os.path.dirname(__file__), '..', '..', 'fasta-trim-terminal-ambigs.pl')
+        script_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scripts', 'fasta-trim-terminal-ambigs.pl')
         cmd = [script_path, in_fasta]
 
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
@@ -1222,7 +1222,7 @@ class TestFastaTrimTerminalAmbigs(TestCaseWithTmp):
         in_fasta = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta')
 
         # Run with --3rules and standard parameters
-        script_path = os.path.join(os.path.dirname(__file__), '..', '..', 'fasta-trim-terminal-ambigs.pl')
+        script_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scripts', 'fasta-trim-terminal-ambigs.pl')
         cmd = [
             script_path,
             '--3rules',
