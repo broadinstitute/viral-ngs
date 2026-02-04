@@ -46,7 +46,7 @@ def test_classify_single_end_from_bam(kma_tool, kma_inputs):
         'single.s.fastq': 10,
     }
 
-    with patch('viral_ngs.classify.kma.util_file.mkstempfname', side_effect=mkstemp_vals), \
+    with patch('viral_ngs.classify.kma.file.mkstempfname', side_effect=mkstemp_vals), \
          patch('viral_ngs.classify.kma.os.unlink'), \
          patch('viral_ngs.classify.kma.picard.SamToFastqTool', autospec=True) as picard_cls, \
          patch('viral_ngs.classify.kma.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts'), \
@@ -89,7 +89,7 @@ def test_classify_paired_end_from_bam(kma_tool, kma_inputs):
         'paired.s.fastq': 1,
     }
 
-    with patch('viral_ngs.classify.kma.util_file.mkstempfname', side_effect=mkstemp_vals), \
+    with patch('viral_ngs.classify.kma.file.mkstempfname', side_effect=mkstemp_vals), \
          patch('viral_ngs.classify.kma.os.unlink'), \
          patch('viral_ngs.classify.kma.picard.SamToFastqTool', autospec=True) as picard_cls, \
          patch('viral_ngs.classify.kma.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts'), \
@@ -127,7 +127,7 @@ def test_classify_paired_end_from_bam(kma_tool, kma_inputs):
 def test_classify_returns_early_when_bam_is_empty(kma_tool, kma_inputs):
     mkstemp_vals = ['ignored.1.fastq', 'ignored.2.fastq', 'ignored.s.fastq']
 
-    with patch('viral_ngs.classify.kma.util_file.mkstempfname', side_effect=mkstemp_vals), \
+    with patch('viral_ngs.classify.kma.file.mkstempfname', side_effect=mkstemp_vals), \
          patch('viral_ngs.classify.kma.os.unlink'), \
          patch('viral_ngs.classify.kma.picard.SamToFastqTool', autospec=True) as picard_cls, \
          patch('viral_ngs.classify.kma.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts'), \
