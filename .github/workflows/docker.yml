@@ -123,6 +123,8 @@ jobs:
           else
             # For branches/tags, replace "/" with "-" to create valid Docker tags
             PREFIX=$(echo "${{ github.ref_name }}" | sed 's|/|-|g')
+            # Strip leading 'v' for version tags (e.g., v3.0.1 -> 3.0.1)
+            PREFIX=${PREFIX#v}
           fi
           echo "prefix=${PREFIX}" >> $GITHUB_OUTPUT
           echo "Image tag prefix: ${PREFIX}"
@@ -259,8 +261,8 @@ jobs:
       - name: Create version tags
         if: github.ref_type == 'tag'
         run: |
-          VERSION="${{ github.ref_name }}"
-          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+          VERSION="${{ needs.get-version.outputs.image-tag-prefix }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
 
           # Create version tag
           docker buildx imagetools create \
@@ -420,8 +422,8 @@ jobs:
       - name: Create version tags
         if: github.ref_type == 'tag'
         run: |
-          VERSION="${{ github.ref_name }}"
-          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+          VERSION="${{ needs.get-version.outputs.image-tag-prefix }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
@@ -579,8 +581,8 @@ jobs:
       - name: Create version tags
         if: github.ref_type == 'tag'
         run: |
-          VERSION="${{ github.ref_name }}"
-          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+          VERSION="${{ needs.get-version.outputs.image-tag-prefix }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
@@ -738,8 +740,8 @@ jobs:
       - name: Create version tags
         if: github.ref_type == 'tag'
         run: |
-          VERSION="${{ github.ref_name }}"
-          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+          VERSION="${{ needs.get-version.outputs.image-tag-prefix }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
@@ -897,8 +899,8 @@ jobs:
       - name: Create version tags
         if: github.ref_type == 'tag'
         run: |
-          VERSION="${{ github.ref_name }}"
-          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+          VERSION="${{ needs.get-version.outputs.image-tag-prefix }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
@@ -1050,8 +1052,8 @@ jobs:
       - name: Create version tags
         if: github.ref_type == 'tag'
         run: |
-          VERSION="${{ github.ref_name }}"
-          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+          VERSION="${{ needs.get-version.outputs.image-tag-prefix }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
@@ -1577,20 +1579,17 @@ jobs:
             SUFFIX="-${FLAVOR}"
           fi
 
-          # Build the branch/tag-based tag
+          # Use image-tag-prefix which handles both branches and version tags
+          # (strips 'v' prefix from version tags, sanitizes '/' in branch names)
+          TAG_PREFIX="${{ needs.get-version.outputs.image-tag-prefix }}"
+          echo "src_tag=${TAG_PREFIX}${SUFFIX}" >> $GITHUB_OUTPUT
+          echo "dest_tags=${TAG_PREFIX}${SUFFIX}" >> $GITHUB_OUTPUT
+
+          # For version tags, also create major.minor tag
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            # Version tag: copy as version tag
-            VERSION="${{ github.ref_name }}"
-            echo "src_tag=${VERSION}${SUFFIX}" >> $GITHUB_OUTPUT
-            echo "dest_tags=${VERSION}${SUFFIX}" >> $GITHUB_OUTPUT
-            # Also create major.minor tag
-            MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+            MAJOR_MINOR=$(echo "$TAG_PREFIX" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
             echo "extra_dest_tag=${MAJOR_MINOR}${SUFFIX}" >> $GITHUB_OUTPUT
           else
-            # Branch: copy as branch tag
-            BRANCH="${{ needs.get-version.outputs.image-tag-prefix }}"
-            echo "src_tag=${BRANCH}${SUFFIX}" >> $GITHUB_OUTPUT
-            echo "dest_tags=${BRANCH}${SUFFIX}" >> $GITHUB_OUTPUT
             echo "extra_dest_tag=" >> $GITHUB_OUTPUT
           fi
 
