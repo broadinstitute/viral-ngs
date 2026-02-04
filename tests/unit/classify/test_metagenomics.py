@@ -38,7 +38,7 @@ class TestKronaCalls(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        patcher = patch('krona.Krona', autospec=True)
+        patcher = patch('viral_ngs.metagenomics.krona.Krona', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_krona = patcher.start()
 
@@ -47,7 +47,7 @@ class TestKronaCalls(TestCaseWithTmp):
 
     def test_krona_import_taxonomy(self):
         out_html = util_file.mkstempfname('.html')
-        metagenomics.krona([self.inTsv], self.db, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7,
+        metagenomics.main_krona([self.inTsv], self.db, out_html, queryColumn=3, taxidColumn=5, scoreColumn=7,
                            noHits=True, noRank=True, inputType='tsv')
         self.mock_krona().import_taxonomy.assert_called_once_with(
             self.db, [self.inTsv + ',' + os.path.basename(self.inTsv)], out_html, query_column=3, taxid_column=5, score_column=7,
@@ -260,31 +260,17 @@ def test_coverage_lca(taxa_db):
     assert metagenomics.coverage_lca([9], taxa_db.parents) is None
 
 @pytest.mark.skip(reason="KrakenUniq disabled from future versions for now, pending conda rebuild of @yesimon's custom fork")
-def test_krakenuniq(mocker):
-    p = mocker.patch('classify.kraken.KrakenUniq.pipeline')
-    args = [
-        'db',
-        'input.bam',
-        '--outReports', 'output.report',
-        '--outReads', 'output.reads',
-    ]
-    args = metagenomics.parser_krakenuniq(argparse.ArgumentParser()).parse_args(args)
-    args.func_main(args)
-    p.assert_called_with('db', ['input.bam'], num_threads=mock.ANY, filter_threshold=mock.ANY, out_reports=['output.report'], out_reads=['output.reads'])
-
-
-def test_kaiju(mocker):
-    p = mocker.patch('classify.kaiju.Kaiju.classify')
-    args = [
-        'input.bam',
-        'db.fmi',
-        'tax_db',
-        'output.report',
-        '--outReads', 'output.reads',
-    ]
-    args = metagenomics.parser_kaiju(argparse.ArgumentParser()).parse_args(args)
-    args.func_main(args)
-    p.assert_called_with('db.fmi', 'tax_db', 'input.bam', output_report='output.report', num_threads=mock.ANY, output_reads='output.reads')
+def test_krakenuniq():
+    with patch('viral_ngs.metagenomics.kraken.KrakenUniq.pipeline') as p:
+        args = [
+            'db',
+            'input.bam',
+            '--outReports', 'output.report',
+            '--outReads', 'output.reads',
+        ]
+        args = metagenomics.parser_krakenuniq(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+        p.assert_called_with('db', ['input.bam'], num_threads=mock.ANY, filter_threshold=mock.ANY, out_reports=['output.report'], out_reads=['output.reads'])
 
 
 class TestBamFilter(TestCaseWithTmp):

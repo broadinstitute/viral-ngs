@@ -392,8 +392,8 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
 
         # samtools view for out.sam and compare to expected
         outSam = os.path.join(tempDir, 'out.sam')
-        samtools = samtools.SamtoolsTool()
-        samtools.view(['-h'], outBam, outSam)
+        samtools_tool = samtools.SamtoolsTool()
+        samtools_tool.view(['-h'], outBam, outSam)
 
         assert_equal_bam_reads(self,
             outSam,
@@ -413,8 +413,8 @@ class TestDepleteBlastnBam(TestCaseWithTmp):
 
         # samtools view for out.sam and compare to expected
         outSam = os.path.join(tempDir, 'out.sam')
-        samtools = samtools.SamtoolsTool()
-        samtools.view(['-h'], outBam, outSam)
+        samtools_tool = samtools.SamtoolsTool()
+        samtools_tool.view(['-h'], outBam, outSam)
 
         assert_equal_bam_reads(self,
             outSam,
@@ -464,8 +464,8 @@ class TestDepleteMinimap2Bam(TestCaseWithTmp):
             inBam, self.ref_fasta, outBam])
         args.func_main(args)
         # Should have fewer reads than input after depletion
-        samtools = samtools.SamtoolsTool()
-        self.assertLess(samtools.count(outBam), samtools.count(inBam))
+        samtools_tool = samtools.SamtoolsTool()
+        self.assertLess(samtools_tool.count(outBam), samtools_tool.count(inBam))
 
     def test_minimap2_empty_input(self):
         '''Empty input BAM should produce empty output BAM'''
@@ -523,10 +523,10 @@ class TestDepletePipeline(TestCaseWithTmp):
         ])
         args.func_main(args)
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
         # Verify output files exist and have fewer reads than input
         self.assertTrue(os.path.exists(minimapBam))
-        self.assertLess(samtools.count(minimapBam), samtools.count(inBam))
+        self.assertLess(samtools_tool.count(minimapBam), samtools_tool.count(inBam))
 
     def test_deplete_pipeline_empty_minimap_dbs(self):
         '''Test deplete pipeline with empty minimapDbs (default behavior)'''
@@ -548,9 +548,9 @@ class TestDepletePipeline(TestCaseWithTmp):
         ])
         args.func_main(args)
 
-        samtools = samtools.SamtoolsTool()
+        samtools_tool = samtools.SamtoolsTool()
         # Verify minimap output exists (should be copy of input since no minimap dbs)
         self.assertTrue(os.path.exists(minimapBam))
         # With no minimap dbs, minimapBam should have same count as reverted input
         # BWA depletion happens after, so bwaBam should have fewer reads
-        self.assertLess(samtools.count(bwaBam), samtools.count(inBam))
+        self.assertLess(samtools_tool.count(bwaBam), samtools_tool.count(inBam))

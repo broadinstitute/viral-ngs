@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 
 from . import samtools, picard  # was: from viral_ngs import tools
-from . import samtools
 from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
 from . import Tool, PrexistingUnixCommand
 

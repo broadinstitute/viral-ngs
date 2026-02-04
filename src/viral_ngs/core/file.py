@@ -36,7 +36,7 @@ import lz4.frame
 import pysam
 import zstandard as zstd
 
-from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
+from . import misc as util_misc  # was: from viral_ngs import util
 
 log = logging.getLogger(__name__)
 
@@ -212,6 +212,7 @@ def keep_tmp():
     return 'VIRAL_NGS_TMP_DIRKEEP' in os.environ
 
 def set_tmp_dir(name):
+    from . import cmd as util_cmd  # lazy import to avoid circular dependency
     proposed_prefix = ['tmp']
     if name:
         proposed_prefix.append(name)
@@ -239,7 +240,7 @@ def extract_tarball(tarfile, out_dir=None, threads=None, compression='auto', pip
     if out_dir is None:
         out_dir = tempfile.mkdtemp(prefix='extract_tarball-')
     else:
-        util_file.mkdir_p(out_dir)
+        mkdir_p(out_dir)
     assert compression in ('gz', 'bz2', 'lz4', 'zip', 'zst', 'none', 'auto')
     if compression == 'auto':
         assert tarfile != '-' or pipe_hint, "cannot autodetect on stdin input unless pipe_hint provided"
@@ -744,7 +745,7 @@ def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sample
     outputFilenames = []
 
     # open all files
-    inputFilesList = [util_file.open_or_gzopen(x, 'r') for x in inputFilenamesList]
+    inputFilesList = [open_or_gzopen(x, 'r') for x in inputFilenamesList]
     # get BioPython iterators for each of the FASTA files specified in the input
     fastaFiles = [SeqIO.parse(x, 'fasta') for x in inputFilesList]
 
@@ -767,7 +768,7 @@ def transposeChromosomeFiles(inputFilenamesList, sampleRelationFile=None, sample
         if any(rec is None for rec in chrRecordList):
             raise TranspositionError("input fasta files must all have the same number of sequences")
 
-        outputFilename = util_file.mkstempfname('.fasta')
+        outputFilename = mkstempfname('.fasta')
         outputFilenames.append(outputFilename)
         with open(outputFilename, "w") as outf:
             # write the corresonding records to a new FASTA file
