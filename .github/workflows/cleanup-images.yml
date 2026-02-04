@@ -8,6 +8,7 @@ jobs:
     # Only run for branch deletions (not tags), and skip main
     if: github.event.ref_type == 'branch' && github.event.ref != 'main'
     runs-on: ubuntu-latest
+    permissions: {}
 
     steps:
       - name: Delete feature branch images from Quay
@@ -18,14 +19,15 @@ jobs:
           BRANCH_TAG="${{ github.event.ref }}"
           QUAY_REPO="quay.io/broadinstitute/viral-ngs"
 
-          # List of image tags to delete (mega has no suffix, others have -suffix)
+          # Image tags to delete - must be kept in sync with deploy-to-quay in docker.yml
+          # See: .github/workflows/docker.yml deploy-to-quay job matrix
           IMAGES=(
             "${BRANCH_TAG}-baseimage"
             "${BRANCH_TAG}-core"
             "${BRANCH_TAG}-assemble"
             "${BRANCH_TAG}-classify"
             "${BRANCH_TAG}-phylo"
-            "${BRANCH_TAG}"
+            "${BRANCH_TAG}"  # mega image (no suffix)
           )
 
           for TAG in "${IMAGES[@]}"; do
