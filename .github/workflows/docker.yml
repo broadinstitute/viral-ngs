@@ -165,7 +165,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-main
@@ -204,7 +203,6 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-main
@@ -319,7 +317,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -363,7 +360,6 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -480,7 +476,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -524,7 +519,6 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -641,7 +635,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -685,7 +678,6 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -802,7 +794,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -846,7 +837,6 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -963,7 +953,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
@@ -1007,7 +996,6 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
-          labels: ${{ github.ref_type == 'branch' && github.ref_name != 'main' && 'quay.expires-after=10w' || '' }}
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
