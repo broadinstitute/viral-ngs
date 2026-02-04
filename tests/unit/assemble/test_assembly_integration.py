@@ -15,7 +15,9 @@ import viral_ngs.assembly
 import viral_ngs.core.cmd
 import viral_ngs.core.file
 import viral_ngs.core.novoalign
-from tests import TestCaseWithTmp, _CPUS
+from tests import TestCaseWithTmp, _CPUS, IS_ARM
+
+SKIP_X86_ONLY_REASON = "novoalign requires x86-only bioconda package (not available on ARM)"
 
 
 @unittest.skip("redundant, and takes 1 minute")
@@ -51,6 +53,7 @@ class TestAssemble(TestCaseWithTmp):
 # in order to test the actual de novo pipeline, we need to add a clip db for trimmomatic
 # then we should test from G5012.3.testreads.bam all the way through the assembly pipe
 
+@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
 class TestRefineAssembly(TestCaseWithTmp):
     def test_ebov_refine1(self):
         inDir = viral_ngs.core.file.get_test_input_path(self)
