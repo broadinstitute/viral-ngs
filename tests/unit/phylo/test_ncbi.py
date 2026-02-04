@@ -19,7 +19,7 @@ from tests import (assert_equal_bam_reads, TestCaseWithTmp, assert_equal_content
 class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
-        for cmd_name, parser_fun in ncbi.__commands__:
+        for cmd_name, parser_fun in viral_ngs.ncbi.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
 

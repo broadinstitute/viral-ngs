@@ -21,6 +21,7 @@ import itertools
 import pytest
 import viral_ngs.assemble.mummer
 import viral_ngs.assemble.skani
+import viral_ngs.assemble.wgsim
 import viral_ngs.core.minimap2
 import viral_ngs.core.novoalign
 import viral_ngs.core.picard
@@ -977,7 +978,7 @@ class TestWgsimTool(TestCaseWithTmp):
 
     def test_slice_fasta_whole_sequence(self):
         ''' Test slicing a fasta to a specific sequence ID without coordinate range '''
-        wgsim = assemble.wgsim.WgsimTool()
+        wgsim = viral_ngs.assemble.wgsim.WgsimTool()
 
         # Create test fasta with multiple sequences
         in_fasta = viral_ngs.core.file.mkstempfname('.fasta')
@@ -996,7 +997,7 @@ class TestWgsimTool(TestCaseWithTmp):
 
     def test_slice_fasta_with_coordinates(self):
         ''' Test slicing a fasta to a specific coordinate range '''
-        wgsim = assemble.wgsim.WgsimTool()
+        wgsim = viral_ngs.assemble.wgsim.WgsimTool()
 
         # Create test fasta
         in_fasta = viral_ngs.core.file.mkstempfname('.fasta')
@@ -1014,7 +1015,7 @@ class TestWgsimTool(TestCaseWithTmp):
 
     def test_slice_fasta_no_params(self):
         ''' Test that slice_fasta with no optional params is a no-op '''
-        wgsim = assemble.wgsim.WgsimTool()
+        wgsim = viral_ngs.assemble.wgsim.WgsimTool()
 
         # Create test fasta
         in_fasta = viral_ngs.core.file.mkstempfname('.fasta')
@@ -1033,7 +1034,7 @@ class TestWgsimTool(TestCaseWithTmp):
 
     def test_coverage_to_read_pairs(self):
         ''' Test coverage to read pairs calculation '''
-        wgsim = assemble.wgsim.WgsimTool()
+        wgsim = viral_ngs.assemble.wgsim.WgsimTool()
 
         # Test case 1: 20X coverage, 1000bp sequence, 150bp reads
         # Expected: (20 * 1000) / (2 * 150) = 66.67 -> 67 pairs
@@ -1078,7 +1079,7 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
     def expected_read_count(self, coverage, seq_length, read_length=150):
         ''' Calculate expected number of individual reads (not pairs) '''
         # Each read pair contributes 2 reads
-        pairs = assemble.wgsim.WgsimTool().coverage_to_read_pairs(
+        pairs = viral_ngs.assemble.wgsim.WgsimTool().coverage_to_read_pairs(
             coverage, seq_length, read_length
         )
         return pairs * 2

@@ -855,7 +855,7 @@ def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
     picard.SplitSamByLibraryTool().execute(inBam, tmp_dir)
 
     s2fq_tool = picard.SamToFastqTool()
-    cdhit = cdhit.CdHit()
+    cdhit_tool = cdhit.CdHit()
     out_bams = []
     for f in os.listdir(tmp_dir):
         out_bam = mkstempfname('.bam')
@@ -880,7 +880,7 @@ def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
         # cd-hit-dup cannot operate on piped fastq input because it reads twice
         # Run cd-hit-dup synchronously (not in background) to ensure output files are complete
         # before FastqToSamTool tries to read them
-        cdhit.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0], options=options, background=False)
+        cdhit_tool.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0], options=options, background=False)
 
         samtools.SamtoolsTool().import_fastq(
             out_fastqs[0], out_fastqs[1], out_bam,

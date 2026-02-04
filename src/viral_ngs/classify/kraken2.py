@@ -208,7 +208,7 @@ class Kraken2(core.Tool):
         }
         picard_tool.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
                        picardOptions=picard.PicardTools.dict_to_picard_opts(picard_opts),
-                       JVMmemory=picard.jvmMemDefault)
+                       JVMmemory=picard_tool.jvmMemDefault)
 
         if out_report:
             opts['--report'] = out_report

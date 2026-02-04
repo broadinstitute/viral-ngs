@@ -180,7 +180,7 @@ class kb(core.Tool):
                 }
                 picard_tool.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
                             picardOptions=picard.PicardTools.dict_to_picard_opts(picard_opts),
-                            JVMmemory=picard.jvmMemDefault)
+                            JVMmemory=picard_tool.jvmMemDefault)
 
                 # Detect if input bam was paired by checking fastq 2
                 if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
@@ -271,7 +271,7 @@ class kb(core.Tool):
                 }
                 picard_tool.execute(in_bam, tmp_fastq1, tmp_fastq2, outFastq0=tmp_fastq3,
                             picardOptions=picard.PicardTools.dict_to_picard_opts(picard_opts),
-                            JVMmemory=picard.jvmMemDefault)
+                            JVMmemory=picard_tool.jvmMemDefault)
 
                 # Detect if input bam was paired by checking fastq 2
                 if os.path.getsize(tmp_fastq2) < os.path.getsize(tmp_fastq3):
