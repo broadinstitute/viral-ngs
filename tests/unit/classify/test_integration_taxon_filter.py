@@ -15,9 +15,10 @@ from viral_ngs.core import file as util_file
 from viral_ngs.classify import last
 from viral_ngs.classify import bmtagger
 from viral_ngs.classify import blast
-from tests import assert_equal_bam_reads, TestCaseWithTmp
+from tests import assert_equal_bam_reads, TestCaseWithTmp, IS_ARM
 
 
+@unittest.skipIf(IS_ARM, "bmtagger requires x86-only bioconda package (not available on ARM)")
 class TestDepleteHuman(TestCaseWithTmp):
     '''
         This class should move to test/integration. 

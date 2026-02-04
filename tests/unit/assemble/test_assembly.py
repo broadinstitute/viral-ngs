@@ -26,7 +26,10 @@ import viral_ngs.core.minimap2
 import viral_ngs.core.novoalign
 import viral_ngs.core.picard
 import viral_ngs.core.samtools
-from tests import TestCaseWithTmp, _CPUS
+from tests import TestCaseWithTmp, _CPUS, IS_ARM
+
+# Skip reason for x86-only tools
+SKIP_X86_ONLY_REASON = "novoalign requires x86-only bioconda package (not available on ARM)"
 
 
 def makeFasta(seqs, outFasta):
@@ -43,6 +46,7 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
+@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
 class TestRefineAssemble(TestCaseWithTmp):
     ''' Test edge cases of the de novo assembly pipeline '''
 

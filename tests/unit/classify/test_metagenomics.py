@@ -38,7 +38,7 @@ class TestKronaCalls(TestCaseWithTmp):
 
     def setUp(self):
         super().setUp()
-        patcher = patch('krona.Krona', autospec=True)
+        patcher = patch('viral_ngs.metagenomics.krona.Krona', autospec=True)
         self.addCleanup(patcher.stop)
         self.mock_krona = patcher.start()
 

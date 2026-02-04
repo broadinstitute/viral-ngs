@@ -776,6 +776,7 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         self.assertLessEqual(output_count, expected_max_reads)
 
 
+@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
 class TestMvicuna(TestCaseWithTmp):
     """
     Input consists of 3 read pairs.
