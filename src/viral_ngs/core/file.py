@@ -36,7 +36,7 @@ import lz4.frame
 import pysam
 import zstandard as zstd
 
-from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
+from . import file as util_file, misc as util_misc, cmd as util_cmd  # was: from viral_ngs import util
 
 log = logging.getLogger(__name__)
 
