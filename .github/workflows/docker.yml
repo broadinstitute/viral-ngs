@@ -1433,6 +1433,41 @@ jobs:
               -n auto
 
   # ============================================================================
+  # AGGREGATOR JOB - Single status check for branch protection
+  # This job always runs and reports combined test status, allowing conditional
+  # test jobs to be skipped without blocking PRs that don't need those tests.
+  # ============================================================================
+
+  all-tests-pass:
+    if: always()
+    needs:
+      - test-core
+      - test-core-arm64
+      - test-assemble
+      - test-assemble-arm64
+      - test-classify
+      - test-classify-arm64
+      - test-phylo
+      - test-phylo-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          # Get all job results
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "Job results: $results"
+
+          # Fail if any job failed or was cancelled
+          for result in $results; do
+            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
+              echo "One or more test jobs failed or were cancelled"
+              exit 1
+            fi
+          done
+
+          echo "All test jobs passed or were skipped"
+
+  # ============================================================================
   # DEPLOY JOBS - Copy images from GHCR to Quay after tests pass
   # Uses crane to efficiently copy multi-arch manifests without re-pulling layers
   # ============================================================================
@@ -1446,10 +1481,7 @@ jobs:
       create-manifest-classify,
       create-manifest-phylo,
       create-manifest-mega,
-      test-core,
-      test-assemble,
-      test-classify,
-      test-phylo
+      all-tests-pass
     ]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
