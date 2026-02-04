@@ -273,18 +273,18 @@ def test_krakenuniq(mocker):
     p.assert_called_with('db', ['input.bam'], num_threads=mock.ANY, filter_threshold=mock.ANY, out_reports=['output.report'], out_reads=['output.reads'])
 
 
-def test_kaiju(mocker):
-    p = mocker.patch('classify.kaiju.Kaiju.classify')
-    args = [
-        'input.bam',
-        'db.fmi',
-        'tax_db',
-        'output.report',
-        '--outReads', 'output.reads',
-    ]
-    args = metagenomics.parser_kaiju(argparse.ArgumentParser()).parse_args(args)
-    args.func_main(args)
-    p.assert_called_with('db.fmi', 'tax_db', 'input.bam', output_report='output.report', num_threads=mock.ANY, output_reads='output.reads')
+def test_kaiju():
+    with patch('viral_ngs.metagenomics.kaiju.Kaiju.classify') as p:
+        args = [
+            'input.bam',
+            'db.fmi',
+            'tax_db',
+            'output.report',
+            '--outReads', 'output.reads',
+        ]
+        args = metagenomics.parser_kaiju(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+        p.assert_called_with('db.fmi', 'tax_db', 'input.bam', output_report='output.report', num_threads=mock.ANY, output_reads='output.reads')
 
 
 class TestBamFilter(TestCaseWithTmp):
