@@ -82,6 +82,7 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
+      image-tag-prefix: ${{ steps.image-tag.outputs.prefix }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -109,6 +110,22 @@ jobs:
 
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Detected version: ${VERSION}"
+
+      - name: Compute Docker image tag prefix
+        id: image-tag
+        run: |
+          # For PRs, github.ref_name is "1020/merge" which contains "/" - invalid in Docker tags
+          # Convert to a valid tag prefix: "pr-1020" for PRs, sanitized branch name for branches
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Extract PR number from github.ref (refs/pull/1020/merge -> 1020)
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            PREFIX="pr-${PR_NUMBER}"
+          else
+            # For branches/tags, replace "/" with "-" to create valid Docker tags
+            PREFIX=$(echo "${{ github.ref_name }}" | sed 's|/|-|g')
+          fi
+          echo "prefix=${PREFIX}" >> $GITHUB_OUTPUT
+          echo "Image tag prefix: ${PREFIX}"
 
   # ============================================================================
   # BASEIMAGE BUILD JOBS - Native multi-arch builds (no QEMU)
@@ -147,11 +164,11 @@ jobs:
           file: docker/Dockerfile.baseimage
           platforms: linux/amd64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build baseimage for ARM64 (native runner)
   build-baseimage-arm64:
@@ -185,11 +202,11 @@ jobs:
           file: docker/Dockerfile.baseimage
           platforms: linux/arm64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for baseimage
   create-manifest-baseimage:
@@ -214,7 +231,7 @@ jobs:
 
       - name: Get baseimage tag
         id: get-tag
-        run: echo "tag=${{ github.ref_name }}-baseimage" >> $GITHUB_OUTPUT
+        run: echo "tag=${{ needs.get-version.outputs.image-tag-prefix }}-baseimage" >> $GITHUB_OUTPUT
 
       - name: Create multi-arch manifest
         run: |
@@ -224,8 +241,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
 
       - name: Create additional tags for main branch
         if: github.ref == 'refs/heads/main'
@@ -235,8 +252,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:baseimage \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
 
       - name: Create version tags
         if: github.ref_type == 'tag'
@@ -250,8 +267,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${VERSION}-baseimage \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
 
           # Create major.minor tag
           docker buildx imagetools create \
@@ -259,8 +276,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-baseimage \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
 
   # ============================================================================
   # CORE BUILD JOBS - Native multi-arch builds
@@ -298,14 +315,14 @@ jobs:
           file: docker/Dockerfile.core
           platforms: linux/amd64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build core for ARM64 (depends on baseimage-arm64, not manifest)
   build-core-arm64:
@@ -339,14 +356,14 @@ jobs:
           file: docker/Dockerfile.core
           platforms: linux/arm64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for core
   create-manifest-core:
@@ -371,7 +388,7 @@ jobs:
 
       - name: Get core tag
         id: get-tag
-        run: echo "tag=${{ github.ref_name }}-core" >> $GITHUB_OUTPUT
+        run: echo "tag=${{ needs.get-version.outputs.image-tag-prefix }}-core" >> $GITHUB_OUTPUT
 
       - name: Create multi-arch manifest
         run: |
@@ -380,8 +397,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
 
       - name: Create additional tags for main branch
         if: github.ref == 'refs/heads/main'
@@ -391,8 +408,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:core \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
 
       - name: Create version tags
         if: github.ref_type == 'tag'
@@ -405,16 +422,16 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${VERSION}-core \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-core \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
 
   # ============================================================================
   # ASSEMBLE BUILD JOBS - Native multi-arch builds
@@ -452,14 +469,14 @@ jobs:
           file: docker/Dockerfile.assemble
           platforms: linux/amd64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build assemble for ARM64
   build-assemble-arm64:
@@ -493,14 +510,14 @@ jobs:
           file: docker/Dockerfile.assemble
           platforms: linux/arm64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for assemble
   create-manifest-assemble:
@@ -525,7 +542,7 @@ jobs:
 
       - name: Get assemble tag
         id: get-tag
-        run: echo "tag=${{ github.ref_name }}-assemble" >> $GITHUB_OUTPUT
+        run: echo "tag=${{ needs.get-version.outputs.image-tag-prefix }}-assemble" >> $GITHUB_OUTPUT
 
       - name: Create multi-arch manifest
         run: |
@@ -534,8 +551,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
 
       - name: Create additional tags for main branch
         if: github.ref == 'refs/heads/main'
@@ -545,8 +562,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:assemble \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
 
       - name: Create version tags
         if: github.ref_type == 'tag'
@@ -559,16 +576,16 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${VERSION}-assemble \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-assemble \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
 
   # ============================================================================
   # CLASSIFY BUILD JOBS - Native multi-arch builds
@@ -606,14 +623,14 @@ jobs:
           file: docker/Dockerfile.classify
           platforms: linux/amd64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build classify for ARM64
   build-classify-arm64:
@@ -647,14 +664,14 @@ jobs:
           file: docker/Dockerfile.classify
           platforms: linux/arm64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for classify
   create-manifest-classify:
@@ -679,7 +696,7 @@ jobs:
 
       - name: Get classify tag
         id: get-tag
-        run: echo "tag=${{ github.ref_name }}-classify" >> $GITHUB_OUTPUT
+        run: echo "tag=${{ needs.get-version.outputs.image-tag-prefix }}-classify" >> $GITHUB_OUTPUT
 
       - name: Create multi-arch manifest
         run: |
@@ -688,8 +705,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
 
       - name: Create additional tags for main branch
         if: github.ref == 'refs/heads/main'
@@ -699,8 +716,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:classify \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
 
       - name: Create version tags
         if: github.ref_type == 'tag'
@@ -713,16 +730,16 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${VERSION}-classify \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-classify \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
 
   # ============================================================================
   # PHYLO BUILD JOBS - Native multi-arch builds
@@ -760,14 +777,14 @@ jobs:
           file: docker/Dockerfile.phylo
           platforms: linux/amd64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build phylo for ARM64
   build-phylo-arm64:
@@ -801,14 +818,14 @@ jobs:
           file: docker/Dockerfile.phylo
           platforms: linux/arm64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for phylo
   create-manifest-phylo:
@@ -833,7 +850,7 @@ jobs:
 
       - name: Get phylo tag
         id: get-tag
-        run: echo "tag=${{ github.ref_name }}-phylo" >> $GITHUB_OUTPUT
+        run: echo "tag=${{ needs.get-version.outputs.image-tag-prefix }}-phylo" >> $GITHUB_OUTPUT
 
       - name: Create multi-arch manifest
         run: |
@@ -842,8 +859,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
 
       - name: Create additional tags for main branch
         if: github.ref == 'refs/heads/main'
@@ -853,8 +870,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:phylo \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
 
       - name: Create version tags
         if: github.ref_type == 'tag'
@@ -867,16 +884,16 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${VERSION}-phylo \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-phylo \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
 
   # ============================================================================
   # MEGA BUILD JOBS - Native multi-arch builds (all tools combined)
@@ -914,14 +931,14 @@ jobs:
           file: docker/Dockerfile.mega
           platforms: linux/amd64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build mega for ARM64
   build-mega-arm64:
@@ -955,14 +972,14 @@ jobs:
           file: docker/Dockerfile.mega
           platforms: linux/arm64
           push: true
-          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
+          tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-main
-          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ github.ref_name }},mode=max
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for mega
   create-manifest-mega:
@@ -989,9 +1006,9 @@ jobs:
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
-            --tag ${{ env.GHCR_REPO }}:${{ github.ref_name }} \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
+            --tag ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }} \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
 
       - name: Create additional tags for main branch
         if: github.ref == 'refs/heads/main'
@@ -1001,8 +1018,8 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:latest \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
 
       - name: Create version tags
         if: github.ref_type == 'tag'
@@ -1015,16 +1032,16 @@ jobs:
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${VERSION} \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
 
           docker buildx imagetools create \
             --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
             --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR} \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64 \
-            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64 \
+            ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
 
   # ============================================================================
   # TEST JOBS - Run after corresponding manifests are created
@@ -1400,7 +1417,7 @@ jobs:
             echo "extra_dest_tag=${MAJOR_MINOR}${SUFFIX}" >> $GITHUB_OUTPUT
           else
             # Branch: copy as branch tag
-            BRANCH="${{ github.ref_name }}"
+            BRANCH="${{ needs.get-version.outputs.image-tag-prefix }}"
             echo "src_tag=${BRANCH}${SUFFIX}" >> $GITHUB_OUTPUT
             echo "dest_tags=${BRANCH}${SUFFIX}" >> $GITHUB_OUTPUT
             echo "extra_dest_tag=" >> $GITHUB_OUTPUT
