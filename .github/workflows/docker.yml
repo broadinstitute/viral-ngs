@@ -1511,7 +1511,20 @@ jobs:
       create-manifest-mega,
       all-tests-pass
     ]
-    if: github.event_name != 'pull_request'
+    # Use always() to evaluate condition even when upstream jobs were skipped.
+    # Without this, GitHub skips this job if any job in the dependency chain was skipped,
+    # even if all direct dependencies succeeded.
+    if: |
+      always() &&
+      !cancelled() &&
+      needs.all-tests-pass.result == 'success' &&
+      needs.create-manifest-baseimage.result == 'success' &&
+      needs.create-manifest-core.result == 'success' &&
+      needs.create-manifest-assemble.result == 'success' &&
+      needs.create-manifest-classify.result == 'success' &&
+      needs.create-manifest-phylo.result == 'success' &&
+      needs.create-manifest-mega.result == 'success' &&
+      github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
