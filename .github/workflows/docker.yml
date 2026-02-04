@@ -1580,11 +1580,13 @@ jobs:
             crane copy "$SRC" "$LATEST_DEST"
           fi
 
-      - name: Add expiration label for feature branches
+      - name: Add expiration annotation for feature branches
         if: github.ref_type == 'branch' && github.ref_name != 'main'
         run: |
-          # Note: crane doesn't support adding labels directly, but Quay.io
-          # can be configured with tag expiration policies at the repo level.
-          # For now, feature branch images on Quay won't auto-expire.
-          # Consider using Quay.io's tag expiration API or repo settings.
-          echo "Note: Feature branch images on Quay.io should be cleaned up periodically"
+          TAG="${{ steps.tags.outputs.dest_tags }}"
+          echo "Adding 10-week expiration to ${{ env.QUAY_REPO }}:$TAG"
+
+          docker buildx imagetools create \
+            --annotation "quay.expires-after=10w" \
+            --tag "${{ env.QUAY_REPO }}:$TAG" \
+            "${{ env.QUAY_REPO }}:$TAG"
