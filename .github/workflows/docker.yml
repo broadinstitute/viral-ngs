@@ -1107,7 +1107,7 @@ jobs:
               -v --tb=short \
               --cov=viral_ngs \
               --cov-report=xml:/workspace/coverage-core.xml \
-              -n auto -x
+              -n auto
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -1157,7 +1157,7 @@ jobs:
             ${{ env.GHCR_REPO }}:${{ needs.create-manifest-core.outputs.core-tag }} \
             pytest tests/unit/core/ \
               -v --tb=short \
-              -n auto -x
+              -n auto
 
   # Test assemble (x86)
   test-assemble:
@@ -1198,7 +1198,7 @@ jobs:
               -v --tb=short \
               --cov=viral_ngs \
               --cov-report=xml:/workspace/coverage-assemble.xml \
-              -n auto -x
+              -n auto
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -1248,7 +1248,7 @@ jobs:
             ${{ env.GHCR_REPO }}:${{ needs.create-manifest-assemble.outputs.assemble-tag }} \
             pytest tests/unit/assemble/ \
               -v --tb=short \
-              -n auto -x
+              -n auto
 
   # Test classify (x86)
   test-classify:
@@ -1289,7 +1289,7 @@ jobs:
               -v --tb=short \
               --cov=viral_ngs \
               --cov-report=xml:/workspace/coverage-classify.xml \
-              -n auto -x
+              -n auto
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -1339,7 +1339,7 @@ jobs:
             ${{ env.GHCR_REPO }}:${{ needs.create-manifest-classify.outputs.classify-tag }} \
             pytest tests/unit/classify/ \
               -v --tb=short \
-              -n auto -x
+              -n auto
 
   # Test phylo (x86)
   test-phylo:
@@ -1380,7 +1380,7 @@ jobs:
               -v --tb=short \
               --cov=viral_ngs \
               --cov-report=xml:/workspace/coverage-phylo.xml \
-              -n auto -x
+              -n auto
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -1430,7 +1430,7 @@ jobs:
             ${{ env.GHCR_REPO }}:${{ needs.create-manifest-phylo.outputs.phylo-tag }} \
             pytest tests/unit/phylo/ \
               -v --tb=short \
-              -n auto -x
+              -n auto
 
   # ============================================================================
   # DEPLOY JOBS - Copy images from GHCR to Quay after tests pass
