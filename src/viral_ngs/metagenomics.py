@@ -365,9 +365,9 @@ def parser_kraken2(parser=argparse.ArgumentParser()):
         '--confidence', default=None, type=float, help='Kraken2 confidence score threshold (default %(default)s)'
     )
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    cmd.attach_main(parser, kraken2, split_args=True)
+    cmd.attach_main(parser, main_kraken2, split_args=True)
     return parser
-def kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, minimum_hit_groups=None, threads=None):
+def main_kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None, confidence=None, minimum_hit_groups=None, threads=None):
     '''
         Classify reads by taxon using Kraken2
     '''
@@ -484,9 +484,9 @@ def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('--noRank', help='Include no rank assignments.', action='store_true')
     parser.add_argument('--inputType', help='Handling for specialized report types.', default='tsv', choices=['tsv', 'kraken2'])
     cmd.common_args(parser, (('loglevel', None), ('version', None)))
-    cmd.attach_main(parser, krona, split_args=True)
+    cmd.attach_main(parser, main_krona, split_args=True)
     return parser
-def krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, magnitudeColumn=None, noHits=None, noRank=None,
+def main_krona(inReports, db, outHtml, queryColumn=None, taxidColumn=None, scoreColumn=None, magnitudeColumn=None, noHits=None, noRank=None,
           inputType=None, sample_name=None):
     '''
         Create an interactive HTML report from a tabular metagenomic report
