@@ -26,7 +26,7 @@ import yaml
 import Bio.SeqIO
 import pysam
 
-from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
+from . import file as util_file  # was: from viral_ngs import util
 
 log = logging.getLogger(__name__)
 

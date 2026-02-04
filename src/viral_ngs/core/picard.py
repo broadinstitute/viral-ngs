@@ -13,8 +13,7 @@ from decimal import *
 
 import pysam
 
-from . import samtools, picard  # was: from viral_ngs import tools
-from . import samtools
+from . import samtools  # was: from viral_ngs import tools
 from . import file as util_file, misc as util_misc  # was: from viral_ngs import util
 from . import Tool
 
@@ -182,7 +181,7 @@ class SamToFastqTool(PicardTools):
 
         if illuminaClipping:
             opts += PicardTools.dict_to_picard_opts({
-                'CLIPPING_ATTRIBUTE': picard.SamToFastqTool.illumina_clipping_attribute,
+                'CLIPPING_ATTRIBUTE': SamToFastqTool.illumina_clipping_attribute,
                 'CLIPPING_ACTION': 'X'
             })
 
