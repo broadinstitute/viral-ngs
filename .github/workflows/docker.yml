@@ -110,10 +110,90 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Detected version: ${VERSION}"
 
-  # Build baseimage first (no dependencies)
-  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
-  build-baseimage:
+  # ============================================================================
+  # BASEIMAGE BUILD JOBS - Native multi-arch builds (no QEMU)
+  # AMD64 and ARM64 build in parallel on native runners, then combined
+  # ============================================================================
+
+  # Build baseimage for AMD64
+  build-baseimage-amd64:
     needs: get-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (amd64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.baseimage
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ github.ref_name }},mode=max
+
+  # Build baseimage for ARM64 (native runner)
+  build-baseimage-arm64:
+    needs: get-version
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.baseimage
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ github.ref_name }},mode=max
+
+  # Create multi-arch manifest for baseimage
+  create-manifest-baseimage:
+    needs: [get-version, build-baseimage-amd64, build-baseimage-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -122,11 +202,83 @@ jobs:
       baseimage-tag: ${{ steps.get-tag.outputs.tag }}
 
     steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get baseimage tag
+        id: get-tag
+        run: echo "tag=${{ github.ref_name }}-baseimage" >> $GITHUB_OUTPUT
+
+      - name: Create multi-arch manifest
+        run: |
+          # Create manifest with OCI annotations
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+
+      - name: Create additional tags for main branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:baseimage \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+
+      - name: Create version tags
+        if: github.ref_type == 'tag'
+        run: |
+          VERSION="${{ github.ref_name }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+
+          # Create version tag
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${VERSION}-baseimage \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+
+          # Create major.minor tag
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - base image" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-baseimage \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+
+  # ============================================================================
+  # CORE BUILD JOBS - Native multi-arch builds
+  # ============================================================================
+
+  # Build core for AMD64 (depends on baseimage-amd64, not manifest)
+  build-core-amd64:
+    needs: [get-version, build-baseimage-amd64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -138,47 +290,67 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.GHCR_REPO }}
-          flavor: |
-            suffix=-baseimage
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=pr
-            type=raw,value=baseimage,enable=${{ github.ref == 'refs/heads/main' }},suffix=
-
-      - name: Get baseimage tag for downstream jobs
-        id: get-tag
-        run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "tag=${{ github.ref_name }}-baseimage" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.ref_name }}-baseimage" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push Docker image
+      - name: Build and push (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.baseimage
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: docker/Dockerfile.core
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
+          build-args: |
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-amd64
+            VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-${{ github.ref_name }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-main
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-baseimage-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ github.ref_name }},mode=max
 
-  # Build core image (depends on baseimage)
-  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
-  build-core:
-    needs: [get-version, build-baseimage]
+  # Build core for ARM64 (depends on baseimage-arm64, not manifest)
+  build-core-arm64:
+    needs: [get-version, build-baseimage-arm64]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.core
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+          build-args: |
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-baseimage-arm64
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ github.ref_name }},mode=max
+
+  # Create multi-arch manifest for core
+  create-manifest-core:
+    needs: [get-version, build-core-amd64, build-core-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -187,11 +359,80 @@ jobs:
       core-tag: ${{ steps.get-tag.outputs.tag }}
 
     steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get core tag
+        id: get-tag
+        run: echo "tag=${{ github.ref_name }}-core" >> $GITHUB_OUTPUT
+
+      - name: Create multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+
+      - name: Create additional tags for main branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:core \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+
+      - name: Create version tags
+        if: github.ref_type == 'tag'
+        run: |
+          VERSION="${{ github.ref_name }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${VERSION}-core \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - core utilities" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-core \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+
+  # ============================================================================
+  # ASSEMBLE BUILD JOBS - Native multi-arch builds
+  # ============================================================================
+
+  # Build assemble for AMD64
+  build-assemble-amd64:
+    needs: [get-version, build-core-amd64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -203,50 +444,67 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.GHCR_REPO }}
-          flavor: |
-            suffix=-core
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=pr
-            type=raw,value=core,enable=${{ github.ref == 'refs/heads/main' }},suffix=
-
-      - name: Get core tag for downstream jobs
-        id: get-tag
-        run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "tag=${{ github.ref_name }}-core" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.ref_name }}-core" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push Docker image
+      - name: Build and push (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.core
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: docker/Dockerfile.assemble
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.build-baseimage.outputs.baseimage-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-${{ github.ref_name }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-core-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ github.ref_name }},mode=max
 
-  # Build assemble image (depends on core)
-  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
-  build-assemble:
-    needs: [get-version, build-core]
+  # Build assemble for ARM64
+  build-assemble-arm64:
+    needs: [get-version, build-core-arm64]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.assemble
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+          build-args: |
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ github.ref_name }},mode=max
+
+  # Create multi-arch manifest for assemble
+  create-manifest-assemble:
+    needs: [get-version, build-assemble-amd64, build-assemble-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -255,11 +513,80 @@ jobs:
       assemble-tag: ${{ steps.get-tag.outputs.tag }}
 
     steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get assemble tag
+        id: get-tag
+        run: echo "tag=${{ github.ref_name }}-assemble" >> $GITHUB_OUTPUT
+
+      - name: Create multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+
+      - name: Create additional tags for main branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:assemble \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+
+      - name: Create version tags
+        if: github.ref_type == 'tag'
+        run: |
+          VERSION="${{ github.ref_name }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${VERSION}-assemble \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - assembly" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-assemble \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-assemble-arm64
+
+  # ============================================================================
+  # CLASSIFY BUILD JOBS - Native multi-arch builds
+  # ============================================================================
+
+  # Build classify for AMD64
+  build-classify-amd64:
+    needs: [get-version, build-core-amd64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -271,50 +598,67 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.GHCR_REPO }}
-          flavor: |
-            suffix=-assemble
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=pr
-            type=raw,value=assemble,enable=${{ github.ref == 'refs/heads/main' }},suffix=
-
-      - name: Get assemble tag for downstream jobs
-        id: get-tag
-        run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "tag=${{ github.ref_name }}-assemble" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.ref_name }}-assemble" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push Docker image
+      - name: Build and push (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.assemble
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: docker/Dockerfile.classify
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-${{ github.ref_name }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-main
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-assemble-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ github.ref_name }},mode=max
 
-  # Build classify image (depends on core)
-  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
-  build-classify:
-    needs: [get-version, build-core]
+  # Build classify for ARM64
+  build-classify-arm64:
+    needs: [get-version, build-core-arm64]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.classify
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+          build-args: |
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ github.ref_name }},mode=max
+
+  # Create multi-arch manifest for classify
+  create-manifest-classify:
+    needs: [get-version, build-classify-amd64, build-classify-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -323,11 +667,80 @@ jobs:
       classify-tag: ${{ steps.get-tag.outputs.tag }}
 
     steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get classify tag
+        id: get-tag
+        run: echo "tag=${{ github.ref_name }}-classify" >> $GITHUB_OUTPUT
+
+      - name: Create multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+
+      - name: Create additional tags for main branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:classify \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+
+      - name: Create version tags
+        if: github.ref_type == 'tag'
+        run: |
+          VERSION="${{ github.ref_name }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${VERSION}-classify \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - metagenomic classification" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-classify \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-classify-arm64
+
+  # ============================================================================
+  # PHYLO BUILD JOBS - Native multi-arch builds
+  # ============================================================================
+
+  # Build phylo for AMD64
+  build-phylo-amd64:
+    needs: [get-version, build-core-amd64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -339,50 +752,67 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.GHCR_REPO }}
-          flavor: |
-            suffix=-classify
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=pr
-            type=raw,value=classify,enable=${{ github.ref == 'refs/heads/main' }},suffix=
-
-      - name: Get classify tag for downstream jobs
-        id: get-tag
-        run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "tag=${{ github.ref_name }}-classify" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.ref_name }}-classify" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push Docker image
+      - name: Build and push (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.classify
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: docker/Dockerfile.phylo
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-${{ github.ref_name }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-main
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-classify-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ github.ref_name }},mode=max
 
-  # Build phylo image (depends on core)
-  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
-  build-phylo:
-    needs: [get-version, build-core]
+  # Build phylo for ARM64
+  build-phylo-arm64:
+    needs: [get-version, build-core-arm64]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.phylo
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+          build-args: |
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ github.ref_name }},mode=max
+
+  # Create multi-arch manifest for phylo
+  create-manifest-phylo:
+    needs: [get-version, build-phylo-amd64, build-phylo-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -391,11 +821,80 @@ jobs:
       phylo-tag: ${{ steps.get-tag.outputs.tag }}
 
     steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get phylo tag
+        id: get-tag
+        run: echo "tag=${{ github.ref_name }}-phylo" >> $GITHUB_OUTPUT
+
+      - name: Create multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${{ steps.get-tag.outputs.tag }} \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+
+      - name: Create additional tags for main branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:phylo \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+
+      - name: Create version tags
+        if: github.ref_type == 'tag'
+        run: |
+          VERSION="${{ github.ref_name }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${VERSION}-phylo \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - phylogenetics" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR}-phylo \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-phylo-arm64
+
+  # ============================================================================
+  # MEGA BUILD JOBS - Native multi-arch builds (all tools combined)
+  # ============================================================================
+
+  # Build mega for AMD64
+  build-mega-amd64:
+    needs: [get-version, build-core-amd64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -407,62 +906,73 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.GHCR_REPO }}
-          flavor: |
-            suffix=-phylo
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=pr
-            type=raw,value=phylo,enable=${{ github.ref == 'refs/heads/main' }},suffix=
-
-      - name: Get phylo tag for downstream jobs
-        id: get-tag
-        run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "tag=${{ github.ref_name }}-phylo" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.ref_name }}-phylo" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push Docker image
+      - name: Build and push (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.phylo
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: docker/Dockerfile.mega
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64
           build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.build-core.outputs.core-tag }}
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-amd64
             VERSION=${{ needs.get-version.outputs.version }}
           cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-${{ github.ref_name }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-main
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-phylo-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ github.ref_name }},mode=max
 
-  # Build mega image (all tools combined) - depends on core
-  # Pushes to GHCR for testing; deployment to Quay happens after tests pass
-  build-mega:
-    needs: [get-version, build-core]
+  # Build mega for ARM64
+  build-mega-arm64:
+    needs: [get-version, build-core-arm64]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.mega
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
+          build-args: |
+            BASEIMAGE=${{ env.GHCR_REPO }}:${{ github.ref_name }}-core-arm64
+            VERSION=${{ needs.get-version.outputs.version }}
+          cache-from: |
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ github.ref_name }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-main
+          cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ github.ref_name }},mode=max
+
+  # Create multi-arch manifest for mega
+  create-manifest-mega:
+    needs: [get-version, build-mega-amd64, build-mega-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -473,44 +983,57 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.GHCR_REPO }}
-          # No suffix for mega - it's the main image
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=pr
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      - name: Create multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${{ github.ref_name }} \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.mega
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.build-core.outputs.core-tag }}
-            VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-${{ github.ref_name }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-main
-          cache-to: ${{ github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-mega-{1},mode=max', env.GHCR_REPO, github.ref_name) || '' }}
+      - name: Create additional tags for main branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:latest \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
+
+      - name: Create version tags
+        if: github.ref_type == 'tag'
+        run: |
+          VERSION="${{ github.ref_name }}"
+          MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${VERSION} \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
+
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+            --annotation "index:org.opencontainers.image.description=Viral genomics analysis tools - all tools combined" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --tag ${{ env.GHCR_REPO }}:${MAJOR_MINOR} \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-amd64 \
+            ${{ env.GHCR_REPO }}:${{ github.ref_name }}-mega-arm64
 
   # ============================================================================
-  # TEST JOBS - Run after corresponding images are built
-  # Each test runs in its flavor's Docker container
+  # TEST JOBS - Run after corresponding manifests are created
+  # Each test runs in its flavor's Docker container (x86 only)
   # ============================================================================
 
-  # Test core - runs after core image is built
+  # Test core (x86)
   test-core:
-    needs: [paths-filter, get-version, build-baseimage, build-core]
+    needs: [paths-filter, get-version, create-manifest-core]
     if: needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -528,43 +1051,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # For PRs, build locally since image wasn't pushed
-      # Use main branch baseimage as fallback since PR's baseimage isn't in registry
-      - name: Build test image (PR only)
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.core
-          platforms: linux/amd64
-          load: true
-          tags: viral-ngs:test-core
-          build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:main-baseimage
-            VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-${{ github.head_ref }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-main
-
-      - name: Set image name
-        id: image
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "name=viral-ngs:test-core" >> $GITHUB_OUTPUT
-          else
-            echo "name=${{ env.GHCR_REPO }}:${{ needs.build-core.outputs.core-tag }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Run core tests
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            ${{ steps.image.outputs.name }} \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-core.outputs.core-tag }} \
             pytest tests/unit/core/ \
               -v --tb=short \
               --cov=viral_ngs \
@@ -580,9 +1072,41 @@ jobs:
           name: codecov-core
           fail_ci_if_error: false
 
-  # Test assemble - runs after assemble image is built
+  # Test core (ARM64) - only on PRs with docker changes
+  test-core-arm64:
+    needs: [paths-filter, get-version, create-manifest-core]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.paths-filter.outputs.docker == 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run core tests (ARM64)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-core.outputs.core-tag }} \
+            pytest tests/unit/core/ \
+              -v --tb=short \
+              -n auto -x
+
+  # Test assemble (x86)
   test-assemble:
-    needs: [paths-filter, get-version, build-assemble]
+    needs: [paths-filter, get-version, create-manifest-assemble]
     if: needs.paths-filter.outputs.assemble == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -600,42 +1124,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # For PRs, build locally using main branch core image as base
-      - name: Build test image (PR only)
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.assemble
-          platforms: linux/amd64
-          load: true
-          tags: viral-ngs:test-assemble
-          build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:main-core
-            VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-${{ github.head_ref }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-main
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
-
-      - name: Set image name
-        id: image
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "name=viral-ngs:test-assemble" >> $GITHUB_OUTPUT
-          else
-            echo "name=${{ env.GHCR_REPO }}:${{ needs.build-assemble.outputs.assemble-tag }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Run assemble tests
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            ${{ steps.image.outputs.name }} \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-assemble.outputs.assemble-tag }} \
             pytest tests/unit/assemble/ \
               -v --tb=short \
               --cov=viral_ngs \
@@ -651,9 +1145,41 @@ jobs:
           name: codecov-assemble
           fail_ci_if_error: false
 
-  # Test classify - runs after classify image is built
+  # Test assemble (ARM64) - only on PRs with docker changes
+  test-assemble-arm64:
+    needs: [paths-filter, get-version, create-manifest-assemble]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.paths-filter.outputs.docker == 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run assemble tests (ARM64)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-assemble.outputs.assemble-tag }} \
+            pytest tests/unit/assemble/ \
+              -v --tb=short \
+              -n auto -x
+
+  # Test classify (x86)
   test-classify:
-    needs: [paths-filter, get-version, build-classify]
+    needs: [paths-filter, get-version, create-manifest-classify]
     if: needs.paths-filter.outputs.classify == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -671,42 +1197,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # For PRs, build locally using main branch core image as base
-      - name: Build test image (PR only)
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.classify
-          platforms: linux/amd64
-          load: true
-          tags: viral-ngs:test-classify
-          build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:main-core
-            VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-${{ github.head_ref }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-main
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
-
-      - name: Set image name
-        id: image
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "name=viral-ngs:test-classify" >> $GITHUB_OUTPUT
-          else
-            echo "name=${{ env.GHCR_REPO }}:${{ needs.build-classify.outputs.classify-tag }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Run classify tests
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            ${{ steps.image.outputs.name }} \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-classify.outputs.classify-tag }} \
             pytest tests/unit/classify/ \
               -v --tb=short \
               --cov=viral_ngs \
@@ -722,9 +1218,41 @@ jobs:
           name: codecov-classify
           fail_ci_if_error: false
 
-  # Test phylo - runs after phylo image is built
+  # Test classify (ARM64) - only on PRs with docker changes
+  test-classify-arm64:
+    needs: [paths-filter, get-version, create-manifest-classify]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.paths-filter.outputs.docker == 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run classify tests (ARM64)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-classify.outputs.classify-tag }} \
+            pytest tests/unit/classify/ \
+              -v --tb=short \
+              -n auto -x
+
+  # Test phylo (x86)
   test-phylo:
-    needs: [paths-filter, get-version, build-phylo]
+    needs: [paths-filter, get-version, create-manifest-phylo]
     if: needs.paths-filter.outputs.phylo == 'true' || needs.paths-filter.outputs.core == 'true' || needs.paths-filter.outputs.docker == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -742,42 +1270,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # For PRs, build locally using main branch core image as base
-      - name: Build test image (PR only)
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.phylo
-          platforms: linux/amd64
-          load: true
-          tags: viral-ngs:test-phylo
-          build-args: |
-            BASEIMAGE=${{ env.GHCR_REPO }}:main-core
-            VERSION=${{ needs.get-version.outputs.version }}
-          cache-from: |
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-${{ github.head_ref }}
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-main
-            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-main
-
-      - name: Set image name
-        id: image
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "name=viral-ngs:test-phylo" >> $GITHUB_OUTPUT
-          else
-            echo "name=${{ env.GHCR_REPO }}:${{ needs.build-phylo.outputs.phylo-tag }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Run phylo tests
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            ${{ steps.image.outputs.name }} \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-phylo.outputs.phylo-tag }} \
             pytest tests/unit/phylo/ \
               -v --tb=short \
               --cov=viral_ngs \
@@ -793,13 +1291,57 @@ jobs:
           name: codecov-phylo
           fail_ci_if_error: false
 
+  # Test phylo (ARM64) - only on PRs with docker changes
+  test-phylo-arm64:
+    needs: [paths-filter, get-version, create-manifest-phylo]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.paths-filter.outputs.docker == 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run phylo tests (ARM64)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-phylo.outputs.phylo-tag }} \
+            pytest tests/unit/phylo/ \
+              -v --tb=short \
+              -n auto -x
+
   # ============================================================================
   # DEPLOY JOBS - Copy images from GHCR to Quay after tests pass
   # Uses crane to efficiently copy multi-arch manifests without re-pulling layers
   # ============================================================================
 
   deploy-to-quay:
-    needs: [get-version, build-baseimage, build-core, build-assemble, build-classify, build-phylo, build-mega, test-core, test-assemble, test-classify, test-phylo]
+    needs: [
+      get-version,
+      create-manifest-baseimage,
+      create-manifest-core,
+      create-manifest-assemble,
+      create-manifest-classify,
+      create-manifest-phylo,
+      create-manifest-mega,
+      test-core,
+      test-assemble,
+      test-classify,
+      test-phylo
+    ]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -811,17 +1353,11 @@ jobs:
       matrix:
         include:
           - flavor: baseimage
-            tag_output: baseimage-tag
           - flavor: core
-            tag_output: core-tag
           - flavor: assemble
-            tag_output: null
           - flavor: classify
-            tag_output: null
           - flavor: phylo
-            tag_output: null
           - flavor: mega
-            tag_output: null
 
     steps:
       - name: Install crane
