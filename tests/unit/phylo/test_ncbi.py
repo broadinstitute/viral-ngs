@@ -9,7 +9,7 @@ import unittest
 import argparse
 
 # module-specific
-import viral_ngs.ncbi
+import viral_ngs.ncbi as ncbi
 import viral_ngs.core.file
 import viral_ngs.phylo.genbank
 from tests import (assert_equal_bam_reads, TestCaseWithTmp, assert_equal_contents,
