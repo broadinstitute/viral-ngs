@@ -6,7 +6,7 @@ on:
       - main
       - '**'
     tags:
-      - 'v*'
+      - '**'
   pull_request:
     branches:
       - main
@@ -93,9 +93,9 @@ jobs:
       - name: Get version from git describe
         id: version
         run: |
-          # Get version like: v1.25.0 or v1.25.0-42-gabcdef
-          # Use --match 'v*' to only match version tags (not archive/* tags)
-          RAW_VERSION=$(git describe --tags --always --match 'v*')
+          # Get version like: v1.25.0, 3.0.0, or v1.25.0-42-gabcdef
+          # Match version tags with or without 'v' prefix, excluding archive/* tags
+          RAW_VERSION=$(git describe --tags --always --match 'v*' --match '[0-9]*')
           # Strip leading 'v' if present
           RAW_VERSION=${RAW_VERSION#v}
 
@@ -1477,6 +1477,7 @@ jobs:
       - test-phylo
       - test-phylo-arm64
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Check test results
         run: |
