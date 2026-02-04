@@ -1,0 +1,38 @@
+name: Cleanup Feature Branch Images
+
+on:
+  delete:
+
+jobs:
+  cleanup-quay-images:
+    # Only run for branch deletions (not tags), and skip main
+    if: github.event.ref_type == 'branch' && github.event.ref != 'main'
+    runs-on: ubuntu-latest
+    permissions: {}
+
+    steps:
+      - name: Delete feature branch images from Quay
+        run: |
+          # Install skopeo
+          sudo apt-get update && sudo apt-get install -y skopeo
+
+          BRANCH_TAG="${{ github.event.ref }}"
+          QUAY_REPO="quay.io/broadinstitute/viral-ngs"
+
+          # Image tags to delete - must be kept in sync with deploy-to-quay in docker.yml
+          # See: .github/workflows/docker.yml deploy-to-quay job matrix
+          IMAGES=(
+            "${BRANCH_TAG}-baseimage"
+            "${BRANCH_TAG}-core"
+            "${BRANCH_TAG}-assemble"
+            "${BRANCH_TAG}-classify"
+            "${BRANCH_TAG}-phylo"
+            "${BRANCH_TAG}"  # mega image (no suffix)
+          )
+
+          for TAG in "${IMAGES[@]}"; do
+            echo "Deleting ${QUAY_REPO}:${TAG}..."
+            skopeo delete \
+              --creds "${{ secrets.QUAY_USERNAME }}:${{ secrets.QUAY_TOKEN }}" \
+              "docker://${QUAY_REPO}:${TAG}" || echo "Tag ${TAG} not found or already deleted"
+          done
