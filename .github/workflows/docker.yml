@@ -1075,18 +1075,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
+      # packages: read not needed - GHCR public images can be pulled without auth
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHCR login needed - public images can be pulled without authentication
 
       - name: Run core tests
         run: |
@@ -1118,18 +1113,13 @@ jobs:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
-      packages: read
+      # packages: read not needed - GHCR public images can be pulled without auth
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHCR login needed - public images can be pulled without authentication
 
       - name: Run core tests (ARM64)
         run: |
@@ -1148,18 +1138,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
+      # packages: read not needed - GHCR public images can be pulled without auth
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHCR login needed - public images can be pulled without authentication
 
       - name: Run assemble tests
         run: |
@@ -1191,18 +1176,13 @@ jobs:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
-      packages: read
+      # packages: read not needed - GHCR public images can be pulled without auth
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHCR login needed - public images can be pulled without authentication
 
       - name: Run assemble tests (ARM64)
         run: |
@@ -1221,18 +1201,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
+      # packages: read not needed - GHCR public images can be pulled without auth
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHCR login needed - public images can be pulled without authentication
 
       - name: Run classify tests
         run: |
@@ -1264,18 +1239,13 @@ jobs:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
-      packages: read
+      # packages: read not needed - GHCR public images can be pulled without auth
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHCR login needed - public images can be pulled without authentication
 
       - name: Run classify tests (ARM64)
         run: |
@@ -1294,18 +1264,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
+      # packages: read not needed - GHCR public images can be pulled without auth
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHCR login needed - public images can be pulled without authentication
 
       - name: Run phylo tests
         run: |
@@ -1337,18 +1302,13 @@ jobs:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
-      packages: read
+      # packages: read not needed - GHCR public images can be pulled without auth
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHCR login needed - public images can be pulled without authentication
 
       - name: Run phylo tests (ARM64)
         run: |
