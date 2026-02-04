@@ -6,6 +6,7 @@ __author__ = "dpark@broadinstitute.org, irwin@broadinstitute.org," \
 import unittest
 import glob
 import os, os.path
+import platform
 import tempfile
 import shutil
 import filecmp
@@ -24,6 +25,10 @@ from viral_ngs.classify import bmtagger
 from viral_ngs.classify import blast
 
 from tests import assert_equal_contents, assert_equal_bam_reads, assert_md5_equal_to_line_in_file, TestCaseWithTmp
+
+# Skip bmtagger tests on ARM platforms - bmtagger is x86-only (no ARM64 builds in bioconda)
+IS_ARM = platform.machine() in ('arm64', 'aarch64')
+SKIP_BMTAGGER_REASON = "bmtagger requires x86-only bioconda package (not available on ARM)"
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -88,6 +93,7 @@ class TestFilterLastal(TestCaseWithTmp):
         assert_equal_bam_reads(self, outBam, empty_bam)
 
 
+@unittest.skipIf(IS_ARM, SKIP_BMTAGGER_REASON)
 class TestBmtagger(TestCaseWithTmp):
     '''
         How test data was created:
@@ -228,6 +234,7 @@ class TestBlastnDbBuild(TestCaseWithTmp):
         args.func_main(args)
 
 
+@unittest.skipIf(IS_ARM, SKIP_BMTAGGER_REASON)
 class TestBmtaggerDbBuild(TestCaseWithTmp):
 
     def test_bmtagger_db_build(self):

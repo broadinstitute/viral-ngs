@@ -5,6 +5,7 @@ __author__ = "irwin@broadinstitute.org"
 # built-ins
 import filecmp
 import os
+import platform
 import re
 import unittest
 import hashlib
@@ -15,6 +16,9 @@ import copy
 import Bio.SeqIO
 import pytest
 import pysam
+
+# Platform detection for x86-only tools
+IS_ARM = platform.machine() in ('arm64', 'aarch64')
 
 # intra-project
 import viral_ngs.core
@@ -188,10 +192,20 @@ def assert_valid_feature_table(testCase, tbl_file, fasta_file, temp_dir):
 
     This is a placeholder function that performs basic validation.
     Full validation with table2asn would require the tool to be installed.
+
+    Note: table2asn is x86-only (no ARM64 builds in bioconda). When table2asn
+    validation is implemented, it will be skipped on ARM platforms.
     '''
     # Basic check: the feature table file should exist and not be empty
     testCase.assertTrue(os.path.exists(tbl_file), f"Feature table file does not exist: {tbl_file}")
     testCase.assertTrue(os.path.getsize(tbl_file) > 0, f"Feature table file is empty: {tbl_file}")
+
+    # TODO: When table2asn wrapper is implemented, add validation here
+    # table2asn is x86-only, so skip validation on ARM:
+    # if IS_ARM:
+    #     return  # Skip table2asn validation on ARM
+    # table2asn_tool = Table2AsnTool()
+    # table2asn_tool.validate(tbl_file, fasta_file, temp_dir)
 
 
 def assert_none_executable():

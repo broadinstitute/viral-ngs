@@ -4,6 +4,7 @@ __author__ = "dpark@broadinstitute.org"
 
 import unittest
 import os.path
+import platform
 import shutil
 import viral_ngs.core
 import viral_ngs.core.novoalign
@@ -11,7 +12,12 @@ import viral_ngs.core.samtools
 import pysam
 from tests import TestCaseWithTmp, assert_md5_equal_to_line_in_file
 
+# Skip all tests on ARM platforms - novoalign is x86-only (no ARM64 builds in bioconda)
+IS_ARM = platform.machine() in ('arm64', 'aarch64')
+SKIP_X86_ONLY_REASON = "novoalign requires x86-only bioconda package (not available on ARM)"
 
+
+@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
 class TestToolNovoalign(TestCaseWithTmp):
 
     def setUp(self):

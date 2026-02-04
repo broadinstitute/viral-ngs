@@ -1,6 +1,7 @@
 # Integration tests for kb-python
 import argparse
 import os
+import platform
 from pathlib import Path
 
 import anndata
@@ -9,6 +10,10 @@ import pytest
 from viral_ngs import metagenomics
 from viral_ngs.core import file as util_file
 from viral_ngs.core import picard
+
+# Skip all tests on ARM platforms - kallisto/kb-python are x86-only (no ARM64 builds)
+IS_ARM = platform.machine() in ('arm64', 'aarch64')
+pytestmark = pytest.mark.skipif(IS_ARM, reason="kallisto/kb-python require x86-only bioconda packages (not available on ARM)")
 
 
 @pytest.fixture(scope='module')

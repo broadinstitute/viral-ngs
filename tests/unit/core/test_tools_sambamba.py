@@ -6,7 +6,6 @@ import unittest
 import os
 import tempfile
 import shutil
-import platform
 
 import pytest
 
@@ -15,11 +14,6 @@ import viral_ngs.core
 import viral_ngs.core.sambamba
 import viral_ngs.core.samtools
 from tests import TestCaseWithTmp
-
-
-# Skip merge tests on ARM platforms where x86 emulation causes segfaults
-IS_ARM = platform.machine() in ('arm64', 'aarch64')
-SKIP_MERGE_REASON = "sambamba merge segfaults under x86 emulation on ARM"
 
 
 class TestToolSambamba(TestCaseWithTmp):
