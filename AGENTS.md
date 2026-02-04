@@ -328,19 +328,41 @@ docker build --build-arg BASEIMAGE=viral-ngs:core \
 
 The `.github/workflows/docker.yml` workflow handles building and testing:
 
-**Build Jobs:**
-1. **paths-filter**: Detect which code paths changed (using `dorny/paths-filter`)
-2. **get-version**: Extract version from git describe
-3. **build-baseimage**: Build base image with conda/python
-4. **build-core**: Build core image (depends on baseimage)
-5. **build-derivatives**: Build assemble, classify, phylo in parallel (depend on core)
-6. **build-mega**: Build all-in-one image (depends on core)
+**Build Architecture:**
+Each image flavor is built using 3 parallel jobs for native multi-arch support:
+1. `build-{flavor}-amd64` - runs on `ubuntu-latest`
+2. `build-{flavor}-arm64` - runs on `ubuntu-24.04-arm` (native ARM runner)
+3. `create-manifest-{flavor}` - combines arch-specific images into multi-arch manifest
+
+This approach is 3-5x faster than QEMU emulation for ARM builds.
+
+**Build Job Flow:**
+```
+paths-filter + get-version (parallel)
+         ↓
+build-baseimage-amd64  ←→  build-baseimage-arm64  (parallel)
+         ↓                          ↓
+    create-manifest-baseimage
+         ↓
+build-core-amd64  ←→  build-core-arm64  (parallel)
+         ↓                    ↓
+    create-manifest-core
+         ↓
+build-{assemble,classify,phylo,mega}-amd64  ←→  build-{...}-arm64  (parallel)
+         ↓
+    create-manifest-{flavor}
+         ↓
+    test-{flavor} + test-{flavor}-arm64 (ARM64 tests only on PRs with docker changes)
+         ↓
+    deploy-to-quay (push/tag events only)
+```
 
 **Test Jobs:**
-- **test-core**: Runs after build-core, tests `tests/unit/core/`
-- **test-assemble**: Runs after build-derivatives, tests `tests/unit/assemble/`
-- **test-classify**: Runs after build-derivatives, tests `tests/unit/classify/`
-- **test-phylo**: Runs after build-derivatives, tests `tests/unit/phylo/`
+- **test-core**: Runs on x86, tests `tests/unit/core/`
+- **test-assemble**: Runs on x86, tests `tests/unit/assemble/`
+- **test-classify**: Runs on x86, tests `tests/unit/classify/`
+- **test-phylo**: Runs on x86, tests `tests/unit/phylo/`
+- **test-{flavor}-arm64**: Runs on native ARM, only on PRs when docker files change
 
 **Smart Test Scoping:**
 Tests only run when relevant code changes:
@@ -348,17 +370,38 @@ Tests only run when relevant code changes:
 - Assemble tests: `assemble/**`, `assembly.py`, or core changes
 - Classify tests: `classify/**`, `metagenomics.py`, `taxon_filter.py`, or core changes
 - Phylo tests: `phylo/**`, `interhost.py`, `intrahost.py`, `ncbi.py`, or core changes
-- Docker changes trigger all tests
+- Docker changes trigger all tests (including ARM64 tests on PRs)
 
 **Coverage:**
-Each test job uploads coverage to Codecov with flavor-specific flags.
+Each x86 test job uploads coverage to Codecov with flavor-specific flags.
 
 ### Multi-Architecture Support
 
-- Images built for `linux/amd64` and `linux/arm64`
+- Images built natively for `linux/amd64` and `linux/arm64` using parallel runners
+- Multi-arch manifests created with OCI annotations using `docker buildx imagetools create`
 - x86-only packages (novoalign, mvicuna, bmtagger, kallisto, kb-python, table2asn) handled via `--x86-only:` prefix in `install-conda-deps.sh`
 - Python tool wrappers still importable on ARM64; only runtime execution fails for missing binaries
-- Cache stored on Quay.io registry (GHA 10GB limit too small)
+- Tests using x86-only tools have `@unittest.skipIf(IS_ARM, ...)` decorators
+- Architecture-specific caches prevent cross-arch cache pollution
+
+### ARM Test Skipping
+
+Tests that use x86-only bioconda packages must be decorated to skip on ARM:
+
+```python
+from tests import IS_ARM
+
+SKIP_X86_ONLY_REASON = "tool requires x86-only bioconda package (not available on ARM)"
+
+@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+class TestSomeTool(TestCaseWithTmp):
+    ...
+
+# Or at method level:
+@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+def test_specific_tool(self):
+    ...
+```
 
 ### Documentation Build
 
@@ -367,9 +410,11 @@ The `docs.yml` workflow builds Sphinx documentation. Key points:
 - When adding new imports to source code, add corresponding mocks to `MOCK_MODULES` in `docs/conf.py`
 - Runs `sphinx-build -W` (warnings as errors)
 
-### Feature Branch Images
+### Registry Strategy
 
-Feature branch images get `quay.expires-after=10w` label for automatic cleanup.
+- **GHCR (ghcr.io)**: Primary build registry, images pushed during CI for all events including PRs
+- **Quay.io**: Production registry, images copied from GHCR after tests pass (push/tag events only)
+- Feature branch images should be cleaned up periodically from Quay.io
 
 ---
 
