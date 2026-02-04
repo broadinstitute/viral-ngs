@@ -322,6 +322,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build core for ARM64 (depends on baseimage-arm64, not manifest)
@@ -363,6 +365,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for core
@@ -476,6 +480,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build assemble for ARM64
@@ -517,6 +523,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for assemble
@@ -630,6 +638,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build classify for ARM64
@@ -671,6 +681,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for classify
@@ -784,6 +796,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build phylo for ARM64
@@ -825,6 +839,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for phylo
@@ -938,6 +954,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Build mega for ARM64
@@ -979,6 +997,8 @@ jobs:
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-main
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
+            type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
 
   # Create multi-arch manifest for mega
