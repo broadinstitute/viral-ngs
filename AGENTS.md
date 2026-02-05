@@ -428,6 +428,8 @@ The `docs.yml` workflow builds Sphinx documentation. Key points:
 
 **Explicit requests**: Include agent attribution in commits or elsewhere when explicitly requested by a human reviewer or contributor.
 
+**Avoid amending pushed commits**: Do not use `git commit --amend` after a commit has been pushed to the remote. Amending pushed commits causes problems for collaboration. Instead, create a new commit with the fix. Amending is fine for local commits that haven't been pushed yet.
+
 ### Test-Driven Development
 
 1. Write tests first
