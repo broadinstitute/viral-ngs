@@ -1,0 +1,33 @@
+name: 'Create Multi-Arch Manifest'
+description: 'Create Docker manifest with OCI annotations'
+inputs:
+  ghcr-repo:
+    description: 'GHCR repository base (e.g., ghcr.io/broadinstitute/viral-ngs)'
+    required: true
+  target-tag:
+    description: 'Target manifest tag (just the tag, not full URL)'
+    required: true
+  source-amd64:
+    description: 'Source AMD64 image tag'
+    required: true
+  source-arm64:
+    description: 'Source ARM64 image tag'
+    required: true
+  description:
+    description: 'Image description for OCI annotation'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Create manifest
+      shell: bash
+      run: |
+        docker buildx imagetools create \
+          --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
+          --annotation "index:org.opencontainers.image.description=${{ inputs.description }}" \
+          --annotation "index:org.opencontainers.image.licenses=MIT" \
+          --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
+          --tag "${{ inputs.ghcr-repo }}:${{ inputs.target-tag }}" \
+          "${{ inputs.ghcr-repo }}:${{ inputs.source-amd64 }}" \
+          "${{ inputs.ghcr-repo }}:${{ inputs.source-arm64 }}"

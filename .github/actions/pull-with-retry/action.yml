@@ -1,0 +1,30 @@
+name: 'Pull Docker Image with Retry'
+description: 'Pull a Docker image with retry logic'
+inputs:
+  image:
+    description: 'Full image reference to pull'
+    required: true
+  max-retries:
+    description: 'Maximum number of retry attempts'
+    default: '5'
+  retry-delay:
+    description: 'Delay between retries in seconds'
+    default: '10'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Pull image with retries
+      shell: bash
+      run: |
+        for i in $(seq 1 ${{ inputs.max-retries }}); do
+          echo "Attempt $i: Pulling ${{ inputs.image }}..."
+          if docker pull "${{ inputs.image }}"; then
+            echo "Successfully pulled image"
+            exit 0
+          fi
+          echo "Pull failed, waiting ${{ inputs.retry-delay }} seconds before retry..."
+          sleep ${{ inputs.retry-delay }}
+        done
+        echo "Failed to pull image after ${{ inputs.max-retries }} attempts"
+        exit 1
