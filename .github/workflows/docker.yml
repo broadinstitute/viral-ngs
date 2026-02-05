@@ -145,10 +145,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (amd64)
         id: build
@@ -175,10 +179,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (arm64)
         id: build
@@ -278,10 +286,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (amd64)
         id: build
@@ -313,10 +325,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (arm64)
         id: build
@@ -419,10 +435,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (amd64)
         id: build
@@ -454,10 +474,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (arm64)
         id: build
@@ -560,10 +584,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (amd64)
         id: build
@@ -595,10 +623,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (arm64)
         id: build
@@ -701,10 +733,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (amd64)
         id: build
@@ -736,10 +772,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (arm64)
         id: build
@@ -842,10 +882,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (amd64)
         id: build
@@ -877,10 +921,14 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: 'false'
 
       - name: Build and push (arm64)
         id: build
