@@ -18,6 +18,10 @@ LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-n
 # Enable conda environment activation for RUN commands
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
+# Workaround: add sequip lib directory to PERL5LIB
+# NOTE: sequip version here must match the version in requirements/assemble.txt
+ENV PERL5LIB=$PERL5LIB:/opt/conda/share/sequip-0.11/lib
+
 # Copy requirements and dependency installation script
 COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
