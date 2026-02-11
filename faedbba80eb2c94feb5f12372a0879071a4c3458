@@ -1,0 +1,36 @@
+.planning/codebase/STACK.md
+  6f3133157c0adc54 1-140
+.planning/codebase/CONCERNS.md
+  6f3133157c0adc54 1-293
+.planning/codebase/TESTING.md
+  6f3133157c0adc54 1-310
+.planning/codebase/ARCHITECTURE.md
+  6f3133157c0adc54 1-214
+.planning/codebase/INTEGRATIONS.md
+  6f3133157c0adc54 1-177
+.planning/codebase/STRUCTURE.md
+  6f3133157c0adc54 1-242
+.planning/codebase/CONVENTIONS.md
+  6f3133157c0adc54 1-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.2",
+  "base_commit_sha": "faedbba80eb2c94feb5f12372a0879071a4c3458",
+  "prompts": {
+    "6f3133157c0adc54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e478fae-dc40-4047-a8a4-1750ee0c8048",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>",
+      "messages": [],
+      "total_additions": 1579,
+      "total_deletions": 0,
+      "accepted_lines": 1579,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/3954b8e60b6b48396e6b070e1b9ff078dd75ff1960a46f6fa6079598df4c5e08"
+    }
+  }
+}
