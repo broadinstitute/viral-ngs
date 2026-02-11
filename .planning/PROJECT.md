@@ -34,7 +34,7 @@ Researchers can identify and classify viral sequences in metagenomic assemblies 
 - [ ] User-provided database path (external database management)
 - [ ] Sensible parameter defaults (minimal parameter exposure initially)
 - [ ] Unit tests in `tests/unit/classify/test_genomad.py` with test data
-- [ ] Conda dependency in `docker/requirements/classify.txt`
+- [x] Conda dependency in `docker/requirements/classify.txt` (genomad>=1.11.0, x86_64 validated)
 - [ ] CLI integration in `src/viral_ngs/metagenomics.py` or dedicated module
 
 ### Out of Scope
@@ -83,6 +83,8 @@ Researchers can identify and classify viral sequences in metagenomic assemblies 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| Add geNomad to classify.txt (cross-platform) | x86_64 validated via Docker build (geNomad 1.11.2, TF 2.19.1, xgboost 3.1.3); ARM64 packages available via pixi search (untested) | ✓ x86_64 validated |
+| ARM64 test skip decorators for geNomad | Not needed - ARM64 packages exist (though untested due to x86_64-only base image) | Deferred to Phase 2/4 |
 | Single 'run' command vs granular commands | User wants simplicity for end-to-end viral discovery workflow | — Pending |
 | User-managed database path | External database management is simpler than auto-download, consistent with other tools | — Pending |
 | Start with default parameters | Minimize complexity initially, can expose more controls later based on feedback | — Pending |
@@ -90,4 +92,4 @@ Researchers can identify and classify viral sequences in metagenomic assemblies 
 | Use feature branch | Isolate development from main branch, enable PR-based review | ✓ Good |
 
 ---
-*Last updated: 2026-02-11 after initialization*
+*Last updated: 2026-02-11 after Phase 1 validation*
