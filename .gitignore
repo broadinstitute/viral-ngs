@@ -81,3 +81,6 @@ tools/conda-tools/
 .pytest_cache/
 
 .vscode/
+
+# GSD planning directory (local-only)
+.planning/
