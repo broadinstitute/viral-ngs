@@ -1,0 +1,38 @@
+src/viral_ngs/classify/genomad.py
+  15f46c68c3bcf977 1-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.2",
+  "base_commit_sha": "37558c3d0eaa9587db9167b2af785b5e4e21c5de",
+  "prompts": {
+    "15f46c68c3bcf977": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4917a08a-4a12-451c-a734-1f3679f96c67",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>",
+      "messages": [],
+      "total_additions": 119,
+      "total_deletions": 0,
+      "accepted_lines": 119,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/acfef221eebcd5dd8754e27d82367adcc39ef8a01aaeb69fcdb758f9bdbdceb7"
+    },
+    "fc9a76c0a1bac4cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "497726c4-fa1a-43d2-aec8-b21fda5ba75c",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 12,
+      "overriden_lines": 0,
+      "messages_url": "https://usegitai.com/cas/bc10e78b2d62a1f4883045073001d57b09660a73c33b48303612cd16089ab5e8"
+    }
+  }
+}
