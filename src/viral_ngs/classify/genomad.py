@@ -47,6 +47,7 @@ class Genomad(core.Tool):
         args = args or []
 
         cmd = [command]
+        cmd.extend(args)
 
         for key, value in options.items():
             if value is None:
@@ -54,7 +55,6 @@ class Genomad(core.Tool):
             else:
                 cmd.extend([key, str(value)])
 
-        cmd.extend(args)
         log.debug('Calling %s: %s', command, ' '.join(cmd))
 
         subprocess.check_call(cmd)
