@@ -41,6 +41,7 @@ from .classify import kma
 from .classify import kraken2
 from .classify import krona
 from .classify import kb
+from .classify import genomad
 from .classify.taxonomy import (
     TaxIdError, TaxonomyDb, BlastRecord, blast_records, paired_query_id,
     blast_m8_taxids, extract_tax_id, coverage_lca, parents_to_children,
@@ -1368,6 +1369,22 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, 
                         protein=protein,
                         num_threads=threads)
 __commands__.append(('kb_build', parser_kb_build))
+
+def parser_genomad(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_fasta', nargs='+', help='Input FASTA file(s) with sequences to classify.')
+    parser.add_argument('database', help='Path to geNomad database directory.')
+    parser.add_argument('out_dir', help='Output directory for geNomad results.')
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_genomad, split_args=True)
+    return parser
+def main_genomad(in_fasta, database, out_dir, threads=None):
+    '''
+        Classify viral and plasmid sequences using geNomad
+    '''
+    genomad_tool = genomad.Genomad()
+    for fasta_file in in_fasta:
+        genomad_tool.end_to_end(fasta_file, database, out_dir, num_threads=threads)
+__commands__.append(('genomad', parser_genomad))
 
 
 def full_parser():
