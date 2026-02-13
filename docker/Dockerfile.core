@@ -30,6 +30,9 @@ RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements
 COPY src/ /opt/viral-ngs/source/src/
 COPY pyproject.toml README.md LICENSE /opt/viral-ngs/source/
 
+# Copy utility scripts
+COPY docker/scripts/ /opt/viral-ngs/scripts/
+
 # Install viral-ngs package
 # VERSION is passed from GitHub Actions via git describe
 WORKDIR /opt/viral-ngs/source

@@ -1190,6 +1190,19 @@ class TestSimulateIlluminaReads(TestCaseWithTmp):
         self.assertLess(actual_reads, expected_reads * (1 + tolerance))
 
 
+def _find_script(script_name):
+    """Find script in Docker path or git clone path."""
+    # Docker-installed location
+    docker_path = f'/opt/viral-ngs/scripts/{script_name}'
+    if os.path.exists(docker_path):
+        return docker_path
+    # Git clone location (relative to this test file)
+    git_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'docker', 'scripts', script_name)
+    if os.path.exists(git_path):
+        return git_path
+    raise FileNotFoundError(f"Script {script_name} not found in Docker or git paths")
+
+
 class TestFastaTrimTerminalAmbigs(TestCaseWithTmp):
     ''' Test fasta-trim-terminal-ambigs.pl script functionality '''
 
@@ -1208,7 +1221,7 @@ class TestFastaTrimTerminalAmbigs(TestCaseWithTmp):
         makeFasta(test_seqs, in_fasta)
 
         # Run fasta-trim-terminal-ambigs.pl
-        script_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scripts', 'fasta-trim-terminal-ambigs.pl')
+        script_path = _find_script('fasta-trim-terminal-ambigs.pl')
         cmd = [script_path, in_fasta]
 
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
@@ -1226,7 +1239,7 @@ class TestFastaTrimTerminalAmbigs(TestCaseWithTmp):
         in_fasta = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta')
 
         # Run with --3rules and standard parameters
-        script_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'scripts', 'fasta-trim-terminal-ambigs.pl')
+        script_path = _find_script('fasta-trim-terminal-ambigs.pl')
         cmd = [
             script_path,
             '--3rules',
