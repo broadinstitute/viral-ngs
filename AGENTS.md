@@ -69,6 +69,21 @@ docker run --rm \
   pytest -rsxX -n auto /opt/viral-ngs/source/tests/unit/classify
 ```
 
+**Important: Testing source code changes requires re-installing the package.**
+The `-v` mount makes your local files visible on disk, but `viral_ngs` is already installed as a package inside the container image. Python imports resolve to the *installed* copy, not your mounted source files. If you've modified files under `src/viral_ngs/`, you must re-install before running tests:
+
+```bash
+# Run tests with local source changes applied
+docker run --rm \
+  -v $(pwd):/opt/viral-ngs/source \
+  quay.io/broadinstitute/viral-ngs:main-core \
+  bash -c "pip install -e /opt/viral-ngs/source --quiet && pytest -rsxX -n auto /opt/viral-ngs/source/tests/unit"
+```
+
+Changes to test files (`tests/`) and test inputs (`tests/input/`) are picked up automatically via the volume mount — the re-install is only needed when modifying the `src/viral_ngs/` package code.
+
+Running pytest directly on the host will generally not work — most dependencies (bioinformatics tools, conda packages) are only available inside the Docker containers. Always test inside Docker.
+
 **Test conventions:**
 - Uses pytest (not nose or unittest)
 - Test files in `tests/unit/<module>/`
