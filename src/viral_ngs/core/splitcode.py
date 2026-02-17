@@ -344,21 +344,45 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
     pool_dfs      = []
     unmatched_dfs = []
 
-    for pool in barcodes_df["muxed_pool"].unique():
-        # Get and load splitcode stats report json
-        # Use the full pool name (including run suffix) to match the JSON filename created by splitcode
-        pool_for_file_lookup = pool
+    # Build barcode_group column for JSON lookup: outer barcodes only, no library_id.
+    # Splitcode produces ONE summary JSON per outer barcode group (barcode_1+barcode_2),
+    # but muxed_pool includes library_id_per_sample. When samples have unique library_ids,
+    # there are multiple muxed_pool values per barcode group but only one JSON file.
+    def _barcode_group(row):
+        b1 = row.get("barcode_1", "")
+        b2 = row.get("barcode_2", "")
+        if b2 and str(b2).strip():
+            return f"{b1}-{b2}"
+        return b1
+    barcodes_df["barcode_group"] = barcodes_df.apply(_barcode_group, axis=1)
 
-        # Try to find and load the splitcode summary JSON file
-        # Add robust error handling since missing/misplaced JSON files are a common issue
+    for barcode_group in barcodes_df["barcode_group"].unique():
+        samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["barcode_group"] == barcode_group]
+
+        # Find the splitcode summary JSON file for this barcode group.
+        # Try each muxed_pool value in the group until we find a matching JSON.
+        # This handles the case where library_id_per_sample differs per sample:
+        # splitcode produces one JSON named after whichever muxed_pool was used as pool_id.
+        splitcode_summary_file = None
+        tried_patterns = []
         try:
-            summary_pattern = f"{outDir}/{pool_for_file_lookup}_summary.json"
-            matching_files = glob.glob(summary_pattern)
+            for candidate_pool in samplesheet_rows_for_pool_df["muxed_pool"].unique():
+                summary_pattern = f"{outDir}/{candidate_pool}_summary.json"
+                tried_patterns.append(summary_pattern)
+                matching_files = glob.glob(summary_pattern)
+                if matching_files:
+                    splitcode_summary_file = matching_files[0]
+                    if len(matching_files) > 1:
+                        log.warning(f"Multiple summary JSON files match pattern '{summary_pattern}':")
+                        for f in matching_files:
+                            log.warning(f"  - {f}")
+                        log.warning(f"Using first match: {splitcode_summary_file}")
+                    break
 
-            if not matching_files:
+            if splitcode_summary_file is None:
                 # JSON file not found - list directory contents for debugging
-                log.error(f"Splitcode summary JSON not found for pool '{pool_for_file_lookup}'")
-                log.error(f"  Expected pattern: {summary_pattern}")
+                log.error(f"Splitcode summary JSON not found for barcode group '{barcode_group}'")
+                log.error(f"  Tried patterns: {tried_patterns}")
                 log.error(f"  Searching in directory: {outDir}")
 
                 # List all files in the output directory to help debug
@@ -384,19 +408,10 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
                     log.error(f"  Could not list directory contents: {list_err}")
 
                 raise FileNotFoundError(
-                    f"Splitcode summary JSON not found for pool '{pool_for_file_lookup}'. "
-                    f"Expected file: {summary_pattern}. "
+                    f"Splitcode summary JSON not found for barcode group '{barcode_group}'. "
+                    f"Tried patterns: {tried_patterns}. "
                     f"Check logs above for directory contents."
                 )
-
-            splitcode_summary_file = matching_files[0]
-
-            # Warn if multiple matches found (shouldn't happen but good to catch)
-            if len(matching_files) > 1:
-                log.warning(f"Multiple summary JSON files match pattern '{summary_pattern}':")
-                for f in matching_files:
-                    log.warning(f"  - {f}")
-                log.warning(f"Using first match: {splitcode_summary_file}")
 
             log.debug(f"Loading splitcode summary from: {splitcode_summary_file}")
 
@@ -422,13 +437,11 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
                 log.error(f"  Could not read file for debugging: {read_err}")
             raise
         except Exception as e:
-            log.error(f"Unexpected error loading splitcode summary for pool '{pool_for_file_lookup}'")
-            log.error(f"  File: {splitcode_summary_file if 'splitcode_summary_file' in locals() else 'not determined'}")
+            log.error(f"Unexpected error loading splitcode summary for barcode group '{barcode_group}'")
+            log.error(f"  File: {splitcode_summary_file if splitcode_summary_file else 'not determined'}")
             log.error(f"  Error type: {type(e).__name__}")
             log.error(f"  Error message: {e}")
             raise
-
-        samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["muxed_pool"] == pool]
 
         # Parse splitcode summary JSON
         # IMPORTANT: The tag_qc array has MULTIPLE entries per barcode tag!
@@ -475,7 +488,7 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
         else:
             # No reads were processed by splitcode for this pool
             # Create a dataframe with the expected schema but all counts set to 0
-            log.warning(f"Pool {pool} has 0 reads processed by splitcode. Creating empty metrics.")
+            log.warning(f"Barcode group {barcode_group} has 0 reads processed by splitcode. Creating empty metrics.")
             samplesheet_rows_for_pool_hx_df = samplesheet_rows_for_pool_df.copy()
             samplesheet_rows_for_pool_hx_df['count'] = 0
             samplesheet_rows_for_pool_hx_df['count_h1'] = 0
@@ -483,10 +496,10 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
         pool_dfs.append(samplesheet_rows_for_pool_hx_df)
 
         unmatched_dict = {
-            "sample"                : f"{unmatched_name}.{pool}",
+            "sample"                : f"{unmatched_name}.{barcode_group}",
             "library_id_per_sample" : list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
-            "run"                   : f"{unmatched_name}.{pool}",
-            "muxed_pool"            : pool,
+            "run"                   : f"{unmatched_name}.{barcode_group}",
+            "muxed_pool"            : barcode_group,
             "count"                 : splitcode_summary["n_processed"] - splitcode_summary["n_assigned"],
             "count_h1"              : 0,
             "barcode_1"             : list(samplesheet_rows_for_pool_hx_df["barcode_1"])[0],
