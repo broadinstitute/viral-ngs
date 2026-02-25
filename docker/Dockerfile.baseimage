@@ -68,12 +68,22 @@ COPY docker/install-conda-deps.sh /tmp/
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt && \
     rm -rf /tmp/requirements /tmp/install-conda-deps.sh
 
+# Install firecloud via pip instead of conda because the conda noarch
+# package bundles x86_64-only wheels (cryptography, cffi, grpcio, etc.)
+# that overwrite conda's native packages and break on arm64 (#1042).
+# Requires setuptools<80 due to firecloud's use of deprecated setuptools
+# APIs (broadinstitute/fiss#192).
+RUN pip install --no-cache-dir 'setuptools<80' && \
+    pip install --no-cache-dir --no-build-isolation 'firecloud>=0.16.35'
+
 WORKDIR /opt/viral-ngs/source
 
 # Verify installation
 RUN python --version && \
     micromamba --version && \
     miniwdl --version && \
-    udocker --allow-root version
+    udocker --allow-root version && \
+    python -c "from cryptography.hazmat.bindings._rust import _openssl; print('cryptography Rust binding OK')" && \
+    python -c "from firecloud import api as fapi; print('firecloud OK')"
 
 CMD ["/bin/bash"]
