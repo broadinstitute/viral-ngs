@@ -1,5 +1,5 @@
 name: 'Create Multi-Arch Manifest'
-description: 'Create Docker manifest with OCI annotations'
+description: 'Create multi-arch Docker manifest'
 inputs:
   ghcr-repo:
     description: 'GHCR repository base (e.g., ghcr.io/broadinstitute/viral-ngs)'
@@ -14,8 +14,8 @@ inputs:
     description: 'Source ARM64 image tag'
     required: true
   description:
-    description: 'Image description for OCI annotation'
-    required: true
+    description: 'Image description (reserved for future use)'
+    required: false
 
 runs:
   using: 'composite'
@@ -24,10 +24,47 @@ runs:
       shell: bash
       run: |
         docker buildx imagetools create \
-          --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
-          --annotation "index:org.opencontainers.image.description=${{ inputs.description }}" \
-          --annotation "index:org.opencontainers.image.licenses=MIT" \
-          --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
           --tag "${{ inputs.ghcr-repo }}:${{ inputs.target-tag }}" \
           "${{ inputs.ghcr-repo }}:${{ inputs.source-amd64 }}" \
           "${{ inputs.ghcr-repo }}:${{ inputs.source-arm64 }}"
+
+    - name: Verify Docker Manifest List v2 format
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        REPO_PATH="${REPO#ghcr.io/}"
+
+        # Fetch registry access token
+        TOKEN=$(curl -fsS "https://ghcr.io/token?service=ghcr.io&scope=repository:${REPO_PATH}:pull" | jq -er .token) || {
+          echo "FAIL: Unable to retrieve token from ghcr.io"
+          exit 1
+        }
+
+        # Fetch manifest and capture HTTP status code + content type
+        HTTP_STATUS=$(curl -sS -o /dev/null -w '%{http_code}' \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+          "https://ghcr.io/v2/${REPO_PATH}/manifests/${{ inputs.target-tag }}") || {
+          echo "FAIL: Unable to retrieve manifest from ghcr.io for tag '${{ inputs.target-tag }}'"
+          exit 1
+        }
+
+        if [ "$HTTP_STATUS" != "200" ]; then
+          echo "FAIL: Expected HTTP 200 when fetching manifest, got: $HTTP_STATUS"
+          exit 1
+        fi
+
+        CONTENT_TYPE=$(curl -sS -D- -o /dev/null \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+          "https://ghcr.io/v2/${REPO_PATH}/manifests/${{ inputs.target-tag }}" | grep -i content-type)
+
+        if echo "$CONTENT_TYPE" | grep -qi "manifest.list.v2"; then
+          echo "OK: Docker Manifest List v2 format confirmed"
+        else
+          echo "FAIL: Expected Docker Manifest List v2, got: $CONTENT_TYPE"
+          exit 1
+        fi
+      env:
+        REPO: ${{ inputs.ghcr-repo }}
