@@ -143,19 +143,29 @@ def approx_version_number():
 def get_version():
     global __version__
     if __version__ is None:
-        from_git = call_git_describe()
-        from_file = read_release_version()
+        # First, try importlib.metadata (works for pip-installed packages
+        # regardless of the current working directory)
+        try:
+            from importlib.metadata import version, PackageNotFoundError
+            __version__ = version("viral-ngs")
+        except (ImportError, PackageNotFoundError):
+            pass
 
-        if from_git:
-            if from_file != from_git:
-                write_release_version(from_git)
-            __version__ = from_git
-        else:
-            __version__ = from_file
+        # Fall back to git describe (for development in git clones)
+        if __version__ is None:
+            from_git = call_git_describe()
+            from_file = read_release_version()
 
+            if from_git:
+                if from_file != from_git:
+                    write_release_version(from_git)
+                __version__ = from_git
+            else:
+                __version__ = from_file
+
+        # Last resort fallback
         if __version__ is None:
             __version__ = approx_version_number()
-            #raise ValueError("Cannot find the version number!")
 
     return __version__
 
