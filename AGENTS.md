@@ -42,7 +42,7 @@ Development is **intentionally docker-centric**. Developers need:
 
 3. If modifying conda dependencies, install them inside the container:
    ```bash
-   conda install <packages>
+   micromamba install <packages>
    ```
 
 4. Test code interactively:
@@ -261,8 +261,8 @@ The `pyproject.toml` has empty dependencies - conda handles everything.
 
 1. Check conda availability:
    ```bash
-   conda search <package>              # default channel
-   conda search -c bioconda <package>  # bioconda channel
+   micromamba search <package>              # default channel
+   micromamba search -c bioconda <package>  # bioconda channel
    ```
 
 2. Add to appropriate requirements file:
@@ -498,7 +498,7 @@ find src tests -name "*.py" -exec python -m py_compile {} \;
 ### Check ARM64 package availability
 
 ```bash
-conda search -c bioconda <package> --subdir linux-aarch64
+micromamba search -c bioconda <package> --subdir linux-aarch64
 ```
 
 ---
