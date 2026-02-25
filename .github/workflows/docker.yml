@@ -161,7 +161,9 @@ jobs:
           context: .
           file: docker/Dockerfile.baseimage
           platforms: linux/amd64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
@@ -195,7 +197,9 @@ jobs:
           context: .
           file: docker/Dockerfile.baseimage
           platforms: linux/arm64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
           cache-from: |
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
@@ -302,7 +306,9 @@ jobs:
           context: .
           file: docker/Dockerfile.core
           platforms: linux/amd64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-amd64
@@ -341,7 +347,9 @@ jobs:
           context: .
           file: docker/Dockerfile.core
           platforms: linux/arm64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-baseimage-arm64
@@ -451,7 +459,9 @@ jobs:
           context: .
           file: docker/Dockerfile.assemble
           platforms: linux/amd64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-amd64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
@@ -490,7 +500,9 @@ jobs:
           context: .
           file: docker/Dockerfile.assemble
           platforms: linux/arm64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-assemble-arm64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
@@ -600,7 +612,9 @@ jobs:
           context: .
           file: docker/Dockerfile.classify
           platforms: linux/amd64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-amd64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
@@ -639,7 +653,9 @@ jobs:
           context: .
           file: docker/Dockerfile.classify
           platforms: linux/arm64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-classify-arm64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
@@ -749,7 +765,9 @@ jobs:
           context: .
           file: docker/Dockerfile.phylo
           platforms: linux/amd64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-amd64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
@@ -788,7 +806,9 @@ jobs:
           context: .
           file: docker/Dockerfile.phylo
           platforms: linux/arm64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-phylo-arm64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64
@@ -898,7 +918,9 @@ jobs:
           context: .
           file: docker/Dockerfile.mega
           platforms: linux/amd64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-amd64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-amd64
@@ -937,7 +959,9 @@ jobs:
           context: .
           file: docker/Dockerfile.mega
           platforms: linux/arm64
-          push: true
+          provenance: false
+          sbom: false
+          outputs: type=image,push=true,oci-mediatypes=false
           tags: ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
           build-args: |
             BASEIMAGE=${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-core-arm64

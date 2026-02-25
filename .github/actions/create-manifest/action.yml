@@ -1,5 +1,5 @@
 name: 'Create Multi-Arch Manifest'
-description: 'Create Docker manifest with OCI annotations'
+description: 'Create multi-arch Docker manifest'
 inputs:
   ghcr-repo:
     description: 'GHCR repository base (e.g., ghcr.io/broadinstitute/viral-ngs)'
@@ -14,8 +14,8 @@ inputs:
     description: 'Source ARM64 image tag'
     required: true
   description:
-    description: 'Image description for OCI annotation'
-    required: true
+    description: 'Image description (reserved for future use)'
+    required: false
 
 runs:
   using: 'composite'
@@ -24,10 +24,23 @@ runs:
       shell: bash
       run: |
         docker buildx imagetools create \
-          --annotation "index:org.opencontainers.image.source=https://github.com/broadinstitute/viral-ngs" \
-          --annotation "index:org.opencontainers.image.description=${{ inputs.description }}" \
-          --annotation "index:org.opencontainers.image.licenses=MIT" \
-          --annotation "index:org.opencontainers.image.authors=viral-ngs@broadinstitute.org" \
           --tag "${{ inputs.ghcr-repo }}:${{ inputs.target-tag }}" \
           "${{ inputs.ghcr-repo }}:${{ inputs.source-amd64 }}" \
           "${{ inputs.ghcr-repo }}:${{ inputs.source-arm64 }}"
+
+    - name: Verify Docker Manifest List v2 format
+      shell: bash
+      run: |
+        TOKEN=$(curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:${REPO#ghcr.io/}:pull" | jq -r .token)
+        CONTENT_TYPE=$(curl -s -D- -o /dev/null \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+          "https://ghcr.io/v2/${REPO#ghcr.io/}/manifests/${{ inputs.target-tag }}" | grep -i content-type)
+        if echo "$CONTENT_TYPE" | grep -q "manifest.list.v2"; then
+          echo "OK: Docker Manifest List v2 format confirmed"
+        else
+          echo "FAIL: Expected Docker Manifest List v2, got: $CONTENT_TYPE"
+          exit 1
+        fi
+      env:
+        REPO: ${{ inputs.ghcr-repo }}
