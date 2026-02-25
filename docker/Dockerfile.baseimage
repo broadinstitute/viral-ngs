@@ -4,7 +4,6 @@
 # This provides a foundation with:
 # - micromamba (conda-compatible package manager)
 # - Python 3.12
-# - conda/mamba symlinks for compatibility
 # - General utilities (miniwdl, udocker, cloud CLIs, etc.)
 #
 # Derivative images (core, classify, assemble, phylo) build on this.
@@ -35,12 +34,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Create symlinks for conda/mamba compatibility
-# Many scripts expect 'conda' or 'mamba' commands
-# micromamba is at /usr/bin/micromamba in the mambaorg image
-RUN ln -sf /usr/bin/micromamba /usr/local/bin/conda && \
-    ln -sf /usr/bin/micromamba /usr/local/bin/mamba
-
 # Configure micromamba channels
 RUN micromamba config append channels bioconda && \
     micromamba config append channels conda-forge && \
@@ -52,7 +45,6 @@ RUN micromamba install -y -n base python=3.12 pip && \
     micromamba clean --all --yes
 
 # Set up paths - include /opt/conda/bin for conda environment binaries
-# and /usr/local/bin for our conda/mamba symlinks
 ENV VIRAL_NGS_PATH="/opt/viral-ngs/source" \
     PYTHONPATH="/opt/viral-ngs/source" \
     PATH="/opt/conda/bin:/usr/local/bin:$PATH"
