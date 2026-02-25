@@ -31,12 +31,36 @@ runs:
     - name: Verify Docker Manifest List v2 format
       shell: bash
       run: |
-        TOKEN=$(curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:${REPO#ghcr.io/}:pull" | jq -r .token)
-        CONTENT_TYPE=$(curl -s -D- -o /dev/null \
+        set -euo pipefail
+
+        REPO_PATH="${REPO#ghcr.io/}"
+
+        # Fetch registry access token
+        TOKEN=$(curl -fsS "https://ghcr.io/token?service=ghcr.io&scope=repository:${REPO_PATH}:pull" | jq -er .token) || {
+          echo "FAIL: Unable to retrieve token from ghcr.io"
+          exit 1
+        }
+
+        # Fetch manifest and capture HTTP status code + content type
+        HTTP_STATUS=$(curl -sS -o /dev/null -w '%{http_code}' \
           -H "Authorization: Bearer $TOKEN" \
           -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-          "https://ghcr.io/v2/${REPO#ghcr.io/}/manifests/${{ inputs.target-tag }}" | grep -i content-type)
-        if echo "$CONTENT_TYPE" | grep -q "manifest.list.v2"; then
+          "https://ghcr.io/v2/${REPO_PATH}/manifests/${{ inputs.target-tag }}") || {
+          echo "FAIL: Unable to retrieve manifest from ghcr.io for tag '${{ inputs.target-tag }}'"
+          exit 1
+        }
+
+        if [ "$HTTP_STATUS" != "200" ]; then
+          echo "FAIL: Expected HTTP 200 when fetching manifest, got: $HTTP_STATUS"
+          exit 1
+        fi
+
+        CONTENT_TYPE=$(curl -sS -D- -o /dev/null \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+          "https://ghcr.io/v2/${REPO_PATH}/manifests/${{ inputs.target-tag }}" | grep -i content-type)
+
+        if echo "$CONTENT_TYPE" | grep -qi "manifest.list.v2"; then
           echo "OK: Docker Manifest List v2 format confirmed"
         else
           echo "FAIL: Expected Docker Manifest List v2, got: $CONTENT_TYPE"
