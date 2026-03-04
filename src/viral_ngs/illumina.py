@@ -320,8 +320,12 @@ def match_barcodes_with_orientation(target_bc1, target_bc2, sample_rows,
             matched_rows: List of matching sample rows (empty if no match, ambiguous, or high N fraction)
             orientation_info: dict with keys:
                 - 'barcode_2_revcomp': bool (True if reverse complement was needed)
-                - 'matched_bc1': str (the samplesheet barcode_1 value that matched)
-                - 'matched_bc2': str (the samplesheet barcode_2 value that matched)
+                - 'matched_bc1': str. On successful match (no 'skipped_reason'), this is
+                      the samplesheet barcode_1 value. When 'skipped_reason' is set, this
+                      is the normalized barcode_1 observed in the FASTQ header.
+                - 'matched_bc2': str. On successful match (no 'skipped_reason'), this is
+                      the samplesheet barcode_2 value. When 'skipped_reason' is set, this
+                      is the normalized barcode_2 observed in the FASTQ header.
                 - 'skipped_reason': str (if empty results, why - 'high_n_fraction', 'ambiguous', or 'no_match')
     """
     log = logging.getLogger(__name__)
@@ -860,12 +864,16 @@ def consensus_barcode_from_fastq(fastq_path, num_reads=10):
 
     Returns:
         tuple: (barcode_1, barcode_2_or_None) normalized consensus barcodes,
-               or (None, None) if file is empty or has no parseable barcodes.
+               or (None, None) if file is empty (no reads).
+
+    Raises:
+        ValueError: If the FASTQ has reads but none have parseable barcode headers.
     """
     log = logging.getLogger(__name__)
 
     bc1_list = []
     bc2_list = []
+    headers_seen = 0
 
     with util_file.open_or_gzopen(fastq_path, 'rt') as f:
         reads_found = 0
@@ -873,6 +881,7 @@ def consensus_barcode_from_fastq(fastq_path, num_reads=10):
             # FASTQ format: header is every 4th line starting at line 0
             if line_num % 4 != 0:
                 continue
+            headers_seen += 1
             if reads_found >= num_reads:
                 break
 
@@ -890,14 +899,27 @@ def consensus_barcode_from_fastq(fastq_path, num_reads=10):
             reads_found += 1
 
     if not bc1_list:
+        if headers_seen > 0:
+            raise ValueError(
+                f"FASTQ file has reads but no parseable barcode headers in first "
+                f"{headers_seen} reads: {fastq_path}"
+            )
         return None, None
 
     def _position_consensus(bases_at_position):
-        """Return majority base at a position, ignoring N."""
+        """Return majority base at a position, ignoring N.
+
+        Requires strict majority (>50% of non-N bases). Returns N if
+        there is no clear winner (e.g., a tie).
+        """
         non_n = [b for b in bases_at_position if b != 'N']
         if not non_n:
             return 'N'
-        return Counter(non_n).most_common(1)[0][0]
+        counts = Counter(non_n)
+        top_base, top_count = counts.most_common(1)[0]
+        if top_count * 2 <= len(non_n):
+            return 'N'  # no strict majority (tie or split)
+        return top_base
 
     # Build consensus for bc1
     bc1_len = len(bc1_list[0])
@@ -1025,6 +1047,10 @@ def splitcode_demux_fastqs(
         raise FileNotFoundError(f"R2 FASTQ not found: {fastq_r2}")
     if not os.path.exists(samplesheet):
         raise FileNotFoundError(f"Samplesheet not found: {samplesheet}")
+    if max_barcode_mismatches < 0:
+        raise ValueError(f"max_barcode_mismatches must be >= 0, got {max_barcode_mismatches}")
+    if num_reads_for_barcode < 1:
+        raise ValueError(f"num_reads_for_barcode must be >= 1, got {num_reads_for_barcode}")
 
     # Parse RunInfo.xml if provided (unless flowcell_id and run_date both overridden)
     runinfo_obj = None

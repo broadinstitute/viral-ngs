@@ -1618,6 +1618,32 @@ class TestConsensusBarcodeFromFastq(unittest.TestCase):
         bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
         self.assertEqual(bc1, 'ATCGATCG')  # consensus corrects the mismatch
 
+    def test_consensus_tie_returns_n(self):
+        """Even split (5 A vs 5 G) at a position → N (no strict majority)."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        reads = []
+        for i in range(5):
+            reads.append((f"@INST:1:FC:1:1:1:{i} 1:N:0:ATCGATCG+GCTAGCTA", "ACGTACGT"))
+        for i in range(5):
+            reads.append((f"@INST:1:FC:1:1:1:{5+i} 1:N:0:GTCGATCG+GCTAGCTA", "ACGTACGT"))
+        self._write_fastq(fq, reads)
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
+        self.assertEqual(bc1[0], 'N')  # tie at pos 0 → N
+        self.assertEqual(bc1[1:], 'TCGATCG')  # rest is unanimous
+
+    def test_unparseable_headers_raises(self):
+        """FASTQ with reads but no parseable barcode headers raises ValueError."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        with gzip.open(fq, 'wt') as f:
+            # Write reads with non-standard headers (no barcode field)
+            for i in range(3):
+                f.write(f"@read_{i}\n")
+                f.write("ACGTACGT\n")
+                f.write("+\n")
+                f.write("IIIIIIII\n")
+        with self.assertRaises(ValueError):
+            viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
+
 
 class TestParseBarcode(unittest.TestCase):
     """Test _parse_barcode_from_header() helper."""
