@@ -1277,21 +1277,36 @@ class TestBarcodeOrientationAutoDetection(unittest.TestCase):
         self.assertEqual(len(matched), 0)
         self.assertEqual(info.get('skipped_reason'), 'ambiguous')
 
-    def test_n_in_samplesheet_does_not_match_all(self):
-        """Test that N in samplesheet barcode does NOT act as wildcard.
+    def test_n_in_samplesheet_does_not_match_with_strict(self):
+        """Test that N in samplesheet barcode does NOT act as wildcard with max_mismatches=0.
 
         Only N in the FASTQ (observed) barcode should be a wildcard.
-        N in samplesheet should require exact N match.
+        N in samplesheet is treated as a concrete base; with strict matching (max_mismatches=0),
+        G vs N is a mismatch and should not match.
         """
         sample_rows = [
             {'sample': 'S1', 'barcode_1': 'ATCNATCG', 'barcode_2': 'GCTAGCTA'},
         ]
-        # FASTQ has G where samplesheet has N - should not match
+        # FASTQ has G where samplesheet has N - with strict matching, should not match
         matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
-            'ATCGATCG', 'GCTAGCTA', sample_rows
+            'ATCGATCG', 'GCTAGCTA', sample_rows, max_mismatches=0
         )
         self.assertEqual(len(matched), 0)
         self.assertEqual(info.get('skipped_reason'), 'no_match')
+
+    def test_n_in_samplesheet_matches_with_fuzzy(self):
+        """N in samplesheet vs non-N in FASTQ is treated as a regular mismatch.
+
+        With max_mismatches=1, this 1-base difference is tolerated.
+        """
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCNATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCTAGCTA', sample_rows, max_mismatches=1
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['sample'], 'S1')
 
     def test_n_wildcard_no_false_positives(self):
         """Test that N wildcard doesn't cause incorrect matches."""
@@ -1305,6 +1320,326 @@ class TestBarcodeOrientationAutoDetection(unittest.TestCase):
         )
         self.assertEqual(len(matched), 1)
         self.assertEqual(matched[0]['sample'], 'S1')
+
+
+class TestBarcodeFuzzyMatching(unittest.TestCase):
+    """Test suite for barcode_matches_fuzzy() function."""
+
+    def test_exact_match_zero_mismatches(self):
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCGATCG', 'ATCGATCG', 1)
+        self.assertTrue(ok)
+        self.assertEqual(mm, 0)
+
+    def test_one_mismatch_allowed(self):
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCGATCG', 'ATCAATCG', 1)
+        self.assertTrue(ok)
+        self.assertEqual(mm, 1)
+
+    def test_two_mismatches_rejected_at_threshold_1(self):
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCGATCG', 'ATAAATCG', 1)
+        self.assertFalse(ok)
+        self.assertEqual(mm, 2)
+
+    def test_two_mismatches_allowed_at_threshold_2(self):
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCGATCG', 'ATAAATCG', 2)
+        self.assertTrue(ok)
+        self.assertEqual(mm, 2)
+
+    def test_n_not_counted_as_mismatch(self):
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCNATCG', 'ATCGATCG', 0)
+        self.assertTrue(ok)
+        self.assertEqual(mm, 0)
+
+    def test_n_plus_real_mismatch(self):
+        # N at pos 3 (wildcard), real mismatch at pos 0 (A->G)
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCNATCG', 'GTCGATCG', 1)
+        self.assertTrue(ok)
+        self.assertEqual(mm, 1)
+
+    def test_length_mismatch(self):
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCGATCG', 'ATCGATC', 1)
+        self.assertFalse(ok)
+
+    def test_zero_max_mismatches_is_strict(self):
+        # With max_mismatches=0, a single non-N mismatch should fail
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCGATCG', 'ATCAATCG', 0)
+        self.assertFalse(ok)
+        self.assertEqual(mm, 1)
+
+        # But N should still be a wildcard
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('ATCNATCG', 'ATCGATCG', 0)
+        self.assertTrue(ok)
+        self.assertEqual(mm, 0)
+
+    def test_all_n_matches_anything(self):
+        ok, mm = viral_ngs.illumina.barcode_matches_fuzzy('NNNNNNNN', 'ATCGATCG', 0)
+        self.assertTrue(ok)
+        self.assertEqual(mm, 0)
+
+
+class TestFuzzyMatchInOrientation(unittest.TestCase):
+    """Test fuzzy matching integration in match_barcodes_with_orientation()."""
+
+    def test_fuzzy_match_one_mismatch_bc1(self):
+        """1 mismatch in bc1 should match with max_mismatches=1."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCAATCG', 'GCTAGCTA', sample_rows, max_mismatches=1
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['sample'], 'S1')
+
+    def test_fuzzy_match_one_mismatch_bc2(self):
+        """1 mismatch in bc2 should match with max_mismatches=1."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCTAGCGA', sample_rows, max_mismatches=1
+        )
+        self.assertEqual(len(matched), 1)
+
+    def test_fuzzy_match_rejected_at_zero_tolerance(self):
+        """1 mismatch should fail with max_mismatches=0."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCAATCG', 'GCTAGCTA', sample_rows, max_mismatches=0
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'no_match')
+
+    def test_fuzzy_prefers_exact_over_fuzzy(self):
+        """When one row is exact and another is 1-mismatch away, prefer exact."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+            {'sample': 'S2', 'barcode_1': 'ATCAATCG', 'barcode_2': 'GCTAGCTA'},  # 1 mismatch from ATCGATCG
+        ]
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCTAGCTA', sample_rows, max_mismatches=1
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]['sample'], 'S1')
+
+    def test_fuzzy_ambiguous_same_distance(self):
+        """Two rows at same mismatch distance should be flagged ambiguous."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+            {'sample': 'S2', 'barcode_1': 'GTCGATCG', 'barcode_2': 'GCTAGCTA'},  # also 1 mismatch from CTCGATCG
+        ]
+        # CTCGATCG is 1 mismatch from both ATCGATCG (A->C) and GTCGATCG (G->C)
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'CTCGATCG', 'GCTAGCTA', sample_rows, max_mismatches=1
+        )
+        self.assertEqual(len(matched), 0)
+        self.assertEqual(info.get('skipped_reason'), 'ambiguous')
+
+    def test_fuzzy_match_with_revcomp(self):
+        """Fuzzy matching should work combined with i5 reverse complement."""
+        # Samplesheet has GCTAGCTA, revcomp is TAGCTAGC
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # FASTQ bc1 has 1 mismatch, bc2 needs revcomp
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCAATCG', 'TAGCTAGC', sample_rows, max_mismatches=1
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertTrue(info['barcode_2_revcomp'])
+
+
+class TestSamplesheetAuthoritativeBarcodes(unittest.TestCase):
+    """Test that orientation_info returns samplesheet barcode values, not FASTQ-observed."""
+
+    def test_matched_bc_contains_samplesheet_values(self):
+        """matched_bc1/bc2 should be samplesheet values, not FASTQ-observed."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(info['matched_bc1'], 'ATCGATCG')
+        self.assertEqual(info['matched_bc2'], 'GCTAGCTA')
+
+    def test_matched_bc_with_n_contains_samplesheet_values(self):
+        """When FASTQ has N, matched values should be samplesheet truth (no N)."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCNATCG', 'GCTAGCTA', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(info['matched_bc1'], 'ATCGATCG')  # samplesheet, not ATCNATCG
+        self.assertEqual(info['matched_bc2'], 'GCTAGCTA')
+
+    def test_matched_bc_with_mismatch_contains_samplesheet_values(self):
+        """When FASTQ has a mismatch, matched values should be samplesheet truth."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCAATCG', 'GCTAGCTA', sample_rows, max_mismatches=1
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(info['matched_bc1'], 'ATCGATCG')  # samplesheet, not ATCAATCG
+        self.assertEqual(info['matched_bc2'], 'GCTAGCTA')
+
+    def test_matched_bc_with_revcomp_contains_samplesheet_values(self):
+        """When revcomp is used, matched_bc2 should be samplesheet value."""
+        sample_rows = [
+            {'sample': 'S1', 'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'},
+        ]
+        # TAGCTAGC = revcomp(GCTAGCTA)
+        matched, info = viral_ngs.illumina.match_barcodes_with_orientation(
+            'ATCGATCG', 'TAGCTAGC', sample_rows
+        )
+        self.assertEqual(len(matched), 1)
+        self.assertTrue(info['barcode_2_revcomp'])
+        self.assertEqual(info['matched_bc1'], 'ATCGATCG')
+        self.assertEqual(info['matched_bc2'], 'GCTAGCTA')  # samplesheet, not TAGCTAGC
+
+
+class TestConsensusBarcodeFromFastq(unittest.TestCase):
+    """Test consensus_barcode_from_fastq() function."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_fastq(self, path, reads):
+        """Write a gzipped FASTQ file with given read headers.
+
+        Args:
+            path: Output file path
+            reads: List of (header, seq) tuples. Quality will be auto-generated.
+        """
+        with gzip.open(path, 'wt') as f:
+            for header, seq in reads:
+                f.write(f"{header}\n")
+                f.write(f"{seq}\n")
+                f.write("+\n")
+                f.write("I" * len(seq) + "\n")
+
+    def test_identical_reads(self):
+        """10 reads all with same barcode → that barcode."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        reads = [
+            (f"@INST:1:FC:1:1:1:{i} 1:N:0:ATCGATCG+GCTAGCTA", "ACGTACGT")
+            for i in range(10)
+        ]
+        self._write_fastq(fq, reads)
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
+        self.assertEqual(bc1, 'ATCGATCG')
+        self.assertEqual(bc2, 'GCTAGCTA')
+
+    def test_consensus_resolves_single_n(self):
+        """9 reads with 'G' at pos 3, 1 read with 'N' → consensus has 'G'."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        reads = []
+        for i in range(9):
+            reads.append((f"@INST:1:FC:1:1:1:{i} 1:N:0:ATCGATCG+GCTAGCTA", "ACGTACGT"))
+        reads.append(("@INST:1:FC:1:1:1:9 1:N:0:ATCNATCG+GCTAGCTA", "ACGTACGT"))
+        self._write_fastq(fq, reads)
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
+        self.assertEqual(bc1, 'ATCGATCG')  # G wins over N
+
+    def test_consensus_majority_vote(self):
+        """7 reads with 'A', 3 reads with 'G' at pos 0 → consensus has 'A'."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        reads = []
+        for i in range(7):
+            reads.append((f"@INST:1:FC:1:1:1:{i} 1:N:0:ATCGATCG+GCTAGCTA", "ACGTACGT"))
+        for i in range(3):
+            reads.append((f"@INST:1:FC:1:1:1:{7+i} 1:N:0:GTCGATCG+GCTAGCTA", "ACGTACGT"))
+        self._write_fastq(fq, reads)
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
+        self.assertEqual(bc1, 'ATCGATCG')  # A wins over G (7 vs 3)
+
+    def test_consensus_all_n_stays_n(self):
+        """All reads have N at a position → consensus has N."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        reads = [
+            (f"@INST:1:FC:1:1:1:{i} 1:N:0:ATCNATCG+GCTAGCTA", "ACGTACGT")
+            for i in range(10)
+        ]
+        self._write_fastq(fq, reads)
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
+        self.assertEqual(bc1, 'ATCNATCG')  # all N → stays N
+
+    def test_empty_fastq_returns_none(self):
+        """Empty FASTQ → (None, None)."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        with gzip.open(fq, 'wt') as f:
+            pass  # empty file
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
+        self.assertIsNone(bc1)
+        self.assertIsNone(bc2)
+
+    def test_single_barcode_no_plus(self):
+        """Single-index barcodes (no +) → bc2 is None."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        reads = [
+            (f"@INST:1:FC:1:1:1:{i} 1:N:0:ATCGATCG", "ACGTACGT")
+            for i in range(5)
+        ]
+        self._write_fastq(fq, reads)
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=5)
+        self.assertEqual(bc1, 'ATCGATCG')
+        self.assertIsNone(bc2)
+
+    def test_single_read(self):
+        """With num_reads=1, same as reading just the first read."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        reads = [
+            ("@INST:1:FC:1:1:1:0 1:N:0:ATCGATCG+GCTAGCTA", "ACGTACGT"),
+            ("@INST:1:FC:1:1:1:1 1:N:0:GTCGATCG+GCTAGCTA", "ACGTACGT"),
+        ]
+        self._write_fastq(fq, reads)
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=1)
+        self.assertEqual(bc1, 'ATCGATCG')  # only first read
+
+    def test_consensus_resolves_mismatch(self):
+        """Real-world scenario: 1 read has mismatched barcode, 9 have correct."""
+        fq = os.path.join(self.tmpdir, 'test.fastq.gz')
+        reads = []
+        # First read has T->C mismatch (the bug scenario)
+        reads.append(("@INST:1:FC:1:1:1:0 1:N:0:ACCGATCG+GCTAGCTA", "ACGTACGT"))
+        # Remaining 9 reads have correct barcode
+        for i in range(1, 10):
+            reads.append((f"@INST:1:FC:1:1:1:{i} 1:N:0:ATCGATCG+GCTAGCTA", "ACGTACGT"))
+        self._write_fastq(fq, reads)
+        bc1, bc2 = viral_ngs.illumina.consensus_barcode_from_fastq(fq, num_reads=10)
+        self.assertEqual(bc1, 'ATCGATCG')  # consensus corrects the mismatch
+
+
+class TestParseBarcode(unittest.TestCase):
+    """Test _parse_barcode_from_header() helper."""
+
+    def test_dual_index(self):
+        bc1, bc2 = viral_ngs.illumina._parse_barcode_from_header(
+            "@INST:1:FC:1:1:1:1 1:N:0:ATCGATCG+GCTAGCTA"
+        )
+        self.assertEqual(bc1, 'ATCGATCG')
+        self.assertEqual(bc2, 'GCTAGCTA')
+
+    def test_single_index(self):
+        bc1, bc2 = viral_ngs.illumina._parse_barcode_from_header(
+            "@INST:1:FC:1:1:1:1 1:N:0:ATCGATCG"
+        )
+        self.assertEqual(bc1, 'ATCGATCG')
+        self.assertIsNone(bc2)
+
+    def test_invalid_header(self):
+        bc1, bc2 = viral_ngs.illumina._parse_barcode_from_header("@bad")
+        self.assertIsNone(bc1)
+        self.assertIsNone(bc2)
 
 
 class TestBuildRunInfoJson(TestCaseWithTmp):
