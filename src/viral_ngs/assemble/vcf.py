@@ -106,6 +106,24 @@ class GenomePosition(object):
         return (c, gpos - totlen)
 
 
+def parse_contig_header(line):
+    '''Parse a VCF ##contig header line and return (contig_id, length).
+
+    Handles headers with multiple attributes like:
+        ##contig=<ID=seg1,length=2334,assembly=GRCh38>
+
+    Raises ValueError if the line has no length= attribute.
+    '''
+    if not (line.startswith('##contig=<ID=') and line.endswith('>')):
+        raise ValueError("not a valid ##contig header: %s" % line)
+    inner = line[13:-1]
+    contig_id = inner.split(',')[0]
+    m = re.search(r'length=(\d+)', inner)
+    if not m:
+        raise ValueError("##contig header missing length= attribute: %s" % line)
+    return (contig_id, int(m.group(1)))
+
+
 def get_chrlens(inFile):
     ''' Read chromosome lengths and order from either a Picard/GATK-index for
         a FASTA file (a .dict file) or from "contig" rows in the VCF header.
@@ -132,10 +150,7 @@ def get_chrlens(inFile):
                 for line in inf:
                     line = line.rstrip('\n')
                     if line.startswith('##contig=<ID=') and line.endswith('>'):
-                        line = line[13:-1]
-                        c = line.split(',')[0]
-                        clen = int(line.split('=')[1])
-                        chrlens.append((c, clen))
+                        chrlens.append(parse_contig_header(line))
                     elif line.startswith('#CHROM'):
                         break
         else:
@@ -260,12 +275,7 @@ class VcfReader(TabixReader):
         for line in self.header: # pylint: disable=E1101
             line = bytes_to_string(line)
             if line.startswith('##contig=<ID=') and line.endswith('>'):
-                line = line[13:-1]
-                c = line.split(',')[0]
-                m = re.search(r'length=(\d+)', line)
-                if m:
-                    clen = int(m.group(1))
-                    self.clens.append((c, clen))
+                self.clens.append(parse_contig_header(line))
             elif line.startswith('#CHROM'):
                 row = line.split('\t')
                 self.sample_names = row[9:]
