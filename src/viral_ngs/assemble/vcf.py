@@ -6,6 +6,7 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
 import logging
+import re
 import pysam
 import viral_ngs.core.file
 import viral_ngs.core.misc
@@ -261,8 +262,10 @@ class VcfReader(TabixReader):
             if line.startswith('##contig=<ID=') and line.endswith('>'):
                 line = line[13:-1]
                 c = line.split(',')[0]
-                clen = int(line.split('=')[1])
-                self.clens.append((c, clen))
+                m = re.search(r'length=(\d+)', line)
+                if m:
+                    clen = int(m.group(1))
+                    self.clens.append((c, clen))
             elif line.startswith('#CHROM'):
                 row = line.split('\t')
                 self.sample_names = row[9:]

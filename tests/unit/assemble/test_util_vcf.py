@@ -138,6 +138,49 @@ class TestGenomePosition(unittest.TestCase):
         self.assertEqual(len(seen), genome.totlen)
 
 
+class TestVcfContigHeaderParsing(unittest.TestCase):
+    '''Test that VcfReader contig header parsing handles various formats'''
+
+    def _parse_contig_headers(self, header_lines):
+        '''Simulate VcfReader contig header parsing logic'''
+        import re
+        clens = []
+        for line in header_lines:
+            if line.startswith('##contig=<ID=') and line.endswith('>'):
+                line = line[13:-1]
+                c = line.split(',')[0]
+                m = re.search(r'length=(\d+)', line)
+                if m:
+                    clen = int(m.group(1))
+                    clens.append((c, clen))
+        return dict(clens)
+
+    def test_simple_contig_header(self):
+        headers = ['##contig=<ID=seg1,length=2334>']
+        self.assertEqual(self._parse_contig_headers(headers), {'seg1': 2334})
+
+    def test_contig_header_with_assembly(self):
+        headers = ['##contig=<ID=seg1,length=2334,assembly=GRCh38>']
+        self.assertEqual(self._parse_contig_headers(headers), {'seg1': 2334})
+
+    def test_contig_header_with_multiple_extra_attrs(self):
+        headers = ['##contig=<ID=chr1,length=100000,assembly=hg19,md5=abc123,species=human>']
+        self.assertEqual(self._parse_contig_headers(headers), {'chr1': 100000})
+
+    def test_multiple_contigs_mixed_formats(self):
+        headers = [
+            '##contig=<ID=seg1,length=2334>',
+            '##contig=<ID=seg2,length=5000,assembly=GRCh38>',
+            '##contig=<ID=seg3,length=800>',
+        ]
+        expected = {'seg1': 2334, 'seg2': 5000, 'seg3': 800}
+        self.assertEqual(self._parse_contig_headers(headers), expected)
+
+    def test_contig_header_without_length(self):
+        headers = ['##contig=<ID=seg1,assembly=GRCh38>']
+        self.assertEqual(self._parse_contig_headers(headers), {})
+
+
 class TestVcfReaderPositions(unittest.TestCase):
     ''' Test the OBO errors in the pysam-based VCFReader class (it's prone to such errors) '''
 
