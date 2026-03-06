@@ -138,6 +138,42 @@ class TestGenomePosition(unittest.TestCase):
         self.assertEqual(len(seen), genome.totlen)
 
 
+class TestVcfContigHeaderParsing(unittest.TestCase):
+    '''Test that parse_contig_header handles various VCF contig header formats'''
+
+    def test_simple_contig_header(self):
+        c, clen = viral_ngs.assemble.vcf.parse_contig_header('##contig=<ID=seg1,length=2334>')
+        self.assertEqual(c, 'seg1')
+        self.assertEqual(clen, 2334)
+
+    def test_contig_header_with_assembly(self):
+        c, clen = viral_ngs.assemble.vcf.parse_contig_header('##contig=<ID=seg1,length=2334,assembly=GRCh38>')
+        self.assertEqual(c, 'seg1')
+        self.assertEqual(clen, 2334)
+
+    def test_contig_header_with_multiple_extra_attrs(self):
+        c, clen = viral_ngs.assemble.vcf.parse_contig_header('##contig=<ID=chr1,length=100000,assembly=hg19,md5=abc123,species=human>')
+        self.assertEqual(c, 'chr1')
+        self.assertEqual(clen, 100000)
+
+    def test_multiple_contigs_mixed_formats(self):
+        headers = [
+            '##contig=<ID=seg1,length=2334>',
+            '##contig=<ID=seg2,length=5000,assembly=GRCh38>',
+            '##contig=<ID=seg3,length=800>',
+        ]
+        result = dict(viral_ngs.assemble.vcf.parse_contig_header(h) for h in headers)
+        self.assertEqual(result, {'seg1': 2334, 'seg2': 5000, 'seg3': 800})
+
+    def test_contig_header_without_length_raises(self):
+        with self.assertRaises(ValueError):
+            viral_ngs.assemble.vcf.parse_contig_header('##contig=<ID=seg1,assembly=GRCh38>')
+
+    def test_invalid_header_raises(self):
+        with self.assertRaises(ValueError):
+            viral_ngs.assemble.vcf.parse_contig_header('##INFO=<ID=DP,Number=1>')
+
+
 class TestVcfReaderPositions(unittest.TestCase):
     ''' Test the OBO errors in the pysam-based VCFReader class (it's prone to such errors) '''
 
