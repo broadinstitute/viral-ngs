@@ -10,6 +10,8 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+permissions: {}
+
 env:
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
 
@@ -30,14 +32,18 @@ jobs:
     steps:
       - name: Compute image tag prefix
         id: prefix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
             PREFIX="main"
-          elif [[ -n "${{ github.event.workflow_run.pull_requests[0].number }}" ]]; then
-            PREFIX="pr-${{ github.event.workflow_run.pull_requests[0].number }}"
+          elif [[ -n "$PR_NUMBER" ]]; then
+            PREFIX="pr-${PR_NUMBER}"
           else
             # Branch or tag push — sanitize head_branch
-            PREFIX=$(echo "${{ github.event.workflow_run.head_branch }}" | sed 's|/|-|g')
+            PREFIX=$(echo "$HEAD_BRANCH" | sed 's|/|-|g')
             PREFIX=${PREFIX#v}
           fi
           echo "prefix=${PREFIX}" >> $GITHUB_OUTPUT
