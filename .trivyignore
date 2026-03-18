@@ -1,0 +1,4 @@
+# Trivy ignore file
+# Add CVE IDs (one per line) to suppress known/accepted vulnerabilities.
+# Format: CVE-YYYY-NNNNN
+# See: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/#by-finding-ids

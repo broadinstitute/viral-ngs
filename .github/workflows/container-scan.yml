@@ -1,0 +1,84 @@
+name: Container Vulnerability Scan
+
+on:
+  workflow_run:
+    workflows: ["Build and Test"]
+    types:
+      - completed
+  schedule:
+    # Weekly scan of main branch images every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+env:
+  GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
+
+concurrency:
+  group: container-scan-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  compute-tag-prefix:
+    runs-on: ubuntu-latest
+    # Only run for successful builds (or schedule/manual triggers)
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      prefix: ${{ steps.prefix.outputs.prefix }}
+    steps:
+      - name: Compute image tag prefix
+        id: prefix
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PREFIX="main"
+          elif [[ -n "${{ github.event.workflow_run.pull_requests[0].number }}" ]]; then
+            PREFIX="pr-${{ github.event.workflow_run.pull_requests[0].number }}"
+          else
+            # Branch or tag push — sanitize head_branch
+            PREFIX=$(echo "${{ github.event.workflow_run.head_branch }}" | sed 's|/|-|g')
+            PREFIX=${PREFIX#v}
+          fi
+          echo "prefix=${PREFIX}" >> $GITHUB_OUTPUT
+          echo "Image tag prefix: ${PREFIX}"
+
+  scan:
+    needs: compute-tag-prefix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [baseimage, core, assemble, classify, phylo, mega]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:${{ needs.compute-tag-prefix.outputs.prefix }}-${{ matrix.flavor }}-amd64'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-${{ matrix.flavor }}'
