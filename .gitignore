@@ -81,3 +81,4 @@ tools/conda-tools/
 .pytest_cache/
 
 .vscode/
+vulnerability-mitigation-status.md

@@ -8,7 +8,7 @@
 #
 # Derivative images (core, classify, assemble, phylo) build on this.
 
-FROM mambaorg/micromamba:2.4.0-ubuntu24.04
+FROM mambaorg/micromamba:2.5.0-ubuntu25.10
 
 LABEL maintainer="viral-ngs@broadinstitute.org"
 LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-ngs"
@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     locales \
+    && apt-get upgrade -y gpgv \
     && locale-gen en_US.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -57,7 +58,13 @@ COPY docker/requirements/baseimage.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install baseimage dependencies (miniwdl, udocker, cloud CLIs, utilities)
+# Remove google-cloud-sdk's bundled Python — it contains vendored copies of
+# cryptography, pyOpenSSL, etc. that are older than what we install via conda.
+# Remove gcloud-crc32c — Go binary compiled with old Go stdlib (CVEs).
+# gcloud/gsutil use the conda environment Python, not the bundled one.
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt && \
+    rm -rf /opt/conda/share/google-cloud-sdk-*/platform/bundledpythonunix && \
+    rm -f /opt/conda/share/google-cloud-sdk-*/bin/gcloud-crc32c && \
     rm -rf /tmp/requirements /tmp/install-conda-deps.sh
 
 # Install firecloud via pip instead of conda because the conda noarch
@@ -65,7 +72,8 @@ RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt && \
 # that overwrite conda's native packages and break on arm64 (#1042).
 # Requires setuptools<80 due to firecloud's use of deprecated setuptools
 # APIs (broadinstitute/fiss#192).
-RUN pip install --no-cache-dir 'setuptools<80' && \
+RUN pip install --no-cache-dir --upgrade pip wheel && \
+    pip install --no-cache-dir 'setuptools<80' && \
     pip install --no-cache-dir --no-build-isolation 'firecloud>=0.16.35'
 
 WORKDIR /opt/viral-ngs/source

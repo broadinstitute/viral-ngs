@@ -1,0 +1,76 @@
+name: Scheduled Container Vulnerability Scan
+
+on:
+  schedule:
+    # Weekly scan of main branch mega image every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+          ignore-policy: '.trivy-ignore-policy.rego'
+
+      - name: Run Trivy vulnerability scanner (JSON)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
+          format: 'json'
+          output: 'trivy-results.json'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+          ignore-policy: '.trivy-ignore-policy.rego'
+
+      - name: Log scan result count
+        if: always()
+        run: |
+          if [ -f trivy-results.sarif ]; then
+            COUNT=$(jq '[.runs[].results[]] | length' trivy-results.sarif)
+            echo "::notice::Trivy found $COUNT findings for mega-scheduled (after policy filtering)"
+          fi
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-mega-scheduled'
+
+      - name: Upload Trivy JSON results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-mega-scheduled
+          path: trivy-results.json

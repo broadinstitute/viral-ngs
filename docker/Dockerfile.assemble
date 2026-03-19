@@ -23,12 +23,16 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 ENV PERL5LIB=$PERL5LIB:/opt/conda/share/sequip-0.11/lib
 
 # Copy requirements and dependency installation script
-COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt /tmp/requirements/
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt docker/requirements/assemble-x86.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install conda dependencies (assembly tools)
-# Install all requirements together in single resolver call for proper dependency resolution
-RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt
+# All files resolved together in single micromamba call; x86-only files skipped on ARM
+# Remove mafft's dash_client (Go 1.22.1 binary with 11 Go stdlib CVEs) — we
+# never use --dash mode; delete inline so it never appears in any layer.
+RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt \
+    --x86-only:/tmp/requirements/assemble-x86.txt && \
+    rm -f /opt/conda/libexec/mafft/dash_client
 
 # Copy source code (includes assembly module)
 COPY src/ /opt/viral-ngs/source/src/

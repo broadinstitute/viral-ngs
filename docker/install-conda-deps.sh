@@ -114,8 +114,12 @@ echo ""
 echo "Installed packages:"
 micromamba list
 
-# Clean up
+# Clean up: micromamba clean removes tarballs and index cache, but leaves
+# extracted packages in /opt/conda/pkgs/ for hardlink-installed files.
+# Trivy scans the full filesystem and flags CVEs in cached JARs/binaries,
+# so we nuke the entire pkgs cache to avoid false positives.
 micromamba clean -y --all
+rm -rf /opt/conda/pkgs/*
 
 echo ""
 echo "Done installing conda dependencies."

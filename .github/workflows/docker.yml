@@ -987,6 +987,79 @@ jobs:
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
 
   # ============================================================================
+  # VULNERABILITY SCAN JOBS - Trivy scans of amd64 images after build
+  # Scans all 6 flavors in parallel; results uploaded as SARIF to Security tab
+  # ============================================================================
+
+  scan-containers:
+    needs: [get-version, build-baseimage-amd64, build-core-amd64, build-assemble-amd64, build-classify-amd64, build-phylo-amd64, build-mega-amd64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [baseimage, core, assemble, classify, phylo, mega]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+          ignore-policy: '.trivy-ignore-policy.rego'
+
+      - name: Run Trivy vulnerability scanner (JSON)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
+          format: 'json'
+          output: 'trivy-results.json'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+          ignore-policy: '.trivy-ignore-policy.rego'
+
+      - name: Log scan result count
+        if: always()
+        run: |
+          if [ -f trivy-results.sarif ]; then
+            COUNT=$(jq '[.runs[].results[]] | length' trivy-results.sarif)
+            echo "::notice::Trivy found $COUNT findings for ${{ matrix.flavor }} (after policy filtering)"
+          fi
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-${{ matrix.flavor }}'
+
+      - name: Upload Trivy JSON results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.flavor }}
+          path: trivy-results.json
+
+  # ============================================================================
   # TEST JOBS - Run after corresponding manifests are created
   # Each test runs in its flavor's Docker container (x86 only)
   # ============================================================================

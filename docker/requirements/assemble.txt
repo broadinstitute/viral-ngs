@@ -4,7 +4,7 @@
 # Install with core.txt in a single resolver call for proper dependency resolution.
 
 # Assemblers and alignment tools
-gap2seq=3.1.1a
+# Note: gap2seq is x86-only (ARM64 build conflicts with pillow/libtiff), see assemble-x86.txt
 mafft>=7.525
 mummer4>=4.0.1
 muscle=3.8.1551
