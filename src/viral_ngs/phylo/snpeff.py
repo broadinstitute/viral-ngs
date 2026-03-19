@@ -23,7 +23,7 @@ from . import genbank
 _log = logging.getLogger(__name__)
 
 TOOL_NAME = 'snpEff'
-TOOL_VERSION = '4.3.1t'
+TOOL_VERSION = '5.1'
 
 
 class SnpEff(core.Tool):
