@@ -25,10 +25,13 @@ COPY docker/install-conda-deps.sh /tmp/
 
 # Install ALL conda dependencies in single resolver call for proper dependency resolution
 # All files resolved together; x86-only files skipped on ARM
+# Remove mafft's dash_client (Go 1.22.1 binary with 11 Go stdlib CVEs) — we
+# never use --dash mode; delete inline so it never appears in any layer.
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt /tmp/requirements/classify.txt /tmp/requirements/phylo.txt \
     --x86-only:/tmp/requirements/assemble-x86.txt \
     --x86-only:/tmp/requirements/classify-x86.txt \
-    --x86-only:/tmp/requirements/phylo-x86.txt
+    --x86-only:/tmp/requirements/phylo-x86.txt && \
+    rm -f /opt/conda/libexec/mafft/dash_client
 
 # Copy source code (includes all modules)
 COPY src/ /opt/viral-ngs/source/src/
