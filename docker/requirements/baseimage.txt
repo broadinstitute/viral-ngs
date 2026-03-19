@@ -16,6 +16,12 @@ google-cloud-storage>=2.14.0
 # Note: firecloud is installed via pip in Dockerfile.baseimage because the
 # conda noarch package bundles x86_64-only wheels that break on arm64 (#1042)
 
+# Python security libraries (pinned to address CVEs in transitive deps of firecloud)
+cryptography>=44.0.0
+pyopenssl>=25.0.0
+pyasn1>=0.7.0
+tornado>=6.5.0
+
 # General utilities
 csvkit>=1.0.4
 jq>=1.6

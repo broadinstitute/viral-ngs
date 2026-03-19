@@ -41,6 +41,18 @@ jobs:
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
 
+      - name: Run Trivy vulnerability scanner (JSON)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
+          format: 'json'
+          output: 'trivy-results.json'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+          ignore-policy: '.trivy-ignore-policy.rego'
+
       - name: Log scan result count
         if: always()
         run: |
@@ -55,3 +67,10 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'container-mega-scheduled'
+
+      - name: Upload Trivy JSON results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-mega-scheduled
+          path: trivy-results.json
