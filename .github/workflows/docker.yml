@@ -992,7 +992,7 @@ jobs:
   # ============================================================================
 
   scan-containers:
-    needs: [get-version, create-manifest-baseimage, create-manifest-core, create-manifest-assemble, create-manifest-classify, create-manifest-phylo, create-manifest-mega]
+    needs: [get-version, build-baseimage-amd64, build-core-amd64, build-assemble-amd64, build-classify-amd64, build-phylo-amd64, build-mega-amd64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
