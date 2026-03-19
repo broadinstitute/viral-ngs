@@ -29,8 +29,7 @@ COPY docker/install-conda-deps.sh /tmp/
 # never use --dash mode; delete inline so it never appears in any layer.
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/phylo.txt \
     --x86-only:/tmp/requirements/phylo-x86.txt && \
-    rm -f /opt/conda/libexec/mafft/dash_client && \
-    rm -f /opt/conda/pkgs/*/libexec/mafft/dash_client
+    rm -f /opt/conda/libexec/mafft/dash_client
 
 # Copy source code (includes phylo module)
 COPY src/ /opt/viral-ngs/source/src/

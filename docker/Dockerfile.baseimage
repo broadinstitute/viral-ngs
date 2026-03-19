@@ -63,10 +63,8 @@ COPY docker/install-conda-deps.sh /tmp/
 # Remove gcloud-crc32c — Go binary compiled with old Go stdlib (CVEs).
 # gcloud/gsutil use the conda environment Python, not the bundled one.
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt && \
-    rm -rf /opt/conda/pkgs/google-cloud-sdk-*/share/google-cloud-sdk-*/platform/bundledpythonunix && \
     rm -rf /opt/conda/share/google-cloud-sdk-*/platform/bundledpythonunix && \
     rm -f /opt/conda/share/google-cloud-sdk-*/bin/gcloud-crc32c && \
-    rm -f /opt/conda/pkgs/google-cloud-sdk-*/share/google-cloud-sdk-*/bin/gcloud-crc32c && \
     rm -rf /tmp/requirements /tmp/install-conda-deps.sh
 
 # Install firecloud via pip instead of conda because the conda noarch

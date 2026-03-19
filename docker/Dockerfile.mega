@@ -31,8 +31,7 @@ RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements
     --x86-only:/tmp/requirements/assemble-x86.txt \
     --x86-only:/tmp/requirements/classify-x86.txt \
     --x86-only:/tmp/requirements/phylo-x86.txt && \
-    rm -f /opt/conda/libexec/mafft/dash_client && \
-    rm -f /opt/conda/pkgs/*/libexec/mafft/dash_client
+    rm -f /opt/conda/libexec/mafft/dash_client
 
 # Copy source code (includes all modules)
 COPY src/ /opt/viral-ngs/source/src/
