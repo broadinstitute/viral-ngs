@@ -987,6 +987,51 @@ jobs:
             ${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-arm64
 
   # ============================================================================
+  # VULNERABILITY SCAN JOBS - Trivy scans of amd64 images after build
+  # Scans all 6 flavors in parallel; results uploaded as SARIF to Security tab
+  # ============================================================================
+
+  scan-containers:
+    needs: [get-version, create-manifest-baseimage, create-manifest-core, create-manifest-assemble, create-manifest-classify, create-manifest-phylo, create-manifest-mega]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [baseimage, core, assemble, classify, phylo, mega]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-${{ matrix.flavor }}'
+
+  # ============================================================================
   # TEST JOBS - Run after corresponding manifests are created
   # Each test runs in its flavor's Docker container (x86 only)
   # ============================================================================
