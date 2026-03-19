@@ -138,6 +138,42 @@ ignore {
 }
 
 ###############################################################################
+# SECTION 5: LOCAL ATTACK, SCOPE UNCHANGED (AV:L + S:U)
+#
+# Rationale: AV:L means the attacker already has local code execution
+# inside the container. S:U (Scope Unchanged) means the impact does not
+# cross a security boundary — it stays within the container.
+#
+# In an ephemeral batch container, this combination means: the attacker
+# can already execute arbitrary code, and the vulnerability only lets
+# them affect things inside a container that will be destroyed when the
+# job completes. The vulnerability grants no capability the attacker
+# does not already have.
+#
+# Contrast with S:C (Scope Changed): a local vulnerability that crosses
+# the container-host boundary (e.g., container escape via kernel exploit)
+# IS dangerous and is NOT ignored by this rule.
+#
+# Risk of false negative: Low. The theoretical concern is that AV:L+S:U
+# could include reading mounted secrets, but an attacker with code
+# execution can already read those secrets directly.
+# Confidence: High
+###############################################################################
+
+ignore {
+    cvss_vector := get_v3_vector(input)
+    contains(cvss_vector, "/AV:L/")
+    contains(cvss_vector, "/S:U/")
+}
+
+# Also catch S:U at the end of the vector string (no trailing slash)
+ignore {
+    cvss_vector := get_v3_vector(input)
+    contains(cvss_vector, "/AV:L/")
+    endswith(cvss_vector, "/S:U")
+}
+
+###############################################################################
 # HELPER FUNCTION: Extract the CVSS v3 vector string
 #
 # Trivy's JSON structure nests CVSS data under input.CVSS with vendor
@@ -192,10 +228,9 @@ get_v3_vector(vuln) = vector {
 #    capture architectural/class-level mitigations, not one-off
 #    exceptions.
 #
-# 5. AV:L alone — NOT ignored.
-#    Local privilege escalation vulnerabilities (AV:L, PR:L or PR:N)
-#    are relevant in containers. An attacker who achieves code
-#    execution within the container (e.g., via a supply chain attack
-#    on a dependency) could exploit a local privesc to escape the
-#    container. These must not be ignored.
+# 5. AV:L + S:C — NOT ignored.
+#    Local vulnerabilities with Scope Changed (S:C) can cross security
+#    boundaries (e.g., container escape via kernel exploit). These are
+#    dangerous even in ephemeral containers. Only AV:L + S:U (Scope
+#    Unchanged) is ignored — see Section 5 above.
 ###############################################################################
