@@ -46,5 +46,4 @@ prinseq>=0.20.4
 sambamba>=1.0.1
 samtools>=1.21
 splitcode>=0.31.4
-openjdk>=17
 trimmomatic>=0.40
