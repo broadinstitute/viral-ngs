@@ -1249,7 +1249,8 @@ def align_and_fix(
     threads=None,
     skip_mark_dupes=False,
     dup_marker='sambamba',
-    novoalign_license_path=None
+    novoalign_license_path=None,
+    skip_realign=False,
 ):
     ''' Take reads, align to reference with Novoalign, minimap2, or BWA-MEM.
         Optionally mark duplicates with Picard or sambamba,
@@ -1388,6 +1389,11 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
         dest="novoalign_license_path",
         help='A path to the novoalign.lic file. This overrides the NOVOALIGN_LICENSE_PATH environment variable. (default: %(default)s)'
     )
+    parser.add_argument('--skipRealign',
+                        dest="skip_realign",
+                        action='store_true',
+                        default=False,
+                        help='Deprecated no-op. GATK realignment has been removed.')
 
     util_cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util_cmd.attach_main(parser, align_and_fix, split_args=True)
