@@ -422,7 +422,7 @@ class TestOrderAndOrient(TestCaseWithTmp):
             allow_incomplete_output=True)
         self.assertEqualContents(outFasta, emptyFasta)
 
-@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+@unittest.skipIf(IS_ARM, "gap2seq requires x86-only bioconda package (not available on ARM)")
 class TestGap2Seq(TestCaseWithTmp):
     '''Test gap-filling tool Gap2Seq'''
 
