@@ -46,31 +46,32 @@ class TestCommandHelp(unittest.TestCase):
             helpstring = parser.format_help()
 
 
-@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
 class TestRefineAssemble(TestCaseWithTmp):
     ''' Test edge cases of the de novo assembly pipeline '''
 
-    def test_empty_input_bam_assembly(self):
-        novoalign = viral_ngs.core.novoalign.NovoalignTool()
-        novoalign.install()
+    def _align_with_minimap2(self, refFasta, inBam):
+        """Align reads to reference with minimap2, return indexed BAM path."""
+        mm2 = viral_ngs.core.minimap2.Minimap2()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
+        outBam = viral_ngs.core.file.mkstempfname('.aligned.bam')
+        mm2.align_bam(inBam, refFasta, outBam, options=['-x', 'sr'])
+        samtools.index(outBam)
+        return outBam
 
-        # prep inputs
+    def test_empty_input_bam_assembly(self):
         orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta')
         inFasta = viral_ngs.core.file.mkstempfname('.ref.fasta')
         shutil.copyfile(orig_ref, inFasta)
-        novoalign.index_fasta(inFasta)
 
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
-
+        alignedBam = self._align_with_minimap2(inFasta, inBam)
         outFasta = viral_ngs.core.file.mkstempfname('.refined.fasta')
 
-        # run refine_assembly
-        args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
-                "-r Random -l 30 -g 40 -x 20 -t 502 -c {}".format(_CPUS)]
-        args = viral_ngs.assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
-        args.func_main(args)
+        viral_ngs.assembly.refine_assembly(
+            inFasta, inBam, outFasta,
+            already_realigned_bam=alignedBam,
+            chr_names=['G5012.3'], min_coverage=3)
 
-        # the expected output is an empty fasta file
         self.assertTrue(os.path.isfile(outFasta))
         self.assertTrue(os.path.getsize(outFasta) == 0)
 
@@ -98,50 +99,30 @@ class TestRefineAssemble(TestCaseWithTmp):
                         self.assertTrue(os.path.getsize(outVcf) > 0)
 
     def test_empty_input_fasta_assembly(self):
-        novoalign = viral_ngs.core.novoalign.NovoalignTool()
-        novoalign.install()
-
-        # make the input fasta empty
+        # empty input fasta should produce empty output regardless of reads
         inFasta = viral_ngs.core.file.mkstempfname('.input.fasta')
         viral_ngs.core.file.touch(inFasta)
-        novoalign.index_fasta(inFasta)
 
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
-
         outFasta = viral_ngs.core.file.mkstempfname('.refined.fasta')
 
-        # run refine_assembly
-        args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
-                "-r Random -l 30 -g 40 -x 20 -t 502 -c {}".format(_CPUS)]
-        args = viral_ngs.assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
-        args.func_main(args)
+        viral_ngs.assembly.refine_assembly(inFasta, inBam, outFasta,
+            chr_names=['G5012.3'], min_coverage=3)
 
-        # the expected output is an empty fasta file
         self.assertTrue(os.path.isfile(outFasta))
         self.assertTrue(os.path.getsize(outFasta) == 0)
 
-
     def test_empty_input_succeed(self):
-        novoalign = viral_ngs.core.novoalign.NovoalignTool()
-        novoalign.install()
-
-        # make the input fasta empty
+        # both empty fasta and empty bam should produce empty output
         inFasta = viral_ngs.core.file.mkstempfname('.input.fasta')
         viral_ngs.core.file.touch(inFasta)
-        novoalign.index_fasta(inFasta)
 
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
-
         outFasta = viral_ngs.core.file.mkstempfname('.refined.fasta')
 
-        # run refine_assembly
-        args = [inFasta, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
-                "-r Random -l 30 -g 40 -x 20 -t 502 -c {}".format(_CPUS)]
-        args = viral_ngs.assembly.parser_refine_assembly(argparse.ArgumentParser()).parse_args(args)
-        print(args)
-        args.func_main(args)
+        viral_ngs.assembly.refine_assembly(inFasta, inBam, outFasta,
+            chr_names=['G5012.3'], min_coverage=3)
 
-        # the expected output is an empty fasta file
         self.assertTrue(os.path.isfile(outFasta))
         self.assertTrue(os.path.getsize(outFasta) == 0)
 
