@@ -704,7 +704,7 @@ def refine_assembly(
     if not already_realigned_bam:
         novoalign = viral_ngs.core.novoalign.NovoalignTool(license_path=novoalign_license_path)
 
-    # Sanitize fasta header & create deambiguated genome for GATK
+    # Sanitize fasta header & create deambiguated genome for variant calling
     deambigFasta = viral_ngs.core.file.mkstempfname('.deambig.fasta')
     with viral_ngs.core.file.fastas_with_sanitized_ids(inFasta, use_tmp=True) as sanitized_fastas:
         deambig_fasta(sanitized_fastas[0], deambigFasta)
@@ -763,6 +763,8 @@ def refine_assembly(
         if outVcf.endswith('.gz'):
             shutil.copyfile(tmpVcf + '.tbi', outVcf + '.tbi')
     os.unlink(tmpVcf)
+    if os.path.exists(tmpVcf + '.tbi'):
+        os.unlink(tmpVcf + '.tbi')
     shutil.copyfile(tmpFasta, outFasta)
     os.unlink(tmpFasta)
 

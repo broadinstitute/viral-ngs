@@ -1233,7 +1233,7 @@ def main_novoindex(args):
 
 __commands__.append(('novoindex', parser_novoindex))
 
-# ========= GATK ==========
+# ========= align_and_fix ==========
 
 
 def align_and_fix(

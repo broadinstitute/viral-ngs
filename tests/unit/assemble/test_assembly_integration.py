@@ -17,7 +17,7 @@ import viral_ngs.core.file
 import viral_ngs.core.minimap2
 import viral_ngs.core.picard
 import viral_ngs.core.samtools
-from tests import TestCaseWithTmp, _CPUS, IS_ARM
+from tests import TestCaseWithTmp, _CPUS
 
 
 def _align_with_minimap2(refFasta, inBam):
