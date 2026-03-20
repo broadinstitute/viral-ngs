@@ -30,7 +30,7 @@ zstandard>=0.23.0
 
 # Bioinformatics tools
 bbmap>=39.10
-bcftools>=1.23.1
+bcftools>=1.10
 bedtools>=2.31.1
 bwa>=0.7.19
 cd-hit>=4.8.1
@@ -43,6 +43,6 @@ minimap2>=2.30
 picard>=3.4.0
 prinseq>=0.20.4
 sambamba>=1.0.1
-samtools>=1.23.1
+samtools>=1.21
 splitcode>=0.31.6
 trimmomatic>=0.40
