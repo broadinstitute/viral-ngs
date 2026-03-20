@@ -699,8 +699,10 @@ def refine_assembly(
     picard_index = viral_ngs.core.picard.CreateSequenceDictionaryTool()
     picard_mkdup = viral_ngs.core.picard.MarkDuplicatesTool()
     samtools = viral_ngs.core.samtools.SamtoolsTool()
-    novoalign = viral_ngs.core.novoalign.NovoalignTool(license_path=novoalign_license_path)
     fb = viral_ngs.assemble.freebayes.FreeBayesTool()
+    novoalign = None
+    if not already_realigned_bam:
+        novoalign = viral_ngs.core.novoalign.NovoalignTool(license_path=novoalign_license_path)
 
     # Sanitize fasta header & create deambiguated genome for GATK
     deambigFasta = viral_ngs.core.file.mkstempfname('.deambig.fasta')
@@ -771,7 +773,8 @@ def refine_assembly(
     # has a non-zero size
     if (os.path.getsize(outFasta) > 0):
         samtools.faidx(outFasta, overwrite=True)
-        novoalign.index_fasta(outFasta)
+        if already_realigned_bam is None:
+            novoalign.index_fasta(outFasta)
         
     return 0
 
