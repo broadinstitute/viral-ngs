@@ -6,10 +6,14 @@
 '''
 
 import logging
+import os
 import shutil
 import subprocess
 
+import pysam
+
 from ..core import Tool, PrexistingUnixCommand
+from ..core.file import mkstempfname
 
 _log = logging.getLogger(__name__)
 
@@ -23,15 +27,30 @@ class FreeBayesTool(Tool):
         Tool.__init__(self, install_methods=install_methods)
 
     def call(self, inBam, refFasta, outVcf, options=None):
-        """Call variants with FreeBayes, emitting all sites."""
+        """Call variants with FreeBayes, emitting all sites.
+
+        If outVcf ends with .vcf.gz, the output is bgzipped and tabix-indexed
+        (FreeBayes always writes plain VCF, so we compress and index afterward).
+        """
         options = options or ["--min-base-quality", "15", "--pooled-continuous"]
+
+        if outVcf.endswith('.vcf.gz'):
+            plainVcf = mkstempfname('.vcf')
+        else:
+            plainVcf = outVcf
+
         opts = [
             '-b', inBam,
             '-f', refFasta,
-            '-v', outVcf,
+            '-v', plainVcf,
             '--use-best-n-alleles', '0',
             '--report-monomorphic',
         ]
         tool_cmd = [self.install_and_get_path()] + opts + options
         _log.debug(' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
+
+        if outVcf.endswith('.vcf.gz'):
+            pysam.tabix_compress(plainVcf, outVcf, force=True)
+            pysam.tabix_index(outVcf, preset='vcf', force=True)
+            os.unlink(plainVcf)
