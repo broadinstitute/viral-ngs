@@ -10,7 +10,7 @@ freebayes>=1.3.6
 # Note: gap2seq is x86-only (ARM64 build conflicts with pillow/libtiff), see assemble-x86.txt
 mafft>=7.525
 mummer4>=4.0.1
-muscle=3.8.1551
+muscle>=3.8,<4
 spades>=4.2.0
 
 # Read simulation and sampling
@@ -24,7 +24,7 @@ sourmash-minimal>=4.8.11
 
 # Perl packages for FASTA trimming script
 perl-bio-easel
-sequip=0.11
+sequip>=0.11
 
 # Note: sourmash_plugin_branchwater has resolver problems, excluded for now
 # Note: mashtree, kwip excluded (compatibility issues)

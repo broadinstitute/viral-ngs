@@ -29,7 +29,7 @@ seaborn>=0.12.0
 zstandard>=0.23.0
 
 # Bioinformatics tools
-bbmap=39.10
+bbmap>=39.10
 bcftools>=1.23.1
 bedtools>=2.31.1
 bwa>=0.7.19
