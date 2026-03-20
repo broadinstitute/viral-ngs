@@ -23,13 +23,9 @@ import viral_ngs.assemble.mummer
 import viral_ngs.assemble.skani
 import viral_ngs.assemble.wgsim
 import viral_ngs.core.minimap2
-import viral_ngs.core.novoalign
 import viral_ngs.core.picard
 import viral_ngs.core.samtools
 from tests import TestCaseWithTmp, _CPUS, IS_ARM
-
-# Skip reason for x86-only tools
-SKIP_X86_ONLY_REASON = "novoalign requires x86-only bioconda package (not available on ARM)"
 
 
 def makeFasta(seqs, outFasta):
