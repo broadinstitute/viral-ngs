@@ -3,6 +3,9 @@
 # These are bioinformatics tools used for genome assembly.
 # Install with core.txt in a single resolver call for proper dependency resolution.
 
+# Variant calling (replaces GATK)
+freebayes>=1.3.6
+
 # Assemblers and alignment tools
 # Note: gap2seq is x86-only (ARM64 build conflicts with pillow/libtiff), see assemble-x86.txt
 mafft>=7.525

@@ -35,7 +35,6 @@ from .core import minimap2
 from .core import mvicuna
 from .core import prinseq
 from .core import novoalign
-from .core import gatk
 from .core import sambamba
 from .core import trimmomatic
 from .core import Tool
@@ -1237,82 +1236,6 @@ __commands__.append(('novoindex', parser_novoindex))
 # ========= GATK ==========
 
 
-def parser_gatk_ug(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard.')
-    parser.add_argument(
-        'outVcf',
-        help='''Output calls in VCF format. If this filename ends with .gz,
-        GATK will BGZIP compress the output and produce a Tabix index file as well.'''
-    )
-    parser.add_argument(
-        '--options',
-        default='--min_base_quality_score 15 -ploidy 4',
-        help='UnifiedGenotyper options (default: %(default)s)'
-    )
-    parser.add_argument(
-        '--JVMmemory',
-        default=gatk.GATKTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
-    parser.add_argument(
-        '--GATK_PATH',
-        default=None,
-        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
-    )
-    util_cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util_cmd.attach_main(parser, main_gatk_ug)
-    return parser
-
-
-def main_gatk_ug(args):
-    '''Call genotypes using the GATK UnifiedGenotyper.'''
-    gatk.GATKTool(path=args.GATK_PATH).ug(
-        args.inBam, args.refFasta,
-        args.outVcf, options=args.options.split(),
-        JVMmemory=args.JVMmemory
-    )
-    return 0
-
-
-__commands__.append(('gatk_ug', parser_gatk_ug))
-
-
-def parser_gatk_realign(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format, aligned to refFasta.')
-    parser.add_argument('refFasta', help='Reference genome, FASTA format, pre-indexed by Picard.')
-    parser.add_argument('outBam', help='Realigned reads.')
-    parser.add_argument(
-        '--JVMmemory',
-        default=gatk.GATKTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
-    parser.add_argument(
-        '--GATK_PATH',
-        default=None,
-        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
-    )
-    util_cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util_cmd.attach_main(parser, main_gatk_realign)
-    parser.add_argument('--threads', type=int, default=None, help='Number of threads (default: all available cores)')
-    return parser
-
-
-def main_gatk_realign(args):
-    '''Local realignment of BAM files with GATK IndelRealigner.'''
-    gatk.GATKTool(path=args.GATK_PATH).local_realign(
-        args.inBam, args.refFasta,
-        args.outBam, JVMmemory=args.JVMmemory,
-        threads=args.threads,
-    )
-    return 0
-
-
-__commands__.append(('gatk_realign', parser_gatk_realign))
-
-# =========================
-
-
 def align_and_fix(
     inBam, refFasta,
     outBamAll=None,
@@ -1325,14 +1248,12 @@ def align_and_fix(
     JVMmemory=None,
     threads=None,
     skip_mark_dupes=False,
-    skip_realign=False,
     dup_marker='sambamba',
-    gatk_path=None,
     novoalign_license_path=None
 ):
     ''' Take reads, align to reference with Novoalign, minimap2, or BWA-MEM.
-        Optionally mark duplicates with Picard or sambamba, optionally realign
-        indels with GATK, and optionally filter final file to mapped/non-dupe reads.
+        Optionally mark duplicates with Picard or sambamba,
+        and optionally filter final file to mapped/non-dupe reads.
     '''
     if not (outBamAll or outBamFiltered):
         log.warning("are you sure you meant to do nothing?")
@@ -1406,17 +1327,9 @@ def align_and_fix(
     else:
         samtools_tool.index(bam_marked)
 
-    # Local realignment with GATK (optional)
-    if skip_realign or samtools_tool.isEmpty(bam_marked):
-        bam_realigned = bam_marked
-    else:
-        bam_realigned = mkstempfname('.realigned.bam')
-        gatk.GATKTool(path=gatk_path).local_realign(bam_marked, refFastaCopy, bam_realigned, JVMmemory=JVMmemory, threads=threads)
-        os.unlink(bam_marked)
-
     # Generate output files
     if outBamAll:
-        shutil.copyfile(bam_realigned, outBamAll)
+        shutil.copyfile(bam_marked, outBamAll)
         if dup_marker == 'sambamba':
             sambamba.SambambaTool().index(outBamAll, threads=threads)
         else:
@@ -1424,7 +1337,7 @@ def align_and_fix(
     if outBamFiltered:
         filtered_any_mapq = mkstempfname('.filtered_any_mapq.bam')
         # filter based on read flags
-        samtools_tool.filter_to_proper_primary_mapped_reads(bam_realigned, filtered_any_mapq)
+        samtools_tool.filter_to_proper_primary_mapped_reads(bam_marked, filtered_any_mapq)
         # remove reads with MAPQ <1
         samtools_tool.view(['-b', '-q', '1'], filtered_any_mapq, outBamFiltered)
         os.unlink(filtered_any_mapq)
@@ -1432,7 +1345,7 @@ def align_and_fix(
             sambamba.SambambaTool().index(outBamFiltered, threads=threads)
         else:
             picard.BuildBamIndexTool().execute(outBamFiltered, JVMmemory=JVMmemory)
-    os.unlink(bam_realigned)
+    os.unlink(bam_marked)
 
 
 def parser_align_and_fix(parser=argparse.ArgumentParser()):
@@ -1463,23 +1376,12 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
                         help='If specified, duplicate reads will not be marked in the resulting output file.',
                         dest="skip_mark_dupes",
                         action='store_true')
-    parser.add_argument('--skipRealign',
-                        help='If specified, GATK local realignment will be skipped. '
-                             'Recommended for viral genomes where indel realignment provides minimal benefit.',
-                        dest="skip_realign",
-                        action='store_true')
     parser.add_argument('--dupMarker',
                         choices=['sambamba', 'picard'],
                         default='sambamba',
                         dest="dup_marker",
                         help='Tool to use for marking duplicates. Sambamba is multi-threaded and faster. '
                              'Picard is the legacy option. (default: %(default)s)')
-    parser.add_argument(
-        '--GATK_PATH',
-        default=None,
-        dest="gatk_path",
-        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
-    )
     parser.add_argument(
         '--NOVOALIGN_LICENSE_PATH',
         default=None,

@@ -36,7 +36,6 @@ bwa>=0.7.17
 cd-hit>=4.6.8
 fastqc>=0.11.7
 fgbio>=2.3.0
-gatk4>=4.5.0.0
 illumina-interop=1.5.0
 lbzip2>=2.5
 lz4-c>=1.8.3
