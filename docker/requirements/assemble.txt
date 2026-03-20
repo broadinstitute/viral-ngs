@@ -14,7 +14,7 @@ muscle=3.8.1551
 spades>=4.2.0
 
 # Read simulation and sampling
-rasusa>=2.1.1
+rasusa>=3.0.0
 wgsim>=1.0
 
 # Sequence comparison / ANI tools
