@@ -17,8 +17,6 @@ import json
 import logging
 import re
 import subprocess
-import sys
-from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger(__name__)
@@ -72,7 +70,7 @@ def find_tsv_in_call_dir(call_dir_uri):
 
 
 def discover_submission_tsvs(bucket, submission_id):
-    """Find all assembly_stats TSVs for a submission.
+    """Find all assembly_metadata TSVs for a submission.
 
     Returns dict: sample_name -> tsv_gcs_uri
     """

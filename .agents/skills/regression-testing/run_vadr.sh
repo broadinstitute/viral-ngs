@@ -14,6 +14,12 @@
 
 set -euo pipefail
 
+# Default optional env vars to empty
+MODEL_URL="${MODEL_URL:-}"
+MODEL_SUB="${MODEL_SUB:-}"
+MIN_LEN="${MIN_LEN:-}"
+MAX_LEN="${MAX_LEN:-}"
+
 BASENAME=$(basename "${FASTA}" .fasta)
 
 # Download and unpack VADR models

@@ -10,10 +10,7 @@ import io
 import json
 import logging
 import os
-import re
 import subprocess
-import sys
-import tempfile
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger(__name__)
@@ -51,7 +48,7 @@ def gcloud_cp(gcs_uri, local_path):
 
 
 def parse_tsv(content):
-    """Parse assembly_stats TSV content into a dict keyed by assembly_id.
+    """Parse assembly_metadata TSV content into a dict keyed by assembly_id.
 
     Returns dict: assembly_id -> {col: value, ...}
     """
