@@ -288,18 +288,24 @@ def generate_markdown_report(df, sample_df, workspace_name, report_dir, plot_dir
     minor_diff = len(df_aln[(df_aln['alignment_identity'] >= 0.99) & (df_aln['alignment_identity'] < 0.999)]) if len(df_aln) > 0 else 0
     significant_diff = len(df_aln[df_aln['alignment_identity'] < 0.99]) if len(df_aln) > 0 else 0
 
-    with_snps = len(df_aln[df_aln['snp_count'] > 0])
-    with_indels = len(df_aln[df_aln['indel_count_events'] > 0])
-    with_ambig = len(df_aln[df_aln['ambiguity_diffs'] > 0])
-    with_terminal = len(df_aln[(df_aln['terminal_extensions_old'] > 0) | (df_aln['terminal_extensions_new'] > 0)])
-    total_snps = int(df_aln['snp_count'].sum()) if len(df_aln) > 0 else 0
-    total_indel_bp = int(df_aln['indel_count_bp'].sum()) if len(df_aln) > 0 else 0
-    total_indel_events = int(df_aln['indel_count_events'].sum()) if len(df_aln) > 0 else 0
-    total_ambig = int(df_aln['ambiguity_diffs'].sum()) if len(df_aln) > 0 else 0
-    total_terminal_bp_old = int(df_aln['terminal_extensions_old'].sum()) if len(df_aln) > 0 else 0
-    total_terminal_bp_new = int(df_aln['terminal_extensions_new'].sum()) if len(df_aln) > 0 else 0
-    total_terminal_events_old = int(df_aln['terminal_extension_events_old'].sum()) if len(df_aln) > 0 else 0
-    total_terminal_events_new = int(df_aln['terminal_extension_events_new'].sum()) if len(df_aln) > 0 else 0
+    if len(df_aln) > 0 and 'snp_count' in df_aln.columns:
+        with_snps = len(df_aln[df_aln['snp_count'] > 0])
+        with_indels = len(df_aln[df_aln['indel_count_events'] > 0])
+        with_ambig = len(df_aln[df_aln['ambiguity_diffs'] > 0])
+        with_terminal = len(df_aln[(df_aln['terminal_extensions_old'] > 0) | (df_aln['terminal_extensions_new'] > 0)])
+        total_snps = int(df_aln['snp_count'].sum())
+        total_indel_bp = int(df_aln['indel_count_bp'].sum())
+        total_indel_events = int(df_aln['indel_count_events'].sum())
+        total_ambig = int(df_aln['ambiguity_diffs'].sum())
+        total_terminal_bp_old = int(df_aln['terminal_extensions_old'].sum())
+        total_terminal_bp_new = int(df_aln['terminal_extensions_new'].sum())
+        total_terminal_events_old = int(df_aln['terminal_extension_events_old'].sum())
+        total_terminal_events_new = int(df_aln['terminal_extension_events_new'].sum())
+    else:
+        with_snps = with_indels = with_ambig = with_terminal = 0
+        total_snps = total_indel_bp = total_indel_events = total_ambig = 0
+        total_terminal_bp_old = total_terminal_bp_new = 0
+        total_terminal_events_old = total_terminal_events_new = 0
 
     report_path = os.path.join(report_dir, f'report_{workspace_name}.md')
     with open(report_path, 'w') as f:
@@ -369,7 +375,10 @@ def generate_markdown_report(df, sample_df, workspace_name, report_dir, plot_dir
             f.write(f"\n")
 
         # Assembly count mismatches
-        mismatches = sample_df[~sample_df['assembly_count_match']]
+        if 'assembly_count_match' not in sample_df.columns:
+            mismatches = pd.DataFrame()
+        else:
+            mismatches = sample_df[~sample_df['assembly_count_match']]
         if len(mismatches) > 0:
             f.write(f"## Assembly Count Mismatches\n\n")
             f.write(f"| Sample | Old Count | New Count | Only Old | Only New |\n")

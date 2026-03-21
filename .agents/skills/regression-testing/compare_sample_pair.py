@@ -104,11 +104,13 @@ def run_mafft_pair(old_seq, new_seq, work_dir, pair_id='0'):
     with open(combined, 'w') as f:
         f.write(f'>old_{pair_id}\n{old_seq}\n>new_{pair_id}\n{new_seq}\n')
 
-    result = subprocess.run(
-        ['mafft', '--auto', '--preservecase', '--quiet', '--thread', '1', combined],
-        capture_output=True, text=True, timeout=300
-    )
-    os.unlink(combined)
+    try:
+        result = subprocess.run(
+            ['mafft', '--auto', '--preservecase', '--quiet', '--thread', '1', combined],
+            capture_output=True, text=True, timeout=300
+        )
+    finally:
+        os.unlink(combined)
     if result.returncode != 0:
         raise RuntimeError(f"mafft failed: {result.stderr.strip()}")
 
@@ -128,8 +130,12 @@ def align_and_analyze_fastas(old_fasta_path, new_fasta_path, work_dir):
 
     Returns (aligned_fasta_path, stats_dict).
     """
-    old_seqs = parse_fasta(open(old_fasta_path).read())
-    new_seqs = parse_fasta(open(new_fasta_path).read())
+    with open(old_fasta_path) as f:
+        old_fasta_text = f.read()
+    with open(new_fasta_path) as f:
+        new_fasta_text = f.read()
+    old_seqs = parse_fasta(old_fasta_text)
+    new_seqs = parse_fasta(new_fasta_text)
 
     if len(old_seqs) == 1 and len(new_seqs) == 1:
         # Simple case: single segment
@@ -434,8 +440,8 @@ def compare_assembly(assembly_id, old_row, new_row, work_dir):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--old-tsv', required=True, help='GCS URI of old assembly_stats TSV')
-    parser.add_argument('--new-tsv', required=True, help='GCS URI of new assembly_stats TSV')
+    parser.add_argument('--old-tsv', required=True, help='GCS URI of old assembly_metadata TSV')
+    parser.add_argument('--new-tsv', required=True, help='GCS URI of new assembly_metadata TSV')
     parser.add_argument('--work-dir', required=True, help='Working directory for temp files')
     parser.add_argument('--output-json', required=True, help='Output JSON file path')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable debug logging')

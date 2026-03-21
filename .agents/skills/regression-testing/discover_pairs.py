@@ -30,6 +30,7 @@ def gcloud_ls(path):
             capture_output=True, text=True, timeout=60
         )
         if result.returncode != 0:
+            log.warning(f"gcloud ls non-zero exit for {path}: {result.stderr.strip()}")
             return []
         return [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
     except Exception as e:

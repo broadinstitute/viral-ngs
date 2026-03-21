@@ -63,8 +63,8 @@ v-annotate.pl \
 tar -C "${BASENAME}" -czf "${VADR_TGZ}" .
 
 # Extract alerts
-cat "${BASENAME}/${BASENAME}.vadr.alt.list" | cut -f 5 | tail -n +2 > alerts.tsv
+cut -f 5 "${BASENAME}/${BASENAME}.vadr.alt.list" | tail -n +2 > alerts.tsv
 cp alerts.tsv "${ALERTS_TSV}"
 wc -l < alerts.tsv > "${NUM_ALERTS}"
 
-echo "VADR complete. Alerts: $(cat ${NUM_ALERTS})"
+echo "VADR complete. Alerts: $(cat "${NUM_ALERTS}")"
