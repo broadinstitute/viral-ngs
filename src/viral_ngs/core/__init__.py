@@ -194,7 +194,6 @@ from . import bbmap
 from . import bwa
 from . import cdhit
 from . import fastqc
-from . import gatk
 from . import minimap2
 from . import mvicuna
 from . import novoalign

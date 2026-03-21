@@ -29,8 +29,8 @@ import viral_ngs.core.misc
 import viral_ngs.read_utils
 import viral_ngs.core.picard
 import viral_ngs.core.samtools
-import viral_ngs.core.gatk
 import viral_ngs.core.novoalign
+import viral_ngs.assemble.freebayes
 
 # intra-module (assembly tool wrappers)
 import viral_ngs.assemble.vcf
@@ -601,7 +601,7 @@ def impute_from_reference(
     for tmpFile in tempFastas:
         os.unlink(tmpFile)
 
-    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    # Index final output FASTA for Picard, Samtools, and Novoalign
     if index:
         viral_ngs.core.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
         viral_ngs.core.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
@@ -673,17 +673,15 @@ def refine_assembly(
     already_realigned_bam=None,
     JVMmemory=None,
     threads=None,
-    gatk_path=None,
     novoalign_license_path=None
 ):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
-        This step considers both SNPs as well as indels called by GATK
-        and will correct the consensus based on GATK calls.
+        This step considers both SNPs as well as indels called by FreeBayes
+        and will correct the consensus based on variant calls.
         Reads are aligned with Novoalign, then PCR duplicates are removed
-        with Picard (in order to debias the allele counts in the pileups),
-        and realigned with GATK's IndelRealigner (in order to call indels).
+        with Picard (in order to debias the allele counts in the pileups).
         Output FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
     chr_names = chr_names or []
@@ -701,10 +699,12 @@ def refine_assembly(
     picard_index = viral_ngs.core.picard.CreateSequenceDictionaryTool()
     picard_mkdup = viral_ngs.core.picard.MarkDuplicatesTool()
     samtools = viral_ngs.core.samtools.SamtoolsTool()
-    novoalign = viral_ngs.core.novoalign.NovoalignTool(license_path=novoalign_license_path)
-    gatk = viral_ngs.core.gatk.GATKTool(path=gatk_path)
+    fb = viral_ngs.assemble.freebayes.FreeBayesTool()
+    novoalign = None
+    if not already_realigned_bam:
+        novoalign = viral_ngs.core.novoalign.NovoalignTool(license_path=novoalign_license_path)
 
-    # Sanitize fasta header & create deambiguated genome for GATK
+    # Sanitize fasta header & create deambiguated genome for variant calling
     deambigFasta = viral_ngs.core.file.mkstempfname('.deambig.fasta')
     with viral_ngs.core.file.fastas_with_sanitized_ids(inFasta, use_tmp=True) as sanitized_fastas:
         deambig_fasta(sanitized_fastas[0], deambigFasta)
@@ -714,7 +714,6 @@ def refine_assembly(
     if already_realigned_bam:
         realignBam = already_realigned_bam
         if samtools.isEmpty(realignBam):
-            # GATK errors out on empty bam input, so just do this ourselves
             viral_ngs.core.file.touch(outFasta)
             if outVcf:
                 with viral_ngs.core.file.open_or_gzopen(outVcf, 'wt') as outf:
@@ -733,16 +732,14 @@ def refine_assembly(
             opts.append('REMOVE_DUPLICATES=true')
         picard_mkdup.execute([novoBam], rmdupBam, picardOptions=opts, JVMmemory=JVMmemory)
         os.unlink(novoBam)
-        realignBam = viral_ngs.core.file.mkstempfname('.realign.bam')
-        gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
-        os.unlink(rmdupBam)
+        realignBam = rmdupBam
         if outBam:
             shutil.copyfile(realignBam, outBam)
 
-    # Modify original assembly with VCF calls from GATK
+    # Modify original assembly with VCF calls from FreeBayes
     tmpVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
     tmpFasta = viral_ngs.core.file.mkstempfname('.fasta')
-    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
+    fb.call(realignBam, deambigFasta, tmpVcf)
     if already_realigned_bam is None:
         os.unlink(realignBam)
     os.unlink(deambigFasta)
@@ -766,17 +763,20 @@ def refine_assembly(
         if outVcf.endswith('.gz'):
             shutil.copyfile(tmpVcf + '.tbi', outVcf + '.tbi')
     os.unlink(tmpVcf)
+    if os.path.exists(tmpVcf + '.tbi'):
+        os.unlink(tmpVcf + '.tbi')
     shutil.copyfile(tmpFasta, outFasta)
     os.unlink(tmpFasta)
 
-    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    # Index final output FASTA for Picard, Samtools, and Novoalign
     picard_index.execute(outFasta, overwrite=True)
     # if the input bam is empty, an empty fasta will be created, however
     # faidx cannot index an empty fasta file, so only index if the fasta
     # has a non-zero size
     if (os.path.getsize(outFasta) > 0):
         samtools.faidx(outFasta, overwrite=True)
-        novoalign.index_fasta(outFasta)
+        if already_realigned_bam is None:
+            novoalign.index_fasta(outFasta)
         
     return 0
 
@@ -800,9 +800,9 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--outBam',
         default=None,
-        help='Reads aligned to inFasta. Unaligned and duplicate reads have been removed. GATK indel realigned.'
+        help='Reads aligned to inFasta. Unaligned and duplicate reads have been removed.'
     )
-    parser.add_argument('--outVcf', default=None, help='GATK genotype calls for genome in inFasta coordinate space.')
+    parser.add_argument('--outVcf', default=None, help='Variant calls for genome in inFasta coordinate space.')
     parser.add_argument(
         '--min_coverage',
         default=3,
@@ -839,14 +839,8 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--JVMmemory',
-        default=viral_ngs.core.gatk.GATKTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
-    )
-    parser.add_argument(
-        '--GATK_PATH',
-        default=None,
-        dest="gatk_path",
-        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
+        default='2g',
+        help='JVM virtual memory size for Picard/Novoalign (default: %(default)s)'
     )
     parser.add_argument(
         '--NOVOALIGN_LICENSE_PATH',
