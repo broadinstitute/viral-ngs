@@ -50,3 +50,32 @@
 # ADDED: 2026-03-19
 # -----------------------------------------------------------------------------
 CVE-2026-23949
+
+# -----------------------------------------------------------------------------
+# CVE-2020-25649 — jackson-databind XXE in DOMDeserializer
+# Severity: HIGH (AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N)
+# Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
+# Location: opt/conda/share/snpeff-5.2-3/snpEff.jar
+#
+# JUSTIFICATION:
+#   The vulnerable code path is DOMDeserializer, which is invoked when
+#   jackson-databind deserializes XML input into DOM objects without
+#   disabling external entity resolution. This enables XXE attacks
+#   (SSRF, local file read) when processing attacker-controlled XML.
+#
+#   snpEff uses jackson-databind for JSON parsing only (config metadata,
+#   database indices). snpEff's input formats are VCF (tab-delimited),
+#   GenBank (flat text), and Java properties files. It never parses XML
+#   through Jackson's DOMDeserializer. The vulnerable code is present in
+#   the fat JAR but the code path is never traversed.
+#
+#   This exclusion applies only to snpEff's bundled copy. If jackson-
+#   databind 2.10.5 appears in other JARs, this entry will NOT suppress
+#   those findings — Trivy matches .trivyignore by CVE ID globally, but
+#   we accept this because no other JAR in our images bundles this old
+#   version. If that changes, re-evaluate this entry.
+#
+# RESOLUTION: Upstream snpEff must update its bundled jackson-databind.
+# ADDED: 2026-03-20
+# -----------------------------------------------------------------------------
+CVE-2020-25649

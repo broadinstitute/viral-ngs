@@ -844,35 +844,6 @@ class TestAlignAndFix(TestCaseWithTmp):
             '--outBamFiltered', viral_ngs.core.file.mkstempfname('.outBamFiltered.bam')])
         args.func_main(args)
 
-    def test_skip_realign_flag(self):
-        """Test that --skipRealign skips GATK local realignment"""
-        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
-        outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')
-
-        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
-            [inBam, self.refFasta, '--outBamAll', outBamAll,
-             '--aligner', 'minimap2', '--skipRealign'])
-        args.func_main(args)
-
-        # Verify output exists and has reads
-        samtools = viral_ngs.core.samtools.SamtoolsTool()
-        self.assertTrue(os.path.exists(outBamAll))
-        self.assertFalse(samtools.isEmpty(outBamAll))
-
-    def test_skip_realign_with_skip_mark_dupes(self):
-        """Test combining --skipRealign with --skipMarkDupes"""
-        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
-        outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')
-
-        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
-            [inBam, self.refFasta, '--outBamAll', outBamAll,
-             '--aligner', 'minimap2', '--skipRealign', '--skipMarkDupes'])
-        args.func_main(args)
-
-        samtools = viral_ngs.core.samtools.SamtoolsTool()
-        self.assertTrue(os.path.exists(outBamAll))
-        self.assertFalse(samtools.isEmpty(outBamAll))
-
     def test_dup_marker_sambamba(self):
         """Test using sambamba for duplicate marking"""
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
@@ -880,7 +851,7 @@ class TestAlignAndFix(TestCaseWithTmp):
 
         args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll,
-             '--aligner', 'minimap2', '--dupMarker', 'sambamba', '--skipRealign'])
+             '--aligner', 'minimap2', '--dupMarker', 'sambamba'])
         args.func_main(args)
 
         samtools = viral_ngs.core.samtools.SamtoolsTool()
@@ -894,7 +865,7 @@ class TestAlignAndFix(TestCaseWithTmp):
 
         args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll,
-             '--aligner', 'minimap2', '--dupMarker', 'picard', '--skipRealign'])
+             '--aligner', 'minimap2', '--dupMarker', 'picard'])
         args.func_main(args)
 
         samtools = viral_ngs.core.samtools.SamtoolsTool()
@@ -915,7 +886,7 @@ class TestAlignAndFix(TestCaseWithTmp):
 
         args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
             [inBam, self.refFasta, '--outBamAll', outBamAll, '--outBamFiltered', outBamFiltered,
-             '--aligner', 'minimap2', '--dupMarker', 'sambamba', '--skipRealign'])
+             '--aligner', 'minimap2', '--dupMarker', 'sambamba'])
         args.func_main(args)
 
         samtools = viral_ngs.core.samtools.SamtoolsTool()

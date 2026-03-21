@@ -14,46 +14,22 @@ import Bio.SeqIO
 import viral_ngs.assembly
 import viral_ngs.core.cmd
 import viral_ngs.core.file
-import viral_ngs.core.novoalign
-from tests import TestCaseWithTmp, _CPUS, IS_ARM
+import viral_ngs.core.minimap2
+import viral_ngs.core.picard
+import viral_ngs.core.samtools
+from tests import TestCaseWithTmp, _CPUS
 
-SKIP_X86_ONLY_REASON = "novoalign requires x86-only bioconda package (not available on ARM)"
+
+def _align_with_minimap2(refFasta, inBam):
+    """Align reads to reference with minimap2, return indexed BAM path."""
+    mm2 = viral_ngs.core.minimap2.Minimap2()
+    samtools = viral_ngs.core.samtools.SamtoolsTool()
+    outBam = viral_ngs.core.file.mkstempfname('.aligned.bam')
+    mm2.align_bam(inBam, refFasta, outBam, options=['-x', 'sr'])
+    samtools.index(outBam)
+    return outBam
 
 
-@unittest.skip("redundant, and takes 1 minute")
-class TestAssemble(TestCaseWithTmp):
-    ''' Test the de novo assembly pipeline '''
-
-    def test_ref_assisted_assembly(self):
-        novoalign = viral_ngs.core.novoalign.NovoalignTool()
-        novoalign.install()
-
-        # prep inputs
-        orig_ref = os.path.join(viral_ngs.core.file.get_test_input_path(), 'ebov-makona.fasta')
-        refGenome = viral_ngs.core.file.mkstempfname('.ref.fasta')
-        shutil.copyfile(orig_ref, refGenome)
-        novoalign.index_fasta(refGenome)
-        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.mini.bam')
-        outFasta = viral_ngs.core.file.mkstempfname('.refined.fasta')
-
-        # run refine_assembly
-        args = [refGenome, inBam, outFasta, "--chr_names", 'G5012.3', "--min_coverage", '3', "--novo_params",
-                "-r Random -l 30 -g 40 -x 20 -t 502"]
-        args = viral_ngs.assembly.parser_refine_assembly().parse_args(args)
-        args.func_main(args)
-        self.assertTrue(os.path.isfile(outFasta))
-        self.assertTrue(os.path.getsize(outFasta) > 1000)
-
-        # check assembly quality
-        with open(outFasta, 'rt') as inf:
-            seq = Bio.SeqIO.read(inf, 'fasta')
-            self.assertGreater(len(seq), 17000)
-            self.assertGreater(viral_ngs.assembly.unambig_count(seq.seq), len(seq) * 0.95)
-
-# in order to test the actual de novo pipeline, we need to add a clip db for trimmomatic
-# then we should test from G5012.3.testreads.bam all the way through the assembly pipe
-
-@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
 class TestRefineAssembly(TestCaseWithTmp):
     def test_ebov_refine1(self):
         inDir = viral_ngs.core.file.get_test_input_path(self)
@@ -62,16 +38,15 @@ class TestRefineAssembly(TestCaseWithTmp):
         refine1Fasta = viral_ngs.core.file.mkstempfname('.refine1.fasta')
         shutil.copy(inFasta, imputeFasta)
         viral_ngs.core.picard.CreateSequenceDictionaryTool().execute(imputeFasta, overwrite=True)
-        viral_ngs.core.novoalign.NovoalignTool().index_fasta(imputeFasta)
+        viral_ngs.core.samtools.SamtoolsTool().faidx(imputeFasta, overwrite=True)
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.mini.bam')
+        alignedBam = _align_with_minimap2(imputeFasta, inBam)
         viral_ngs.assembly.refine_assembly(
-            imputeFasta,
-            os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.mini.bam'),
-            refine1Fasta,
-            # normally -r Random, but for unit tests, we want deterministic behavior
-            novo_params='-r None -l 30 -x 20 -t 502',
+            imputeFasta, inBam, refine1Fasta,
+            already_realigned_bam=alignedBam,
             min_coverage=2)
         actual = str(Bio.SeqIO.read(refine1Fasta, 'fasta').seq)
-        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine1.new.fasta'), 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine1.freebayes.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)
 
     def test_ebov_refine2(self):
@@ -81,16 +56,15 @@ class TestRefineAssembly(TestCaseWithTmp):
         refine2Fasta = viral_ngs.core.file.mkstempfname('.refine2.fasta')
         shutil.copy(inFasta, refine1Fasta)
         viral_ngs.core.picard.CreateSequenceDictionaryTool().execute(refine1Fasta, overwrite=True)
-        viral_ngs.core.novoalign.NovoalignTool().index_fasta(refine1Fasta)
+        viral_ngs.core.samtools.SamtoolsTool().faidx(refine1Fasta, overwrite=True)
+        inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.mini.bam')
+        alignedBam = _align_with_minimap2(refine1Fasta, inBam)
         viral_ngs.assembly.refine_assembly(
-            refine1Fasta,
-            os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.mini.bam'),
-            refine2Fasta,
-            # normally -r Random, but for unit tests, we want deterministic behavior
-            novo_params='-r None -l 40 -x 20 -t 100',
+            refine1Fasta, inBam, refine2Fasta,
+            already_realigned_bam=alignedBam,
             min_coverage=3)
         actual = str(Bio.SeqIO.read(refine2Fasta, 'fasta').seq)
-        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine2.fasta'), 'fasta').seq)
+        expected = str(Bio.SeqIO.read(os.path.join(inDir, 'expected.ebov.refine2.freebayes.fasta'), 'fasta').seq)
         self.assertEqual(actual, expected)
 
 

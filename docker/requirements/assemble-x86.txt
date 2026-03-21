@@ -4,4 +4,4 @@
 
 # Gap2Seq: Fills gaps in genome assemblies using short reads
 # ARM64 build conflicts with pillow/libtiff due to old htslib/libdeflate pins
-gap2seq=3.1.1a
+gap2seq>=3.1.1a
