@@ -29,3 +29,4 @@ docker run --rm \
 | [docker/](docker/) | Dockerfiles and requirements |
 | [src/viral_ngs/](src/viral_ngs/) | Source code |
 | [tests/](tests/) | Test files |
+| [.agents/skills/](.agents/skills/) | Reusable agent playbooks and scripts |
