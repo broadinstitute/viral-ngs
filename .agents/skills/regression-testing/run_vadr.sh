@@ -12,7 +12,7 @@
 #   ALERTS_TSV - file to write alerts TSV
 #   VADR_TGZ   - file to write full vadr output tarball
 
-set -e
+set -euo pipefail
 
 BASENAME=$(basename "${FASTA}" .fasta)
 
@@ -20,7 +20,8 @@ BASENAME=$(basename "${FASTA}" .fasta)
 if [ -n "${MODEL_URL}" ]; then
   mkdir -p vadr-untar
   curl -fsSL "${MODEL_URL}" | tar -C vadr-untar -xzf -
-  ln -s vadr-untar/*/ vadr-models
+  MODEL_DIR=$(find vadr-untar -mindepth 1 -maxdepth 1 -type d | head -1)
+  ln -s "${MODEL_DIR}" vadr-models
 else
   ln -s /opt/vadr/vadr-models vadr-models
 fi

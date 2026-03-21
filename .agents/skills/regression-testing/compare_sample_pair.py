@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare assembly outputs between old and new code for a single sample pair.
 
-Takes two GCS URIs pointing at assembly_stats_by_taxon_tsv files (old and new),
+Takes two GCS URIs pointing at assembly_metadata TSV files (old and new),
 downloads them, compares metrics, aligns FASTAs with mafft, and outputs a JSON result.
 """
 import argparse

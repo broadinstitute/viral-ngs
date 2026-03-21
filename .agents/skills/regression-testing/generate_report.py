@@ -124,8 +124,8 @@ def generate_plots(df, plot_dir):
                alpha=0.5, s=20)
     lims = [0, 105]
     ax.plot(lims, lims, 'r--', alpha=0.5, label='y=x')
-    ax.set_xlabel('Old (main) % Reference Covered')
-    ax.set_ylabel('New (FreeBayes) % Reference Covered')
+    ax.set_xlabel('Old % Reference Covered')
+    ax.set_ylabel('New % Reference Covered')
     ax.set_title('Percent Reference Covered: Old vs New')
     ax.set_xlim(lims)
     ax.set_ylim(lims)
@@ -148,8 +148,8 @@ def generate_plots(df, plot_dir):
         ax.plot([min_v, max_v], [min_v, max_v], 'r--', alpha=0.5, label='y=x')
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_xlabel('Old (main) Mean Coverage')
-        ax.set_ylabel('New (FreeBayes) Mean Coverage')
+        ax.set_xlabel('Old Mean Coverage')
+        ax.set_ylabel('New Mean Coverage')
         ax.set_title('Mean Coverage: Old vs New')
         ax.legend()
         fig.tight_layout()
@@ -169,8 +169,8 @@ def generate_plots(df, plot_dir):
         max_v = max(df_len['old_assembly_length_unambiguous'].max(),
                     df_len['new_assembly_length_unambiguous'].max()) * 1.05
         ax.plot([min_v, max_v], [min_v, max_v], 'r--', alpha=0.5, label='y=x')
-        ax.set_xlabel('Old (main) Unambiguous Length')
-        ax.set_ylabel('New (FreeBayes) Unambiguous Length')
+        ax.set_xlabel('Old Unambiguous Length')
+        ax.set_ylabel('New Unambiguous Length')
         ax.set_title('Assembly Length (Unambiguous): Old vs New')
         ax.legend()
         fig.tight_layout()
@@ -270,17 +270,24 @@ def generate_markdown_report(df, sample_df, workspace_name, report_dir, plot_dir
     pd, _ = get_deps()
 
     total_samples = len(sample_df)
-    samples_with_assemblies = len(sample_df[sample_df['old_assembly_count'] > 0])
-    samples_count_match = len(sample_df[sample_df['assembly_count_match']])
+    if sample_df.empty or 'old_assembly_count' not in sample_df.columns:
+        samples_with_assemblies = 0
+        samples_count_match = 0
+    else:
+        samples_with_assemblies = len(sample_df[sample_df['old_assembly_count'] > 0])
+        samples_count_match = len(sample_df[sample_df['assembly_count_match']])
     samples_count_mismatch = total_samples - samples_count_match
 
     total_assemblies = len(df)
-    df_aln = df[df['alignment_identity'].notna()]
+    if df.empty or 'alignment_identity' not in df.columns:
+        df_aln = pd.DataFrame()
+    else:
+        df_aln = df[df['alignment_identity'].notna()]
 
-    identical = len(df_aln[df_aln['alignment_identity'] >= 1.0])
-    near_identical = len(df_aln[(df_aln['alignment_identity'] >= 0.999) & (df_aln['alignment_identity'] < 1.0)])
-    minor_diff = len(df_aln[(df_aln['alignment_identity'] >= 0.99) & (df_aln['alignment_identity'] < 0.999)])
-    significant_diff = len(df_aln[df_aln['alignment_identity'] < 0.99])
+    identical = len(df_aln[df_aln['alignment_identity'] >= 1.0]) if len(df_aln) > 0 else 0
+    near_identical = len(df_aln[(df_aln['alignment_identity'] >= 0.999) & (df_aln['alignment_identity'] < 1.0)]) if len(df_aln) > 0 else 0
+    minor_diff = len(df_aln[(df_aln['alignment_identity'] >= 0.99) & (df_aln['alignment_identity'] < 0.999)]) if len(df_aln) > 0 else 0
+    significant_diff = len(df_aln[df_aln['alignment_identity'] < 0.99]) if len(df_aln) > 0 else 0
 
     with_snps = len(df_aln[df_aln['snp_count'] > 0])
     with_indels = len(df_aln[df_aln['indel_count_events'] > 0])

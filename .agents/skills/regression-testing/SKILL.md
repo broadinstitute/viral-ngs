@@ -31,11 +31,11 @@ Use `discover_pairs.py` to find all comparable old/new sample pairs by crawling
 GCS Cromwell output directories.
 
 ```bash
-python discover_pairs.py <workspace_name> \
+python discover_pairs.py \
   --bucket <workspace-bucket-id> \
   --old-sub <old-submission-id> \
   --new-sub <new-submission-id> \
-  -o pairs.json
+  --output pairs.json
 ```
 
 This produces a JSON mapping sample_name -> {old_tsv, new_tsv} for all samples
@@ -56,8 +56,9 @@ python compare_sample_pair.py \
   --output-json ./results/<sample>.json
 ```
 
-For batch processing, use `run_regression.py` (in the terra-regression/scripts/ directory)
-which orchestrates parallel execution across all pairs.
+For batch processing, iterate over all entries in `pairs.json` and invoke
+`compare_sample_pair.py` for each sample pair (e.g., via a small wrapper
+script using `concurrent.futures` or `xargs`/GNU `parallel`).
 
 ### Step 4: Generate Report
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Discover comparable old/new sample pairs by crawling GCS Cromwell output directories.
 
-For each submission, finds assembly_stats_by_taxon_tsv files, extracts sample names
-from filenames, and outputs the intersection as a JSON mapping.
+For each submission, finds assembly_metadata TSV files named
+``assembly_metadata-<sample>.tsv``, extracts sample names from filenames,
+and outputs the intersection as a JSON mapping.
 
 Usage:
     python discover_pairs.py \
@@ -46,7 +47,11 @@ def find_tsv_in_call_dir(call_dir_uri):
     items = gcloud_ls(call_dir_uri)
 
     # Check for attempt-N subdirectories
-    attempt_dirs = sorted([i for i in items if '/attempt-' in i], reverse=True)
+    def attempt_sort_key(path):
+        match = re.search(r'/attempt-(\d+)', path)
+        return int(match.group(1)) if match else 0
+    attempt_dirs = sorted([i for i in items if '/attempt-' in i],
+                          key=attempt_sort_key, reverse=True)
     tsv_files = [i for i in items if i.endswith('.tsv')]
 
     # If there are attempt dirs, check the highest attempt first
