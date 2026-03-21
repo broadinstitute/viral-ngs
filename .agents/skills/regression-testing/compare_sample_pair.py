@@ -345,7 +345,8 @@ def analyze_alignment_seqs(old_seq_str, new_seq_str):
 
 def analyze_alignment(aligned_fasta_path):
     """Analyze pairwise alignment from mafft output file. Thin wrapper around analyze_alignment_seqs."""
-    seqs = parse_fasta(open(aligned_fasta_path).read())
+    with open(aligned_fasta_path) as f:
+        seqs = parse_fasta(f.read())
     if len(seqs) != 2:
         raise RuntimeError(f"Expected 2 sequences in alignment, got {len(seqs)}")
     return analyze_alignment_seqs(seqs[0][1], seqs[1][1])

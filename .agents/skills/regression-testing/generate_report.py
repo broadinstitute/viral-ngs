@@ -355,7 +355,10 @@ def generate_markdown_report(df, sample_df, workspace_name, report_dir, plot_dir
             f.write(f"\n")
 
         # Divergent assemblies
-        divergent = df_aln[df_aln['alignment_identity'] < 0.999].sort_values('alignment_identity')
+        if len(df_aln) > 0 and 'alignment_identity' in df_aln.columns:
+            divergent = df_aln[df_aln['alignment_identity'] < 0.999].sort_values('alignment_identity')
+        else:
+            divergent = pd.DataFrame()
         if len(divergent) > 0:
             f.write(f"## Divergent Assemblies (identity < 99.9%)\n\n")
             f.write(f"| Assembly ID | Tax Name | Identity | SNPs | Indel events (bp) | Ambig Diffs | Term Ext Old events (bp) | Term Ext New events (bp) |\n")
