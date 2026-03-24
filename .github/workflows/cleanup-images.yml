@@ -11,11 +11,22 @@ jobs:
     permissions: {}
 
     steps:
+      - name: Compute tag prefix
+        id: tag-prefix
+        run: |
+          # Apply the same sanitization as docker.yml's "Compute Docker image tag prefix":
+          # replace "/" with "-" and strip leading "v"
+          RAW="${{ github.event.ref }}"
+          PREFIX=$(echo "$RAW" | sed 's|/|-|g')
+          PREFIX=${PREFIX#v}
+          echo "prefix=${PREFIX}" >> $GITHUB_OUTPUT
+          echo "Tag prefix: ${PREFIX} (from branch: ${RAW})"
+
       - name: Safety check - refuse version-like branch names
         run: |
-          BRANCH_TAG="${{ github.event.ref }}"
-          if [[ "$BRANCH_TAG" =~ ^v?[0-9]+\.[0-9]+ ]]; then
-            echo "::error::Refusing to delete tags for version-like branch: $BRANCH_TAG"
+          PREFIX="${{ steps.tag-prefix.outputs.prefix }}"
+          if [[ "$PREFIX" =~ ^[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Refusing to delete tags for version-like branch: $PREFIX"
             exit 1
           fi
 
@@ -31,7 +42,7 @@ jobs:
 
       - name: Delete feature branch tags from Quay
         run: |
-          BRANCH_TAG="${{ github.event.ref }}"
+          TAG_PREFIX="${{ steps.tag-prefix.outputs.prefix }}"
           QUAY_REPO="quay.io/broadinstitute/viral-ngs"
 
           # Image tag suffixes - must be kept in sync with deploy-to-quay in docker.yml
@@ -39,7 +50,7 @@ jobs:
           SUFFIXES=("-baseimage" "-core" "-assemble" "-classify" "-phylo" "")
 
           for SUFFIX in "${SUFFIXES[@]}"; do
-            TAG="${BRANCH_TAG}${SUFFIX}"
+            TAG="${TAG_PREFIX}${SUFFIX}"
             echo "Deleting ${QUAY_REPO}:${TAG}..."
             # Use crane delete instead of skopeo delete. crane removes only the tag
             # reference, not the underlying manifest. This prevents cascade deletion

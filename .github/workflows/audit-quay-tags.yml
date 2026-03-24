@@ -38,24 +38,27 @@ jobs:
             exit 1
           fi
 
-          for VERSION in $VERSIONS; do
-            # Check mega tag (no suffix)
-            if ! crane manifest "${REPO}:${VERSION}" > /dev/null 2>&1; then
-              echo "::error::MISSING: ${REPO}:${VERSION}"
+          check_tag() {
+            local TAG="$1"
+            if ! crane manifest "${REPO}:${TAG}" > /dev/null 2>&1; then
+              echo "::error::MISSING: ${REPO}:${TAG}"
               FAILED=1
             else
-              echo "OK: ${REPO}:${VERSION}"
+              echo "OK: ${REPO}:${TAG}"
             fi
+          }
 
-            # Check each flavor
+          for VERSION in $VERSIONS; do
+            MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
+
+            # Check mega tag (no suffix) — both X.Y.Z and X.Y
+            check_tag "${VERSION}"
+            check_tag "${MAJOR_MINOR}"
+
+            # Check each flavor — both X.Y.Z-flavor and X.Y-flavor
             for FLAVOR in $FLAVORS; do
-              TAG="${VERSION}-${FLAVOR}"
-              if ! crane manifest "${REPO}:${TAG}" > /dev/null 2>&1; then
-                echo "::error::MISSING: ${REPO}:${TAG}"
-                FAILED=1
-              else
-                echo "OK: ${REPO}:${TAG}"
-              fi
+              check_tag "${VERSION}-${FLAVOR}"
+              check_tag "${MAJOR_MINOR}-${FLAVOR}"
             done
           done
 
