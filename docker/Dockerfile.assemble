@@ -28,11 +28,16 @@ COPY docker/install-conda-deps.sh /tmp/
 
 # Install conda dependencies (assembly tools)
 # All files resolved together in single micromamba call; x86-only files skipped on ARM
-# Remove mafft's dash_client (Go 1.22.1 binary with 11 Go stdlib CVEs) — we
-# never use --dash mode; delete inline so it never appears in any layer.
+# Post-install fixups (inline so vulnerable files never appear in a committed layer):
+#   - mafft's dash_client: Go 1.22.1 binary with Go stdlib CVEs; we never use --dash mode
+#   - Ruby json gem: sequip pulls in Ruby, whose bundled json gem has CVE-2026-33210;
+#     remove the old default gem and install patched version (>=2.19.2)
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt \
     --x86-only:/tmp/requirements/assemble-x86.txt && \
-    rm -f /opt/conda/libexec/mafft/dash_client
+    rm -f /opt/conda/libexec/mafft/dash_client && \
+    find /opt/conda/lib/ruby -maxdepth 3 -name 'json*' -not -path '*/psych/*' -exec rm -rf {} + && \
+    rm -f /opt/conda/lib/ruby/gems/*/specifications/default/json-*.gemspec && \
+    gem install json --version '>=2.19.2' --no-document
 
 # Copy source code (includes assembly module)
 COPY src/ /opt/viral-ngs/source/src/
