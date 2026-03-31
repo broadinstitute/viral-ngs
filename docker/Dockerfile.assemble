@@ -30,8 +30,8 @@ COPY docker/install-conda-deps.sh /tmp/
 # All files resolved together in single micromamba call; x86-only files skipped on ARM
 # Post-install fixups (inline so vulnerable files never appear in a committed layer):
 #   - mafft's dash_client: Go 1.22.1 binary with Go stdlib CVEs; we never use --dash mode
-#   - Ruby json gem: sequip pulls in Ruby, whose bundled json gem has CVE-2026-33210;
-#     remove the old default gem and install patched version (>=2.19.2)
+#   - Ruby json gem: mummer4/sequip pull in Ruby (via yaggo), whose bundled json gem
+#     has CVE-2026-33210; remove the old default gem and install patched version (>=2.19.2)
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt \
     --x86-only:/tmp/requirements/assemble-x86.txt && \
     rm -f /opt/conda/libexec/mafft/dash_client && \
