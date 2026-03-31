@@ -1020,6 +1020,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
+          limit-severities-for-sarif: true
           exit-code: '0'
           ignore-unfixed: true
           trivyignores: '.trivyignore'
@@ -1032,7 +1033,7 @@ jobs:
           format: 'json'
           output: 'trivy-results.json'
           severity: 'CRITICAL,HIGH'
-          exit-code: '0'
+          exit-code: '1'
           ignore-unfixed: true
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
