@@ -31,6 +31,7 @@ import viral_ngs.core.picard
 import viral_ngs.core.samtools
 import viral_ngs.core.novoalign
 import viral_ngs.assemble.freebayes
+import viral_ngs.assemble.rasusa
 
 # intra-module (assembly tool wrappers)
 import viral_ngs.assemble.vcf
@@ -670,6 +671,8 @@ def refine_assembly(
     major_cutoff=0.5,
     chr_names=None,
     keep_all_reads=False,
+    max_coverage=None,
+    rasusa_seed=None,
     already_realigned_bam=None,
     JVMmemory=None,
     threads=None,
@@ -737,36 +740,44 @@ def refine_assembly(
             shutil.copyfile(realignBam, outBam)
 
     # Modify original assembly with VCF calls from FreeBayes
-    tmpVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
-    tmpFasta = viral_ngs.core.file.mkstempfname('.fasta')
-    fb.call(realignBam, deambigFasta, tmpVcf)
-    if already_realigned_bam is None:
-        os.unlink(realignBam)
-    os.unlink(deambigFasta)
-    name_opts = []
-    if chr_names:
-        name_opts = ['--name'] + chr_names
-    main_vcf_to_fasta(
-        parser_vcf_to_fasta(argparse.ArgumentParser(
-        )).parse_args([
-            tmpVcf,
-            tmpFasta,
-            '--trim_ends',
-            '--min_coverage',
-            str(min_coverage),
-            '--major_cutoff',
-            str(major_cutoff)
-        ] + name_opts)
-    )
-    if outVcf:
-        shutil.copyfile(tmpVcf, outVcf)
-        if outVcf.endswith('.gz'):
-            shutil.copyfile(tmpVcf + '.tbi', outVcf + '.tbi')
-    os.unlink(tmpVcf)
-    if os.path.exists(tmpVcf + '.tbi'):
-        os.unlink(tmpVcf + '.tbi')
-    shutil.copyfile(tmpFasta, outFasta)
-    os.unlink(tmpFasta)
+    with viral_ngs.core.file.tempfname('.vcf.gz') as tmpVcf, \
+         viral_ngs.core.file.tempfname('.fasta') as tmpFasta:
+
+        # Optionally downsample coverage for variant calling only
+        if max_coverage:
+            rasusa_tool = viral_ngs.assemble.rasusa.RasusaTool()
+            with viral_ngs.core.file.tempfname('.downsampled.unsorted.bam') as downsampledUnsortedBam, \
+                 viral_ngs.core.file.tempfname('.downsampled.sorted.bam') as downsampledBam:
+                rasusa_tool.downsample_bam(realignBam, downsampledUnsortedBam, max_coverage, seed=rasusa_seed)
+                samtools.sort(downsampledUnsortedBam, downsampledBam, threads=threads)
+                samtools.index(downsampledBam, threads=threads)
+                fb.call(downsampledBam, deambigFasta, tmpVcf)
+        else:
+            fb.call(realignBam, deambigFasta, tmpVcf)
+
+        if already_realigned_bam is None:
+            os.unlink(realignBam)
+        os.unlink(deambigFasta)
+        name_opts = []
+        if chr_names:
+            name_opts = ['--name'] + chr_names
+        main_vcf_to_fasta(
+            parser_vcf_to_fasta(argparse.ArgumentParser(
+            )).parse_args([
+                tmpVcf,
+                tmpFasta,
+                '--trim_ends',
+                '--min_coverage',
+                str(min_coverage),
+                '--major_cutoff',
+                str(major_cutoff)
+            ] + name_opts)
+        )
+        if outVcf:
+            shutil.copyfile(tmpVcf, outVcf)
+            if outVcf.endswith('.gz'):
+                shutil.copyfile(tmpVcf + '.tbi', outVcf + '.tbi')
+        shutil.copyfile(tmpFasta, outFasta)
 
     # Index final output FASTA for Picard, Samtools, and Novoalign
     picard_index.execute(outFasta, overwrite=True)
@@ -838,6 +849,22 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         dest="keep_all_reads"
     )
     parser.add_argument(
+        '--max_coverage',
+        default=None,
+        type=int,
+        help="""Maximum read coverage depth for variant calling. If specified,
+            reads are downsampled to this coverage using rasusa before
+            FreeBayes variant calling. The downsampled BAM is internal only
+            and not included in any output. [default: %(default)s]"""
+    )
+    parser.add_argument(
+        '--rasusa_seed',
+        default=None,
+        type=int,
+        help="""Random seed for rasusa downsampling reproducibility.
+            Only used when --max_coverage is set. [default: %(default)s]"""
+    )
+    parser.add_argument(
         '--JVMmemory',
         default='2g',
         help='JVM virtual memory size for Picard/Novoalign (default: %(default)s)'
@@ -854,6 +881,39 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('refine_assembly', parser_refine_assembly))
+
+
+def normalize_coverage(inBam, outBam, max_coverage, seed=None, threads=None):
+    '''Downsample an aligned BAM to a maximum coverage depth using rasusa.
+       The output BAM is coordinate-sorted and indexed.
+    '''
+    samtools = viral_ngs.core.samtools.SamtoolsTool()
+    rasusa_tool = viral_ngs.assemble.rasusa.RasusaTool()
+
+    with viral_ngs.core.file.tempfname('.rasusa.unsorted.bam') as tmpBam:
+        rasusa_tool.downsample_bam(inBam, tmpBam, max_coverage, seed=seed)
+        samtools.sort(tmpBam, outBam, threads=threads)
+
+    samtools.index(outBam, threads=threads)
+    return outBam
+
+
+def parser_normalize_coverage(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input aligned BAM file, coordinate-sorted.')
+    parser.add_argument('outBam', help='Output downsampled BAM file, coordinate-sorted and indexed.')
+    parser.add_argument('max_coverage', type=int, help='Maximum coverage depth to downsample to.')
+    parser.add_argument(
+        '--seed',
+        default=None,
+        type=int,
+        help='Random seed for rasusa reproducibility. [default: %(default)s]'
+    )
+    viral_ngs.core.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, normalize_coverage, split_args=True)
+    return parser
+
+
+__commands__.append(('normalize_coverage', parser_normalize_coverage))
 
 
 def parser_filter_short_seqs(parser=argparse.ArgumentParser()):
