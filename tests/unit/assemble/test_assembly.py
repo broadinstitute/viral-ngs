@@ -123,6 +123,39 @@ class TestRefineAssemble(TestCaseWithTmp):
         self.assertTrue(os.path.getsize(outFasta) == 0)
 
 
+class TestNormalizeCoverage(TestCaseWithTmp):
+    '''Test the normalize_coverage command'''
+
+    def test_help_parser(self):
+        parser = viral_ngs.assembly.parser_normalize_coverage(argparse.ArgumentParser())
+        helpstring = parser.format_help()
+        self.assertIn('max_coverage', helpstring)
+        self.assertIn('seed', helpstring)
+
+    def test_normalize_coverage_on_aligned_bam(self):
+        '''normalize_coverage should downsample and produce a sorted, indexed BAM'''
+        mm2 = viral_ngs.core.minimap2.Minimap2()
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
+
+        inDir = viral_ngs.core.file.get_test_input_path()
+        inBam = os.path.join(inDir, 'G5012.3.testreads.bam')
+        refFasta = os.path.join(inDir, 'ebov-makona.fasta')
+
+        with viral_ngs.core.file.tempfname('.aligned.bam') as alignedBam, \
+             viral_ngs.core.file.tempfname('.normalized.bam') as outBam:
+            mm2.align_bam(inBam, refFasta, alignedBam, options=['-x', 'sr'])
+            samtools.index(alignedBam)
+
+            viral_ngs.assembly.normalize_coverage(alignedBam, outBam, max_coverage=10, seed=42)
+
+            self.assertTrue(os.path.isfile(outBam))
+            self.assertGreater(os.path.getsize(outBam), 0)
+            # index file should also exist
+            self.assertTrue(os.path.isfile(outBam + '.bai'))
+            # output should have fewer or equal reads compared to input
+            self.assertLessEqual(samtools.count(outBam), samtools.count(alignedBam))
+
+
 class TestAssembleSpades(TestCaseWithTmp):
     ''' Test the assemble_spades command (no validation of output) '''
 
