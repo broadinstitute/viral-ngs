@@ -752,6 +752,9 @@ def refine_assembly(
                 samtools.sort(downsampledUnsortedBam, downsampledBam, threads=threads)
                 samtools.index(downsampledBam, threads=threads)
                 fb.call(downsampledBam, deambigFasta, tmpVcf)
+                # clean up samtools index sidecar
+                if os.path.isfile(downsampledBam + '.bai'):
+                    os.unlink(downsampledBam + '.bai')
         else:
             fb.call(realignBam, deambigFasta, tmpVcf)
 
@@ -778,6 +781,9 @@ def refine_assembly(
             if outVcf.endswith('.gz'):
                 shutil.copyfile(tmpVcf + '.tbi', outVcf + '.tbi')
         shutil.copyfile(tmpFasta, outFasta)
+        # clean up tabix index sidecar created by FreeBayes/tabix
+        if os.path.isfile(tmpVcf + '.tbi'):
+            os.unlink(tmpVcf + '.tbi')
 
     # Index final output FASTA for Picard, Samtools, and Novoalign
     picard_index.execute(outFasta, overwrite=True)
