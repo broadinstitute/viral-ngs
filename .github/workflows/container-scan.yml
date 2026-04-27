@@ -34,6 +34,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Full history so the Claude analysis step can `git log --grep` and `git show`
+          # precedent CVE-fix commits (e.g., to mirror past mitigation patterns exactly).
+          fetch-depth: 0
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -99,7 +103,8 @@ jobs:
         id: triage
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TEST_CVE_ID: ${{ inputs.test_cve_id }}
+          # Use github.event.inputs (not inputs) so this is well-defined on schedule too.
+          TEST_CVE_ID: ${{ github.event.inputs.test_cve_id || '' }}
         run: |
           set -euo pipefail
 
@@ -156,7 +161,7 @@ jobs:
           service_account: ${{ vars.GCP_SA_EMAIL }}
 
       - name: Ensure issue labels exist
-        if: steps.triage.outputs.cve_ids != '' && inputs.dry_run != true
+        if: steps.triage.outputs.cve_ids != '' && (github.event.inputs.dry_run || 'false') != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -167,7 +172,9 @@ jobs:
 
       - name: Claude analysis on Vertex AI
         if: steps.triage.outputs.cve_ids != ''
-        uses: anthropics/claude-code-action@v1
+        # Pinned to commit SHA (== v1 as of 2026-04-27) for supply-chain safety;
+        # bump this SHA when picking up new claude-code-action releases.
+        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
@@ -181,15 +188,16 @@ jobs:
               "permissions": {
                 "allow": [
                   "Read",
-                  "Write",
+                  "Write(/tmp/issues/**)",
+                  "Bash(mkdir:/tmp/issues*)",
                   "Bash(git log:*)",
                   "Bash(git show:*)",
                   "Bash(git rev-parse:*)",
+                  "Bash(git grep:*)",
                   "Bash(grep:*)",
                   "Bash(find:*)",
                   "Bash(jq:*)",
                   "Bash(ls:*)",
-                  "Bash(mkdir:*)",
                   "Bash(cat:*)",
                   "Bash(head:*)",
                   "Bash(tail:*)"
@@ -230,9 +238,18 @@ jobs:
                applied to similar packages.
             6. `docker/requirements/*.txt` — conda dependency lists. Use `grep` to find
                which file pulls in the affected package.
-            7. Recent git history — `git log --all --oneline --grep <package>`,
-               `git log --all --oneline --grep CVE-`, and `git show <sha>` to inspect prior
-               fix patterns. ALWAYS verify a commit SHA exists before citing it.
+            7. Recent git history — full history is available (the workflow checks out
+               with `fetch-depth: 0`). Use:
+                 - `git log --all --oneline --grep <package>` to find prior commits
+                   touching the affected package
+                 - `git log --all --oneline --grep CVE-` to find prior CVE-fix commits
+                 - **`git show <sha>` to inspect the FULL DIFF of any precedent fix you
+                   plan to cite. Read the diff, not just the commit message.** Many fixes
+                   combine multiple elements (e.g., file removal + reinstall) — your
+                   recommendation must mirror ALL elements of the precedent, not just the
+                   headline change.
+                 - ALWAYS verify a commit SHA exists with `git show <sha>` before citing it
+                   in the report.
 
             ## Required structure for each report
 
@@ -278,27 +295,43 @@ jobs:
           if-no-files-found: warn
 
       - name: File GitHub issues
-        if: steps.triage.outputs.cve_ids != '' && inputs.dry_run != true
+        if: steps.triage.outputs.cve_ids != '' && (github.event.inputs.dry_run || 'false') != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TEST_MODE: ${{ steps.triage.outputs.test_mode }}
         run: |
           set -uo pipefail
+          shopt -s nullglob
 
-          if [ ! -d /tmp/issues ] || [ -z "$(ls -A /tmp/issues 2>/dev/null)" ]; then
-            echo "::error::No analysis files in /tmp/issues — Claude may have failed silently"
+          if [ ! -d /tmp/issues ]; then
+            echo "::error::/tmp/issues does not exist — Claude analysis step likely failed"
+            exit 1
+          fi
+
+          md_files=(/tmp/issues/*.md)
+          if [ ${#md_files[@]} -eq 0 ]; then
+            echo "::error::No .md analysis files in /tmp/issues — Claude may have failed silently"
             exit 1
           fi
 
           failed=0
-          for f in /tmp/issues/*.md; do
+          for f in "${md_files[@]}"; do
             cve=$(basename "$f" .md)
             title=$(head -1 "$f" | sed 's/^# *//')
             body=$(tail -n +2 "$f")
 
-            labels="security,cve"
+            # Dedup-integrity guard: title MUST contain the CVE ID, otherwise the next
+            # scheduled run won't recognize it as already-triaged via title-substring search.
+            if ! echo "$title" | grep -qF "$cve"; then
+              echo "::error::Issue title for $cve does not contain the CVE ID — refusing to file (would break dedup)"
+              echo "  Title was: $title"
+              failed=$((failed+1))
+              continue
+            fi
+
+            label_args=(--label security --label cve)
             if [ "$TEST_MODE" = "true" ]; then
-              labels="$labels,test"
+              label_args+=(--label test)
             fi
 
             echo "Creating issue for $cve: $title"
@@ -306,7 +339,7 @@ jobs:
                 --repo "$GITHUB_REPOSITORY" \
                 --title "$title" \
                 --body "$body" \
-                --label "$labels"; then
+                "${label_args[@]}"; then
               echo "::error::Failed to create issue for $cve"
               failed=$((failed+1))
             fi
