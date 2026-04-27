@@ -284,6 +284,10 @@ jobs:
                containers, no network-facing services, no untrusted user input at runtime),
                is this actually reachable? Be honest and specific.
             7. **References** — GHSA URL, NVD URL, vendor advisory.
+            8. **Attribution footer** — at the very end of the report, add a horizontal
+               rule (`---`) on its own line, then this exact paragraph (italicized):
+
+               `*This analysis and report were authored entirely by Claude Sonnet 4.6 (running on Google Vertex AI via the `container-scan.yml` triage pipeline). Independently verify the CVSS data, dependency chain, recommended fix, and commit SHAs before acting on this report.*`
 
             ## Constraints
 
