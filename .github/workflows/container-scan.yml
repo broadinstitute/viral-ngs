@@ -167,15 +167,15 @@ jobs:
 
       - name: Claude analysis on Vertex AI
         if: steps.triage.outputs.cve_ids != ''
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
           ANTHROPIC_VERTEX_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         with:
-          claude_args: |
-            --model claude-sonnet-4-6
-            --max-turns 30
+          use_vertex: 'true'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: '--model claude-sonnet-4-6 --max-turns 30'
           settings: |
             {
               "permissions": {
