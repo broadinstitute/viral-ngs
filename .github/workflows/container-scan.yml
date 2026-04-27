@@ -222,9 +222,17 @@ jobs:
 
             ## Required reading (do this BEFORE writing reports)
 
-            1. `trivy-results.json` (in the workspace root) — authoritative metadata for every
-               CVE flagged in the current scan. ALWAYS check here first for CVE details
-               (severity, vector, package path, fix version, references). Use `jq` to query.
+            1. `trivy-results.json` (in the workspace root) — **the authoritative source for
+               CVSS score, CVSS vector, package path, fix version, and references.** Query
+               it with `jq` before writing any report. Example:
+               ```
+               jq '.Results[]?.Vulnerabilities[]? | select(.VulnerabilityID == "<CVE-ID>")' trivy-results.json
+               ```
+               You MUST cite the exact CVSS score and vector from this file in the
+               "Vulnerability details" section — do NOT infer or estimate them from your
+               own knowledge if the CVE is present in the JSON. If the CVE is NOT in the
+               JSON (test mode, or scan-target divergence), explicitly say so in the report
+               and use your training knowledge as a clearly-labeled fallback.
             2. `.agents/skills/container-vulns/SKILL.md` — read fully. This is the repo's
                container-vulnerability playbook and tells you what the maintainers consider
                actionable vs. accepted risk.
