@@ -514,6 +514,9 @@ Available skills:
 - **regression-testing** -- End-to-end assembly regression testing against Terra submissions
 - **dsub-batch-jobs** -- Running one-off compute jobs on GCP via dsub
 - **container-vulns** -- Container vulnerability scanning, triage, and mitigation
+- **claude-on-vertex-ci** -- Invoking Claude (via claude-code-action) on Vertex AI from
+  GitHub Actions workflows. Covers the WIF infra in `viral-seq-ai`, how to add a new
+  Claude-in-CI use case, the canonical workflow YAML pattern, and gotchas.
 
 ---
 

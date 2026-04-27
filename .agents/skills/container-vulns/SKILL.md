@@ -8,7 +8,11 @@ in the viral-ngs Docker image hierarchy.
 Container images are scanned for vulnerabilities using [Trivy](https://aquasecurity.github.io/trivy/):
 
 - **On every PR/push**: `docker.yml` scans each image flavor after build (SARIF -> GitHub Security tab, JSON -> artifact)
-- **Weekly schedule**: `container-scan.yml` scans the latest published images
+- **Weekly schedule**: `container-scan.yml` scans the latest published images. When new
+  fixable HIGH/CRITICAL CVEs are detected (i.e. CVE IDs not already present in any open
+  or closed GH issue title), the workflow invokes Claude Sonnet 4.6 on Vertex AI to
+  triage each one and files a GitHub issue per CVE (labels: `security`, `cve`). The
+  Vertex/WIF infra used here is documented in `.agents/skills/claude-on-vertex-ci/SKILL.md`.
 - Scans filter to **CRITICAL/HIGH** severity, **ignore-unfixed**, and apply a Rego policy (`.trivy-ignore-policy.rego`)
 - Per-CVE exceptions go in `.trivyignore` with mandatory justification comments
 
