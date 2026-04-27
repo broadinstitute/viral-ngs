@@ -188,8 +188,8 @@ jobs:
               "permissions": {
                 "allow": [
                   "Read",
-                  "Write(/tmp/issues/**)",
-                  "Bash(mkdir:/tmp/issues*)",
+                  "Write",
+                  "Bash(mkdir:*)",
                   "Bash(git log:*)",
                   "Bash(git show:*)",
                   "Bash(git rev-parse:*)",
