@@ -374,6 +374,7 @@ jobs:
           name: claude-cve-analysis
           path: .claude-issues/*.md
           if-no-files-found: warn
+          include-hidden-files: true
 
       - name: Fail job if new CVEs were found (production mode only)
         if: steps.triage.outputs.cve_ids != '' && steps.triage.outputs.test_mode != 'true'
