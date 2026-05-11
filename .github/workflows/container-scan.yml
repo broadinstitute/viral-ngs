@@ -33,14 +33,14 @@ jobs:
       id-token: write   # for OIDC token to GCP via WIF
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Full history so the Claude analysis step can `git log --grep` and `git show`
           # precedent CVE-fix commits (e.g., to mirror past mitigation patterns exactly).
           fetch-depth: 0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -81,14 +81,14 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security tab
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'container-mega-scheduled'
 
       - name: Upload Trivy JSON results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trivy-mega-scheduled
           path: trivy-results.json
@@ -163,7 +163,7 @@ jobs:
 
       - name: Authenticate to GCP via Workload Identity Federation
         if: steps.triage.outputs.cve_ids != ''
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIP_PROVIDER }}
           service_account: ${{ vars.GCP_SA_EMAIL }}
@@ -217,7 +217,7 @@ jobs:
 
             ## Your task
 
-            For each CVE ID listed below, write a triage report to `/tmp/issues/<CVE-ID>.md`.
+            For each CVE ID listed below, write a triage report to `.claude-issues/<CVE-ID>.md`.
             The reports will be filed verbatim as GitHub issues by the next workflow step.
 
             **CVE IDs to analyze:** ${{ steps.triage.outputs.cve_ids }}
@@ -269,7 +269,7 @@ jobs:
 
             ## Required structure for each report
 
-            File path: `/tmp/issues/<CVE-ID>.md` (filename MUST match the CVE ID exactly).
+            File path: `.claude-issues/<CVE-ID>.md` (filename MUST match the CVE ID exactly).
             **First line MUST be a single H1 used as the issue title:**
             `# [CVE-YYYY-NNNN] <package>: <one-line description>`
 
@@ -299,7 +299,7 @@ jobs:
 
             ## Constraints
 
-            - `mkdir -p /tmp/issues` first.
+            - `mkdir -p .claude-issues` first.
             - One file per CVE.
             - Be concise. Each report should be readable in 1–2 minutes (target: 300–600 words).
             - Do NOT hallucinate package versions, file paths, or commit SHAs. Verify with
@@ -308,10 +308,10 @@ jobs:
 
       - name: Upload Claude analysis as artifact
         if: steps.triage.outputs.cve_ids != '' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: claude-cve-analysis
-          path: /tmp/issues/
+          path: .claude-issues/
           if-no-files-found: warn
 
       - name: File GitHub issues
@@ -323,14 +323,14 @@ jobs:
           set -uo pipefail
           shopt -s nullglob
 
-          if [ ! -d /tmp/issues ]; then
-            echo "::error::/tmp/issues does not exist — Claude analysis step likely failed"
+          if [ ! -d .claude-issues ]; then
+            echo "::error::.claude-issues does not exist — Claude analysis step likely failed"
             exit 1
           fi
 
-          md_files=(/tmp/issues/*.md)
+          md_files=(.claude-issues/*.md)
           if [ ${#md_files[@]} -eq 0 ]; then
-            echo "::error::No .md analysis files in /tmp/issues — Claude may have failed silently"
+            echo "::error::No .md analysis files in .claude-issues — Claude may have failed silently"
             exit 1
           fi
 
