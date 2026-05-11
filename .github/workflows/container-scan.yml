@@ -133,13 +133,21 @@ jobs:
           fi
 
           # Dedup against existing GH issues (open + closed) by title-substring search.
+          # gh search issues --state only accepts "open" or "closed" (not "all"),
+          # so we query each state separately and sum the counts.
           new_cves=()
           for cve in $all_cves; do
-            count=$(gh search issues \
+            open=$(gh search issues \
               --repo "$GITHUB_REPOSITORY" \
-              --state=all \
+              --state open \
               "\"$cve\" in:title" \
               --json url --jq 'length')
+            closed=$(gh search issues \
+              --repo "$GITHUB_REPOSITORY" \
+              --state closed \
+              "\"$cve\" in:title" \
+              --json url --jq 'length')
+            count=$((open + closed))
             if [ "$count" = "0" ]; then
               new_cves+=("$cve")
               echo "  NEW: $cve"
