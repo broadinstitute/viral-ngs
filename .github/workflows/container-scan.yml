@@ -47,7 +47,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'sarif'
@@ -60,7 +60,7 @@ jobs:
           ignore-policy: '.trivy-ignore-policy.rego'
 
       - name: Run Trivy vulnerability scanner (JSON)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'json'
