@@ -29,7 +29,7 @@ jobs:
       docker: ${{ steps.filter.outputs.docker }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check changed paths
         uses: dorny/paths-filter@v3
@@ -85,7 +85,7 @@ jobs:
       image-tag-prefix: ${{ steps.image-tag.outputs.prefix }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0  # Full history for accurate git describe
           fetch-tags: true
@@ -146,7 +146,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -182,7 +182,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -218,7 +218,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -283,7 +283,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -324,7 +324,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -365,7 +365,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -428,7 +428,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -469,7 +469,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -510,7 +510,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -573,7 +573,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -614,7 +614,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -655,7 +655,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -718,7 +718,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -759,7 +759,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -800,7 +800,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -863,7 +863,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -904,7 +904,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -943,7 +943,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker build environment
         uses: ./.github/actions/setup-docker-build
@@ -1004,17 +1004,22 @@ jobs:
         flavor: [baseimage, core, assemble, classify, phylo, mega]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Pre-pull image for scan
+        uses: ./.github/actions/pull-with-retry
+        with:
+          image: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
+
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
           format: 'sarif'
@@ -1027,7 +1032,7 @@ jobs:
           ignore-policy: '.trivy-ignore-policy.rego'
 
       - name: Run Trivy vulnerability scanner (JSON)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
           format: 'json'
@@ -1048,14 +1053,14 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security tab
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'container-${{ matrix.flavor }}'
 
       - name: Upload Trivy JSON results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trivy-${{ matrix.flavor }}
           path: trivy-results.json
@@ -1080,7 +1085,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1121,7 +1126,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1154,7 +1159,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1195,7 +1200,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1228,7 +1233,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1269,7 +1274,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1302,7 +1307,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1343,7 +1348,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1447,14 +1452,14 @@ jobs:
         uses: imjasonh/setup-crane@v0.4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Quay.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
