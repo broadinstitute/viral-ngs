@@ -208,7 +208,12 @@ jobs:
                   "Bash(ls:*)",
                   "Bash(cat:*)",
                   "Bash(head:*)",
-                  "Bash(tail:*)"
+                  "Bash(tail:*)",
+                  "Bash(echo:*)",
+                  "Bash(wc:*)",
+                  "Bash(sed:*)",
+                  "Bash(diff:*)",
+                  "Bash(sort:*)"
                 ]
               }
             }
@@ -306,14 +311,6 @@ jobs:
               tools when in doubt.
             - If you finish all reports with budget remaining, do NOT pad — stop.
 
-      - name: Upload Claude analysis as artifact
-        if: steps.triage.outputs.cve_ids != '' && always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: claude-cve-analysis
-          path: .claude-issues/
-          if-no-files-found: warn
-
       - name: File GitHub issues
         if: steps.triage.outputs.cve_ids != '' && (github.event.inputs.dry_run || 'false') != 'true'
         env:
@@ -369,6 +366,14 @@ jobs:
             echo "::error::$failed issue(s) failed to create"
             exit 1
           fi
+
+      - name: Upload Claude analysis as artifact
+        if: steps.triage.outputs.cve_ids != '' && always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: claude-cve-analysis
+          path: .claude-issues/*.md
+          if-no-files-found: warn
 
       - name: Fail job if new CVEs were found (production mode only)
         if: steps.triage.outputs.cve_ids != '' && steps.triage.outputs.test_mode != 'true'
