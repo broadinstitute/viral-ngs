@@ -45,8 +45,8 @@ RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements
     find /opt/conda/lib/ruby -maxdepth 3 -name 'erb*' -exec rm -rf {} + && \
     rm -f /opt/conda/lib/ruby/gems/*/specifications/default/erb-*.gemspec && \
     gem install erb --version '>=6.0.4' --no-document && \
-    find /opt/conda/lib/ruby -maxdepth 3 -name 'net-imap*' -exec rm -rf {} + && \
-    rm -f /opt/conda/lib/ruby/gems/*/specifications/default/net-imap-*.gemspec && \
+    find /opt/conda/lib/ruby -maxdepth 4 -name 'net-imap*' -exec rm -rf {} + && \
+    rm -f /opt/conda/lib/ruby/gems/*/specifications/net-imap-*.gemspec && \
     gem install net-imap --version '>=0.6.4' --no-document
 
 # Copy source code (includes assembly module)
