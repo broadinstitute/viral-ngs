@@ -2,8 +2,8 @@ name: Scheduled Container Vulnerability Scan
 
 on:
   schedule:
-    # Weekly scan of main branch mega image every Monday at 06:00 UTC
-    - cron: '0 6 * * 1'
+    # Daily scan of main branch mega image at 12:00 UTC
+    - cron: '0 12 * * *'
   workflow_dispatch:
     inputs:
       test_cve_id:
