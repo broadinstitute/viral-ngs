@@ -83,7 +83,8 @@ tools/conda-tools/
 .vscode/
 
 # GSD planning directory (local-only)
-.planning/
+.planning/*
+
 # pixi environments
 .pixi/*
 !.pixi/config.toml
