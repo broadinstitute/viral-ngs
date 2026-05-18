@@ -1,0 +1,69 @@
+name: Audit Quay.io Tags
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'  # Monday 8:00 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  audit-tags:
+    runs-on: ubuntu-latest
+    permissions: {}
+
+    steps:
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Log in to Quay.io
+        uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Audit version tags
+        run: |
+          set -euo pipefail
+          REPO="quay.io/broadinstitute/viral-ngs"
+          FLAVORS="baseimage core assemble classify phylo"
+          FAILED=0
+
+          # Check the 5 most recent version tags
+          VERSIONS=$(crane ls "$REPO" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -5)
+
+          if [[ -z "$VERSIONS" ]]; then
+            echo "::error::No version tags found on ${REPO}"
+            exit 1
+          fi
+
+          check_tag() {
+            local TAG="$1"
+            if ! crane manifest "${REPO}:${TAG}" > /dev/null 2>&1; then
+              echo "::error::MISSING: ${REPO}:${TAG}"
+              FAILED=1
+            else
+              echo "OK: ${REPO}:${TAG}"
+            fi
+          }
+
+          for VERSION in $VERSIONS; do
+            MAJOR_MINOR=$(echo "$VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
+
+            # Check mega tag (no suffix) — both X.Y.Z and X.Y
+            check_tag "${VERSION}"
+            check_tag "${MAJOR_MINOR}"
+
+            # Check each flavor — both X.Y.Z-flavor and X.Y-flavor
+            for FLAVOR in $FLAVORS; do
+              check_tag "${VERSION}-${FLAVOR}"
+              check_tag "${MAJOR_MINOR}-${FLAVOR}"
+            done
+          done
+
+          if [[ $FAILED -ne 0 ]]; then
+            echo "::error::Some version tags are missing from Quay.io!"
+            exit 1
+          fi
+          echo "All version tags verified."

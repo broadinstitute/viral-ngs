@@ -3,15 +3,18 @@
 # These are bioinformatics tools used for genome assembly.
 # Install with core.txt in a single resolver call for proper dependency resolution.
 
+# Variant calling (replaces GATK)
+freebayes>=1.3.6
+
 # Assemblers and alignment tools
-gap2seq=3.1.1a
+# Note: gap2seq is x86-only (ARM64 build conflicts with pillow/libtiff), see assemble-x86.txt
 mafft>=7.525
 mummer4>=4.0.1
-muscle=3.8.1551
+muscle>=3.8,<4
 spades>=4.2.0
 
 # Read simulation and sampling
-rasusa>=2.1.1
+rasusa>=3.0.0
 wgsim>=1.0
 
 # Sequence comparison / ANI tools
@@ -21,7 +24,7 @@ sourmash-minimal>=4.8.11
 
 # Perl packages for FASTA trimming script
 perl-bio-easel
-sequip=0.11
+sequip>=0.11
 
 # Note: sourmash_plugin_branchwater has resolver problems, excluded for now
 # Note: mashtree, kwip excluded (compatibility issues)

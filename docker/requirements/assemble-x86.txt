@@ -1,0 +1,7 @@
+# Assembly tools - x86-only (ARM64 build has resolver conflicts)
+# These packages are skipped on ARM64 architecture
+# Install with: install-conda-deps.sh --x86-only:assemble-x86.txt
+
+# Gap2Seq: Fills gaps in genome assemblies using short reads
+# ARM64 build conflicts with pillow/libtiff due to old htslib/libdeflate pins
+gap2seq>=3.1.1a

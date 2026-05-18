@@ -11,28 +11,51 @@ jobs:
     permissions: {}
 
     steps:
-      - name: Delete feature branch images from Quay
+      - name: Compute tag prefix
+        id: tag-prefix
         run: |
-          # Install skopeo
-          sudo apt-get update && sudo apt-get install -y skopeo
+          # Apply the same sanitization as docker.yml's "Compute Docker image tag prefix":
+          # replace "/" with "-" and strip leading "v"
+          RAW="${{ github.event.ref }}"
+          PREFIX=$(echo "$RAW" | sed 's|/|-|g')
+          PREFIX=${PREFIX#v}
+          echo "prefix=${PREFIX}" >> $GITHUB_OUTPUT
+          echo "Tag prefix: ${PREFIX} (from branch: ${RAW})"
 
-          BRANCH_TAG="${{ github.event.ref }}"
+      - name: Safety check - refuse version-like branch names
+        run: |
+          PREFIX="${{ steps.tag-prefix.outputs.prefix }}"
+          if [[ "$PREFIX" =~ ^[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Refusing to delete tags for version-like branch: $PREFIX"
+            exit 1
+          fi
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Log in to Quay.io
+        uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Delete feature branch tags from Quay
+        run: |
+          TAG_PREFIX="${{ steps.tag-prefix.outputs.prefix }}"
           QUAY_REPO="quay.io/broadinstitute/viral-ngs"
 
-          # Image tags to delete - must be kept in sync with deploy-to-quay in docker.yml
+          # Image tag suffixes - must be kept in sync with deploy-to-quay in docker.yml
           # See: .github/workflows/docker.yml deploy-to-quay job matrix
-          IMAGES=(
-            "${BRANCH_TAG}-baseimage"
-            "${BRANCH_TAG}-core"
-            "${BRANCH_TAG}-assemble"
-            "${BRANCH_TAG}-classify"
-            "${BRANCH_TAG}-phylo"
-            "${BRANCH_TAG}"  # mega image (no suffix)
-          )
+          SUFFIXES=("-baseimage" "-core" "-assemble" "-classify" "-phylo" "")
 
-          for TAG in "${IMAGES[@]}"; do
+          for SUFFIX in "${SUFFIXES[@]}"; do
+            TAG="${TAG_PREFIX}${SUFFIX}"
             echo "Deleting ${QUAY_REPO}:${TAG}..."
-            skopeo delete \
-              --creds "${{ secrets.QUAY_USERNAME }}:${{ secrets.QUAY_TOKEN }}" \
-              "docker://${QUAY_REPO}:${TAG}" || echo "Tag ${TAG} not found or already deleted"
+            # Use crane delete instead of skopeo delete. crane removes only the tag
+            # reference, not the underlying manifest. This prevents cascade deletion
+            # of other tags sharing the same digest (which caused the 3.0.10-baseimage
+            # incident: skopeo deleted the manifest by digest, expiring all tags
+            # pointing to it).
+            crane delete "${QUAY_REPO}:${TAG}" 2>&1 || echo "  Tag ${TAG} not found or already deleted"
           done

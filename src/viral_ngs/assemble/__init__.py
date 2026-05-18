@@ -12,5 +12,7 @@ from . import mummer
 from . import muscle
 from . import skani
 from . import spades
+from . import freebayes
+from . import rasusa
 from . import vcf
 from . import wgsim

@@ -1,8 +1,8 @@
 # Phylogenetic analysis tools
-bamtools>=2.5.2
+bamtools>=2.5.3
 lofreq>=2.1.5
-mafft>=7.508
-mummer4>=4.0.0rc1
-muscle=3.8.1551
-snpeff>=4.3.1t
+mafft>=7.525
+mummer4>=4.0.1
+muscle>=3.8,<4
+snpeff>=5.2
 vphaser2>=2.0

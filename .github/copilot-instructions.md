@@ -1,0 +1,32 @@
+# Copilot Instructions
+
+This file provides guidance to GitHub Copilot when working with code in this repository.
+
+**IMPORTANT**: Always read [AGENTS.md](../AGENTS.md) at the start of every session before doing any work. It contains comprehensive project context and development guidelines that are essential for working in this codebase.
+
+## Quick Reference
+
+- **Docker-centric development**: Run tests inside containers, not on host
+- **Import pattern**: `from viral_ngs import core` then `core.samtools.SamtoolsTool()`
+- **Test location**: `tests/unit/<module>/`
+- **Dependencies**: ALL via conda, not pip (see `docker/requirements/*.txt`)
+
+## Running Tests
+
+```bash
+docker run --rm \
+  -v $(pwd):/opt/viral-ngs/source \
+  quay.io/broadinstitute/viral-ngs:main-core \
+  pytest -rsxX -n auto /opt/viral-ngs/source/tests/unit
+```
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| [AGENTS.md](../AGENTS.md) | Full AI assistant guidance |
+| [pyproject.toml](../pyproject.toml) | Package configuration |
+| [docker/](../docker/) | Dockerfiles and requirements |
+| [src/viral_ngs/](../src/viral_ngs/) | Source code |
+| [tests/](../tests/) | Test files |
+| [.agents/skills/](../.agents/skills/) | Reusable agent playbooks and scripts |

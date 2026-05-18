@@ -1,0 +1,383 @@
+name: Scheduled Container Vulnerability Scan
+
+on:
+  schedule:
+    # Daily scan of main branch mega image at 12:00 UTC
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+    inputs:
+      test_cve_id:
+        description: 'Optional: bypass new-CVE detection and force-analyze this specific CVE ID (for testing the Claude pipeline)'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Run Claude analysis but do NOT file GitHub issues (artifact still uploaded)'
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+env:
+  GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+      issues: write     # for filing CVE issues
+      id-token: write   # for OIDC token to GCP via WIF
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # Full history so the Claude analysis step can `git log --grep` and `git show`
+          # precedent CVE-fix commits (e.g., to mirror past mitigation patterns exactly).
+          fetch-depth: 0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          limit-severities-for-sarif: true
+          exit-code: '0'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+          ignore-policy: '.trivy-ignore-policy.rego'
+
+      - name: Run Trivy vulnerability scanner (JSON)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
+          format: 'json'
+          output: 'trivy-results.json'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'   # don't fail here — Claude pipeline + final-step gate handles signaling
+          ignore-unfixed: true
+          trivyignores: '.trivyignore'
+          ignore-policy: '.trivy-ignore-policy.rego'
+
+      - name: Log scan result count
+        if: always()
+        run: |
+          if [ -f trivy-results.sarif ]; then
+            COUNT=$(jq '[.runs[].results[]] | length' trivy-results.sarif)
+            echo "::notice::Trivy found $COUNT findings for mega-scheduled (after policy filtering)"
+          fi
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-mega-scheduled'
+
+      - name: Upload Trivy JSON results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: trivy-mega-scheduled
+          path: trivy-results.json
+
+      # === Claude triage pipeline ===
+      # If new fixable HIGH/CRITICAL CVEs are found, hand them to Claude (Sonnet 4.6
+      # on Vertex AI) for analysis, then file GitHub issues. Source of truth for
+      # "new" is GH issues themselves: a CVE is new if no existing issue (open OR
+      # closed) has the CVE ID in its title.
+
+      - name: Identify new fixable CVEs
+        id: triage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use github.event.inputs (not inputs) so this is well-defined on schedule too.
+          TEST_CVE_ID: ${{ github.event.inputs.test_cve_id || '' }}
+        run: |
+          set -euo pipefail
+
+          # Test mode: bypass scan-diff and use the provided CVE ID directly.
+          if [ -n "${TEST_CVE_ID:-}" ]; then
+            echo "::notice::Test mode active — analyzing TEST_CVE_ID=$TEST_CVE_ID"
+            echo "cve_ids=$TEST_CVE_ID" >> "$GITHUB_OUTPUT"
+            echo "test_mode=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Production mode: parse trivy JSON for fixable HIGH/CRITICAL CVEs.
+          all_cves=$(jq -r '
+            [.Results[]?.Vulnerabilities[]?
+              | select((.Severity == "HIGH" or .Severity == "CRITICAL")
+                       and (.FixedVersion // "") != "")
+              | .VulnerabilityID]
+            | unique[]
+          ' trivy-results.json)
+
+          if [ -z "$all_cves" ]; then
+            echo "::notice::No fixable HIGH/CRITICAL CVEs in scan."
+            echo "cve_ids=" >> "$GITHUB_OUTPUT"
+            echo "test_mode=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Dedup against existing GH issues (open + closed) by title-substring search.
+          # gh search issues --state only accepts "open" or "closed" (not "all"),
+          # so we query each state separately and sum the counts.
+          new_cves=()
+          for cve in $all_cves; do
+            open=$(gh search issues \
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              "\"$cve\" in:title" \
+              --json url --jq 'length')
+            closed=$(gh search issues \
+              --repo "$GITHUB_REPOSITORY" \
+              --state closed \
+              "\"$cve\" in:title" \
+              --json url --jq 'length')
+            count=$((open + closed))
+            if [ "$count" = "0" ]; then
+              new_cves+=("$cve")
+              echo "  NEW: $cve"
+            else
+              echo "  existing issue for $cve, skipping"
+            fi
+          done
+
+          new_list="${new_cves[*]:-}"
+          echo "::notice::Found ${#new_cves[@]} new fixable CVE(s)"
+          echo "cve_ids=$new_list" >> "$GITHUB_OUTPUT"
+          echo "test_mode=false" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to GCP via Workload Identity Federation
+        if: steps.triage.outputs.cve_ids != ''
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIP_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      - name: Ensure issue labels exist
+        if: steps.triage.outputs.cve_ids != '' && (github.event.inputs.dry_run || 'false') != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Idempotent: gh label create exits non-zero if label exists; ignore that.
+          gh label create security    --color B60205 --description "Security-related issue"            --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          gh label create cve         --color B60205 --description "CVE tracked in container scans"    --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          gh label create test        --color FBCA04 --description "Test issue (filed by workflow_dispatch test_cve_id)" --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+
+      - name: Claude analysis on Vertex AI
+        if: steps.triage.outputs.cve_ids != ''
+        # Pinned to commit SHA (== v1 as of 2026-04-27) for supply-chain safety;
+        # bump this SHA when picking up new claude-code-action releases.
+        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
+        env:
+          CLAUDE_CODE_USE_VERTEX: '1'
+          CLOUD_ML_REGION: global
+          ANTHROPIC_VERTEX_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        with:
+          use_vertex: 'true'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: '--model claude-sonnet-4-6 --max-turns 30'
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "Read",
+                  "Write",
+                  "Bash(mkdir:*)",
+                  "Bash(git log:*)",
+                  "Bash(git show:*)",
+                  "Bash(git rev-parse:*)",
+                  "Bash(git grep:*)",
+                  "Bash(grep:*)",
+                  "Bash(find:*)",
+                  "Bash(jq:*)",
+                  "Bash(ls:*)",
+                  "Bash(cat:*)",
+                  "Bash(head:*)",
+                  "Bash(tail:*)",
+                  "Bash(echo:*)",
+                  "Bash(wc:*)",
+                  "Bash(sed:*)",
+                  "Bash(diff:*)",
+                  "Bash(sort:*)"
+                ]
+              }
+            }
+          prompt: |
+            You are triaging container vulnerabilities for the broadinstitute/viral-ngs repo.
+
+            ## Your task
+
+            For each CVE ID listed below, write a triage report to `.claude-issues/<CVE-ID>.md`.
+            The reports will be filed verbatim as GitHub issues by the next workflow step.
+
+            **CVE IDs to analyze:** ${{ steps.triage.outputs.cve_ids }}
+
+            **Test mode:** ${{ steps.triage.outputs.test_mode }}
+            (If `true`, the CVE was supplied manually via `test_cve_id` and may not appear in
+            the current scan's `trivy-results.json`. Use your training knowledge in that case
+            and add a `> _Test analysis_` blockquote at the top of the report so reviewers
+            know it was generated for pipeline validation, not from a real scan finding.)
+
+            ## Required reading (do this BEFORE writing reports)
+
+            1. `trivy-results.json` (in the workspace root) — **the authoritative source for
+               CVSS score, CVSS vector, package path, fix version, and references.** Query
+               it with `jq` before writing any report. Example:
+               ```
+               jq '.Results[]?.Vulnerabilities[]? | select(.VulnerabilityID == "<CVE-ID>")' trivy-results.json
+               ```
+               You MUST cite the exact CVSS score and vector from this file in the
+               "Vulnerability details" section — do NOT infer or estimate them from your
+               own knowledge if the CVE is present in the JSON. If the CVE is NOT in the
+               JSON (test mode, or scan-target divergence), explicitly say so in the report
+               and use your training knowledge as a clearly-labeled fallback.
+            2. `.agents/skills/container-vulns/SKILL.md` — read fully. This is the repo's
+               container-vulnerability playbook and tells you what the maintainers consider
+               actionable vs. accepted risk.
+            3. `.trivyignore` — existing per-CVE exceptions with their justifications. Mirror
+               the writing style and depth of justification when you recommend `.trivyignore`
+               additions.
+            4. `.trivy-ignore-policy.rego` — Rego policy for class-level CVE filtering.
+               Understand what it filters and why.
+            5. `docker/Dockerfile.*` — container build files showing dep installs and inline
+               mitigations. Look for prior fixups (`find ... -exec rm`, `gem install`, etc.)
+               applied to similar packages.
+            6. `docker/requirements/*.txt` — conda dependency lists. Use `grep` to find
+               which file pulls in the affected package.
+            7. Recent git history — full history is available (the workflow checks out
+               with `fetch-depth: 0`). Use:
+                 - `git log --all --oneline --grep <package>` to find prior commits
+                   touching the affected package
+                 - `git log --all --oneline --grep CVE-` to find prior CVE-fix commits
+                 - **`git show <sha>` to inspect the FULL DIFF of any precedent fix you
+                   plan to cite. Read the diff, not just the commit message.** Many fixes
+                   combine multiple elements (e.g., file removal + reinstall) — your
+                   recommendation must mirror ALL elements of the precedent, not just the
+                   headline change.
+                 - ALWAYS verify a commit SHA exists with `git show <sha>` before citing it
+                   in the report.
+
+            ## Required structure for each report
+
+            File path: `.claude-issues/<CVE-ID>.md` (filename MUST match the CVE ID exactly).
+            **First line MUST be a single H1 used as the issue title:**
+            `# [CVE-YYYY-NNNN] <package>: <one-line description>`
+
+            Then sections (use H2 `##` headers):
+
+            1. **Summary** — 2–3 sentences: what it is, severity, where it came from.
+            2. **Vulnerability details** — CVSS score + vector + plain-English meaning;
+               2–4 sentences explaining the bug technically.
+            3. **Dependency chain** — name the direct conda package or Docker layer that
+               pulls this in. Trace transitive deps where you can. If you can't determine
+               this confidently, say so explicitly — do NOT guess.
+            4. **Why the Rego policy didn't suppress it** — explain in terms of the AV/PR/UI/S
+               vector classes the policy filters and why this CVE's vector doesn't match.
+            5. **Recommended fix** — concrete and actionable. Options:
+                - Version bump (which file, which floor)
+                - Inline Dockerfile mitigation (which Dockerfile, what RUN-block addition)
+                - `.trivyignore` entry (with justification matching the existing style)
+               Cite historical precedent when applicable: `(mirror the fix in commit <sha>)`.
+            6. **Practical exploitability** — in this deployment model (ephemeral batch
+               containers, no network-facing services, no untrusted user input at runtime),
+               is this actually reachable? Be honest and specific.
+            7. **References** — GHSA URL, NVD URL, vendor advisory.
+            8. **Attribution footer** — at the very end of the report, add a horizontal
+               rule (`---`) on its own line, then this exact paragraph (italicized):
+
+               `*This analysis and report were authored entirely by Claude Sonnet 4.6 (running on Google Vertex AI via the `container-scan.yml` triage pipeline). Independently verify the CVSS data, dependency chain, recommended fix, and commit SHAs before acting on this report.*`
+
+            ## Constraints
+
+            - `mkdir -p .claude-issues` first.
+            - One file per CVE.
+            - Be concise. Each report should be readable in 1–2 minutes (target: 300–600 words).
+            - Do NOT hallucinate package versions, file paths, or commit SHAs. Verify with
+              tools when in doubt.
+            - If you finish all reports with budget remaining, do NOT pad — stop.
+
+      - name: File GitHub issues
+        if: steps.triage.outputs.cve_ids != '' && (github.event.inputs.dry_run || 'false') != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TEST_MODE: ${{ steps.triage.outputs.test_mode }}
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+
+          if [ ! -d .claude-issues ]; then
+            echo "::error::.claude-issues does not exist — Claude analysis step likely failed"
+            exit 1
+          fi
+
+          md_files=(.claude-issues/*.md)
+          if [ ${#md_files[@]} -eq 0 ]; then
+            echo "::error::No .md analysis files in .claude-issues — Claude may have failed silently"
+            exit 1
+          fi
+
+          failed=0
+          for f in "${md_files[@]}"; do
+            cve=$(basename "$f" .md)
+            title=$(head -1 "$f" | sed 's/^# *//')
+            body=$(tail -n +2 "$f")
+
+            # Dedup-integrity guard: title MUST contain the CVE ID, otherwise the next
+            # scheduled run won't recognize it as already-triaged via title-substring search.
+            if ! echo "$title" | grep -qF "$cve"; then
+              echo "::error::Issue title for $cve does not contain the CVE ID — refusing to file (would break dedup)"
+              echo "  Title was: $title"
+              failed=$((failed+1))
+              continue
+            fi
+
+            label_args=(--label security --label cve)
+            if [ "$TEST_MODE" = "true" ]; then
+              label_args+=(--label test)
+            fi
+
+            echo "Creating issue for $cve: $title"
+            if ! gh issue create \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$title" \
+                --body "$body" \
+                "${label_args[@]}"; then
+              echo "::error::Failed to create issue for $cve"
+              failed=$((failed+1))
+            fi
+          done
+
+          if [ $failed -gt 0 ]; then
+            echo "::error::$failed issue(s) failed to create"
+            exit 1
+          fi
+
+      - name: Upload Claude analysis as artifact
+        if: steps.triage.outputs.cve_ids != '' && always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: claude-cve-analysis
+          path: .claude-issues/*.md
+          if-no-files-found: warn
+          include-hidden-files: true
+
+      - name: Fail job if new CVEs were found (production mode only)
+        if: steps.triage.outputs.cve_ids != '' && steps.triage.outputs.test_mode != 'true'
+        run: |
+          echo "::error::Scan found new fixable HIGH/CRITICAL CVEs. See filed issues for details."
+          exit 1

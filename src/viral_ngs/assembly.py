@@ -29,8 +29,9 @@ import viral_ngs.core.misc
 import viral_ngs.read_utils
 import viral_ngs.core.picard
 import viral_ngs.core.samtools
-import viral_ngs.core.gatk
 import viral_ngs.core.novoalign
+import viral_ngs.assemble.freebayes
+import viral_ngs.assemble.rasusa
 
 # intra-module (assembly tool wrappers)
 import viral_ngs.assemble.vcf
@@ -601,7 +602,7 @@ def impute_from_reference(
     for tmpFile in tempFastas:
         os.unlink(tmpFile)
 
-    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+    # Index final output FASTA for Picard, Samtools, and Novoalign
     if index:
         viral_ngs.core.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
         viral_ngs.core.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
@@ -670,20 +671,20 @@ def refine_assembly(
     major_cutoff=0.5,
     chr_names=None,
     keep_all_reads=False,
+    max_coverage=None,
+    rasusa_seed=None,
     already_realigned_bam=None,
     JVMmemory=None,
     threads=None,
-    gatk_path=None,
     novoalign_license_path=None
 ):
     ''' This a refinement step where we take a crude assembly, align
         all reads back to it, and modify the assembly to the majority
         allele at each position based on read pileups.
-        This step considers both SNPs as well as indels called by GATK
-        and will correct the consensus based on GATK calls.
+        This step considers both SNPs as well as indels called by FreeBayes
+        and will correct the consensus based on variant calls.
         Reads are aligned with Novoalign, then PCR duplicates are removed
-        with Picard (in order to debias the allele counts in the pileups),
-        and realigned with GATK's IndelRealigner (in order to call indels).
+        with Picard (in order to debias the allele counts in the pileups).
         Output FASTA file is indexed for Picard, Samtools, and Novoalign.
     '''
     chr_names = chr_names or []
@@ -701,10 +702,12 @@ def refine_assembly(
     picard_index = viral_ngs.core.picard.CreateSequenceDictionaryTool()
     picard_mkdup = viral_ngs.core.picard.MarkDuplicatesTool()
     samtools = viral_ngs.core.samtools.SamtoolsTool()
-    novoalign = viral_ngs.core.novoalign.NovoalignTool(license_path=novoalign_license_path)
-    gatk = viral_ngs.core.gatk.GATKTool(path=gatk_path)
+    fb = viral_ngs.assemble.freebayes.FreeBayesTool()
+    novoalign = None
+    if not already_realigned_bam:
+        novoalign = viral_ngs.core.novoalign.NovoalignTool(license_path=novoalign_license_path)
 
-    # Sanitize fasta header & create deambiguated genome for GATK
+    # Sanitize fasta header & create deambiguated genome for variant calling
     deambigFasta = viral_ngs.core.file.mkstempfname('.deambig.fasta')
     with viral_ngs.core.file.fastas_with_sanitized_ids(inFasta, use_tmp=True) as sanitized_fastas:
         deambig_fasta(sanitized_fastas[0], deambigFasta)
@@ -714,7 +717,6 @@ def refine_assembly(
     if already_realigned_bam:
         realignBam = already_realigned_bam
         if samtools.isEmpty(realignBam):
-            # GATK errors out on empty bam input, so just do this ourselves
             viral_ngs.core.file.touch(outFasta)
             if outVcf:
                 with viral_ngs.core.file.open_or_gzopen(outVcf, 'wt') as outf:
@@ -733,50 +735,65 @@ def refine_assembly(
             opts.append('REMOVE_DUPLICATES=true')
         picard_mkdup.execute([novoBam], rmdupBam, picardOptions=opts, JVMmemory=JVMmemory)
         os.unlink(novoBam)
-        realignBam = viral_ngs.core.file.mkstempfname('.realign.bam')
-        gatk.local_realign(rmdupBam, deambigFasta, realignBam, JVMmemory=JVMmemory, threads=threads)
-        os.unlink(rmdupBam)
+        realignBam = rmdupBam
         if outBam:
             shutil.copyfile(realignBam, outBam)
 
-    # Modify original assembly with VCF calls from GATK
-    tmpVcf = viral_ngs.core.file.mkstempfname('.vcf.gz')
-    tmpFasta = viral_ngs.core.file.mkstempfname('.fasta')
-    gatk.ug(realignBam, deambigFasta, tmpVcf, JVMmemory=JVMmemory, threads=threads)
-    if already_realigned_bam is None:
-        os.unlink(realignBam)
-    os.unlink(deambigFasta)
-    name_opts = []
-    if chr_names:
-        name_opts = ['--name'] + chr_names
-    main_vcf_to_fasta(
-        parser_vcf_to_fasta(argparse.ArgumentParser(
-        )).parse_args([
-            tmpVcf,
-            tmpFasta,
-            '--trim_ends',
-            '--min_coverage',
-            str(min_coverage),
-            '--major_cutoff',
-            str(major_cutoff)
-        ] + name_opts)
-    )
-    if outVcf:
-        shutil.copyfile(tmpVcf, outVcf)
-        if outVcf.endswith('.gz'):
-            shutil.copyfile(tmpVcf + '.tbi', outVcf + '.tbi')
-    os.unlink(tmpVcf)
-    shutil.copyfile(tmpFasta, outFasta)
-    os.unlink(tmpFasta)
+    # Modify original assembly with VCF calls from FreeBayes
+    with viral_ngs.core.file.tempfname('.vcf.gz') as tmpVcf, \
+         viral_ngs.core.file.tempfname('.fasta') as tmpFasta:
 
-    # Index final output FASTA for Picard/GATK, Samtools, and Novoalign
+        # Optionally downsample coverage for variant calling only
+        if max_coverage:
+            rasusa_tool = viral_ngs.assemble.rasusa.RasusaTool()
+            with viral_ngs.core.file.tempfname('.downsampled.unsorted.bam') as downsampledUnsortedBam, \
+                 viral_ngs.core.file.tempfname('.downsampled.sorted.bam') as downsampledBam:
+                rasusa_tool.downsample_bam(realignBam, downsampledUnsortedBam, max_coverage, seed=rasusa_seed)
+                samtools.sort(downsampledUnsortedBam, downsampledBam, threads=threads)
+                samtools.index(downsampledBam, threads=threads)
+                fb.call(downsampledBam, deambigFasta, tmpVcf)
+                # clean up samtools index sidecar
+                if os.path.isfile(downsampledBam + '.bai'):
+                    os.unlink(downsampledBam + '.bai')
+        else:
+            fb.call(realignBam, deambigFasta, tmpVcf)
+
+        if already_realigned_bam is None:
+            os.unlink(realignBam)
+        os.unlink(deambigFasta)
+        name_opts = []
+        if chr_names:
+            name_opts = ['--name'] + chr_names
+        main_vcf_to_fasta(
+            parser_vcf_to_fasta(argparse.ArgumentParser(
+            )).parse_args([
+                tmpVcf,
+                tmpFasta,
+                '--trim_ends',
+                '--min_coverage',
+                str(min_coverage),
+                '--major_cutoff',
+                str(major_cutoff)
+            ] + name_opts)
+        )
+        if outVcf:
+            shutil.copyfile(tmpVcf, outVcf)
+            if outVcf.endswith('.gz'):
+                shutil.copyfile(tmpVcf + '.tbi', outVcf + '.tbi')
+        shutil.copyfile(tmpFasta, outFasta)
+        # clean up tabix index sidecar created by FreeBayes/tabix
+        if os.path.isfile(tmpVcf + '.tbi'):
+            os.unlink(tmpVcf + '.tbi')
+
+    # Index final output FASTA for Picard, Samtools, and Novoalign
     picard_index.execute(outFasta, overwrite=True)
     # if the input bam is empty, an empty fasta will be created, however
     # faidx cannot index an empty fasta file, so only index if the fasta
     # has a non-zero size
     if (os.path.getsize(outFasta) > 0):
         samtools.faidx(outFasta, overwrite=True)
-        novoalign.index_fasta(outFasta)
+        if already_realigned_bam is None:
+            novoalign.index_fasta(outFasta)
         
     return 0
 
@@ -800,9 +817,9 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--outBam',
         default=None,
-        help='Reads aligned to inFasta. Unaligned and duplicate reads have been removed. GATK indel realigned.'
+        help='Reads aligned to inFasta. Unaligned and duplicate reads have been removed.'
     )
-    parser.add_argument('--outVcf', default=None, help='GATK genotype calls for genome in inFasta coordinate space.')
+    parser.add_argument('--outVcf', default=None, help='Variant calls for genome in inFasta coordinate space.')
     parser.add_argument(
         '--min_coverage',
         default=3,
@@ -838,15 +855,25 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
         dest="keep_all_reads"
     )
     parser.add_argument(
-        '--JVMmemory',
-        default=viral_ngs.core.gatk.GATKTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)'
+        '--max_coverage',
+        default=None,
+        type=int,
+        help="""Maximum read coverage depth for variant calling. If specified,
+            reads are downsampled to this coverage using rasusa before
+            FreeBayes variant calling. The downsampled BAM is internal only
+            and not included in any output. [default: %(default)s]"""
     )
     parser.add_argument(
-        '--GATK_PATH',
+        '--rasusa_seed',
         default=None,
-        dest="gatk_path",
-        help='A path containing the GATK jar file. This overrides the GATK_ENV environment variable or the GATK conda package. (default: %(default)s)'
+        type=int,
+        help="""Random seed for rasusa downsampling reproducibility.
+            Only used when --max_coverage is set. [default: %(default)s]"""
+    )
+    parser.add_argument(
+        '--JVMmemory',
+        default='2g',
+        help='JVM virtual memory size for Picard/Novoalign (default: %(default)s)'
     )
     parser.add_argument(
         '--NOVOALIGN_LICENSE_PATH',
@@ -860,6 +887,39 @@ def parser_refine_assembly(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('refine_assembly', parser_refine_assembly))
+
+
+def normalize_coverage(inBam, outBam, max_coverage, seed=None, threads=None):
+    '''Downsample an aligned BAM to a maximum coverage depth using rasusa.
+       The output BAM is coordinate-sorted and indexed.
+    '''
+    samtools = viral_ngs.core.samtools.SamtoolsTool()
+    rasusa_tool = viral_ngs.assemble.rasusa.RasusaTool()
+
+    with viral_ngs.core.file.tempfname('.rasusa.unsorted.bam') as tmpBam:
+        rasusa_tool.downsample_bam(inBam, tmpBam, max_coverage, seed=seed)
+        samtools.sort(tmpBam, outBam, threads=threads)
+
+    samtools.index(outBam, threads=threads)
+    return outBam
+
+
+def parser_normalize_coverage(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input aligned BAM file, coordinate-sorted.')
+    parser.add_argument('outBam', help='Output downsampled BAM file, coordinate-sorted and indexed.')
+    parser.add_argument('max_coverage', type=int, help='Maximum coverage depth to downsample to.')
+    parser.add_argument(
+        '--seed',
+        default=None,
+        type=int,
+        help='Random seed for rasusa reproducibility. [default: %(default)s]'
+    )
+    viral_ngs.core.cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    viral_ngs.core.cmd.attach_main(parser, normalize_coverage, split_args=True)
+    return parser
+
+
+__commands__.append(('normalize_coverage', parser_normalize_coverage))
 
 
 def parser_filter_short_seqs(parser=argparse.ArgumentParser()):

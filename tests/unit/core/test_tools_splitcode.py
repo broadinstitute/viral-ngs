@@ -146,7 +146,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             # Should have 4 samples + 2 unmatched (one per pool)
             self.assertEqual(len(df), 6)
 
-            # Verify both pools are present
+            # Verify both barcode groups are present in muxed_pool
             pools = set(df['muxed_pool'].tolist())
             self.assertIn('AAAAAAAA-TTTTTTTT.lLibA', pools)
             self.assertIn('GGGGGGGG-CCCCCCCC.lLibB', pools)
@@ -156,7 +156,8 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             self.assertEqual(len(unmatched_rows), 2)
 
             # Verify LibA unmatched count: 50000 - 48000 = 2000
-            liba_unmatched = df[df['muxed_pool'] == 'AAAAAAAA-TTTTTTTT.lLibA']
+            # Unmatched rows use the barcode group (outer barcodes only) as muxed_pool
+            liba_unmatched = df[df['muxed_pool'] == 'AAAAAAAA-TTTTTTTT']
             liba_unmatched = liba_unmatched[liba_unmatched['sample'].str.contains('Unmatched')].iloc[0]
             self.assertEqual(int(liba_unmatched['num_reads_hdistance0']), 2000)
 
@@ -189,6 +190,66 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             sample_row = df[df['sample'] == 'Sample1'].iloc[0]
             self.assertIn('FLOWCELL123', sample_row['run'])
             self.assertIn('FLOWCELL123', sample_row['muxed_pool'])
+
+    def test_unique_library_ids_per_sample(self):
+        """Test that lookup works when library_id_per_sample differs per sample
+        within the same barcode_1+barcode_2 group (issue #1037).
+
+        When each sample has a unique library_id_per_sample, each gets its own
+        muxed_pool value, but splitcode produces only ONE summary JSON per outer
+        barcode group. The function must find and reuse that single JSON for all
+        samples in the group.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        sample_sheet = os.path.join(inDir, 'sample_sheet_unique_lib_ids.tsv')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_out = os.path.join(tmpdir, 'lut.csv')
+
+            # Copy the ONE JSON that exists for this barcode pair
+            # (named with the first muxed_pool value, as splitcode would produce)
+            shutil.copy(
+                os.path.join(inDir, 'ATCGATCG-GCTAGCTA.lL1_summary.json'),
+                os.path.join(tmpdir, 'ATCGATCG-GCTAGCTA.lL1_summary.json')
+            )
+
+            result_path = viral_ngs.core.splitcode.create_splitcode_lookup_table(
+                sample_sheet, csv_out, unmatched_name="Unmatched"
+            )
+
+            # Verify output file was created
+            self.assertTrue(os.path.exists(result_path))
+
+            # Read and validate output CSV
+            import pandas as pd
+            df = pd.read_csv(result_path, dtype=str)
+
+            # Check number of rows (3 samples + 1 unmatched)
+            self.assertEqual(len(df), 4)
+
+            # Verify all sample names present
+            sample_names = set(df['sample'].tolist())
+            self.assertIn('Sample1', sample_names)
+            self.assertIn('Sample2', sample_names)
+            self.assertIn('Sample3', sample_names)
+
+            # Verify unmatched row
+            unmatched_rows = df[df['sample'].str.contains('Unmatched')]
+            self.assertEqual(len(unmatched_rows), 1)
+            unmatched_row = unmatched_rows.iloc[0]
+            # Unmatched count should be n_processed - n_assigned = 100000 - 95000 = 5000
+            self.assertEqual(int(unmatched_row['num_reads_hdistance0']), 5000)
+
+            # Verify read counts for Sample2 (should have highest count)
+            sample2_row = df[df['sample'] == 'Sample2'].iloc[0]
+            self.assertEqual(int(sample2_row['num_reads_hdistance0']), 45000)
+            self.assertEqual(int(sample2_row['num_reads_hdistance1']), 2000)
+            self.assertEqual(int(sample2_row['num_reads_total']), 47000)
+
+            # Verify barcode values are correct
+            self.assertEqual(sample2_row['barcode_1'], 'ATCGATCG')
+            self.assertEqual(sample2_row['barcode_2'], 'GCTAGCTA')
+            self.assertEqual(sample2_row['inline_barcode'], 'GGGGTTTT')
 
 
 class TestSplitcodeIntegration(TestCaseWithTmp):

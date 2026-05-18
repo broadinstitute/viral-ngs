@@ -1,0 +1,81 @@
+# Trivy ignore file — per-CVE exceptions with justifications
+#
+# This file documents individual CVE exceptions that cannot be addressed by
+# version bumps or by the Rego policy (.trivy-ignore-policy.rego). Each entry
+# MUST include a justification explaining why the CVE is accepted.
+#
+# Format: CVE-YYYY-NNNNN (one per line, # for comments)
+# See: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/#by-finding-ids
+#
+# Review cadence: Re-evaluate all entries quarterly or when the affected
+# package is upgraded. Remove entries once the underlying package ships a fix.
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# CVE-2026-23949 — jaraco.context path traversal in tarball extraction
+# Severity: HIGH (NVD scored AV:N/S:C — see scoring dispute below)
+# Package: setuptools (vendored at setuptools/_vendor/jaraco/context.py)
+# Installed: setuptools 79.x (vendored jaraco.context 5.3.0)
+# Fix: jaraco.context >= 6.1.0 (installed in conda env, but setuptools
+#      vendors its own copy which we cannot delete — setuptools imports
+#      jaraco.text and jaraco.context at runtime for pkg_resources)
+#
+# JUSTIFICATION:
+#   1. The vulnerability is in archive extraction (tarball() context manager).
+#      setuptools uses this only during "pip install" of source distributions.
+#      Our containers run pip install at BUILD TIME only, from trusted sources
+#      (PyPI, conda-forge). No pip installs happen at runtime.
+#
+#   2. Even if an attacker could trigger pip install at runtime (which would
+#      require code execution inside the container), the path traversal only
+#      writes files WITHIN the container. The attacker already has code
+#      execution — they can write files anywhere in the container without
+#      needing this vulnerability. It grants no new capability.
+#
+#   3. Containers are ephemeral batch jobs. Any files written (malicious or
+#      otherwise) are destroyed when the job completes. There is no
+#      persistence, no lateral movement, and no host boundary crossing.
+#
+#   4. NVD SCORING DISPUTE: NVD scored this AV:N/AC:L/PR:N/UI:N/S:C/C:H,
+#      which assumes a network-facing service extracting untrusted archives
+#      where the traversal crosses a trust boundary. In our deployment model,
+#      there is no network-facing service, the archives come from trusted
+#      sources, and the "boundary" is a container that will be destroyed.
+#      The Rego policy cannot filter this because NVD mis-scored the attack
+#      vector as Network (AV:N) rather than Local (AV:L).
+#
+# RESOLUTION: Will self-resolve when setuptools releases a version with
+#   updated vendored dependencies (jaraco.context >= 6.1.0).
+# ADDED: 2026-03-19
+# -----------------------------------------------------------------------------
+CVE-2026-23949
+
+# -----------------------------------------------------------------------------
+# CVE-2020-25649 — jackson-databind XXE in DOMDeserializer
+# Severity: HIGH (AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N)
+# Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
+# Location: opt/conda/share/snpeff-5.2-3/snpEff.jar
+#
+# JUSTIFICATION:
+#   The vulnerable code path is DOMDeserializer, which is invoked when
+#   jackson-databind deserializes XML input into DOM objects without
+#   disabling external entity resolution. This enables XXE attacks
+#   (SSRF, local file read) when processing attacker-controlled XML.
+#
+#   snpEff uses jackson-databind for JSON parsing only (config metadata,
+#   database indices). snpEff's input formats are VCF (tab-delimited),
+#   GenBank (flat text), and Java properties files. It never parses XML
+#   through Jackson's DOMDeserializer. The vulnerable code is present in
+#   the fat JAR but the code path is never traversed.
+#
+#   This exclusion applies only to snpEff's bundled copy. If jackson-
+#   databind 2.10.5 appears in other JARs, this entry will NOT suppress
+#   those findings — Trivy matches .trivyignore by CVE ID globally, but
+#   we accept this because no other JAR in our images bundles this old
+#   version. If that changes, re-evaluate this entry.
+#
+# RESOLUTION: Upstream snpEff must update its bundled jackson-databind.
+# ADDED: 2026-03-20
+# -----------------------------------------------------------------------------
+CVE-2020-25649

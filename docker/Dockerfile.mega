@@ -20,14 +20,33 @@ LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-n
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 # Copy requirements and dependency installation script
-COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt docker/requirements/classify.txt docker/requirements/classify-x86.txt docker/requirements/phylo.txt docker/requirements/phylo-x86.txt /tmp/requirements/
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt docker/requirements/assemble-x86.txt docker/requirements/classify.txt docker/requirements/classify-x86.txt docker/requirements/phylo.txt docker/requirements/phylo-x86.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install ALL conda dependencies in single resolver call for proper dependency resolution
 # All files resolved together; x86-only files skipped on ARM
+# Post-install fixups (inline so vulnerable files never appear in a committed layer):
+#   - mafft's dash_client: Go 1.22.1 binary with Go stdlib CVEs; we never use --dash mode
+#   - Ruby json gem: mummer4 → yaggo → Ruby, whose bundled json gem has CVE-2026-33210;
+#     remove the old default gem and install patched version (>=2.19.2)
+#   - Ruby erb gem: same chain (mummer4 → yaggo → ruby), CVE-2026-41316 (Marshal
+#     deserialization bypass via ERB#def_module); remove default gem and install >=6.0.4
+#   - Ruby net-imap gem: same chain (mummer4 → yaggo → ruby), CVE-2026-42246 (STARTTLS
+#     stripping via invalid response timing); remove default gem and install >=0.6.4
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt /tmp/requirements/classify.txt /tmp/requirements/phylo.txt \
+    --x86-only:/tmp/requirements/assemble-x86.txt \
     --x86-only:/tmp/requirements/classify-x86.txt \
-    --x86-only:/tmp/requirements/phylo-x86.txt
+    --x86-only:/tmp/requirements/phylo-x86.txt && \
+    rm -f /opt/conda/libexec/mafft/dash_client && \
+    find /opt/conda/lib/ruby -maxdepth 3 -name 'json*' -not -path '*/psych/*' -exec rm -rf {} + && \
+    rm -f /opt/conda/lib/ruby/gems/*/specifications/default/json-*.gemspec && \
+    gem install json --version '>=2.19.2' --no-document && \
+    find /opt/conda/lib/ruby -maxdepth 3 -name 'erb*' -exec rm -rf {} + && \
+    rm -f /opt/conda/lib/ruby/gems/*/specifications/default/erb-*.gemspec && \
+    gem install erb --version '>=6.0.4' --no-document && \
+    find /opt/conda/lib/ruby -maxdepth 4 -name 'net-imap*' -exec rm -rf {} + && \
+    rm -f /opt/conda/lib/ruby/gems/*/specifications/net-imap-*.gemspec && \
+    gem install net-imap --version '>=0.6.4' --no-document
 
 # Copy source code (includes all modules)
 COPY src/ /opt/viral-ngs/source/src/

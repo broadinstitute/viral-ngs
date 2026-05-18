@@ -11,7 +11,18 @@ udocker>=1.3.16
 
 # Cloud CLIs
 awscli>=1.32.0
+google-cloud-sdk>=561.0.0
 google-cloud-storage>=2.14.0
+# Note: firecloud is installed via pip in Dockerfile.baseimage because the
+# conda noarch package bundles x86_64-only wheels that break on arm64 (#1042)
+
+# Python security libraries (pinned to address CVEs in transitive deps of firecloud)
+cryptography>=46.0.5
+jaraco.context>=6.1.0
+pyopenssl>=26.0.0
+pyasn1>=0.6.3
+tornado>=6.5.4
+urllib3>=2.7.0
 
 # General utilities
 csvkit>=1.0.4

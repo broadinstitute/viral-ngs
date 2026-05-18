@@ -42,7 +42,7 @@ Development is **intentionally docker-centric**. Developers need:
 
 3. If modifying conda dependencies, install them inside the container:
    ```bash
-   conda install <packages>
+   micromamba install <packages>
    ```
 
 4. Test code interactively:
@@ -68,6 +68,21 @@ docker run --rm \
   quay.io/broadinstitute/viral-ngs:main-classify \
   pytest -rsxX -n auto /opt/viral-ngs/source/tests/unit/classify
 ```
+
+**Important: Testing source code changes requires re-installing the package.**
+The `-v` mount makes your local files visible on disk, but `viral_ngs` is already installed as a package inside the container image. Python imports resolve to the *installed* copy, not your mounted source files. If you've modified files under `src/viral_ngs/`, you must re-install before running tests:
+
+```bash
+# Run tests with local source changes applied
+docker run --rm \
+  -v $(pwd):/opt/viral-ngs/source \
+  quay.io/broadinstitute/viral-ngs:main-core \
+  bash -c "pip install -e /opt/viral-ngs/source --quiet && pytest -rsxX -n auto /opt/viral-ngs/source/tests/unit"
+```
+
+Changes to test files (`tests/`) and test inputs (`tests/input/`) are picked up automatically via the volume mount — the re-install is only needed when modifying the `src/viral_ngs/` package code.
+
+Running pytest directly on the host will generally not work — most dependencies (bioinformatics tools, conda packages) are only available inside the Docker containers. Always test inside Docker.
 
 **Test conventions:**
 - Uses pytest (not nose or unittest)
@@ -132,6 +147,7 @@ viral-ngs/
 │       ├── core.txt
 │       ├── core-x86.txt        # x86-only core packages
 │       ├── assemble.txt
+│       ├── assemble-x86.txt    # x86-only assembly packages
 │       ├── classify.txt
 │       ├── classify-x86.txt    # x86-only classify packages
 │       ├── phylo.txt
@@ -246,8 +262,8 @@ The `pyproject.toml` has empty dependencies - conda handles everything.
 
 1. Check conda availability:
    ```bash
-   conda search <package>              # default channel
-   conda search -c bioconda <package>  # bioconda channel
+   micromamba search <package>              # default channel
+   micromamba search -c bioconda <package>  # bioconda channel
    ```
 
 2. Add to appropriate requirements file:
@@ -483,8 +499,31 @@ find src tests -name "*.py" -exec python -m py_compile {} \;
 ### Check ARM64 package availability
 
 ```bash
-conda search -c bioconda <package> --subdir linux-aarch64
+micromamba search -c bioconda <package> --subdir linux-aarch64
 ```
+
+---
+
+## Reusable Agent Skills
+
+Established workflows and playbooks live in `.agents/skills/`. Each skill
+directory contains a `SKILL.md` with the playbook and companion scripts.
+Check there before building analysis pipelines from scratch.
+
+Available skills:
+- **regression-testing** -- End-to-end assembly regression testing against Terra submissions
+- **dsub-batch-jobs** -- Running one-off compute jobs on GCP via dsub
+- **container-vulns** -- Container vulnerability scanning, triage, and mitigation
+- **claude-on-vertex-ci** -- Invoking Claude (via claude-code-action) on Vertex AI from
+  GitHub Actions workflows. Covers the WIF infra in `viral-seq-ai`, how to add a new
+  Claude-in-CI use case, the canonical workflow YAML pattern, and gotchas.
+
+---
+
+## Container Vulnerability Management
+
+See `.agents/skills/container-vulns/SKILL.md` for detailed guidance on vulnerability
+scanning, triaging CVEs, Rego policy, and ARM64 solver conflicts.
 
 ---
 

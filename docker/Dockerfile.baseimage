@@ -4,12 +4,11 @@
 # This provides a foundation with:
 # - micromamba (conda-compatible package manager)
 # - Python 3.12
-# - conda/mamba symlinks for compatibility
 # - General utilities (miniwdl, udocker, cloud CLIs, etc.)
 #
 # Derivative images (core, classify, assemble, phylo) build on this.
 
-FROM mambaorg/micromamba:2.4.0-ubuntu24.04
+FROM mambaorg/micromamba:2.5.0-ubuntu25.10
 
 LABEL maintainer="viral-ngs@broadinstitute.org"
 LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-ngs"
@@ -31,15 +30,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     locales \
+    && apt-get upgrade -y gpgv \
     && locale-gen en_US.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Create symlinks for conda/mamba compatibility
-# Many scripts expect 'conda' or 'mamba' commands
-# micromamba is at /usr/bin/micromamba in the mambaorg image
-RUN ln -sf /usr/bin/micromamba /usr/local/bin/conda && \
-    ln -sf /usr/bin/micromamba /usr/local/bin/mamba
 
 # Configure micromamba channels
 RUN micromamba config append channels bioconda && \
@@ -52,7 +46,6 @@ RUN micromamba install -y -n base python=3.12 pip && \
     micromamba clean --all --yes
 
 # Set up paths - include /opt/conda/bin for conda environment binaries
-# and /usr/local/bin for our conda/mamba symlinks
 ENV VIRAL_NGS_PATH="/opt/viral-ngs/source" \
     PYTHONPATH="/opt/viral-ngs/source" \
     PATH="/opt/conda/bin:/usr/local/bin:$PATH"
@@ -65,8 +58,29 @@ COPY docker/requirements/baseimage.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
 # Install baseimage dependencies (miniwdl, udocker, cloud CLIs, utilities)
+# Remove google-cloud-sdk's bundled Python — it contains vendored copies of
+# cryptography, pyOpenSSL, etc. that are older than what we install via conda.
+# Remove gcloud-crc32c — Go binary compiled with old Go stdlib (CVEs).
+# Remove gsutil's vendored urllib3 dummyserver — contains a dummy private key
+# that triggers secret-detection scanners (e.g. Trivy).
+# Remove cryptography documentation — contains example private keys that
+# trigger secret-detection scanners (e.g. Trivy).
+# gcloud/gsutil use the conda environment Python, not the bundled one.
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt && \
+    rm -rf /opt/conda/share/google-cloud-sdk-*/platform/bundledpythonunix && \
+    rm -f /opt/conda/share/google-cloud-sdk-*/bin/gcloud-crc32c && \
+    rm -rf /opt/conda/share/google-cloud-sdk-*/platform/gsutil/third_party/urllib3/dummyserver && \
+    rm -rf /opt/conda/lib/python3.12/site-packages/docs && \
     rm -rf /tmp/requirements /tmp/install-conda-deps.sh
+
+# Install firecloud via pip instead of conda because the conda noarch
+# package bundles x86_64-only wheels (cryptography, cffi, grpcio, etc.)
+# that overwrite conda's native packages and break on arm64 (#1042).
+# Requires setuptools<80 due to firecloud's use of deprecated setuptools
+# APIs (broadinstitute/fiss#192).
+RUN pip install --no-cache-dir --upgrade pip wheel && \
+    pip install --no-cache-dir 'setuptools<80' && \
+    pip install --no-cache-dir --no-build-isolation 'firecloud>=0.16.35'
 
 WORKDIR /opt/viral-ngs/source
 
@@ -74,6 +88,8 @@ WORKDIR /opt/viral-ngs/source
 RUN python --version && \
     micromamba --version && \
     miniwdl --version && \
-    udocker --allow-root version
+    udocker --allow-root version && \
+    python -c "from cryptography.hazmat.bindings._rust import _openssl; print('cryptography Rust binding OK')" && \
+    python -c "from firecloud import api as fapi; print('firecloud OK')"
 
 CMD ["/bin/bash"]

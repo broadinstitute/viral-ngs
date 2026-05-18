@@ -6,9 +6,11 @@ __version__ = "PLACEHOLDER"
 __date__ = "PLACEHOLDER"
 
 import logging
+import re
 import pysam
 from viral_ngs.core import file
 from viral_ngs.core import misc
+from viral_ngs.assemble.vcf import parse_contig_header
 
 log = logging.getLogger(__name__)
 
@@ -131,10 +133,7 @@ def get_chrlens(inFile):
                 for line in inf:
                     line = line.rstrip('\n')
                     if line.startswith('##contig=<ID=') and line.endswith('>'):
-                        line = line[13:-1]
-                        c = line.split(',')[0]
-                        clen = int(line.split('=')[1])
-                        chrlens.append((c, clen))
+                        chrlens.append(parse_contig_header(line))
                     elif line.startswith('#CHROM'):
                         break
         else:
@@ -259,10 +258,7 @@ class VcfReader(TabixReader):
         for line in self.header: # pylint: disable=E1101
             line = bytes_to_string(line)
             if line.startswith('##contig=<ID=') and line.endswith('>'):
-                line = line[13:-1]
-                c = line.split(',')[0]
-                clen = int(line.split('=')[1])
-                self.clens.append((c, clen))
+                self.clens.append(parse_contig_header(line))
             elif line.startswith('#CHROM'):
                 row = line.split('\t')
                 self.sample_names = row[9:]
