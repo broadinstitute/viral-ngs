@@ -579,6 +579,50 @@ def main_centrifuger_quant(db, classification, output, min_score=None,
 __commands__.append(('centrifuger_quant', parser_centrifuger_quant))
 
 
+def parser_centrifuger_kreport(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Centrifuger database prefix.')
+    parser.add_argument('classification', help='Centrifuger classification output file.')
+    parser.add_argument('output', help='Kraken-style hierarchical report output file.')
+    parser.add_argument('--no_lca', action='store_true',
+                        help='Do not promote multi-assignment reads to their LCA; report counts at the original taxa.')
+    parser.add_argument('--show_zeros', action='store_true',
+                        help='Include taxa with zero reads in the report.')
+    parser.add_argument('--is_count_table', action='store_true',
+                        help='Input is a taxID<TAB>count table instead of the standard centrifuger output.')
+    parser.add_argument('--min_score', type=int, help='Minimum score for reads to be counted.')
+    parser.add_argument('--min_length', type=int, help='Minimum alignment length for reads to be counted.')
+    parser.add_argument('--report_score_data', action='store_true',
+                        help='Append an extra column summarizing classification scores.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_kreport, split_args=True)
+    return parser
+
+
+def main_centrifuger_kreport(db, classification, output, no_lca=False,
+                             show_zeros=False, is_count_table=False,
+                             min_score=None, min_length=None,
+                             report_score_data=False):
+    '''
+        Produce a Kraken-style hierarchical report from a Centrifuger
+        classification output file.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.kreport(
+        db,
+        classification,
+        output,
+        no_lca=no_lca,
+        show_zeros=show_zeros,
+        is_count_table=is_count_table,
+        min_score=min_score,
+        min_length=min_length,
+        report_score_data=report_score_data,
+    )
+
+
+__commands__.append(('centrifuger_kreport', parser_centrifuger_kreport))
+
+
 def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('inReports', nargs='+', help='Input report file (default: tsv)')
     parser.add_argument('db', help='Krona taxonomy database directory.')
