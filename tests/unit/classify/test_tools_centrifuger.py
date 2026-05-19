@@ -242,3 +242,53 @@ def test_quant_invokes_centrifuger_quant_with_expected_arguments(
         assert util_misc.list_contains(['--min-length', '50'], args)
         assert util_misc.list_contains(['--output-format', '1'], args)
         mocked_open.assert_called_once_with('quant.tsv', 'wt')
+
+
+def test_kreport_invokes_centrifuger_kreport_with_expected_arguments(
+        centrifuger_tool, centrifuger_inputs):
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.centrifuger.open', mock_open(), create=True) as mocked_open:
+        centrifuger_tool.kreport(
+            centrifuger_inputs['db_prefix'],
+            'classification.tsv',
+            'kreport.tsv',
+            no_lca=True,
+            show_zeros=True,
+            is_count_table=True,
+            min_score=10,
+            min_length=50,
+            report_score_data=True,
+        )
+
+        args = mock_check_call.call_args[0][0]
+        assert args[0] == 'centrifuger-kreport'
+        assert util_misc.list_contains(['-x', centrifuger_inputs['db_prefix']], args)
+        assert '--no-lca' in args
+        assert '--show-zeros' in args
+        assert '--is-count-table' in args
+        assert '--report-score-data' in args
+        assert util_misc.list_contains(['--min-score', '10'], args)
+        assert util_misc.list_contains(['--min-length', '50'], args)
+        # classification file is a positional arg, appended after options
+        assert args[-1] == 'classification.tsv'
+        mocked_open.assert_called_once_with('kreport.tsv', 'wt')
+
+
+def test_kreport_omits_unset_optional_flags(centrifuger_tool, centrifuger_inputs):
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.centrifuger.open', mock_open(), create=True):
+        centrifuger_tool.kreport(
+            centrifuger_inputs['db_prefix'],
+            'classification.tsv',
+            'kreport.tsv',
+        )
+
+        args = mock_check_call.call_args[0][0]
+        assert args[0] == 'centrifuger-kreport'
+        assert util_misc.list_contains(['-x', centrifuger_inputs['db_prefix']], args)
+        assert args[-1] == 'classification.tsv'
+        for flag in (
+            '--no-lca', '--show-zeros', '--is-count-table',
+            '--report-score-data', '--min-score', '--min-length',
+        ):
+            assert flag not in args, f'{flag} unexpectedly present with default kwargs'

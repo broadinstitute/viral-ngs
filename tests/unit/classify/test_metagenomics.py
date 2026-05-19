@@ -134,6 +134,35 @@ def test_centrifuger_quant_parser_invokes_tool():
         )
 
 
+def test_centrifuger_kreport_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = [
+            'db',
+            'classification.tsv',
+            'kreport.tsv',
+            '--no_lca',
+            '--show_zeros',
+            '--is_count_table',
+            '--min_score', '10',
+            '--min_length', '50',
+            '--report_score_data',
+        ]
+        args = metagenomics.parser_centrifuger_kreport(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_centrifuger.return_value.kreport.assert_called_once_with(
+            'db',
+            'classification.tsv',
+            'kreport.tsv',
+            no_lca=True,
+            show_zeros=True,
+            is_count_table=True,
+            min_score=10,
+            min_length=50,
+            report_score_data=True,
+        )
+
+
 @pytest.fixture
 def taxa_db_simple():
     db = metagenomics.TaxonomyDb()

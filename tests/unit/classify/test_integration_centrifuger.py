@@ -62,8 +62,9 @@ def centrifuger_db(tmpdir_module, centrifuger_tool, metagenomics_simple):
     return db_prefix
 
 
-def test_centrifuger_classify_and_quant(centrifuger_db, metagenomics_simple):
-    out_classification = util_file.mkstempfname('.centrifuger.tsv')
+@pytest.fixture(scope='module')
+def centrifuger_classification(tmpdir_module, centrifuger_db, metagenomics_simple):
+    out_classification = os.path.join(tmpdir_module, 'centrifuger.tsv')
     classify_cmd = [
         centrifuger_db,
         metagenomics_simple['bam'],
@@ -74,8 +75,11 @@ def test_centrifuger_classify_and_quant(centrifuger_db, metagenomics_simple):
     parser = metagenomics.parser_centrifuger(argparse.ArgumentParser())
     args = parser.parse_args(classify_cmd)
     args.func_main(args)
+    return out_classification
 
-    with open(out_classification, 'rt') as inf:
+
+def test_centrifuger_classify(centrifuger_classification):
+    with open(centrifuger_classification, 'rt') as inf:
         rows = [line.rstrip('\n').split('\t') for line in inf if line.strip()]
 
     assert rows[0] == [
@@ -90,8 +94,10 @@ def test_centrifuger_classify_and_quant(centrifuger_db, metagenomics_simple):
     ]
     assert any(row[2] == '186538' for row in rows[1:])
 
+
+def test_centrifuger_quant(centrifuger_db, centrifuger_classification):
     out_quant = util_file.mkstempfname('.centrifuger-quant.tsv')
-    quant_cmd = [centrifuger_db, out_classification, out_quant]
+    quant_cmd = [centrifuger_db, centrifuger_classification, out_quant]
     parser = metagenomics.parser_centrifuger_quant(argparse.ArgumentParser())
     args = parser.parse_args(quant_cmd)
     args.func_main(args)
@@ -109,3 +115,27 @@ def test_centrifuger_classify_and_quant(centrifuger_db, metagenomics_simple):
         'abundance',
     ]
     assert any(row[1] == '186538' for row in report_rows[1:])
+
+
+def test_centrifuger_kreport(centrifuger_db, centrifuger_classification):
+    out_kreport = util_file.mkstempfname('.centrifuger-kreport.tsv')
+    kreport_cmd = [centrifuger_db, centrifuger_classification, out_kreport]
+    parser = metagenomics.parser_centrifuger_kreport(argparse.ArgumentParser())
+    args = parser.parse_args(kreport_cmd)
+    args.func_main(args)
+
+    with open(out_kreport, 'rt') as inf:
+        rows = [line.rstrip('\n').split('\t') for line in inf if line.strip()]
+
+    # Kraken-style report has 6 columns:
+    # percent, clade_reads, taxon_reads, rank_code, taxID, name
+    assert all(len(row) == 6 for row in rows), \
+        'kreport rows should have 6 tab-delimited columns'
+
+    # Zaire ebolavirus taxID should appear in the report
+    assert any(row[4] == '186538' for row in rows), \
+        'Expected Zaire ebolavirus (taxID 186538) in kreport output'
+
+    # An unclassified row and a root row should always be present
+    rank_codes = [row[3] for row in rows]
+    assert 'U' in rank_codes, 'kreport should include an unclassified (U) row'
