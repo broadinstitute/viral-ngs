@@ -170,3 +170,32 @@ class Centrifuger(core.Tool):
             opts['--output-format'] = output_format
 
         self.execute('centrifuger-quant', output=output, options=opts)
+
+    def kreport(self, db, classification, output, no_lca=False,
+                show_zeros=False, is_count_table=False, min_score=None,
+                min_length=None, report_score_data=False):
+        '''Produce a Kraken-style report from a centrifuger classification.
+
+        Wraps the centrifuger-kreport Perl script, which writes its output
+        to stdout; the wrapper redirects stdout to `output`.
+        '''
+        opts = {'-x': db}
+        if no_lca:
+            opts['--no-lca'] = None
+        if show_zeros:
+            opts['--show-zeros'] = None
+        if is_count_table:
+            opts['--is-count-table'] = None
+        if min_score is not None:
+            opts['--min-score'] = min_score
+        if min_length is not None:
+            opts['--min-length'] = min_length
+        if report_score_data:
+            opts['--report-score-data'] = None
+
+        self.execute(
+            'centrifuger-kreport',
+            output=output,
+            args=[classification],
+            options=opts,
+        )
