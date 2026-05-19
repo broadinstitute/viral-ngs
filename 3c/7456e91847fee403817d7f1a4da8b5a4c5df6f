@@ -1,0 +1,21 @@
+tests/unit/classify/test_tools_centrifuger.py
+  s_0f67c5206f2dfc::t_5704d347356624 224-236,352-373,394-414
+src/viral_ngs/classify/centrifuger.py
+  s_0f67c5206f2dfc::t_61e08e55097857 104-105,190-192,223-224,228-230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "3c7456e91847fee403817d7f1a4da8b5a4c5df6f",
+  "prompts": {},
+  "sessions": {
+    "s_0f67c5206f2dfc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4024-49ab-7343-b6e5-0de51099fb94",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
