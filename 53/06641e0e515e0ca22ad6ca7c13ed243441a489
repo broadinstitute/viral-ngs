@@ -1,0 +1,23 @@
+tests/unit/classify/test_integration_centrifuger.py
+  s_bae613b850434a::t_3223371dc8e8a4 65-67,78-79,81-82,97-98,100,118-141
+tests/unit/classify/test_tools_centrifuger.py
+  s_bae613b850434a::t_02660eb8d3ff4c 245-294
+tests/unit/classify/test_metagenomics.py
+  s_bae613b850434a::t_48d58455ca3bbe 137-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "5306641e0e515e0ca22ad6ca7c13ed243441a489",
+  "prompts": {},
+  "sessions": {
+    "s_bae613b850434a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1bfa8061cffeG7uos95HiHWUr6",
+        "model": "claude-opus-4-7@default"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
