@@ -101,6 +101,8 @@ class Centrifuger(core.Tool):
                  classified_prefix=None, min_hitlen=None, hitk_factor=None,
                  merge_readpair=False, num_threads=None):
         '''Classify reads from an unaligned BAM file.'''
+        if not os.path.isfile(in_bam):
+            raise FileNotFoundError(in_bam)
         if samtools.SamtoolsTool().isEmpty(in_bam):
             log.warning('Input BAM is empty, skipping Centrifuger classification')
             with open(output, 'wt'):
@@ -185,7 +187,9 @@ class Centrifuger(core.Tool):
         short-circuit in classify() so callers can chain
         classify -> kreport unconditionally.
         '''
-        if self._classification_is_empty(classification):
+        if self._classification_is_empty(
+                classification,
+                has_header=not is_count_table):
             log.warning(
                 'Classification file %s has no data rows, '
                 'skipping centrifuger-kreport', classification,
@@ -216,10 +220,11 @@ class Centrifuger(core.Tool):
         )
 
     @staticmethod
-    def _classification_is_empty(path):
-        '''Return True if `path` has no data rows (empty file or header only).'''
+    def _classification_is_empty(path, has_header=True):
+        '''Return True if `path` has no data rows.'''
         if os.path.getsize(path) == 0:
             return True
         with open(path, 'rt') as inf:
-            inf.readline()  # discard header
-            return not inf.readline().strip()
+            if has_header:
+                inf.readline()
+            return not any(line.strip() for line in inf)

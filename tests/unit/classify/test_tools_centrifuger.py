@@ -221,6 +221,19 @@ def test_classify_returns_early_when_bam_is_empty(
         mocked_open.assert_called_once_with('out.tsv', 'wt')
 
 
+def test_classify_missing_bam_raises_file_not_found(
+        centrifuger_tool, centrifuger_inputs):
+    with patch('viral_ngs.classify.centrifuger.samtools.SamtoolsTool', autospec=True) as samtools_cls:
+        with pytest.raises(FileNotFoundError):
+            centrifuger_tool.classify(
+                'missing.bam',
+                centrifuger_inputs['db_prefix'],
+                'out.tsv',
+            )
+
+        samtools_cls.assert_not_called()
+
+
 def test_quant_invokes_centrifuger_quant_with_expected_arguments(
         centrifuger_tool, centrifuger_inputs):
     with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
@@ -336,6 +349,28 @@ def test_kreport_short_circuits_on_header_only_classification(
     assert output.read_text() == ''
 
 
+def test_kreport_short_circuits_on_header_and_blank_lines(
+        tmp_path, centrifuger_tool, centrifuger_inputs):
+    header_only = tmp_path / 'header_only.tsv'
+    header_only.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+        '\n'
+        '   \n'
+    )
+    output = tmp_path / 'kreport.tsv'
+
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call:
+        centrifuger_tool.kreport(
+            centrifuger_inputs['db_prefix'],
+            str(header_only),
+            str(output),
+        )
+
+    mock_check_call.assert_not_called()
+    assert output.exists()
+    assert output.read_text() == ''
+
+
 def test_kreport_runs_when_classification_has_data(
         tmp_path, centrifuger_tool, centrifuger_inputs):
     classification = tmp_path / 'with_data.tsv'
@@ -356,3 +391,24 @@ def test_kreport_runs_when_classification_has_data(
     args = mock_check_call.call_args[0][0]
     assert args[0] == 'centrifuger-kreport'
     assert args[-1] == str(classification)
+
+
+def test_kreport_runs_for_single_row_count_table(
+        tmp_path, centrifuger_tool, centrifuger_inputs):
+    count_table = tmp_path / 'count_table.tsv'
+    count_table.write_text('186538\t7\n')
+    output = tmp_path / 'kreport.tsv'
+
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call:
+        centrifuger_tool.kreport(
+            centrifuger_inputs['db_prefix'],
+            str(count_table),
+            str(output),
+            is_count_table=True,
+        )
+
+    mock_check_call.assert_called_once()
+    args = mock_check_call.call_args[0][0]
+    assert args[0] == 'centrifuger-kreport'
+    assert '--is-count-table' in args
+    assert args[-1] == str(count_table)
