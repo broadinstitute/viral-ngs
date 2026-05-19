@@ -1,0 +1,21 @@
+src/viral_ngs/classify/centrifuger.py
+  s_bae613b850434a::t_573a92f730bb14 181-186,188-196,217-225
+tests/unit/classify/test_tools_centrifuger.py
+  s_bae613b850434a::t_06ee17af099527 249-252,281-282,299-358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "e75253764c39294c51fc40a7fc15768d909ebf82",
+  "prompts": {},
+  "sessions": {
+    "s_bae613b850434a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1bfa8061cffeG7uos95HiHWUr6",
+        "model": "claude-opus-4-7@default"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
