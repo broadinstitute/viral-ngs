@@ -54,6 +54,86 @@ class TestKronaCalls(TestCaseWithTmp):
             no_hits=True, no_rank=True, magnitude_column=None)
 
 
+def test_centrifuger_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = [
+            'db',
+            'input.bam',
+            'out.tsv',
+            '--k', '3',
+            '--unclassified_prefix', 'unclassified',
+            '--classified_prefix', 'classified',
+            '--min_hitlen', '17',
+            '--hitk_factor', '5',
+            '--merge_readpair',
+            '--threads', '4',
+        ]
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_centrifuger.return_value.classify.assert_called_once_with(
+            'input.bam',
+            'db',
+            'out.tsv',
+            k=3,
+            unclassified_prefix='unclassified',
+            classified_prefix='classified',
+            min_hitlen=17,
+            hitk_factor=5,
+            merge_readpair=True,
+            num_threads=4,
+        )
+
+
+def test_centrifuger_build_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = [
+            'db_prefix',
+            'nodes.dmp',
+            'names.dmp',
+            '--ref_fastas', 'ref1.fna', 'ref2.fna',
+            '--conversion_table', 'seqid_to_taxid.map',
+            '--build_mem', '256M',
+            '--threads', '4',
+        ]
+        args = metagenomics.parser_centrifuger_build(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_centrifuger.return_value.build.assert_called_once_with(
+            'db_prefix',
+            'nodes.dmp',
+            'names.dmp',
+            ref_fastas=['ref1.fna', 'ref2.fna'],
+            ref_list=None,
+            conversion_table='seqid_to_taxid.map',
+            build_mem='256M',
+            num_threads=4,
+        )
+
+
+def test_centrifuger_quant_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = [
+            'db',
+            'classification.tsv',
+            'quant.tsv',
+            '--min_score', '10',
+            '--min_length', '50',
+            '--output_format', '1',
+        ]
+        args = metagenomics.parser_centrifuger_quant(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_centrifuger.return_value.quant.assert_called_once_with(
+            'db',
+            'classification.tsv',
+            'quant.tsv',
+            min_score=10,
+            min_length=50,
+            output_format=1,
+        )
+
+
 @pytest.fixture
 def taxa_db_simple():
     db = metagenomics.TaxonomyDb()

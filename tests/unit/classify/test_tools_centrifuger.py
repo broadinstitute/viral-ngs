@@ -1,0 +1,244 @@
+# Unit tests for Centrifuger
+import os
+from unittest.mock import mock_open, patch
+
+import pytest
+
+from viral_ngs.classify import centrifuger
+from viral_ngs.core import file as util_file
+from viral_ngs.core import misc as util_misc
+
+
+@pytest.fixture
+def centrifuger_tool():
+    with patch('viral_ngs.classify.centrifuger.shutil.which', return_value='/usr/bin/centrifuger'):
+        yield centrifuger.Centrifuger()
+
+
+@pytest.fixture
+def centrifuger_inputs():
+    base = os.path.join(util_file.get_test_input_path(), 'TestMetagenomicsSimple')
+    db_dir = os.path.join(base, 'db')
+    return {
+        'bam': os.path.join(base, 'test-reads.bam'),
+        'db_prefix': 'centrifuger_db',
+        'nodes': os.path.join(db_dir, 'taxonomy', 'nodes.dmp'),
+        'names': os.path.join(db_dir, 'taxonomy', 'names.dmp'),
+        'conversion': os.path.join(db_dir, 'library', 'krakenuniq.map'),
+        'ref1': os.path.join(
+            db_dir,
+            'library',
+            'Viruses',
+            'Zaire_ebolavirus',
+            'GCF_000848505.1_ViralProj14703_genomic.fna',
+        ),
+        'ref2': os.path.join(
+            db_dir,
+            'library',
+            'Viruses',
+            'Sudan_ebolavirus',
+            'GCF_000855585.1_ViralProj15012_genomic.fna',
+        ),
+    }
+
+
+def test_build_invokes_centrifuger_build_with_expected_arguments(
+        centrifuger_tool, centrifuger_inputs):
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call:
+        centrifuger_tool.build(
+            centrifuger_inputs['db_prefix'],
+            centrifuger_inputs['nodes'],
+            centrifuger_inputs['names'],
+            ref_fastas=[centrifuger_inputs['ref1'], centrifuger_inputs['ref2']],
+            conversion_table=centrifuger_inputs['conversion'],
+            build_mem='256M',
+            num_threads=9,
+        )
+
+        args = mock_check_call.call_args[0][0]
+        assert args[0] == 'centrifuger-build'
+        assert util_misc.list_contains(['-o', centrifuger_inputs['db_prefix']], args)
+        assert util_misc.list_contains(['--taxonomy-tree', centrifuger_inputs['nodes']], args)
+        assert util_misc.list_contains(['--name-table', centrifuger_inputs['names']], args)
+        assert util_misc.list_contains(['-r', centrifuger_inputs['ref1']], args)
+        assert util_misc.list_contains(['-r', centrifuger_inputs['ref2']], args)
+        assert util_misc.list_contains(['--conversion-table', centrifuger_inputs['conversion']], args)
+        assert util_misc.list_contains(['--build-mem', '256M'], args)
+        expected_threads = str(util_misc.sanitize_thread_count(9))
+        assert util_misc.list_contains(['-t', expected_threads], args)
+
+
+def test_build_requires_exactly_one_reference_input(
+        centrifuger_tool, centrifuger_inputs):
+    with pytest.raises(ValueError, match='exactly one'):
+        centrifuger_tool.build(
+            centrifuger_inputs['db_prefix'],
+            centrifuger_inputs['nodes'],
+            centrifuger_inputs['names'],
+        )
+
+    with pytest.raises(ValueError, match='exactly one'):
+        centrifuger_tool.build(
+            centrifuger_inputs['db_prefix'],
+            centrifuger_inputs['nodes'],
+            centrifuger_inputs['names'],
+            ref_fastas=[centrifuger_inputs['ref1']],
+            ref_list='refs.txt',
+        )
+
+
+def test_classify_single_end_from_bam(centrifuger_tool, centrifuger_inputs):
+    mkstemp_vals = ['single.1.fastq', 'single.2.fastq', 'single.s.fastq']
+    size_map = {
+        'single.2.fastq': 1,
+        'single.s.fastq': 10,
+    }
+
+    with patch('viral_ngs.classify.centrifuger.util_file.mkstempfname', side_effect=mkstemp_vals), \
+         patch('viral_ngs.classify.centrifuger.os.path.exists', return_value=True), \
+         patch('viral_ngs.classify.centrifuger.os.unlink'), \
+         patch('viral_ngs.classify.centrifuger.picard.SamToFastqTool', autospec=True) as picard_cls, \
+         patch('viral_ngs.classify.centrifuger.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts'), \
+         patch('viral_ngs.classify.centrifuger.samtools.SamtoolsTool', autospec=True) as samtools_cls, \
+         patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.centrifuger.os.path.getsize', side_effect=lambda path: size_map.get(path, 1000)), \
+         patch('viral_ngs.classify.centrifuger.open', mock_open(), create=True) as mocked_open:
+
+        picard_cls.illumina_clipping_attribute = 'XT'
+        picard = picard_cls.return_value
+        picard.jvmMemDefault = '4G'
+        picard.execute.return_value = None
+
+        samtools = samtools_cls.return_value
+        samtools.isEmpty.return_value = False
+
+        centrifuger_tool.classify(
+            centrifuger_inputs['bam'],
+            centrifuger_inputs['db_prefix'],
+            'out.tsv',
+            k=3,
+            unclassified_prefix='unclassified',
+            classified_prefix='classified',
+            min_hitlen=17,
+            hitk_factor=5,
+            merge_readpair=True,
+            num_threads=4,
+        )
+
+        args = mock_check_call.call_args[0][0]
+        assert args[0] == 'centrifuger'
+        assert util_misc.list_contains(['-x', centrifuger_inputs['db_prefix']], args)
+        assert util_misc.list_contains(['-u', 'single.s.fastq'], args)
+        assert '-1' not in args
+        assert '-2' not in args
+        assert util_misc.list_contains(['-k', '3'], args)
+        assert util_misc.list_contains(['--un', 'unclassified'], args)
+        assert util_misc.list_contains(['--cl', 'classified'], args)
+        assert util_misc.list_contains(['--min-hitlen', '17'], args)
+        assert util_misc.list_contains(['--hitk-factor', '5'], args)
+        assert '--merge-readpair' in args
+        expected_threads = str(util_misc.sanitize_thread_count(4))
+        assert util_misc.list_contains(['-t', expected_threads], args)
+        mocked_open.assert_called_once_with('out.tsv', 'wt')
+        picard.execute.assert_called_once_with(
+            centrifuger_inputs['bam'],
+            'single.1.fastq',
+            'single.2.fastq',
+            outFastq0='single.s.fastq',
+            picardOptions='clip-opts',
+            JVMmemory='4G',
+        )
+
+
+def test_classify_paired_end_from_bam(centrifuger_tool, centrifuger_inputs):
+    mkstemp_vals = ['paired.1.fastq', 'paired.2.fastq', 'paired.s.fastq']
+    size_map = {
+        'paired.2.fastq': 10,
+        'paired.s.fastq': 1,
+    }
+
+    with patch('viral_ngs.classify.centrifuger.util_file.mkstempfname', side_effect=mkstemp_vals), \
+         patch('viral_ngs.classify.centrifuger.os.path.exists', return_value=True), \
+         patch('viral_ngs.classify.centrifuger.os.unlink'), \
+         patch('viral_ngs.classify.centrifuger.picard.SamToFastqTool', autospec=True) as picard_cls, \
+         patch('viral_ngs.classify.centrifuger.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts'), \
+         patch('viral_ngs.classify.centrifuger.samtools.SamtoolsTool', autospec=True) as samtools_cls, \
+         patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.centrifuger.os.path.getsize', side_effect=lambda path: size_map.get(path, 1000)), \
+         patch('viral_ngs.classify.centrifuger.open', mock_open(), create=True):
+
+        picard_cls.illumina_clipping_attribute = 'XT'
+        picard = picard_cls.return_value
+        picard.jvmMemDefault = '4G'
+        picard.execute.return_value = None
+
+        samtools = samtools_cls.return_value
+        samtools.isEmpty.return_value = False
+
+        centrifuger_tool.classify(
+            centrifuger_inputs['bam'],
+            centrifuger_inputs['db_prefix'],
+            'out.tsv',
+            num_threads=2,
+        )
+
+        args = mock_check_call.call_args[0][0]
+        assert args[0] == 'centrifuger'
+        assert util_misc.list_contains(['-x', centrifuger_inputs['db_prefix']], args)
+        assert util_misc.list_contains(['-1', 'paired.1.fastq'], args)
+        assert util_misc.list_contains(['-2', 'paired.2.fastq'], args)
+        assert '-u' not in args
+        expected_threads = str(util_misc.sanitize_thread_count(2))
+        assert util_misc.list_contains(['-t', expected_threads], args)
+        picard.execute.assert_called_once_with(
+            centrifuger_inputs['bam'],
+            'paired.1.fastq',
+            'paired.2.fastq',
+            outFastq0='paired.s.fastq',
+            picardOptions='clip-opts',
+            JVMmemory='4G',
+        )
+
+
+def test_classify_returns_early_when_bam_is_empty(
+        centrifuger_tool, centrifuger_inputs):
+    with patch('viral_ngs.classify.centrifuger.samtools.SamtoolsTool', autospec=True) as samtools_cls, \
+         patch('viral_ngs.classify.centrifuger.picard.SamToFastqTool', autospec=True) as picard_cls, \
+         patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.centrifuger.open', mock_open(), create=True) as mocked_open:
+
+        samtools = samtools_cls.return_value
+        samtools.isEmpty.return_value = True
+
+        centrifuger_tool.classify(
+            centrifuger_inputs['bam'],
+            centrifuger_inputs['db_prefix'],
+            'out.tsv',
+        )
+
+        mock_check_call.assert_not_called()
+        picard_cls.assert_not_called()
+        mocked_open.assert_called_once_with('out.tsv', 'wt')
+
+
+def test_quant_invokes_centrifuger_quant_with_expected_arguments(
+        centrifuger_tool, centrifuger_inputs):
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.centrifuger.open', mock_open(), create=True) as mocked_open:
+        centrifuger_tool.quant(
+            centrifuger_inputs['db_prefix'],
+            'classification.tsv',
+            'quant.tsv',
+            min_score=10,
+            min_length=50,
+            output_format=1,
+        )
+
+        args = mock_check_call.call_args[0][0]
+        assert args[0] == 'centrifuger-quant'
+        assert util_misc.list_contains(['-x', centrifuger_inputs['db_prefix']], args)
+        assert util_misc.list_contains(['-c', 'classification.tsv'], args)
+        assert util_misc.list_contains(['--min-score', '10'], args)
+        assert util_misc.list_contains(['--min-length', '50'], args)
+        assert util_misc.list_contains(['--output-format', '1'], args)
+        mocked_open.assert_called_once_with('quant.tsv', 'wt')
