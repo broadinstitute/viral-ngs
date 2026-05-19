@@ -1,0 +1,30 @@
+src/viral_ngs/classify/centrifuger.py
+  s_0f67c5206f2dfc::t_9b382db075e7fb 1-30,33-34,36-172
+  s_bae613b850434a::t_bd0869460a5035 31-32,35
+src/viral_ngs/classify/__init__.py
+  s_0f67c5206f2dfc::t_afa6ce558275ba 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "9fff5f1e9ca4e80ccf5195d3fc8d4172db073970",
+  "prompts": {},
+  "sessions": {
+    "s_0f67c5206f2dfc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4024-49ab-7343-b6e5-0de51099fb94",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    },
+    "s_bae613b850434a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1bfa8061cffeG7uos95HiHWUr6",
+        "model": "claude-opus-4-7@default"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
