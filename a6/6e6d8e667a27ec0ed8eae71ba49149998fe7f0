@@ -1,0 +1,19 @@
+src/viral_ngs/metagenomics.py
+  s_bae613b850434a::t_5fdc7ec33da11b 582-625
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "a66e6d8e667a27ec0ed8eae71ba49149998fe7f0",
+  "prompts": {},
+  "sessions": {
+    "s_bae613b850434a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1bfa8061cffeG7uos95HiHWUr6",
+        "model": "claude-opus-4-7@default"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
