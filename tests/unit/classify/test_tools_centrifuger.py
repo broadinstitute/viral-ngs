@@ -246,7 +246,10 @@ def test_quant_invokes_centrifuger_quant_with_expected_arguments(
 
 def test_kreport_invokes_centrifuger_kreport_with_expected_arguments(
         centrifuger_tool, centrifuger_inputs):
-    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
+    # Bypass the empty-classification short-circuit (covered by its own tests
+    # below); this test exercises CLI argv construction on a non-empty input.
+    with patch.object(centrifuger.Centrifuger, '_classification_is_empty', return_value=False), \
+         patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
          patch('viral_ngs.classify.centrifuger.open', mock_open(), create=True) as mocked_open:
         centrifuger_tool.kreport(
             centrifuger_inputs['db_prefix'],
@@ -275,7 +278,8 @@ def test_kreport_invokes_centrifuger_kreport_with_expected_arguments(
 
 
 def test_kreport_omits_unset_optional_flags(centrifuger_tool, centrifuger_inputs):
-    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
+    with patch.object(centrifuger.Centrifuger, '_classification_is_empty', return_value=False), \
+         patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call, \
          patch('viral_ngs.classify.centrifuger.open', mock_open(), create=True):
         centrifuger_tool.kreport(
             centrifuger_inputs['db_prefix'],
@@ -292,3 +296,63 @@ def test_kreport_omits_unset_optional_flags(centrifuger_tool, centrifuger_inputs
             '--report-score-data', '--min-score', '--min-length',
         ):
             assert flag not in args, f'{flag} unexpectedly present with default kwargs'
+
+
+def test_kreport_short_circuits_on_empty_classification(
+        tmp_path, centrifuger_tool, centrifuger_inputs):
+    empty_classification = tmp_path / 'empty.tsv'
+    empty_classification.touch()
+    output = tmp_path / 'kreport.tsv'
+
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call:
+        centrifuger_tool.kreport(
+            centrifuger_inputs['db_prefix'],
+            str(empty_classification),
+            str(output),
+        )
+
+    mock_check_call.assert_not_called()
+    assert output.exists()
+    assert output.read_text() == ''
+
+
+def test_kreport_short_circuits_on_header_only_classification(
+        tmp_path, centrifuger_tool, centrifuger_inputs):
+    header_only = tmp_path / 'header_only.tsv'
+    header_only.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+    )
+    output = tmp_path / 'kreport.tsv'
+
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call:
+        centrifuger_tool.kreport(
+            centrifuger_inputs['db_prefix'],
+            str(header_only),
+            str(output),
+        )
+
+    mock_check_call.assert_not_called()
+    assert output.exists()
+    assert output.read_text() == ''
+
+
+def test_kreport_runs_when_classification_has_data(
+        tmp_path, centrifuger_tool, centrifuger_inputs):
+    classification = tmp_path / 'with_data.tsv'
+    classification.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+        'r1\tNC_002549.1\t186538\t8692\t0\t160\t204\t1\n'
+    )
+    output = tmp_path / 'kreport.tsv'
+
+    with patch('viral_ngs.classify.centrifuger.subprocess.check_call', autospec=True) as mock_check_call:
+        centrifuger_tool.kreport(
+            centrifuger_inputs['db_prefix'],
+            str(classification),
+            str(output),
+        )
+
+    mock_check_call.assert_called_once()
+    args = mock_check_call.call_args[0][0]
+    assert args[0] == 'centrifuger-kreport'
+    assert args[-1] == str(classification)

@@ -178,7 +178,22 @@ class Centrifuger(core.Tool):
 
         Wraps the centrifuger-kreport Perl script, which writes its output
         to stdout; the wrapper redirects stdout to `output`.
+
+        Short-circuits on empty or header-only classification input
+        (centrifuger-kreport exits 255 with `No sequence matches with
+        given settings` in that case). This mirrors the empty-BAM
+        short-circuit in classify() so callers can chain
+        classify -> kreport unconditionally.
         '''
+        if self._classification_is_empty(classification):
+            log.warning(
+                'Classification file %s has no data rows, '
+                'skipping centrifuger-kreport', classification,
+            )
+            with open(output, 'wt'):
+                pass
+            return
+
         opts = {'-x': db}
         if no_lca:
             opts['--no-lca'] = None
@@ -199,3 +214,12 @@ class Centrifuger(core.Tool):
             args=[classification],
             options=opts,
         )
+
+    @staticmethod
+    def _classification_is_empty(path):
+        '''Return True if `path` has no data rows (empty file or header only).'''
+        if os.path.getsize(path) == 0:
+            return True
+        with open(path, 'rt') as inf:
+            inf.readline()  # discard header
+            return not inf.readline().strip()
