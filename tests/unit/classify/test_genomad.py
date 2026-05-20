@@ -17,12 +17,12 @@ def genomad_tool():
 
 
 @pytest.fixture
-def genomad_inputs():
+def genomad_inputs(tmp_path):
     base = os.path.join(util_file.get_test_input_path(), 'TestGenomad')
     paths = {
         'fasta': os.path.join(base, 'small.fasta'),
         'db_path': base,  # Use the TestGenomad dir itself as a stand-in for a db directory
-        'out_dir': '/tmp/genomad_test_output',
+        'out_dir': str(tmp_path / 'genomad_output'),
     }
     return paths
 
@@ -81,6 +81,32 @@ def test_end_to_end_skips_subprocess_on_empty_fasta(genomad_tool, genomad_inputs
          patch('viral_ngs.classify.genomad.os.path.getsize', return_value=0):
 
         genomad_tool.end_to_end(genomad_inputs['fasta'], genomad_inputs['db_path'], genomad_inputs['out_dir'])
+
+        mock_check_call.assert_not_called()
+
+
+def test_end_to_end_skips_subprocess_on_whitespace_only_fasta(
+        genomad_tool, genomad_inputs, tmp_path):
+    """Exercise the second branch of _is_fasta_empty.
+
+    The size-0 path is covered above. This covers the file-with-content-but-
+    no-actual-data path: file size > 0 but <= 1024 bytes and content strips
+    to empty (e.g., a FASTA containing only blank lines and whitespace).
+    Uses a real tmp file rather than mocks so the open_or_gzopen + strip()
+    branch is actually exercised end-to-end.
+    """
+    whitespace_fasta = tmp_path / 'whitespace_only.fasta'
+    whitespace_fasta.write_text('\n   \n\t\n   \n')
+
+    with patch('viral_ngs.classify.genomad.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True), \
+         patch('viral_ngs.classify.genomad.file.mkdir_p'):
+
+        genomad_tool.end_to_end(
+            str(whitespace_fasta),
+            genomad_inputs['db_path'],
+            genomad_inputs['out_dir'],
+        )
 
         mock_check_call.assert_not_called()
 
