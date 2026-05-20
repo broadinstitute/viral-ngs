@@ -141,3 +141,44 @@ def test_centrifuger_kreport(centrifuger_db, centrifuger_classification):
     # An unclassified row and a root row should always be present
     rank_codes = [row[3] for row in rows]
     assert 'U' in rank_codes, 'kreport should include an unclassified (U) row'
+
+
+def test_centrifuger_classify_then_kreport_on_empty_bam(centrifuger_db):
+    '''End-to-end empty-BAM short-circuit verification.
+
+    Drives the same classify -> kreport chain the viral-pipelines WDL uses,
+    starting from the empty.bam fixture. Both short-circuits must fire
+    end-to-end via the metagenomics CLI:
+
+      - Centrifuger.classify() detects the empty BAM via samtools.isEmpty,
+        skips invoking centrifuger, and writes a header-only TSV (single
+        line of column headers, no data rows) so downstream parsers see a
+        well-formed but empty file.
+      - Centrifuger.kreport() then detects the header-only classification
+        via _classification_is_empty(has_header=True), skips invoking
+        centrifuger-kreport, and writes a truly empty (0-byte) kreport.
+    '''
+    empty_bam = os.path.join(util_file.get_test_input_path(), 'empty.bam')
+    out_classification = util_file.mkstempfname('.empty.centrifuger.tsv')
+    out_kreport = util_file.mkstempfname('.empty.centrifuger.kreport')
+
+    classify_cmd = [centrifuger_db, empty_bam, out_classification, '--threads', '2']
+    parser = metagenomics.parser_centrifuger(argparse.ArgumentParser())
+    args = parser.parse_args(classify_cmd)
+    args.func_main(args)
+
+    assert os.path.exists(out_classification)
+    with open(out_classification, 'rt') as inf:
+        lines = [line.rstrip('\n') for line in inf if line.strip()]
+    assert lines == [
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches'
+    ], 'classify on empty BAM should produce a header-only TSV with no data rows'
+
+    kreport_cmd = [centrifuger_db, out_classification, out_kreport]
+    parser = metagenomics.parser_centrifuger_kreport(argparse.ArgumentParser())
+    args = parser.parse_args(kreport_cmd)
+    args.func_main(args)
+
+    assert os.path.exists(out_kreport)
+    assert os.path.getsize(out_kreport) == 0, \
+        'kreport on header-only classification should produce an empty report'
