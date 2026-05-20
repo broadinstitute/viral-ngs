@@ -12,7 +12,9 @@ from viral_ngs.core import file as util_file
 
 
 pytestmark = pytest.mark.skipif(
-    not all(shutil.which(cmd) for cmd in ('centrifuger', 'centrifuger-build', 'centrifuger-quant')),
+    not all(shutil.which(cmd) for cmd in (
+        'centrifuger', 'centrifuger-build', 'centrifuger-quant', 'centrifuger-kreport',
+    )),
     reason='Centrifuger executables are not installed',
 )
 
