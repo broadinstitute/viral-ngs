@@ -3,7 +3,7 @@
 #
 # This provides:
 # - All core bioinformatics tools (from core image)
-# - Classification: Kraken2, Krona, BLAST, LAST, BMTagger
+# - Classification: Kraken2, Krona, BLAST, LAST, BMTagger, geNomad
 # - K-mer tools: KMC, KMA
 # - Pseudoalignment: kallisto/kb-python
 #
