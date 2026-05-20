@@ -1,0 +1,21 @@
+tests/unit/classify/test_integration_centrifuger.py
+  s_bae613b850434a::t_2e94c9b8bae37b 144-149
+  s_bae613b850434a::t_57a42ba16552b8 150
+  s_bae613b850434a::t_417795fe9670bb 151-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "ee74f269d6aa8fdd4d7bfa9dd1f39aa8b1692114",
+  "prompts": {},
+  "sessions": {
+    "s_bae613b850434a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1bfa8061cffeG7uos95HiHWUr6",
+        "model": "claude-opus-4-7@default"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
