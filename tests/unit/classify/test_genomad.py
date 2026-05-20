@@ -1,4 +1,5 @@
 # Unit tests for Genomad
+import argparse
 import os
 from unittest.mock import patch
 
@@ -105,6 +106,36 @@ def test_main_genomad_single_file(genomad_inputs):
             genomad_inputs['out_dir'],
             threads=4,
         )
+
+        mock_genomad.assert_called_once_with()
+        mock_genomad.return_value.end_to_end.assert_called_once_with(
+            genomad_inputs['fasta'],
+            genomad_inputs['db_path'],
+            genomad_inputs['out_dir'],
+            num_threads=4,
+        )
+
+
+def test_genomad_parser_invokes_tool(genomad_inputs):
+    """Drive the metagenomics CLI parser end-to-end and verify dispatch.
+
+    Unlike test_main_genomad_single_file (which calls main_genomad
+    directly), this exercises the parser -> args.func_main -> wrapper
+    path, so it locks in CLI argument names, order, and types. Catches
+    regressions where parser_genomad and main_genomad drift apart.
+    """
+    from viral_ngs import metagenomics
+
+    with patch('viral_ngs.metagenomics.genomad.Genomad') as mock_genomad:
+        argv = [
+            genomad_inputs['fasta'],
+            genomad_inputs['db_path'],
+            genomad_inputs['out_dir'],
+            '--threads', '4',
+        ]
+        parser = metagenomics.parser_genomad(argparse.ArgumentParser())
+        args = parser.parse_args(argv)
+        args.func_main(args)
 
         mock_genomad.assert_called_once_with()
         mock_genomad.return_value.end_to_end.assert_called_once_with(
