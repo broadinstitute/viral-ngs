@@ -1371,7 +1371,7 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, 
 __commands__.append(('kb_build', parser_kb_build))
 
 def parser_genomad(parser=argparse.ArgumentParser()):
-    parser.add_argument('in_fasta', nargs='+', help='Input FASTA file(s) with sequences to classify.')
+    parser.add_argument('in_fasta', help='Input FASTA file with sequences to classify.')
     parser.add_argument('database', help='Path to geNomad database directory.')
     parser.add_argument('out_dir', help='Output directory for geNomad results.')
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
@@ -1382,8 +1382,7 @@ def main_genomad(in_fasta, database, out_dir, threads=None):
         Classify viral and plasmid sequences using geNomad
     '''
     genomad_tool = genomad.Genomad()
-    for fasta_file in in_fasta:
-        genomad_tool.end_to_end(fasta_file, database, out_dir, num_threads=threads)
+    genomad_tool.end_to_end(in_fasta, database, out_dir, num_threads=threads)
 __commands__.append(('genomad', parser_genomad))
 
 

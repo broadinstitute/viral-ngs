@@ -65,11 +65,18 @@ def test_end_to_end_raises_on_invalid_database_path(genomad_tool, genomad_inputs
             genomad_tool.end_to_end(genomad_inputs['fasta'], '/nonexistent/db', genomad_inputs['out_dir'])
 
 
+def test_end_to_end_raises_on_missing_fasta(genomad_tool, genomad_inputs):
+    with patch('viral_ngs.classify.genomad.os.path.isfile', return_value=False), \
+         patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True):
+        with pytest.raises(FileNotFoundError):
+            genomad_tool.end_to_end('/nonexistent/input.fasta', genomad_inputs['db_path'], genomad_inputs['out_dir'])
+
+
 def test_end_to_end_skips_subprocess_on_empty_fasta(genomad_tool, genomad_inputs):
     with patch('viral_ngs.classify.genomad.subprocess.check_call', autospec=True) as mock_check_call, \
          patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True), \
          patch('viral_ngs.classify.genomad.file.mkdir_p'), \
-         patch('viral_ngs.classify.genomad.os.path.exists', return_value=True), \
+         patch('viral_ngs.classify.genomad.os.path.isfile', return_value=True), \
          patch('viral_ngs.classify.genomad.os.path.getsize', return_value=0):
 
         genomad_tool.end_to_end(genomad_inputs['fasta'], genomad_inputs['db_path'], genomad_inputs['out_dir'])
@@ -87,35 +94,22 @@ def test_version_parses_genomad_output(genomad_tool):
         assert version == '1.11.2'
 
 
-def test_main_genomad_batch_processing(genomad_inputs):
-    """Verify main_genomad calls end_to_end for each input FASTA."""
-    with patch('viral_ngs.classify.genomad.shutil.which', return_value='/usr/bin/genomad'), \
-         patch('viral_ngs.classify.genomad.subprocess.check_call', autospec=True), \
-         patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True), \
-         patch('viral_ngs.classify.genomad.file.mkdir_p'):
-
-        from viral_ngs import metagenomics
-
-        fasta_files = [genomad_inputs['fasta'], genomad_inputs['fasta']]
-        metagenomics.main_genomad(fasta_files, genomad_inputs['db_path'], genomad_inputs['out_dir'], threads=4)
-
-        # end_to_end should be called twice (once per input file)
-        from viral_ngs.classify.genomad import subprocess
-        assert subprocess.check_call.call_count == 2
-
-
 def test_main_genomad_single_file(genomad_inputs):
-    """Verify main_genomad works with a single input FASTA."""
-    with patch('viral_ngs.classify.genomad.shutil.which', return_value='/usr/bin/genomad'), \
-         patch('viral_ngs.classify.genomad.subprocess.check_call', autospec=True) as mock_check_call, \
-         patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True), \
-         patch('viral_ngs.classify.genomad.file.mkdir_p'):
+    """Verify main_genomad delegates one FASTA to the geNomad wrapper."""
+    from viral_ngs import metagenomics
 
-        from viral_ngs import metagenomics
+    with patch('viral_ngs.metagenomics.genomad.Genomad') as mock_genomad:
+        metagenomics.main_genomad(
+            genomad_inputs['fasta'],
+            genomad_inputs['db_path'],
+            genomad_inputs['out_dir'],
+            threads=4,
+        )
 
-        metagenomics.main_genomad([genomad_inputs['fasta']], genomad_inputs['db_path'], genomad_inputs['out_dir'])
-
-        mock_check_call.assert_called_once()
-        args = mock_check_call.call_args[0][0]
-        assert 'genomad' == args[0]
-        assert 'end-to-end' == args[1]
+        mock_genomad.assert_called_once_with()
+        mock_genomad.return_value.end_to_end.assert_called_once_with(
+            genomad_inputs['fasta'],
+            genomad_inputs['db_path'],
+            genomad_inputs['out_dir'],
+            num_threads=4,
+        )

@@ -60,25 +60,21 @@ class Genomad(core.Tool):
         subprocess.check_call(cmd)
 
     def _is_fasta_empty(self, fasta_file):
-        '''Check if FASTA file is empty or does not exist.
+        '''Check if FASTA file is empty.
 
         Args:
           fasta_file: Path to FASTA file.
 
         Returns:
-          True if file is None, does not exist, or is empty; False otherwise.
+          True if file is empty; False otherwise.
         '''
-        if fasta_file is None:
-            return True
-        if not os.path.exists(fasta_file):
-            return True
-        if os.path.getsize(fasta_file) == 0:
+        file_size = os.path.getsize(fasta_file)
+        if file_size == 0:
             return True
 
         # For small files, check content
-        file_size = os.path.getsize(fasta_file)
         if file_size <= 1024:
-            with open(fasta_file, 'r') as f:
+            with file.open_or_gzopen(fasta_file, 'rt') as f:
                 content = f.read()
                 if content.strip() == '':
                     return True
@@ -96,9 +92,12 @@ class Genomad(core.Tool):
           num_threads: Number of threads to use (optional).
 
         Raises:
+          FileNotFoundError: If input FASTA does not exist.
           ValueError: If database path does not exist or is not a directory.
         '''
-        # Validate database path first
+        # Validate inputs first
+        if not in_fasta or not os.path.isfile(in_fasta):
+            raise FileNotFoundError(in_fasta)
         if not os.path.isdir(db_path):
             raise ValueError(f"Database path does not exist or is not a directory: {db_path}")
 
