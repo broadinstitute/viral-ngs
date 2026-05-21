@@ -1,3 +1,5 @@
+import signal
+import threading
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -317,3 +319,71 @@ def test_connect_duckdb_autodetect_when_caller_passes_none(tmp_path, monkeypatch
 
     config = fake_duckdb.connect.call_args.kwargs["config"]
     assert config["memory_limit"] == "6144MB"
+
+
+# -- SIGTERM cleanup handler ------------------------------------------------
+
+
+def test_sigterm_cleanup_handler_restores_previous_handler():
+    """Handler must be restored on normal exit so we don't leak signal state."""
+    sentinel = lambda signum, frame: None  # noqa: E731
+    old = signal.signal(signal.SIGTERM, sentinel)
+    try:
+        with virnucpro._install_sigterm_cleanup_handler():
+            current = signal.getsignal(signal.SIGTERM)
+            assert current is not sentinel, \
+                'handler should have been replaced inside the context'
+        assert signal.getsignal(signal.SIGTERM) is sentinel, \
+            'handler should be restored on normal exit'
+    finally:
+        signal.signal(signal.SIGTERM, old)
+
+
+def test_sigterm_cleanup_handler_restores_handler_on_exception():
+    """Handler must be restored even when the with-block raises."""
+    sentinel = lambda signum, frame: None  # noqa: E731
+    old = signal.signal(signal.SIGTERM, sentinel)
+    try:
+        with pytest.raises(RuntimeError):
+            with virnucpro._install_sigterm_cleanup_handler():
+                raise RuntimeError('boom')
+        assert signal.getsignal(signal.SIGTERM) is sentinel, \
+            'handler should be restored on exceptional exit'
+    finally:
+        signal.signal(signal.SIGTERM, old)
+
+
+def test_sigterm_cleanup_handler_converts_signal_to_system_exit():
+    """Direct invocation: the installed handler must raise SystemExit(143)."""
+    old = signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    try:
+        with virnucpro._install_sigterm_cleanup_handler():
+            handler = signal.getsignal(signal.SIGTERM)
+            with pytest.raises(SystemExit) as exc_info:
+                handler(signal.SIGTERM, None)
+            assert exc_info.value.code == 128 + signal.SIGTERM  # 143
+    finally:
+        signal.signal(signal.SIGTERM, old)
+
+
+def test_sigterm_cleanup_handler_is_noop_in_worker_thread():
+    """Installing the handler in a non-main thread must not raise.
+
+    signal.signal() rejects non-main-thread callers with ValueError;
+    the helper must detect this and silently no-op so worker threads
+    that import the module remain safe.
+    """
+    errors = []
+
+    def _worker():
+        try:
+            with virnucpro._install_sigterm_cleanup_handler():
+                pass
+        except Exception as exc:
+            errors.append(exc)
+
+    t = threading.Thread(target=_worker)
+    t.start()
+    t.join()
+    assert not errors, \
+        'handler should be a no-op in worker threads, got: {}'.format(errors)
