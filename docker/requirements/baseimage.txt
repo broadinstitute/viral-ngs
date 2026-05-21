@@ -18,7 +18,6 @@ google-cloud-storage>=2.14.0
 
 # Python security libraries (pinned to address CVEs in transitive deps of firecloud)
 cryptography>=46.0.5
-jaraco.context>=6.1.0
 pyopenssl>=26.0.0
 pyasn1>=0.6.3
 tornado>=6.5.4
