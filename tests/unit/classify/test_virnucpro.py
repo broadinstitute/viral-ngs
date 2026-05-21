@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from viral_ngs.classify import virnucpro
+from viral_ngs.core import file as util_file
 
 
 def test_classify_contigs_writes_sorted_contig_calls(tmp_path):
@@ -56,4 +57,139 @@ def test_classify_contigs_rejects_unmatched_ids(tmp_path):
         virnucpro.classify_contigs(
             str(highestscore_tsv),
             str(tmp_path / "contigs.tsv"),
+        )
+
+
+def test_classify_reads_by_contig_writes_read_level_calls(tmp_path):
+    contig_classifications = tmp_path / "contigs.tsv"
+    paf_file = tmp_path / "reads.paf"
+    output_tsv = tmp_path / "reads_classified.tsv.zst"
+
+    contig_classifications.write_text(
+        "ID\tcall\ttier\tweighted_delta\tn_chunks\tn_confident_viral\t"
+        "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
+        "nonviral_proportion\n"
+        "NODE_1\tViral\thigh_confidence\t0.9\t5\t5\t0\t0\t1.0\t0.0\n"
+        "NODE_2\tNon-viral\thigh_confidence\t-0.9\t5\t0\t5\t0\t0.0\t1.0\n"
+    )
+    paf_file.write_text(
+        # read1 maps well to a viral contig.
+        "read1\t100\t0\t100\t+\tNODE_1\t1000\t0\t100\t95\t100\t60\t"
+        "tp:A:P\tcg:Z:100M\t95.0\t100.0\n"
+        # Secondary alignment is ignored.
+        "read1\t100\t0\t100\t+\tNODE_2\t1000\t0\t100\t95\t100\t60\t"
+        "tp:A:S\t95.0\t100.0\n"
+        # read2 maps below the default mapq threshold to a non-viral contig.
+        "read2\t100\t0\t100\t+\tNODE_2\t1000\t0\t100\t95\t100\t3\t"
+        "tp:A:P\t95.0\t100.0\n"
+        # read3 maps to contigs with distinct calls and is flagged Multi-mapped.
+        "read3\t100\t0\t100\t+\tNODE_1\t1000\t0\t100\t90\t100\t20\t"
+        "tp:A:P\t90.0\t100.0\n"
+        "read3\t100\t0\t100\t-\tNODE_2\t1000\t0\t100\t98\t100\t30\t"
+        "tp:A:P\t98.0\t100.0\n"
+        # Missing contig classification is filled as Unclassified.
+        "read4\t100\t0\t100\t+\tNODE_3\t1000\t0\t100\t91\t100\t30\t"
+        "tp:A:P\t91.0\t100.0\n"
+    )
+
+    virnucpro.classify_reads_by_contig(
+        str(paf_file),
+        str(contig_classifications),
+        str(output_tsv),
+    )
+
+    with util_file.open_or_gzopen(str(output_tsv), "rt") as inf:
+        result = pd.read_csv(inf, sep="\t")
+
+    assert list(result.columns) == virnucpro.READ_CLASSIFICATION_COLUMNS
+    calls = dict(zip(result["read_id"], result["call"]))
+    tiers = dict(zip(result["read_id"], result["tier"]))
+    mapped_well = dict(zip(result["read_id"], result["mapped_well"]))
+    contigs = dict(zip(result["read_id"], result["contig_id"]))
+
+    assert calls == {
+        "read1": "Viral",
+        "read2": "Non-viral",
+        "read3": "Multi-mapped",
+        "read4": "Unclassified",
+    }
+    assert tiers["read3"] == "review"
+    assert mapped_well == {
+        "read1": True,
+        "read2": False,
+        "read3": True,
+        "read4": True,
+    }
+    assert contigs["read3"] == "NODE_2"
+
+
+def test_classify_reads_by_contig_detects_fractional_identity_scale(tmp_path):
+    contig_classifications = tmp_path / "contigs.tsv"
+    paf_file = tmp_path / "reads.paf"
+    output_tsv = tmp_path / "reads_classified.tsv"
+
+    contig_classifications.write_text(
+        "ID\tcall\ttier\tweighted_delta\tn_chunks\tn_confident_viral\t"
+        "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
+        "nonviral_proportion\n"
+        "NODE_1\tViral\thigh_confidence\t0.9\t5\t5\t0\t0\t1.0\t0.0\n"
+    )
+    paf_file.write_text(
+        "read1\t100\t0\t100\t+\tNODE_1\t1000\t0\t100\t95\t100\t60\t"
+        "tp:A:P\t0.95\t0.90\n"
+    )
+
+    virnucpro.classify_reads_by_contig(
+        str(paf_file),
+        str(contig_classifications),
+        str(output_tsv),
+        min_identity=90.0,
+        min_query_cov=80.0,
+    )
+
+    result = pd.read_csv(output_tsv, sep="\t")
+
+    assert result.loc[0, "mapped_well"]
+
+
+def test_classify_reads_by_contig_writes_header_for_empty_paf(tmp_path):
+    contig_classifications = tmp_path / "contigs.tsv"
+    paf_file = tmp_path / "reads.paf"
+    output_tsv = tmp_path / "reads_classified.tsv.zst"
+
+    contig_classifications.write_text(
+        "ID\tcall\ttier\tweighted_delta\tn_chunks\tn_confident_viral\t"
+        "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
+        "nonviral_proportion\n"
+    )
+    paf_file.write_text("")
+
+    virnucpro.classify_reads_by_contig(
+        str(paf_file),
+        str(contig_classifications),
+        str(output_tsv),
+    )
+
+    with util_file.open_or_gzopen(str(output_tsv), "rt") as inf:
+        result = pd.read_csv(inf, sep="\t")
+
+    assert list(result.columns) == virnucpro.READ_CLASSIFICATION_COLUMNS
+    assert result.empty
+
+
+def test_classify_reads_by_contig_rejects_missing_classification_columns(tmp_path):
+    contig_classifications = tmp_path / "contigs.tsv"
+    paf_file = tmp_path / "reads.paf"
+
+    contig_classifications.write_text("ID\tcall\nNODE_1\tViral\n")
+    paf_file.write_text(
+        "read1\t100\t0\t100\t+\tNODE_1\t1000\t0\t100\t95\t100\t60\t"
+        "tp:A:P\t95.0\t100.0\n"
+    )
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        virnucpro.classify_reads_by_contig(
+            str(paf_file),
+            str(contig_classifications),
+            str(tmp_path / "reads_classified.tsv"),
         )
