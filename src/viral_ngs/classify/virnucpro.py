@@ -283,10 +283,75 @@ def _import_duckdb():
 
 
 def _connect_duckdb(duckdb, duckdb_temp_dir, duckdb_memory_limit=None):
+    """Open an in-memory DuckDB connection with a sensible memory cap.
+
+    If `duckdb_memory_limit` is None, auto-detect from the process cgroup
+    and cap DuckDB to ~75% of the available limit. Caller-supplied values
+    always win. Pass an empty string ("") to explicitly opt out of any
+    limit (let DuckDB use whatever it wants -- not recommended in
+    container environments).
+    """
     config = {"temp_directory": duckdb_temp_dir}
+    if duckdb_memory_limit is None:
+        duckdb_memory_limit = _default_memory_limit()
     if duckdb_memory_limit:
         config["memory_limit"] = str(duckdb_memory_limit)
+        log.debug("DuckDB memory_limit set to %s", config["memory_limit"])
     return duckdb.connect(database=":memory:", config=config)
+
+
+# Default cgroup file paths. Promoted to module-level constants so tests
+# can monkeypatch them without having to mock os.path.isfile / open
+# globally.
+_CGROUP_V2_PATH = "/sys/fs/cgroup/memory.max"
+_CGROUP_V1_PATH = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+
+# cgroup v1 "no limit" sentinel: PAGE_COUNTER_MAX rounded to page size.
+# Any value at or above this is treated as unlimited.
+_CGROUP_V1_UNLIMITED = 0x7FFFFFFFFFFFF000
+
+# Fraction of the cgroup limit handed to DuckDB. The remaining 25% is
+# reserved for the python process, pandas dataframes, file buffers, and
+# the kernel page cache for the PAF/classification spills.
+_DUCKDB_MEM_FRACTION = 0.75
+
+
+def _default_memory_limit():
+    """Return a DuckDB-format memory cap string derived from the cgroup, or None.
+
+    Reads cgroup v2 first, falling back to cgroup v1. Returns None when
+    no cgroup limit is in effect (development hosts, dsub jobs with no
+    memory cap, etc.) so the caller falls back to DuckDB's own default.
+    Never raises -- on any I/O or parse error returns None so the
+    wrapper is safe to call from any environment.
+    """
+    try:
+        if os.path.isfile(_CGROUP_V2_PATH):
+            with open(_CGROUP_V2_PATH, "rt") as fh:
+                raw = fh.read().strip()
+            if raw == "max":
+                return None
+            total_bytes = int(raw)
+        elif os.path.isfile(_CGROUP_V1_PATH):
+            with open(_CGROUP_V1_PATH, "rt") as fh:
+                total_bytes = int(fh.read().strip())
+            if total_bytes >= _CGROUP_V1_UNLIMITED:
+                return None
+        else:
+            return None
+    except (OSError, ValueError):
+        return None
+
+    if total_bytes <= 0:
+        return None
+
+    capped_bytes = int(total_bytes * _DUCKDB_MEM_FRACTION)
+    # Express in MiB rounded down -- DuckDB accepts integer-MB strings
+    # cleanly and avoids float-precision artifacts in the limit string.
+    capped_mib = capped_bytes // (1024 * 1024)
+    if capped_mib <= 0:
+        return None
+    return "{}MB".format(capped_mib)
 
 
 def _prepare_augmented_paf_file(paf_file, tmp_dir):
