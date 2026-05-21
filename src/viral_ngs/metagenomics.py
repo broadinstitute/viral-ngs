@@ -579,7 +579,7 @@ def parser_virnucpro_contigs(parser=argparse.ArgumentParser()):
                         help='Minimum chunks for high/moderate confidence tiers. (default: %(default)s)')
     parser.add_argument('--idCol', '--id-col', dest='id_col', default='Modified_ID',
                         help='Column containing chunk/contig IDs. (default: %(default)s)')
-    parser.add_argument('--idPattern', '--id-pattern', dest='id_pattern', default=r'(NODE_\d+)',
+    parser.add_argument('--idPattern', '--id-pattern', dest='id_pattern', default=r'(NODE\_\d+)',
                         help='Regex used to extract contig group IDs. (default: %(default)s)')
     cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     cmd.attach_main(parser, main_virnucpro_contigs, split_args=True)
@@ -593,7 +593,7 @@ def main_virnucpro_contigs(
     min_nonviral_prop=0.1,
     min_chunks=5,
     id_col='Modified_ID',
-    id_pattern=r'(NODE_\d+)',
+    id_pattern=r'(NODE\_\d+)',
 ):
     '''Classify contigs from VirNucPro highest-score output.'''
     virnucpro.classify_contigs(

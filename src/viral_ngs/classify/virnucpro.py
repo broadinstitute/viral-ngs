@@ -246,7 +246,7 @@ def classify_contigs(
     min_nonviral_prop=0.1,
     min_chunks=5,
     id_col="Modified_ID",
-    id_pattern=r"(NODE_\d+)",
+    id_pattern=r"(NODE\_\d+)",
 ):
     """Classify contigs from a VirNucPro highest-score TSV."""
     df = pd.read_csv(highestscore_tsv, sep="\t")
