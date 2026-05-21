@@ -438,6 +438,39 @@ jobs:
                             #  manually in the repo, NOT created by the workflow)
       id-token: write       # OIDC → GCP WIF for Vertex AI
     steps:
+      # Mint a short-lived (1-hour) installation token for a dedicated GitHub
+      # App, instead of using the default GITHUB_TOKEN. The reason: PRs/commits
+      # created with the default GITHUB_TOKEN do not trigger downstream
+      # workflows (a well-known GH limitation), so the on-PR Trivy + Build/Test
+      # required-status-checks would never run on the auto-fix PR, blocking the
+      # merge under the `default branch protection` ruleset. App-token-authored
+      # PRs DO trigger workflows.
+      #
+      # Required repo secrets (set up once, manually — see PR #1074 description):
+      #   AUTOFIX_APP_ID          — numeric App ID
+      #   AUTOFIX_APP_PRIVATE_KEY — full .pem contents (BEGIN/END lines included)
+      #
+      # This step runs BEFORE checkout so the App token can be passed to
+      # actions/checkout via `token:`, which persists it in the local git
+      # config for the subsequent `git push`. (Without that, git push would
+      # silently fall back to the cached default GITHUB_TOKEN, defeating the
+      # whole point of using the App.)
+      - name: Mint GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.AUTOFIX_APP_ID }}
+          private-key: ${{ secrets.AUTOFIX_APP_PRIVATE_KEY }}
+
+      - name: Resolve App bot user ID for git commit attribution
+        id: app-user
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          user_id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
+          echo "user_id=$user_id" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
@@ -445,11 +478,14 @@ jobs:
           # CVE-fix commits — required to satisfy the moderate confidence bar
           # (mirror an exact precedent or skip).
           fetch-depth: 0
+          # Persist the App token in .git/config so `git push` later in the
+          # job authenticates as the App, not the default GITHUB_TOKEN.
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git author
         run: |
-          git config user.name  'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name  '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config user.email '${{ steps.app-user.outputs.user_id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
 
       - name: Download scan results from upstream job
         uses: actions/download-artifact@v6
@@ -460,7 +496,7 @@ jobs:
       - name: Gather context for Claude (open issues + in-flight fix PRs)
         id: context
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           mkdir -p .cve-fix-context
@@ -499,7 +535,7 @@ jobs:
           ANTHROPIC_VERTEX_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         with:
           use_vertex: 'true'
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
           claude_args: '--model claude-sonnet-4-6 --max-turns 30'
           settings: |
             {
@@ -741,7 +777,7 @@ jobs:
       - name: Open auto-fix PR
         if: steps.decide.outputs.decision == 'proceed'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           branch="cve-fix/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
