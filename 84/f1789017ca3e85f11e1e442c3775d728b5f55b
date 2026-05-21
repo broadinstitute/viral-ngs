@@ -1,0 +1,24 @@
+src/viral_ngs/classify/virnucpro.py
+  s_bae613b850434a::t_fc27aaecc1400d 3,9,11,19-51
+  s_bae613b850434a::t_edeb3e72a806c1 232
+tests/unit/classify/test_virnucpro.py
+  s_bae613b850434a::t_5964ceffca7993 322-355
+  s_bae613b850434a::t_4d695e078db100 1-2
+  s_bae613b850434a::t_d5ac73c572f23d 356-389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "84f1789017ca3e85f11e1e442c3775d728b5f55b",
+  "prompts": {},
+  "sessions": {
+    "s_bae613b850434a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1bfa8061cffeG7uos95HiHWUr6",
+        "model": "claude-opus-4-7@default"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
