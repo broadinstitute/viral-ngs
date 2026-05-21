@@ -1019,7 +1019,12 @@ jobs:
           image: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.36.0
+        # Pinned to commit SHA, NOT a floating tag, because aquasecurity/trivy-action
+        # was compromised in March 2026 (all version tags force-pushed to malicious
+        # commits). This SHA is the vetted v0.36.0 release per broadinstitute/py3-bio#12;
+        # do NOT blindly bump to whatever the upstream v0.36.0 tag currently points to —
+        # the tag has been moved since. Verify any new SHA against multiple sources.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
           format: 'sarif'
@@ -1032,7 +1037,7 @@ jobs:
           ignore-policy: '.trivy-ignore-policy.rego'
 
       - name: Run Trivy vulnerability scanner (JSON)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
         with:
           image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
           format: 'json'

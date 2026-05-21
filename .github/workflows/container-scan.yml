@@ -2,8 +2,8 @@ name: Scheduled Container Vulnerability Scan
 
 on:
   schedule:
-    # Daily scan of main branch mega image at 12:00 UTC
-    - cron: '0 12 * * *'
+    # Daily scan of main branch mega image at 09:00 UTC
+    - cron: '0 9 * * *'
   workflow_dispatch:
     inputs:
       test_cve_id:
@@ -47,7 +47,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.36.0
+        # Pinned to commit SHA, NOT a floating tag, because aquasecurity/trivy-action
+        # was compromised in March 2026 (all version tags force-pushed to malicious
+        # commits). This SHA is the vetted v0.36.0 release per broadinstitute/py3-bio#12;
+        # do NOT blindly bump to whatever the upstream v0.36.0 tag currently points to —
+        # the tag has been moved since. Verify any new SHA against multiple sources.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'sarif'
@@ -60,7 +65,7 @@ jobs:
           ignore-policy: '.trivy-ignore-policy.rego'
 
       - name: Run Trivy vulnerability scanner (JSON)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
         with:
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'json'
@@ -376,8 +381,19 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: true
 
-      - name: Fail job if new CVEs were found (production mode only)
-        if: steps.triage.outputs.cve_ids != '' && steps.triage.outputs.test_mode != 'true'
+      - name: Summarize CVE discovery
+        # Notice-level only — we do NOT exit 1 here. New CVE discovery is the
+        # expected outcome of a useful scan, not a workflow failure: notifications
+        # are delivered via the filed GitHub issues (security + cve labels), and
+        # PR-time gating is independently enforced by docker.yml's on-build Trivy
+        # scan. Reserving red ✕ for real pipeline breakage (Trivy errored, Claude
+        # over budget, gh API failure, etc.) keeps the Actions page signal honest.
+        if: steps.triage.outputs.cve_ids != ''
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
-          echo "::error::Scan found new fixable HIGH/CRITICAL CVEs. See filed issues for details."
-          exit 1
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "::notice::Scheduled scan discovered new fixable HIGH/CRITICAL CVE(s) (dry-run; no issues filed): ${{ steps.triage.outputs.cve_ids }}"
+          else
+            echo "::notice::Scheduled scan filed issues for new fixable HIGH/CRITICAL CVE(s): ${{ steps.triage.outputs.cve_ids }}"
+          fi
