@@ -50,6 +50,67 @@ def test_end_to_end_invokes_genomad_with_correct_arguments(genomad_tool, genomad
         assert util_misc.list_contains(['--threads', str(util_misc.sanitize_thread_count(8))], args)
 
 
+def test_end_to_end_invokes_genomad_with_workflow_options(genomad_tool, genomad_inputs):
+    with patch('viral_ngs.classify.genomad.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True), \
+         patch('viral_ngs.classify.genomad.file.mkdir_p'):
+
+        genomad_tool.end_to_end(
+            genomad_inputs['fasta'],
+            genomad_inputs['db_path'],
+            genomad_inputs['out_dir'],
+            cleanup=True,
+            restart=True,
+            enable_score_calibration=True,
+            composition='virome',
+            min_score=0.8,
+            max_fdr=0.05,
+            min_number_genes=2,
+            max_uscg=3,
+            splits=4,
+        )
+
+        args = mock_check_call.call_args[0][0]
+        assert '--cleanup' in args
+        assert '--restart' in args
+        assert '--enable-score-calibration' in args
+        assert util_misc.list_contains(['--composition', 'virome'], args)
+        assert util_misc.list_contains(['--min-score', '0.8'], args)
+        assert util_misc.list_contains(['--max-fdr', '0.05'], args)
+        assert util_misc.list_contains(['--min-number-genes', '2'], args)
+        assert util_misc.list_contains(['--max-uscg', '3'], args)
+        assert util_misc.list_contains(['--splits', '4'], args)
+
+
+def test_end_to_end_invokes_genomad_with_filter_preset(genomad_tool, genomad_inputs):
+    with patch('viral_ngs.classify.genomad.subprocess.check_call', autospec=True) as mock_check_call, \
+         patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True), \
+         patch('viral_ngs.classify.genomad.file.mkdir_p'):
+
+        genomad_tool.end_to_end(
+            genomad_inputs['fasta'],
+            genomad_inputs['db_path'],
+            genomad_inputs['out_dir'],
+            filter_preset='conservative',
+        )
+
+        args = mock_check_call.call_args[0][0]
+        assert '--conservative' in args
+        assert '--relaxed' not in args
+
+
+def test_end_to_end_rejects_filter_preset_with_explicit_filters(genomad_tool, genomad_inputs):
+    with patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True):
+        with pytest.raises(ValueError, match="filter_preset cannot be combined"):
+            genomad_tool.end_to_end(
+                genomad_inputs['fasta'],
+                genomad_inputs['db_path'],
+                genomad_inputs['out_dir'],
+                filter_preset='relaxed',
+                min_score=0.5,
+            )
+
+
 def test_end_to_end_creates_output_directory(genomad_tool, genomad_inputs):
     with patch('viral_ngs.classify.genomad.subprocess.check_call', autospec=True), \
          patch('viral_ngs.classify.genomad.os.path.isdir', return_value=True), \
@@ -130,6 +191,12 @@ def test_main_genomad_single_file(genomad_inputs):
             genomad_inputs['fasta'],
             genomad_inputs['db_path'],
             genomad_inputs['out_dir'],
+            cleanup=True,
+            restart=True,
+            filter_preset='conservative',
+            enable_score_calibration=True,
+            composition='metagenome',
+            splits=4,
             threads=4,
         )
 
@@ -139,6 +206,16 @@ def test_main_genomad_single_file(genomad_inputs):
             genomad_inputs['db_path'],
             genomad_inputs['out_dir'],
             num_threads=4,
+            cleanup=True,
+            restart=True,
+            filter_preset='conservative',
+            enable_score_calibration=True,
+            composition='metagenome',
+            min_score=None,
+            max_fdr=None,
+            min_number_genes=None,
+            max_uscg=None,
+            splits=4,
         )
 
 
@@ -158,6 +235,15 @@ def test_genomad_parser_invokes_tool(genomad_inputs):
             genomad_inputs['db_path'],
             genomad_inputs['out_dir'],
             '--threads', '4',
+            '--cleanup',
+            '--restart',
+            '--enableScoreCalibration',
+            '--composition', 'virome',
+            '--minScore', '0.8',
+            '--maxFdr', '0.05',
+            '--minNumberGenes', '2',
+            '--maxUscg', '3',
+            '--splits', '4',
         ]
         parser = metagenomics.parser_genomad(argparse.ArgumentParser())
         args = parser.parse_args(argv)
@@ -169,4 +255,14 @@ def test_genomad_parser_invokes_tool(genomad_inputs):
             genomad_inputs['db_path'],
             genomad_inputs['out_dir'],
             num_threads=4,
+            cleanup=True,
+            restart=True,
+            filter_preset=None,
+            enable_score_calibration=True,
+            composition='virome',
+            min_score=0.8,
+            max_fdr=0.05,
+            min_number_genes=2,
+            max_uscg=3,
+            splits=4,
         )
