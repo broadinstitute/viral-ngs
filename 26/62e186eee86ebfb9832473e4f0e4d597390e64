@@ -1,0 +1,33 @@
+src/viral_ngs/classify/virnucpro.py
+  s_0f67c5206f2dfc::t_47bd8042ff0d4e 198-201,206-229,258-261,313,340
+  s_0f67c5206f2dfc::t_a3057f8a745115 309
+  s_0f67c5206f2dfc::t_1971cab22e72f8 3,16-49,170-176,179-185,190,232,248,333,348,418-426,460,480,538,579
+  s_0f67c5206f2dfc::t_0154181a29785c 7-8,177-178,186-189,191-197,202-205,230-231,233-247,249-257,262-308,310-312,314-332,334-339,341-347,349-417,427-459,461-479,481-537,539-578,580-617
+  s_0f67c5206f2dfc::t_8974da48ed27c4 620-625
+tests/unit/classify/test_virnucpro.py
+  s_0f67c5206f2dfc::t_c73247f17011cb 155-179
+  s_0f67c5206f2dfc::t_8e7b3a392c1033 78
+  s_0f67c5206f2dfc::t_9ab8ecfddacf16 5,61-77,79-154,180-194
+docker/requirements/classify.txt
+  s_0f67c5206f2dfc::t_9c2b99b6a6dd2e 5,10
+src/viral_ngs/core/file.py
+  s_0f67c5206f2dfc::t_3500338cd913d1 377-385
+tests/unit/core/test_util_file.py
+  s_0f67c5206f2dfc::t_38af1ea1065fba 150-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "2662e186eee86ebfb9832473e4f0e4d597390e64",
+  "prompts": {},
+  "sessions": {
+    "s_0f67c5206f2dfc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4024-49ab-7343-b6e5-0de51099fb94",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
