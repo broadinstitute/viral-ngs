@@ -1,54 +1,17 @@
 """VirNucPro post-processing helpers."""
 
-import contextlib
 import csv
 import logging
 import os
 import re
 import shutil
-import signal
 import tempfile
-import threading
 
 import pandas as pd
 
 from viral_ngs.core import file
 
 log = logging.getLogger(__name__)
-
-
-@contextlib.contextmanager
-def _install_sigterm_cleanup_handler():
-    """Convert SIGTERM into SystemExit for the duration of the with block.
-
-    Default Python behavior on SIGTERM is to terminate the process
-    *without* running atexit hooks or unwinding context managers, so
-    `tempfile.TemporaryDirectory` (and DuckDB connections) leak on
-    Kubernetes pod termination, `docker stop`, and CI job cancellation.
-
-    Raising SystemExit instead lets the surrounding `with` blocks run
-    their `__exit__` methods, cleaning up tmp dirs and closing DB
-    handles before the process exits with the conventional
-    128 + signal number = 143 status code.
-
-    Limitations:
-      - No effect on SIGKILL or OOM-kill (both uncatchable by design).
-        Container teardown of /tmp is the only mitigation in those cases.
-      - No-op when called from a non-main thread (`signal.signal`
-        rejects that), so workers that import this module remain safe.
-    """
-    if threading.current_thread() is not threading.main_thread():
-        yield
-        return
-
-    def _handle_sigterm(signum, frame):
-        raise SystemExit(128 + signum)
-
-    old_handler = signal.signal(signal.SIGTERM, _handle_sigterm)
-    try:
-        yield
-    finally:
-        signal.signal(signal.SIGTERM, old_handler)
 
 READ_CLASSIFICATION_COLUMNS = [
     "read_id",
@@ -229,7 +192,7 @@ def classify_reads_by_contig(
     if work_dir:
         file.mkdir_p(work_dir)
 
-    with _install_sigterm_cleanup_handler(), tempfile.TemporaryDirectory(
+    with tempfile.TemporaryDirectory(
         prefix="virnucpro_reads_", dir=work_dir
     ) as tmp_dir:
         normalized_paf, n_alignments, n_skipped = _prepare_augmented_paf_file(
