@@ -13,45 +13,6 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# CVE-2026-23949 — jaraco.context path traversal in tarball extraction
-# Severity: HIGH (NVD scored AV:N/S:C — see scoring dispute below)
-# Package: setuptools (vendored at setuptools/_vendor/jaraco/context.py)
-# Installed: setuptools 79.x (vendored jaraco.context 5.3.0)
-# Fix: jaraco.context >= 6.1.0 (installed in conda env, but setuptools
-#      vendors its own copy which we cannot delete — setuptools imports
-#      jaraco.text and jaraco.context at runtime for pkg_resources)
-#
-# JUSTIFICATION:
-#   1. The vulnerability is in archive extraction (tarball() context manager).
-#      setuptools uses this only during "pip install" of source distributions.
-#      Our containers run pip install at BUILD TIME only, from trusted sources
-#      (PyPI, conda-forge). No pip installs happen at runtime.
-#
-#   2. Even if an attacker could trigger pip install at runtime (which would
-#      require code execution inside the container), the path traversal only
-#      writes files WITHIN the container. The attacker already has code
-#      execution — they can write files anywhere in the container without
-#      needing this vulnerability. It grants no new capability.
-#
-#   3. Containers are ephemeral batch jobs. Any files written (malicious or
-#      otherwise) are destroyed when the job completes. There is no
-#      persistence, no lateral movement, and no host boundary crossing.
-#
-#   4. NVD SCORING DISPUTE: NVD scored this AV:N/AC:L/PR:N/UI:N/S:C/C:H,
-#      which assumes a network-facing service extracting untrusted archives
-#      where the traversal crosses a trust boundary. In our deployment model,
-#      there is no network-facing service, the archives come from trusted
-#      sources, and the "boundary" is a container that will be destroyed.
-#      The Rego policy cannot filter this because NVD mis-scored the attack
-#      vector as Network (AV:N) rather than Local (AV:L).
-#
-# RESOLUTION: Will self-resolve when setuptools releases a version with
-#   updated vendored dependencies (jaraco.context >= 6.1.0).
-# ADDED: 2026-03-19
-# -----------------------------------------------------------------------------
-CVE-2026-23949
-
-# -----------------------------------------------------------------------------
 # CVE-2020-25649 — jackson-databind XXE in DOMDeserializer
 # Severity: HIGH (AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N)
 # Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
