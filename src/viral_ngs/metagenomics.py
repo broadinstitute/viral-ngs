@@ -41,6 +41,7 @@ from .classify import kma
 from .classify import kraken2
 from .classify import krona
 from .classify import kb
+from .classify import virnucpro
 from .classify.taxonomy import (
     TaxIdError, TaxonomyDb, BlastRecord, blast_records, paired_query_id,
     blast_m8_taxids, extract_tax_id, coverage_lca, parents_to_children,
@@ -469,6 +470,144 @@ def main_kma_build(ref_fasta, db_prefix, threads=None):
     kma_tool.build(ref_fasta, db_prefix, num_threads=threads)
 
 __commands__.append(('kma_build', parser_kma_build))
+
+
+def parser_virnucpro(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_fasta', help='Input nucleotide sequences, FASTA format.')
+    parser.add_argument(
+        '--outPredictionsTsv', '--out-predictions-tsv',
+        dest='out_predictions_tsv',
+        required=True,
+        help='Output VirNucPro per-sequence predictions TSV.'
+    )
+    parser.add_argument(
+        '--outHighestscoreTsv', '--out-highestscore-tsv',
+        dest='out_highestscore_tsv',
+        required=True,
+        help='Output VirNucPro highest-score consensus TSV.'
+    )
+    parser.add_argument(
+        '--modelType', '--model-type',
+        dest='model_type',
+        choices=virnucpro.VirNucPro.VALID_MODEL_TYPES,
+        default='500',
+        help='VirNucPro model type. (default: %(default)s)'
+    )
+    parser.add_argument('--modelPath', '--model-path', dest='model_path', help='Path to a custom VirNucPro model.')
+    parser.add_argument(
+        '--expectedLength', '--expected-length',
+        dest='expected_length',
+        type=int,
+        choices=virnucpro.VirNucPro.VALID_EXPECTED_LENGTHS,
+        help='Expected sequence length. Must be 300 or 500.'
+    )
+    parser.add_argument('--outputDir', '--output-dir', dest='output_dir', help='VirNucPro working output directory.')
+    parser.add_argument('--device', default='auto', help='VirNucPro device setting. (default: %(default)s)')
+    parser.add_argument('--parallel', action='store_true', help='Enable VirNucPro parallel mode.')
+    parser.add_argument('--persistentModels', '--persistent-models', dest='persistent_models', action='store_true',
+                        help='Keep models resident in GPU memory between stages.')
+    parser.add_argument('--resume', action='store_true', help='Resume from VirNucPro checkpoints.')
+    parser.add_argument('--keepIntermediate', '--keep-intermediate', dest='keep_intermediate', action='store_true',
+                        help='Keep VirNucPro intermediate files.')
+    parser.add_argument('--batchSize', '--batch-size', dest='batch_size', type=int, help='VirNucPro prediction batch size.')
+    parser.add_argument('--numWorkers', '--num-workers', dest='num_workers', type=int, help='VirNucPro worker count.')
+    parser.add_argument('--esmBatchSize', '--esm-batch-size', dest='esm_batch_size', type=int,
+                        help='ESM token batch size.')
+    parser.add_argument('--dnabertBatchSize', '--dnabert-batch-size', dest='dnabert_batch_size', type=int,
+                        help='DNABERT batch size.')
+    parser.add_argument('--gpus', help='Comma-separated GPU IDs for VirNucPro.')
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_virnucpro, split_args=True)
+    return parser
+
+
+def main_virnucpro(
+    in_fasta,
+    out_predictions_tsv,
+    out_highestscore_tsv,
+    model_type='500',
+    model_path=None,
+    expected_length=None,
+    output_dir=None,
+    device='auto',
+    parallel=False,
+    persistent_models=False,
+    resume=False,
+    keep_intermediate=False,
+    batch_size=None,
+    num_workers=None,
+    esm_batch_size=None,
+    dnabert_batch_size=None,
+    gpus=None,
+    threads=None,
+):
+    '''Classify nucleotide sequences with VirNucPro.'''
+    virnucpro_tool = virnucpro.VirNucPro()
+    virnucpro_tool.predict(
+        in_fasta,
+        out_predictions_tsv,
+        out_highestscore_tsv,
+        model_type=model_type,
+        model_path=model_path,
+        expected_length=expected_length,
+        output_dir=output_dir,
+        device=device,
+        parallel=parallel,
+        persistent_models=persistent_models,
+        resume=resume,
+        keep_intermediate=keep_intermediate,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        esm_batch_size=esm_batch_size,
+        dnabert_batch_size=dnabert_batch_size,
+        gpus=gpus,
+        num_threads=threads,
+    )
+
+
+__commands__.append(('virnucpro', parser_virnucpro))
+
+
+def parser_virnucpro_contigs(parser=argparse.ArgumentParser()):
+    parser.add_argument('highestscore_tsv', help='VirNucPro highest-score TSV.')
+    parser.add_argument('output_tsv', help='Output contig classification TSV.')
+    parser.add_argument('--minViralProp', '--min-viral-prop', dest='min_viral_prop', type=float, default=0.1,
+                        help='Minimum confident viral chunk proportion. (default: %(default)s)')
+    parser.add_argument('--minNonviralProp', '--min-nonviral-prop', dest='min_nonviral_prop', type=float, default=0.1,
+                        help='Minimum confident non-viral chunk proportion. (default: %(default)s)')
+    parser.add_argument('--minChunks', '--min-chunks', dest='min_chunks', type=int, default=5,
+                        help='Minimum chunks for high/moderate confidence tiers. (default: %(default)s)')
+    parser.add_argument('--idCol', '--id-col', dest='id_col', default='Modified_ID',
+                        help='Column containing chunk/contig IDs. (default: %(default)s)')
+    parser.add_argument('--idPattern', '--id-pattern', dest='id_pattern', default=r'(NODE_\d+)',
+                        help='Regex used to extract contig group IDs. (default: %(default)s)')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_virnucpro_contigs, split_args=True)
+    return parser
+
+
+def main_virnucpro_contigs(
+    highestscore_tsv,
+    output_tsv,
+    min_viral_prop=0.1,
+    min_nonviral_prop=0.1,
+    min_chunks=5,
+    id_col='Modified_ID',
+    id_pattern=r'(NODE_\d+)',
+):
+    '''Classify contigs from VirNucPro highest-score output.'''
+    virnucpro.classify_contigs(
+        highestscore_tsv,
+        output_tsv,
+        min_viral_prop=min_viral_prop,
+        min_nonviral_prop=min_nonviral_prop,
+        min_chunks=min_chunks,
+        id_col=id_col,
+        id_pattern=id_pattern,
+    )
+
+
+__commands__.append(('virnucpro_contigs', parser_virnucpro_contigs))
 
 
 def parser_krona(parser=argparse.ArgumentParser()):

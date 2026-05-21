@@ -9,3 +9,4 @@ from . import kraken2
 from . import krona
 from . import last
 from . import taxonomy
+from . import virnucpro
