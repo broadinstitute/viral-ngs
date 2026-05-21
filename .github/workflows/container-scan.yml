@@ -432,7 +432,10 @@ jobs:
     permissions:
       contents: write       # push the auto-fix branch
       pull-requests: write  # open the PR
-      issues: read          # list currently-open `cve` issues
+      issues: write         # list open `cve` issues + apply labels via gh pr create
+                            # (label application is issue-scoped in the GH API; the
+                            #  `cve-fix` and `security` labels themselves are managed
+                            #  manually in the repo, NOT created by the workflow)
       id-token: write       # OIDC → GCP WIF for Vertex AI
     steps:
       - name: Checkout repository
@@ -734,16 +737,6 @@ jobs:
             echo "decision=skip" >> "$GITHUB_OUTPUT"
             echo "::notice::Claude recommends skipping; decision log will be uploaded as an artifact"
           fi
-
-      - name: Ensure cve-fix label exists
-        if: steps.decide.outputs.decision == 'proceed'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh label create cve-fix \
-            --color 0E8A16 \
-            --description "Auto-fix PR addressing one or more CVE issues" \
-            --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
 
       - name: Open auto-fix PR
         if: steps.decide.outputs.decision == 'proceed'
