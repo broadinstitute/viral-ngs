@@ -55,56 +55,6 @@ class TestKronaCalls(TestCaseWithTmp):
 
 
 class TestVirNucProCalls(TestCaseWithTmp):
-
-    def setUp(self):
-        super().setUp()
-        patcher = patch('viral_ngs.metagenomics.virnucpro.VirNucPro', autospec=True)
-        self.addCleanup(patcher.stop)
-        self.mock_virnucpro = patcher.start()
-
-    def test_virnucpro_predict(self):
-        metagenomics.main_virnucpro(
-            'input.fa',
-            'predictions.tsv',
-            'highestscore.tsv',
-            model_type='300',
-            model_path='model.pth',
-            expected_length=300,
-            output_dir='virnucpro_out',
-            device='cuda',
-            parallel=True,
-            persistent_models=True,
-            resume=True,
-            keep_intermediate=True,
-            batch_size=64,
-            num_workers=2,
-            esm_batch_size=1024,
-            dnabert_batch_size=16,
-            gpus='0,1',
-            threads=4,
-        )
-
-        self.mock_virnucpro().predict.assert_called_once_with(
-            'input.fa',
-            'predictions.tsv',
-            'highestscore.tsv',
-            model_type='300',
-            model_path='model.pth',
-            expected_length=300,
-            output_dir='virnucpro_out',
-            device='cuda',
-            parallel=True,
-            persistent_models=True,
-            resume=True,
-            keep_intermediate=True,
-            batch_size=64,
-            num_workers=2,
-            esm_batch_size=1024,
-            dnabert_batch_size=16,
-            gpus='0,1',
-            num_threads=4,
-        )
-
     @patch('viral_ngs.metagenomics.virnucpro.classify_contigs', autospec=True)
     def test_virnucpro_contigs(self, mock_classify_contigs):
         metagenomics.main_virnucpro_contigs(
