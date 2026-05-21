@@ -1,0 +1,24 @@
+src/viral_ngs/classify/genomad.py
+  s_0f67c5206f2dfc::t_235877d451a8a6 85-89,97-106,121-129,143-164,168-200
+  s_0f67c5206f2dfc::t_3cd17d5fb8b615 117-120
+src/viral_ngs/metagenomics.py
+  s_0f67c5206f2dfc::t_83226d2ab4466c 1377-1424,1428-1432,1437-1452
+tests/unit/classify/test_genomad.py
+  s_0f67c5206f2dfc::t_c6398abef34644 53-113,194-199,209-218,238-246,258-267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "09a10bd9c8d8b78a23073af9f1a2bbe76741a3cd",
+  "prompts": {},
+  "sessions": {
+    "s_0f67c5206f2dfc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4024-49ab-7343-b6e5-0de51099fb94",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
