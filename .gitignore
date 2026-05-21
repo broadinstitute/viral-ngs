@@ -83,5 +83,7 @@ tools/conda-tools/
 .vscode/
 vulnerability-mitigation-status.md
 
-# CI CVE triage output (written by Claude in container-scan.yml)
+# CI CVE triage + auto-fix output (written by Claude in container-scan.yml)
 .claude-issues/
+.cve-fix-context/
+.claude-fix-pr/
