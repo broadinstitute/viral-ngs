@@ -85,6 +85,29 @@ def test_centrifuger_parser_invokes_tool():
         )
 
 
+def test_centrifuger_parser_defaults_to_k_one():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args([
+            'db',
+            'input.bam',
+            'out.tsv',
+        ])
+        args.func_main(args)
+
+        mock_centrifuger.return_value.classify.assert_called_once_with(
+            'input.bam',
+            'db',
+            'out.tsv',
+            k=1,
+            unclassified_prefix=None,
+            classified_prefix=None,
+            min_hitlen=None,
+            hitk_factor=None,
+            merge_readpair=False,
+            num_threads=_CPUS,
+        )
+
+
 def test_centrifuger_build_parser_invokes_tool():
     with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
         args = [

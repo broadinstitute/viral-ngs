@@ -476,7 +476,8 @@ def parser_centrifuger(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Centrifuger database prefix.')
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
     parser.add_argument('out_classification', help='Centrifuger per-read classification output file.')
-    parser.add_argument('--k', type=int, help='Report top k classification results for each read.')
+    parser.add_argument('--k', type=int, default=1,
+                        help='Report top k classification results for each read. Default: 1.')
     parser.add_argument('--unclassified_prefix', help='Output prefix for unclassified reads.')
     parser.add_argument('--classified_prefix', help='Output prefix for classified reads.')
     parser.add_argument('--min_hitlen', type=int, help='Minimum total length of matched segments.')
@@ -487,7 +488,7 @@ def parser_centrifuger(parser=argparse.ArgumentParser()):
     return parser
 
 
-def main_centrifuger(db, in_bam, out_classification, k=None,
+def main_centrifuger(db, in_bam, out_classification, k=1,
                     unclassified_prefix=None, classified_prefix=None,
                     min_hitlen=None, hitk_factor=None,
                     merge_readpair=False, threads=None):

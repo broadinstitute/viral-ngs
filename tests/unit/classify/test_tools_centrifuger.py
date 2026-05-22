@@ -188,6 +188,7 @@ def test_classify_paired_end_from_bam(centrifuger_tool, centrifuger_inputs):
         assert util_misc.list_contains(['-1', 'paired.1.fastq'], args)
         assert util_misc.list_contains(['-2', 'paired.2.fastq'], args)
         assert '-u' not in args
+        assert util_misc.list_contains(['-k', '1'], args)
         expected_threads = str(util_misc.sanitize_thread_count(2))
         assert util_misc.list_contains(['-t', expected_threads], args)
         picard.execute.assert_called_once_with(
@@ -219,6 +220,11 @@ def test_classify_returns_early_when_bam_is_empty(
         mock_check_call.assert_not_called()
         picard_cls.assert_not_called()
         mocked_open.assert_called_once_with('out.tsv', 'wt')
+        handle = mocked_open.return_value.__enter__.return_value
+        handle.write.assert_called_once_with(
+            'readID\tseqID\ttaxID\tscore\t2ndBestScore\t'
+            'hitLength\tqueryLength\tnumMatches\n'
+        )
 
 
 def test_classify_missing_bam_raises_file_not_found(
@@ -255,6 +261,107 @@ def test_quant_invokes_centrifuger_quant_with_expected_arguments(
         assert util_misc.list_contains(['--min-length', '50'], args)
         assert util_misc.list_contains(['--output-format', '1'], args)
         mocked_open.assert_called_once_with('quant.tsv', 'wt')
+
+
+def test_classification_to_kraken2_maps_classified_rows(tmp_path):
+    classification = tmp_path / 'classification.tsv'
+    classification.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+        'read1\tNC_002549.1\t186538\t8692\t0\t160\t204\t1\n'
+        'read2\tunclassified\t0\t0\t0\t0\t150\t1\n'
+        'read3\tNC_006432.1\t186540\t1234\t0\t95\t100\t1\n'
+    )
+    output = tmp_path / 'kraken2.tsv'
+
+    centrifuger.Centrifuger.classification_to_kraken2(
+        str(classification),
+        str(output),
+    )
+
+    assert output.read_text() == (
+        'C\tread1\t186538\t204\tN/A\n'
+        'C\tread3\t186540\t100\tN/A\n'
+    )
+
+
+def test_classification_to_kraken2_writes_gzipped_output(tmp_path):
+    classification = tmp_path / 'classification.tsv'
+    classification.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+        'read1\tNC_002549.1\t186538\t8692\t0\t160\t204\t1\n'
+    )
+    output = tmp_path / 'kraken2.tsv.gz'
+
+    centrifuger.Centrifuger.classification_to_kraken2(
+        str(classification),
+        str(output),
+    )
+
+    with util_file.open_or_gzopen(str(output), 'rt') as inf:
+        assert inf.read() == 'C\tread1\t186538\t204\tN/A\n'
+
+
+def test_classification_to_kraken2_writes_zstd_output(tmp_path):
+    classification = tmp_path / 'classification.tsv'
+    classification.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+        'read1\tNC_002549.1\t186538\t8692\t0\t160\t204\t1\n'
+    )
+    output = tmp_path / 'kraken2.tsv.zst'
+
+    centrifuger.Centrifuger.classification_to_kraken2(
+        str(classification),
+        str(output),
+    )
+
+    with util_file.open_or_gzopen(str(output), 'rt') as inf:
+        assert inf.read() == 'C\tread1\t186538\t204\tN/A\n'
+
+
+def test_classification_to_kraken2_header_only_writes_empty_output(tmp_path):
+    classification = tmp_path / 'classification.tsv'
+    classification.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+    )
+    output = tmp_path / 'kraken2.tsv'
+
+    centrifuger.Centrifuger.classification_to_kraken2(
+        str(classification),
+        str(output),
+    )
+
+    assert output.read_text() == ''
+
+
+def test_classification_to_kraken2_rejects_malformed_rows(tmp_path):
+    classification = tmp_path / 'classification.tsv'
+    classification.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+        'read1\tNC_002549.1\t186538\n'
+    )
+    output = tmp_path / 'kraken2.tsv'
+
+    with pytest.raises(ValueError, match='Malformed Centrifuger classification row'):
+        centrifuger.Centrifuger.classification_to_kraken2(
+            str(classification),
+            str(output),
+        )
+
+
+def test_classification_to_kraken2_rejects_duplicate_classified_read_ids(tmp_path):
+    classification = tmp_path / 'classification.tsv'
+    classification.write_text(
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n'
+        'read1\tNC_002549.1\t186538\t8692\t8692\t160\t204\t2\n'
+        'read1\tNC_006432.1\t186540\t8692\t8692\t160\t204\t2\n'
+    )
+    output = tmp_path / 'kraken2.tsv'
+
+    with pytest.raises(ValueError, match='Expected k=1 input'):
+        centrifuger.Centrifuger.classification_to_kraken2(
+            str(classification),
+            str(output),
+        )
 
 
 def test_kreport_invokes_centrifuger_kreport_with_expected_arguments(

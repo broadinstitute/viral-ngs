@@ -1,6 +1,7 @@
 '''
 Centrifuger metagenomics classifier.
 '''
+import csv
 import logging
 import os
 import shutil
@@ -13,6 +14,17 @@ import viral_ngs.core.picard as picard
 import viral_ngs.core.samtools as samtools
 
 log = logging.getLogger(__name__)
+
+CLASSIFICATION_HEADER = [
+    'readID',
+    'seqID',
+    'taxID',
+    'score',
+    '2ndBestScore',
+    'hitLength',
+    'queryLength',
+    'numMatches',
+]
 
 
 class Centrifuger(core.Tool):
@@ -97,7 +109,7 @@ class Centrifuger(core.Tool):
 
         self.execute('centrifuger-build', options=opts)
 
-    def classify(self, in_bam, db, output, k=None, unclassified_prefix=None,
+    def classify(self, in_bam, db, output, k=1, unclassified_prefix=None,
                  classified_prefix=None, min_hitlen=None, hitk_factor=None,
                  merge_readpair=False, num_threads=None):
         '''Classify reads from an unaligned BAM file.'''
@@ -105,8 +117,8 @@ class Centrifuger(core.Tool):
             raise FileNotFoundError(in_bam)
         if samtools.SamtoolsTool().isEmpty(in_bam):
             log.warning('Input BAM is empty, skipping Centrifuger classification')
-            with open(output, 'wt'):
-                pass
+            with open(output, 'wt') as outf:
+                outf.write('\t'.join(CLASSIFICATION_HEADER) + '\n')
             return
 
         tmp_fastq1 = util_file.mkstempfname('.1.fastq')
@@ -172,6 +184,49 @@ class Centrifuger(core.Tool):
             opts['--output-format'] = output_format
 
         self.execute('centrifuger-quant', output=output, options=opts)
+
+    @staticmethod
+    def classification_to_kraken2(classification, output):
+        '''Convert Centrifuger classification TSV to Kraken2-style read TSV.
+
+        This assumes the Centrifuger classification was produced with k=1.
+        The output contains one classified Kraken2-style row per classified
+        Centrifuger row and omits unclassified reads.
+        '''
+        previous_classified_read_id = None
+
+        with util_file.open_or_gzopen(str(classification), 'rt') as inf, \
+                util_file.open_or_gzopen(str(output), 'wt') as outf:
+            header = inf.readline()
+            if not header:
+                return
+            writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
+
+            for line_no, line in enumerate(inf, start=2):
+                if not line.strip():
+                    continue
+                cols = line.rstrip('\n').split('\t')
+                if len(cols) < 7:
+                    raise ValueError(
+                        'Malformed Centrifuger classification row '
+                        f'at line {line_no}: expected at least 7 columns'
+                    )
+
+                read_id = cols[0]
+                seq_id = cols[1]
+                tax_id = cols[2]
+                query_length = cols[6]
+
+                if tax_id == '0' or seq_id == 'unclassified':
+                    continue
+                if read_id == previous_classified_read_id:
+                    raise ValueError(
+                        'Consecutive duplicate classified readID in Centrifuger output: '
+                        f'{read_id}. Expected k=1 input.'
+                    )
+
+                previous_classified_read_id = read_id
+                writer.writerow(['C', read_id, tax_id, query_length, 'N/A'])
 
     def kreport(self, db, classification, output, no_lca=False,
                 show_zeros=False, is_count_table=False, min_score=None,
