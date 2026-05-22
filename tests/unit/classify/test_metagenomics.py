@@ -208,15 +208,23 @@ def test_centrifuger_kreport_parser_invokes_tool():
 class TestVirNucProCalls(TestCaseWithTmp):
     @patch('viral_ngs.metagenomics.virnucpro.classify_contigs', autospec=True)
     def test_virnucpro_contigs(self, mock_classify_contigs):
-        metagenomics.main_virnucpro_contigs(
+        args = metagenomics.parser_virnucpro_contigs(
+            argparse.ArgumentParser()
+        ).parse_args([
             'highestscore.tsv',
             'contigs.tsv',
-            min_viral_prop=0.2,
-            min_nonviral_prop=0.3,
-            min_chunks=7,
-            id_col='Modified_ID',
-            id_pattern=r'(NODE_\d+)',
-        )
+            '--min-viral-prop', '0.2',
+            '--min-nonviral-prop', '0.3',
+            '--min-chunks', '7',
+            '--min-confident-score', '0.75',
+            '--max-opposing-score', '0.25',
+            '--min-ambiguous-score', '0.65',
+            '--min-weighted-delta', '0.35',
+            '--high-confidence-delta', '0.55',
+            '--id-col', 'Modified_ID',
+            '--id-pattern', r'(NODE_\d+)',
+        ])
+        args.func_main(args)
 
         mock_classify_contigs.assert_called_once_with(
             'highestscore.tsv',
@@ -224,6 +232,11 @@ class TestVirNucProCalls(TestCaseWithTmp):
             min_viral_prop=0.2,
             min_nonviral_prop=0.3,
             min_chunks=7,
+            min_confident_score=0.75,
+            max_opposing_score=0.25,
+            min_ambiguous_score=0.65,
+            min_weighted_delta=0.35,
+            high_confidence_delta=0.55,
             id_col='Modified_ID',
             id_pattern=r'(NODE_\d+)',
         )

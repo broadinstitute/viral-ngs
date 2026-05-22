@@ -657,6 +657,21 @@ def parser_virnucpro_contigs(parser=argparse.ArgumentParser()):
                         help='Minimum confident non-viral chunk proportion. (default: %(default)s)')
     parser.add_argument('--minChunks', '--min-chunks', dest='min_chunks', type=int, default=5,
                         help='Minimum chunks for high/moderate confidence tiers. (default: %(default)s)')
+    parser.add_argument('--minConfidentScore', '--min-confident-score', dest='min_confident_score',
+                        type=float, default=0.8,
+                        help='Minimum winning class score for a chunk to count as confident. (default: %(default)s)')
+    parser.add_argument('--maxOpposingScore', '--max-opposing-score', dest='max_opposing_score',
+                        type=float, default=0.3,
+                        help='Maximum opposing class score for a chunk to count as confident. (default: %(default)s)')
+    parser.add_argument('--minAmbiguousScore', '--min-ambiguous-score', dest='min_ambiguous_score',
+                        type=float, default=0.7,
+                        help='Minimum score in both classes for a chunk to count as ambiguous. (default: %(default)s)')
+    parser.add_argument('--minWeightedDelta', '--min-weighted-delta', dest='min_weighted_delta',
+                        type=float, default=0.3,
+                        help='Minimum absolute weighted score delta required for a viral/non-viral call. (default: %(default)s)')
+    parser.add_argument('--highConfidenceDelta', '--high-confidence-delta', dest='high_confidence_delta',
+                        type=float, default=0.6,
+                        help='Minimum absolute weighted score delta required for high-confidence tiers. (default: %(default)s)')
     parser.add_argument('--idCol', '--id-col', dest='id_col', default='Modified_ID',
                         help='Column containing chunk/contig IDs. (default: %(default)s)')
     parser.add_argument('--idPattern', '--id-pattern', dest='id_pattern', default=r'(NODE\_\d+)',
@@ -672,16 +687,40 @@ def main_virnucpro_contigs(
     min_viral_prop=0.1,
     min_nonviral_prop=0.1,
     min_chunks=5,
+    min_confident_score=0.8,
+    max_opposing_score=0.3,
+    min_ambiguous_score=0.7,
+    min_weighted_delta=0.3,
+    high_confidence_delta=0.6,
     id_col='Modified_ID',
     id_pattern=r'(NODE\_\d+)',
 ):
-    '''Classify contigs from VirNucPro highest-score output.'''
+    '''
+        Classify contigs from VirNucPro highest-score output.
+
+        VirNucPro produces two raw prediction tables whose names are not
+        self-explanatory:
+
+        * ``prediction_results.txt`` contains one row per translated
+          sequence/chunk scored by the model. In the original implementation,
+          this has ``Sequence_ID``, ``Prediction``, ``score1``, and ``score2``.
+        * ``prediction_results_highestscore.csv`` is the per-input-contig
+          summary derived from ``prediction_results.txt``. Despite the ``.csv``
+          suffix, the original implementation writes it as a tab-delimited
+          table. This highest-score summary is the input expected by this
+          command, often passed through viral-ngs/WDL as ``highestscore_tsv``.
+    '''
     virnucpro.classify_contigs(
         highestscore_tsv,
         output_tsv,
         min_viral_prop=min_viral_prop,
         min_nonviral_prop=min_nonviral_prop,
         min_chunks=min_chunks,
+        min_confident_score=min_confident_score,
+        max_opposing_score=max_opposing_score,
+        min_ambiguous_score=min_ambiguous_score,
+        min_weighted_delta=min_weighted_delta,
+        high_confidence_delta=high_confidence_delta,
         id_col=id_col,
         id_pattern=id_pattern,
     )
@@ -730,7 +769,24 @@ def main_virnucpro_label_reads_by_contig(
     duckdb_memory_limit=None,
     work_dir=None,
 ):
-    '''Label reads with the VirNucPro viral classification of their best-mapping contig.'''
+    '''
+        Label reads with the VirNucPro classification of their best-mapping
+        contig.
+
+        The output is a tab-delimited, one-row-per-read table. Each row
+        preserves the selected PAF alignment context (read length, contig,
+        contig length, strand, mapping quality, percent identity, percent
+        query coverage) and appends the VirNucPro contig-level call/tier and
+        supporting chunk summary metrics.
+
+        The selected contig is the best primary alignment for each read,
+        ordered by mapping quality, then percent identity, then input order.
+        ``mapped_well`` is a boolean flag derived from ``--min-mapq``,
+        ``--min-identity``, and ``--min-query-cov``. Reads with primary
+        alignments to contigs carrying different VirNucPro calls are labeled
+        ``Multi-mapped``. Reads whose selected contig has no VirNucPro
+        classification are labeled ``Unclassified``.
+    '''
     virnucpro.classify_reads_by_contig(
         paf_file,
         contig_classifications,

@@ -37,6 +37,54 @@ def test_classify_contigs_writes_sorted_contig_calls(tmp_path):
     assert tiers["NODE_3_length_100"] == "review"
 
 
+def test_classify_contigs_uses_custom_score_thresholds(tmp_path):
+    highestscore_tsv = tmp_path / "highestscore.tsv"
+    output_tsv = tmp_path / "contigs.tsv"
+    highestscore_tsv.write_text(
+        "Modified_ID\tIs_Virus\tmax_score_0\tmax_score_1\n"
+        "NODE_1_chunk_1\tTrue\t0.25\t0.75\n"
+        "NODE_2_chunk_1\tFalse\t0.65\t0.65\n"
+        "NODE_3_chunk_1\tTrue\t0.45\t0.72\n"
+    )
+
+    virnucpro.classify_contigs(
+        str(highestscore_tsv),
+        str(output_tsv),
+        min_chunks=1,
+        min_confident_score=0.7,
+        max_opposing_score=0.3,
+        min_ambiguous_score=0.6,
+        min_weighted_delta=0.25,
+        high_confidence_delta=0.4,
+    )
+
+    result = pd.read_csv(output_tsv, sep="\t")
+    result_by_id = result.set_index("ID")
+    assert result_by_id.loc["NODE_1", "call"] == "Viral"
+    assert result_by_id.loc["NODE_1", "tier"] == "high_confidence"
+    assert result_by_id.loc["NODE_2", "n_ambiguous"] == 1
+    assert result_by_id.loc["NODE_3", "call"] == "Viral"
+
+
+@pytest.mark.parametrize(
+    "contents",
+    [
+        "",
+        "Modified_ID\tIs_Virus\tmax_score_0\tmax_score_1\n",
+    ],
+)
+def test_classify_contigs_writes_header_for_empty_input(tmp_path, contents):
+    highestscore_tsv = tmp_path / "highestscore.tsv"
+    output_tsv = tmp_path / "contigs.tsv"
+    highestscore_tsv.write_text(contents)
+
+    virnucpro.classify_contigs(str(highestscore_tsv), str(output_tsv))
+
+    result = pd.read_csv(output_tsv, sep="\t")
+    assert list(result.columns) == virnucpro.CONTIG_CLASSIFICATION_COLUMNS
+    assert result.empty
+
+
 def test_classify_contigs_rejects_missing_required_columns(tmp_path):
     highestscore_tsv = tmp_path / "highestscore.tsv"
     highestscore_tsv.write_text("Modified_ID\tmax_score_0\nNODE_1_chunk_1\t0.1\n")
