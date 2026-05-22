@@ -39,6 +39,9 @@ jobs:
           # precedent CVE-fix commits (e.g., to mirror past mitigation patterns exactly).
           fetch-depth: 0
 
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
+
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
@@ -63,6 +66,7 @@ jobs:
           ignore-unfixed: true
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
+          scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
 
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
@@ -75,6 +79,7 @@ jobs:
           ignore-unfixed: true
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
+          scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
 
       - name: Log scan result count
         if: always()

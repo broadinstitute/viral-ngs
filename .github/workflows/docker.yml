@@ -1006,18 +1006,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Free up disk space for container scans
-        run: |
-          echo "=== Before cleanup ==="
-          df -h
-          # Remove pre-installed software to free ~10GB
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
-          echo "=== After cleanup ==="
-          df -h
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -1102,18 +1092,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Free up disk space for secret scans
-        run: |
-          echo "=== Before cleanup ==="
-          df -h
-          # Remove pre-installed software to free ~10GB
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
-          echo "=== After cleanup ==="
-          df -h
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -1173,6 +1153,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
+
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1214,6 +1197,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
+
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1247,6 +1233,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1288,6 +1277,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1321,6 +1313,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1362,6 +1357,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1395,6 +1393,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1436,6 +1437,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
