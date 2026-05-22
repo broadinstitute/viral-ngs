@@ -40,6 +40,7 @@ from . import read_utils
 from .classify import kma
 from .classify import kraken2
 from .classify import krona
+from .classify import centrifuger
 from .classify import kb
 from .classify import genomad
 from .classify.taxonomy import (
@@ -470,6 +471,180 @@ def main_kma_build(ref_fasta, db_prefix, threads=None):
     kma_tool.build(ref_fasta, db_prefix, num_threads=threads)
 
 __commands__.append(('kma_build', parser_kma_build))
+
+
+def parser_centrifuger(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Centrifuger database prefix.')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('out_classification', help='Centrifuger per-read classification output file.')
+    parser.add_argument('--k', type=int, default=1,
+                        help='Report top k classification results for each read. Default: 1.')
+    parser.add_argument('--unclassified_prefix', help='Output prefix for unclassified reads.')
+    parser.add_argument('--classified_prefix', help='Output prefix for classified reads.')
+    parser.add_argument('--min_hitlen', type=int, help='Minimum total length of matched segments.')
+    parser.add_argument('--hitk_factor', type=int, help='Centrifuger hit-k factor.')
+    parser.add_argument('--merge_readpair', action='store_true', help='Merge paired reads before classification.')
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger, split_args=True)
+    return parser
+
+
+def main_centrifuger(db, in_bam, out_classification, k=1,
+                    unclassified_prefix=None, classified_prefix=None,
+                    min_hitlen=None, hitk_factor=None,
+                    merge_readpair=False, threads=None):
+    '''
+        Classify reads by taxon using Centrifuger.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.classify(
+        in_bam,
+        db,
+        out_classification,
+        k=k,
+        unclassified_prefix=unclassified_prefix,
+        classified_prefix=classified_prefix,
+        min_hitlen=min_hitlen,
+        hitk_factor=hitk_factor,
+        merge_readpair=merge_readpair,
+        num_threads=threads,
+    )
+
+
+__commands__.append(('centrifuger', parser_centrifuger))
+
+
+def parser_centrifuger_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('db_prefix', help='Centrifuger database output prefix.')
+    parser.add_argument('taxonomy_tree', help='NCBI taxonomy nodes.dmp file.')
+    parser.add_argument('name_table', help='NCBI taxonomy names.dmp file.')
+    parser.add_argument('--ref_fastas', nargs='+', help='Reference FASTA files.')
+    parser.add_argument('--ref_list', help='File containing reference FASTA paths, one per line.')
+    parser.add_argument('--conversion_table', help='Sequence ID to taxonomy ID mapping file.')
+    parser.add_argument('--build_mem', help='Memory target for centrifuger-build.')
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_build, split_args=True)
+    return parser
+
+
+def main_centrifuger_build(db_prefix, taxonomy_tree, name_table,
+                          ref_fastas=None, ref_list=None,
+                          conversion_table=None, build_mem=None,
+                          threads=None):
+    '''
+        Build a Centrifuger database.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.build(
+        db_prefix,
+        taxonomy_tree,
+        name_table,
+        ref_fastas=ref_fastas,
+        ref_list=ref_list,
+        conversion_table=conversion_table,
+        build_mem=build_mem,
+        num_threads=threads,
+    )
+
+
+__commands__.append(('centrifuger_build', parser_centrifuger_build))
+
+
+def parser_centrifuger_quant(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Centrifuger database prefix.')
+    parser.add_argument('classification', help='Centrifuger classification output file.')
+    parser.add_argument('output', help='Centrifuger quantification output file.')
+    parser.add_argument('--min_score', type=int, help='Minimum score to include a read.')
+    parser.add_argument('--min_length', type=int, help='Minimum read length to include.')
+    parser.add_argument('--output_format', type=int, help='Centrifuger quant output format.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_quant, split_args=True)
+    return parser
+
+
+def main_centrifuger_quant(db, classification, output, min_score=None,
+                          min_length=None, output_format=None):
+    '''
+        Quantify Centrifuger classification output.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.quant(
+        db,
+        classification,
+        output,
+        min_score=min_score,
+        min_length=min_length,
+        output_format=output_format,
+    )
+
+
+__commands__.append(('centrifuger_quant', parser_centrifuger_quant))
+
+
+def parser_centrifuger_classification_to_kraken2(parser=argparse.ArgumentParser()):
+    parser.add_argument('classification', help='Centrifuger per-read classification output file.')
+    parser.add_argument('output', help='Kraken2-style per-read classification output file.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_classification_to_kraken2, split_args=True)
+    return parser
+
+
+def main_centrifuger_classification_to_kraken2(classification, output):
+    '''
+        Convert Centrifuger per-read classification output to Kraken2-style
+        per-read classification output.
+    '''
+    centrifuger.Centrifuger.classification_to_kraken2(classification, output)
+
+
+__commands__.append((
+    'centrifuger_classification_to_kraken2',
+    parser_centrifuger_classification_to_kraken2,
+))
+
+
+def parser_centrifuger_kreport(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Centrifuger database prefix.')
+    parser.add_argument('classification', help='Centrifuger classification output file.')
+    parser.add_argument('output', help='Kraken-style hierarchical report output file.')
+    parser.add_argument('--no_lca', action='store_true',
+                        help='Do not promote multi-assignment reads to their LCA; report counts at the original taxa.')
+    parser.add_argument('--show_zeros', action='store_true',
+                        help='Include taxa with zero reads in the report.')
+    parser.add_argument('--is_count_table', action='store_true',
+                        help='Input is a taxID<TAB>count table instead of the standard centrifuger output.')
+    parser.add_argument('--min_score', type=int, help='Minimum score for reads to be counted.')
+    parser.add_argument('--min_length', type=int, help='Minimum alignment length for reads to be counted.')
+    parser.add_argument('--report_score_data', action='store_true',
+                        help='Append an extra column summarizing classification scores.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_kreport, split_args=True)
+    return parser
+
+
+def main_centrifuger_kreport(db, classification, output, no_lca=False,
+                             show_zeros=False, is_count_table=False,
+                             min_score=None, min_length=None,
+                             report_score_data=False):
+    '''
+        Produce a Kraken-style hierarchical report from a Centrifuger
+        classification output file.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.kreport(
+        db,
+        classification,
+        output,
+        no_lca=no_lca,
+        show_zeros=show_zeros,
+        is_count_table=is_count_table,
+        min_score=min_score,
+        min_length=min_length,
+        report_score_data=report_score_data,
+    )
+
+
+__commands__.append(('centrifuger_kreport', parser_centrifuger_kreport))
 
 
 def parser_krona(parser=argparse.ArgumentParser()):

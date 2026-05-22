@@ -14,3 +14,4 @@ kmc>=3.2.1
 kraken2>=2.1.3
 krona>=2.8.1
 last>=1541
+centrifuger>=1.0
