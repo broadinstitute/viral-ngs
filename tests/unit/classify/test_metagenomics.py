@@ -54,6 +54,157 @@ class TestKronaCalls(TestCaseWithTmp):
             no_hits=True, no_rank=True, magnitude_column=None)
 
 
+def test_centrifuger_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = [
+            'db',
+            'input.bam',
+            'out.tsv',
+            '--k', '3',
+            '--unclassified_prefix', 'unclassified',
+            '--classified_prefix', 'classified',
+            '--min_hitlen', '17',
+            '--hitk_factor', '5',
+            '--merge_readpair',
+            '--threads', '4',
+        ]
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_centrifuger.return_value.classify.assert_called_once_with(
+            'input.bam',
+            'db',
+            'out.tsv',
+            k=3,
+            unclassified_prefix='unclassified',
+            classified_prefix='classified',
+            min_hitlen=17,
+            hitk_factor=5,
+            merge_readpair=True,
+            num_threads=4,
+        )
+
+
+def test_centrifuger_parser_defaults_to_k_one():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args([
+            'db',
+            'input.bam',
+            'out.tsv',
+        ])
+        args.func_main(args)
+
+        mock_centrifuger.return_value.classify.assert_called_once_with(
+            'input.bam',
+            'db',
+            'out.tsv',
+            k=1,
+            unclassified_prefix=None,
+            classified_prefix=None,
+            min_hitlen=None,
+            hitk_factor=None,
+            merge_readpair=False,
+            num_threads=_CPUS,
+        )
+
+
+def test_centrifuger_build_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = [
+            'db_prefix',
+            'nodes.dmp',
+            'names.dmp',
+            '--ref_fastas', 'ref1.fna', 'ref2.fna',
+            '--conversion_table', 'seqid_to_taxid.map',
+            '--build_mem', '256M',
+            '--threads', '4',
+        ]
+        args = metagenomics.parser_centrifuger_build(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_centrifuger.return_value.build.assert_called_once_with(
+            'db_prefix',
+            'nodes.dmp',
+            'names.dmp',
+            ref_fastas=['ref1.fna', 'ref2.fna'],
+            ref_list=None,
+            conversion_table='seqid_to_taxid.map',
+            build_mem='256M',
+            num_threads=4,
+        )
+
+
+def test_centrifuger_quant_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = [
+            'db',
+            'classification.tsv',
+            'quant.tsv',
+            '--min_score', '10',
+            '--min_length', '50',
+            '--output_format', '1',
+        ]
+        args = metagenomics.parser_centrifuger_quant(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_centrifuger.return_value.quant.assert_called_once_with(
+            'db',
+            'classification.tsv',
+            'quant.tsv',
+            min_score=10,
+            min_length=50,
+            output_format=1,
+        )
+
+
+def test_centrifuger_classification_to_kraken2_parser_invokes_tool():
+    with patch(
+            'viral_ngs.metagenomics.centrifuger.Centrifuger.classification_to_kraken2',
+            autospec=True,
+    ) as mock_classification_to_kraken2:
+        args = [
+            'classification.tsv',
+            'kraken2.tsv',
+        ]
+        args = metagenomics.parser_centrifuger_classification_to_kraken2(
+            argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_classification_to_kraken2.assert_called_once_with(
+            'classification.tsv',
+            'kraken2.tsv',
+        )
+
+
+def test_centrifuger_kreport_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
+        args = [
+            'db',
+            'classification.tsv',
+            'kreport.tsv',
+            '--no_lca',
+            '--show_zeros',
+            '--is_count_table',
+            '--min_score', '10',
+            '--min_length', '50',
+            '--report_score_data',
+        ]
+        args = metagenomics.parser_centrifuger_kreport(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_centrifuger.return_value.kreport.assert_called_once_with(
+            'db',
+            'classification.tsv',
+            'kreport.tsv',
+            no_lca=True,
+            show_zeros=True,
+            is_count_table=True,
+            min_score=10,
+            min_length=50,
+            report_score_data=True,
+        )
+
+
 class TestVirNucProCalls(TestCaseWithTmp):
     @patch('viral_ngs.metagenomics.virnucpro.classify_contigs', autospec=True)
     def test_virnucpro_contigs(self, mock_classify_contigs):
