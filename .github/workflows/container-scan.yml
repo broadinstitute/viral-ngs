@@ -67,6 +67,7 @@ jobs:
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
+          timeout: '20m0s'  # Increase timeout for large images
 
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
@@ -80,6 +81,7 @@ jobs:
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
+          timeout: '20m0s'  # Increase timeout for large images
 
       - name: Log scan result count
         if: always()
