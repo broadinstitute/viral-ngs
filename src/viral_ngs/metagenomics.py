@@ -41,6 +41,7 @@ from .classify import kma
 from .classify import kraken2
 from .classify import krona
 from .classify import kb
+from .classify import genomad
 from .classify.taxonomy import (
     TaxIdError, TaxonomyDb, BlastRecord, blast_records, paired_query_id,
     blast_m8_taxids, extract_tax_id, coverage_lca, parents_to_children,
@@ -1368,6 +1369,88 @@ def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, 
                         protein=protein,
                         num_threads=threads)
 __commands__.append(('kb_build', parser_kb_build))
+
+def parser_genomad(parser=argparse.ArgumentParser()):
+    parser.add_argument('in_fasta', help='Input FASTA file with sequences to classify.')
+    parser.add_argument('database', help='Path to geNomad database directory.')
+    parser.add_argument('out_dir', help='Output directory for geNomad results.')
+    parser.add_argument('--cleanup', action='store_true', help='Delete intermediate files after execution.')
+    parser.add_argument('--restart', action='store_true', help='Overwrite existing intermediate files.')
+    parser.add_argument(
+        '--filterPreset', '--filter-preset',
+        dest='filter_preset',
+        choices=('conservative', 'relaxed'),
+        help='geNomad summary filtering preset.'
+    )
+    parser.add_argument(
+        '--enableScoreCalibration', '--enable-score-calibration',
+        dest='enable_score_calibration',
+        action='store_true',
+        help='Execute geNomad score calibration module.'
+    )
+    parser.add_argument(
+        '--composition',
+        choices=('auto', 'metagenome', 'virome'),
+        help='Sample composition for score calibration.'
+    )
+    parser.add_argument(
+        '--minScore', '--min-score',
+        dest='min_score',
+        type=float,
+        help='Minimum score to flag a sequence as virus or plasmid.'
+    )
+    parser.add_argument(
+        '--maxFdr', '--max-fdr',
+        dest='max_fdr',
+        type=float,
+        help='Maximum accepted false discovery rate.'
+    )
+    parser.add_argument(
+        '--minNumberGenes', '--min-number-genes',
+        dest='min_number_genes',
+        type=int,
+        help='Minimum number of genes required for classification.'
+    )
+    parser.add_argument(
+        '--maxUscg', '--max-uscg',
+        dest='max_uscg',
+        type=int,
+        help='Maximum allowed universal single copy genes.'
+    )
+    parser.add_argument(
+        '--splits',
+        type=int,
+        help='Split the MMseqs2 marker search to reduce memory usage.'
+    )
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_genomad, split_args=True)
+    return parser
+def main_genomad(in_fasta, database, out_dir, cleanup=False, restart=False,
+                 filter_preset=None, enable_score_calibration=False,
+                 composition=None, min_score=None, max_fdr=None,
+                 min_number_genes=None, max_uscg=None, splits=None,
+                 threads=None):
+    '''
+        Classify viral and plasmid sequences using geNomad
+    '''
+    genomad_tool = genomad.Genomad()
+    genomad_tool.end_to_end(
+        in_fasta,
+        database,
+        out_dir,
+        num_threads=threads,
+        cleanup=cleanup,
+        restart=restart,
+        filter_preset=filter_preset,
+        enable_score_calibration=enable_score_calibration,
+        composition=composition,
+        min_score=min_score,
+        max_fdr=max_fdr,
+        min_number_genes=min_number_genes,
+        max_uscg=max_uscg,
+        splits=splits,
+    )
+__commands__.append(('genomad', parser_genomad))
 
 
 def full_parser():
