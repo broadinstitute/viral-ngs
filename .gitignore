@@ -85,3 +85,10 @@ vulnerability-mitigation-status.md
 
 # CI CVE triage output (written by Claude in container-scan.yml)
 .claude-issues/
+
+# GSD planning directory (local-only)
+.planning/*
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

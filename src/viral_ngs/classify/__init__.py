@@ -2,6 +2,7 @@
 
 from . import blast
 from . import bmtagger
+from . import genomad
 from . import kb
 from . import kma
 from . import kmc

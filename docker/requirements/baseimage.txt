@@ -14,15 +14,18 @@ awscli>=1.32.0
 google-cloud-sdk>=561.0.0
 google-cloud-storage>=2.14.0
 # Note: firecloud is installed via pip in Dockerfile.baseimage because the
-# conda noarch package bundles x86_64-only wheels that break on arm64 (#1042)
+# bioconda noarch package has an overly restrictive python<3.12 constraint
 
 # Python security libraries (pinned to address CVEs in transitive deps of firecloud)
 cryptography>=46.0.5
-jaraco.context>=6.1.0
 pyopenssl>=26.0.0
 pyasn1>=0.6.3
 tornado>=6.5.4
 urllib3>=2.7.0
+
+# setuptools pinned to eliminate CVE-2026-23949 (jaraco.context path traversal)
+# Versions >=80.10.1 vendor jaraco.context>=6.1.0 with the fix
+setuptools>=80.10.1
 
 # General utilities
 csvkit>=1.0.4
