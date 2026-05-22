@@ -515,6 +515,62 @@ def main_virnucpro_contigs(
 __commands__.append(('virnucpro_contigs', parser_virnucpro_contigs))
 
 
+def parser_virnucpro_label_reads_by_contig(parser=argparse.ArgumentParser()):
+    parser.add_argument('paf_file',
+                        help='Augmented minimap2 PAF (12 standard PAF columns + N tag columns + '
+                             'trailing pct_identity and pct_query_cov columns). Compressed inputs '
+                             '(.gz/.zst/.lz4/.bz2) are read transparently.')
+    parser.add_argument('contig_classifications',
+                        help='Per-contig VirNucPro classification TSV produced by virnucpro_contigs.')
+    parser.add_argument('output_tsv',
+                        help='Output per-read classification TSV. Compression is inferred from the '
+                             'extension (.gz/.zst/.lz4/.bz2).')
+    parser.add_argument('--minMapq', '--min-mapq', dest='min_mapq', type=int, default=5,
+                        help='Minimum mapping quality for the mapped_well flag. (default: %(default)s)')
+    parser.add_argument('--minIdentity', '--min-identity', dest='min_identity', type=float, default=90.0,
+                        help='Minimum percent identity for the mapped_well flag. Fractional-scale '
+                             '(0-1) inputs are auto-detected. (default: %(default)s)')
+    parser.add_argument('--minQueryCov', '--min-query-cov', dest='min_query_cov', type=float, default=80.0,
+                        help='Minimum percent query coverage for the mapped_well flag. Fractional-scale '
+                             '(0-1) inputs are auto-detected. (default: %(default)s)')
+    parser.add_argument('--duckdbMemoryLimit', '--duckdb-memory-limit', dest='duckdb_memory_limit',
+                        default=None,
+                        help='DuckDB memory cap, e.g. "8GB" (default: %(default)s = auto-detect ~75%% '
+                             'of the cgroup limit). Empty string disables any cap.')
+    parser.add_argument('--workDir', '--work-dir', dest='work_dir', default=None,
+                        help='Directory for the per-run temp dir / DuckDB spill '
+                             '(default: %(default)s = system tmp).')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_virnucpro_label_reads_by_contig, split_args=True)
+    return parser
+
+
+def main_virnucpro_label_reads_by_contig(
+    paf_file,
+    contig_classifications,
+    output_tsv,
+    min_mapq=5,
+    min_identity=90.0,
+    min_query_cov=80.0,
+    duckdb_memory_limit=None,
+    work_dir=None,
+):
+    '''Label reads with the VirNucPro viral classification of their best-mapping contig.'''
+    virnucpro.classify_reads_by_contig(
+        paf_file,
+        contig_classifications,
+        output_tsv,
+        min_mapq=min_mapq,
+        min_identity=min_identity,
+        min_query_cov=min_query_cov,
+        duckdb_memory_limit=duckdb_memory_limit,
+        work_dir=work_dir,
+    )
+
+
+__commands__.append(('virnucpro_label_reads_by_contig', parser_virnucpro_label_reads_by_contig))
+
+
 def parser_krona(parser=argparse.ArgumentParser()):
     parser.add_argument('inReports', nargs='+', help='Input report file (default: tsv)')
     parser.add_argument('db', help='Krona taxonomy database directory.')

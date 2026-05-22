@@ -77,6 +77,33 @@ class TestVirNucProCalls(TestCaseWithTmp):
             id_pattern=r'(NODE_\d+)',
         )
 
+    @patch('viral_ngs.metagenomics.virnucpro.classify_reads_by_contig', autospec=True)
+    def test_virnucpro_label_reads_by_contig(self, mock_classify_reads_by_contig):
+        args = metagenomics.parser_virnucpro_label_reads_by_contig(
+            argparse.ArgumentParser()
+        ).parse_args([
+            'reads.paf',
+            'contigs.tsv',
+            'reads_classified.tsv.zst',
+            '--min-mapq', '10',
+            '--min-identity', '95.0',
+            '--min-query-cov', '85.0',
+            '--duckdb-memory-limit', '4GB',
+            '--work-dir', '/tmp/virnucpro',
+        ])
+        args.func_main(args)
+
+        mock_classify_reads_by_contig.assert_called_once_with(
+            'reads.paf',
+            'contigs.tsv',
+            'reads_classified.tsv.zst',
+            min_mapq=10,
+            min_identity=95.0,
+            min_query_cov=85.0,
+            duckdb_memory_limit='4GB',
+            work_dir='/tmp/virnucpro',
+        )
+
 
 @pytest.fixture
 def taxa_db_simple():
