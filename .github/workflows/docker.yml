@@ -1006,6 +1006,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
+
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
@@ -1035,6 +1038,8 @@ jobs:
           ignore-unfixed: true
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
+          scanners: 'vuln'  # vuln only - secret scanning disabled to reduce disk usage
+          timeout: '20m0s'  # Increase timeout for large images (mega takes ~10min)
 
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
@@ -1047,6 +1052,8 @@ jobs:
           ignore-unfixed: true
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
+          scanners: 'vuln'  # vuln only - secret scanning disabled to reduce disk usage
+          timeout: '20m0s'  # Increase timeout for large images (mega takes ~10min)
 
       - name: Log scan result count
         if: always()
@@ -1070,6 +1077,63 @@ jobs:
           name: trivy-${{ matrix.flavor }}
           path: trivy-results.json
 
+  # Secret scanning job - scans mega images on both architectures
+  # Runs in parallel with vulnerability scanning above
+  scan-secrets:
+    needs: [get-version, build-mega-amd64, build-mega-arm64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pre-pull mega image for secret scan
+        uses: ./.github/actions/pull-with-retry
+        with:
+          image: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-${{ matrix.arch }}'
+
+      - name: Run Trivy secret scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see vuln scanner note
+        with:
+          image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-${{ matrix.arch }}'
+          format: 'sarif'
+          output: 'trivy-secrets.sarif'
+          scanners: 'secret'  # Secret scanning only
+          exit-code: '1'  # Fail if secrets found
+          timeout: '20m0s'  # Increase timeout for large images
+
+      - name: Log secret scan result count
+        if: always()
+        run: |
+          if [ -f trivy-secrets.sarif ]; then
+            COUNT=$(jq '[.runs[].results[]] | length' trivy-secrets.sarif)
+            echo "::notice::Trivy found $COUNT secrets in mega-${{ matrix.arch }}"
+          fi
+
+      - name: Upload Trivy secret scan results to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-secrets.sarif'
+          category: 'secrets-mega-${{ matrix.arch }}'
+
   # ============================================================================
   # TEST JOBS - Run after corresponding manifests are created
   # Each test runs in its flavor's Docker container (x86 only)
@@ -1091,6 +1155,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
 
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
@@ -1133,6 +1200,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
+
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1166,6 +1236,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1207,6 +1280,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1240,6 +1316,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1281,6 +1360,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1314,6 +1396,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
@@ -1355,6 +1440,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+
+      - name: Free up disk space
+        uses: ./.github/actions/free-disk-space
       - name: Pull test image (with retries)
         uses: ./.github/actions/pull-with-retry
         with:
