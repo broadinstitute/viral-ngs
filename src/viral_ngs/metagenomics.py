@@ -581,6 +581,28 @@ def main_centrifuger_quant(db, classification, output, min_score=None,
 __commands__.append(('centrifuger_quant', parser_centrifuger_quant))
 
 
+def parser_centrifuger_classification_to_kraken2(parser=argparse.ArgumentParser()):
+    parser.add_argument('classification', help='Centrifuger per-read classification output file.')
+    parser.add_argument('output', help='Kraken2-style per-read classification output file.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_classification_to_kraken2, split_args=True)
+    return parser
+
+
+def main_centrifuger_classification_to_kraken2(classification, output):
+    '''
+        Convert Centrifuger per-read classification output to Kraken2-style
+        per-read classification output.
+    '''
+    centrifuger.Centrifuger.classification_to_kraken2(classification, output)
+
+
+__commands__.append((
+    'centrifuger_classification_to_kraken2',
+    parser_centrifuger_classification_to_kraken2,
+))
+
+
 def parser_centrifuger_kreport(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Centrifuger database prefix.')
     parser.add_argument('classification', help='Centrifuger classification output file.')

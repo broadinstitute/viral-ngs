@@ -157,6 +157,25 @@ def test_centrifuger_quant_parser_invokes_tool():
         )
 
 
+def test_centrifuger_classification_to_kraken2_parser_invokes_tool():
+    with patch(
+            'viral_ngs.metagenomics.centrifuger.Centrifuger.classification_to_kraken2',
+            autospec=True,
+    ) as mock_classification_to_kraken2:
+        args = [
+            'classification.tsv',
+            'kraken2.tsv',
+        ]
+        args = metagenomics.parser_centrifuger_classification_to_kraken2(
+            argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_classification_to_kraken2.assert_called_once_with(
+            'classification.tsv',
+            'kraken2.tsv',
+        )
+
+
 def test_centrifuger_kreport_parser_invokes_tool():
     with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger:
         args = [
