@@ -204,6 +204,67 @@ class SamtoolsTool(core.Tool):
         pass
 ```
 
+### New Tool Integration Checklist
+
+When adding a new bioinformatics tool wrapper to viral-ngs, follow these guidelines to ensure compatibility with downstream workflows and reduce review iteration.
+
+**Design principle**: Downstream pipeline languages (WDL, Nextflow, Snakemake) and end users invoke our exposed CLI commands -- they should never need to drop into inline Python to get things done. This is why API completeness and pipeline interoperability matter: every useful knob should be reachable from the command line, and every tool's outputs should be consumable by other tools' inputs through CLI commands alone.
+
+#### API Completeness
+
+Expose the real, useful parameters of the underlying tool -- sensitivity/specificity thresholds, resource controls (`--splits`, `--threads`), mode switches -- with sensible defaults. A wrapper that only exposes `num_threads` is incomplete.
+
+Pipeline authors using WDL or other workflow languages can only access what's exposed on the CLI; if a threshold is hardcoded in Python, they can't tune it without forking. If values are intentionally hardcoded, document the rationale.
+
+**Example**: A metagenomics classifier should expose minimum score thresholds, confidence levels, and filtering presets -- not just thread count.
+
+#### Pipeline Interoperability
+
+Document or implement how the new tool's outputs feed into existing viral-ngs tools and WDL pipelines through CLI commands. If outputs use a custom format, consider adding a converter to a standard format (e.g., Kraken2-style TSV for `filter_bam_to_taxa` and Krona).
+
+If CLI commands are meant to chain, verify they actually connect end-to-end with no undocumented intermediate steps or manual transformations. A pipeline author should be able to wire tool A's output into tool B's input using only exposed CLI commands.
+
+**Example**: If a classifier produces per-read classifications, either make the output compatible with `filter_bam_to_taxa` (Kraken2 format), or provide a converter command like `classifier_to_kraken2`.
+
+#### Empty-Input Output Contracts
+
+Tool wrappers must handle empty input gracefully and produce the *semantically correct* empty output for that file type. What "empty" means depends on the format:
+
+- **TSV**: Header-only file (column names, zero data rows)
+- **BAM**: Header-only BAM (valid BAM structure with headers but no reads)
+- **Directory**: Empty directory with the expected structure
+- **FASTA**: Zero-byte file or file with no sequences
+
+Check the upstream tool's documentation to determine the correct representation. Never crash on valid empty input. Test this explicitly.
+
+**Example**: If a metagenomics classifier receives an empty BAM, it should produce an empty classification TSV (header only), not raise an exception or write a malformed file.
+
+#### Custom Format Documentation
+
+Non-standard file formats must document:
+
+1. The exact column layout / schema
+2. What upstream tool or script produces them
+3. Include validation of the expected structure at parse time
+
+Don't silently accept malformed input.
+
+**Example**: If your tool expects "augmented PAF" (standard minimap2 PAF + two trailing numeric columns), document what produces this format and validate that the trailing fields are actually numeric.
+
+#### Test Patterns
+
+Include tests for:
+
+1. **Empty/edge-case inputs** -- See output contracts above. Verify graceful handling and correct empty output format.
+2. **CLI parser round-trip** -- Test through argparse (`parser_command().parse_args([...])`), not just calling the `main_` function directly. This ensures CLI help text and argument parsing work correctly.
+3. **Pipeline integration** -- Chain command A's output into command B and verify the result. For example, run the classifier on a BAM, then feed its output to a downstream filter and verify it works end-to-end.
+
+#### Dockerfile Import Verification (Belt-and-Suspenders)
+
+When adding a new module that brings in new compiled dependencies (C extensions, CUDA, etc.), consider adding it to the Dockerfile's `RUN python -c "from viral_ngs.X import ..."` verification line. This catches broken dependency installs at build time, especially on ARM64.
+
+**Example**: Adding `virnucpro` to `classify/__init__.py` with a new `duckdb` dependency → update `Dockerfile.classify` to include `virnucpro` in the classify tools import check.
+
 ---
 
 ## Import Patterns
