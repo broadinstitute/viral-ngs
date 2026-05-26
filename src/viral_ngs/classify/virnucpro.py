@@ -54,6 +54,11 @@ def _classify_contig_group(
     min_viral_proportion=0.1,
     min_nonviral_proportion=0.1,
     min_chunk_count=5,
+    min_confident_score=0.8,
+    max_opposing_score=0.3,
+    min_ambiguous_score=0.7,
+    min_weighted_delta=0.3,
+    high_confidence_delta=0.6,
 ):
     """Classify a contig from VirNucPro chunk-level highest-score rows."""
     group = group.copy()
@@ -67,9 +72,18 @@ def _classify_contig_group(
     else:
         weighted_delta = group["delta"].mean()
 
-    confident_viral = (group["max_score_1"] > 0.8) & (group["max_score_0"] < 0.3)
-    confident_nonviral = (group["max_score_0"] > 0.8) & (group["max_score_1"] < 0.3)
-    ambiguous = (group["max_score_1"] > 0.7) & (group["max_score_0"] > 0.7)
+    confident_viral = (
+        (group["max_score_1"] > min_confident_score)
+        & (group["max_score_0"] < max_opposing_score)
+    )
+    confident_nonviral = (
+        (group["max_score_0"] > min_confident_score)
+        & (group["max_score_1"] < max_opposing_score)
+    )
+    ambiguous = (
+        (group["max_score_1"] > min_ambiguous_score)
+        & (group["max_score_0"] > min_ambiguous_score)
+    )
 
     n_chunks = len(group)
     n_confident_viral = int(confident_viral.sum())
@@ -79,19 +93,27 @@ def _classify_contig_group(
     viral_proportion = n_confident_viral / n_effective if n_effective > 0 else 0
     nonviral_proportion = n_confident_nonviral / n_effective if n_effective > 0 else 0
 
-    if weighted_delta > 0.3:
+    if weighted_delta > min_weighted_delta:
         call = "Viral"
         if n_confident_viral >= 1 and viral_proportion >= min_viral_proportion:
-            tier = "high_confidence" if weighted_delta > 0.6 else "moderate_confidence"
+            tier = (
+                "high_confidence"
+                if weighted_delta > high_confidence_delta
+                else "moderate_confidence"
+            )
         else:
             tier = "low_confidence"
-    elif weighted_delta < -0.3:
+    elif weighted_delta < -min_weighted_delta:
         call = "Non-viral"
         if (
             n_confident_nonviral >= 1
             and nonviral_proportion >= min_nonviral_proportion
         ):
-            tier = "high_confidence" if weighted_delta < -0.6 else "moderate_confidence"
+            tier = (
+                "high_confidence"
+                if weighted_delta < -high_confidence_delta
+                else "moderate_confidence"
+            )
         else:
             tier = "low_confidence"
     else:
@@ -123,15 +145,29 @@ def classify_contigs(
     min_viral_prop=0.1,
     min_nonviral_prop=0.1,
     min_chunks=5,
+    min_confident_score=0.8,
+    max_opposing_score=0.3,
+    min_ambiguous_score=0.7,
+    min_weighted_delta=0.3,
+    high_confidence_delta=0.6,
     id_col="Modified_ID",
     id_pattern=r"(NODE\_\d+)",
 ):
     """Classify contigs from a VirNucPro highest-score TSV."""
-    df = pd.read_csv(highestscore_tsv, sep="\t")
+    try:
+        df = pd.read_csv(highestscore_tsv, sep="\t")
+    except pd.errors.EmptyDataError:
+        _write_empty_contig_classifications(output_tsv)
+        return
+
     required_cols = [id_col, "max_score_0", "max_score_1"]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError("Missing required columns: {}".format(", ".join(missing)))
+
+    if df.empty:
+        _write_empty_contig_classifications(output_tsv)
+        return
 
     ids = df[id_col].astype(str)
     df["ID"] = ids.str.replace(r"_chunk_\d+$", "", regex=True)
@@ -155,6 +191,11 @@ def classify_contigs(
             min_viral_proportion=min_viral_prop,
             min_nonviral_proportion=min_nonviral_prop,
             min_chunk_count=min_chunks,
+            min_confident_score=min_confident_score,
+            max_opposing_score=max_opposing_score,
+            min_ambiguous_score=min_ambiguous_score,
+            min_weighted_delta=min_weighted_delta,
+            high_confidence_delta=high_confidence_delta,
         )
         row["ID"] = group["ID"].iloc[0]
         rows.append(row)
@@ -756,6 +797,15 @@ def _write_empty_read_classifications(output_tsv):
     with file.open_or_gzopen(output_tsv, "wt") as outf:
         writer = csv.writer(outf, delimiter="\t", lineterminator="\n")
         writer.writerow(READ_CLASSIFICATION_COLUMNS)
+
+
+def _write_empty_contig_classifications(output_tsv):
+    _ensure_parent_dir(output_tsv)
+    pd.DataFrame(columns=CONTIG_CLASSIFICATION_COLUMNS).to_csv(
+        output_tsv,
+        sep="\t",
+        index=False,
+    )
 
 
 def _ensure_parent_dir(path):

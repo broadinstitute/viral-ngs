@@ -40,6 +40,7 @@ from . import read_utils
 from .classify import kma
 from .classify import kraken2
 from .classify import krona
+from .classify import centrifuger
 from .classify import kb
 from .classify import genomad
 from .classify import virnucpro
@@ -473,6 +474,180 @@ def main_kma_build(ref_fasta, db_prefix, threads=None):
 __commands__.append(('kma_build', parser_kma_build))
 
 
+def parser_centrifuger(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Centrifuger database prefix.')
+    parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
+    parser.add_argument('out_classification', help='Centrifuger per-read classification output file.')
+    parser.add_argument('--k', type=int, default=1,
+                        help='Report top k classification results for each read. Default: 1.')
+    parser.add_argument('--unclassified_prefix', help='Output prefix for unclassified reads.')
+    parser.add_argument('--classified_prefix', help='Output prefix for classified reads.')
+    parser.add_argument('--min_hitlen', type=int, help='Minimum total length of matched segments.')
+    parser.add_argument('--hitk_factor', type=int, help='Centrifuger hit-k factor.')
+    parser.add_argument('--merge_readpair', action='store_true', help='Merge paired reads before classification.')
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger, split_args=True)
+    return parser
+
+
+def main_centrifuger(db, in_bam, out_classification, k=1,
+                    unclassified_prefix=None, classified_prefix=None,
+                    min_hitlen=None, hitk_factor=None,
+                    merge_readpair=False, threads=None):
+    '''
+        Classify reads by taxon using Centrifuger.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.classify(
+        in_bam,
+        db,
+        out_classification,
+        k=k,
+        unclassified_prefix=unclassified_prefix,
+        classified_prefix=classified_prefix,
+        min_hitlen=min_hitlen,
+        hitk_factor=hitk_factor,
+        merge_readpair=merge_readpair,
+        num_threads=threads,
+    )
+
+
+__commands__.append(('centrifuger', parser_centrifuger))
+
+
+def parser_centrifuger_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('db_prefix', help='Centrifuger database output prefix.')
+    parser.add_argument('taxonomy_tree', help='NCBI taxonomy nodes.dmp file.')
+    parser.add_argument('name_table', help='NCBI taxonomy names.dmp file.')
+    parser.add_argument('--ref_fastas', nargs='+', help='Reference FASTA files.')
+    parser.add_argument('--ref_list', help='File containing reference FASTA paths, one per line.')
+    parser.add_argument('--conversion_table', help='Sequence ID to taxonomy ID mapping file.')
+    parser.add_argument('--build_mem', help='Memory target for centrifuger-build.')
+    cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_build, split_args=True)
+    return parser
+
+
+def main_centrifuger_build(db_prefix, taxonomy_tree, name_table,
+                          ref_fastas=None, ref_list=None,
+                          conversion_table=None, build_mem=None,
+                          threads=None):
+    '''
+        Build a Centrifuger database.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.build(
+        db_prefix,
+        taxonomy_tree,
+        name_table,
+        ref_fastas=ref_fastas,
+        ref_list=ref_list,
+        conversion_table=conversion_table,
+        build_mem=build_mem,
+        num_threads=threads,
+    )
+
+
+__commands__.append(('centrifuger_build', parser_centrifuger_build))
+
+
+def parser_centrifuger_quant(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Centrifuger database prefix.')
+    parser.add_argument('classification', help='Centrifuger classification output file.')
+    parser.add_argument('output', help='Centrifuger quantification output file.')
+    parser.add_argument('--min_score', type=int, help='Minimum score to include a read.')
+    parser.add_argument('--min_length', type=int, help='Minimum read length to include.')
+    parser.add_argument('--output_format', type=int, help='Centrifuger quant output format.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_quant, split_args=True)
+    return parser
+
+
+def main_centrifuger_quant(db, classification, output, min_score=None,
+                          min_length=None, output_format=None):
+    '''
+        Quantify Centrifuger classification output.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.quant(
+        db,
+        classification,
+        output,
+        min_score=min_score,
+        min_length=min_length,
+        output_format=output_format,
+    )
+
+
+__commands__.append(('centrifuger_quant', parser_centrifuger_quant))
+
+
+def parser_centrifuger_classification_to_kraken2(parser=argparse.ArgumentParser()):
+    parser.add_argument('classification', help='Centrifuger per-read classification output file.')
+    parser.add_argument('output', help='Kraken2-style per-read classification output file.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_classification_to_kraken2, split_args=True)
+    return parser
+
+
+def main_centrifuger_classification_to_kraken2(classification, output):
+    '''
+        Convert Centrifuger per-read classification output to Kraken2-style
+        per-read classification output.
+    '''
+    centrifuger.Centrifuger.classification_to_kraken2(classification, output)
+
+
+__commands__.append((
+    'centrifuger_classification_to_kraken2',
+    parser_centrifuger_classification_to_kraken2,
+))
+
+
+def parser_centrifuger_kreport(parser=argparse.ArgumentParser()):
+    parser.add_argument('db', help='Centrifuger database prefix.')
+    parser.add_argument('classification', help='Centrifuger classification output file.')
+    parser.add_argument('output', help='Kraken-style hierarchical report output file.')
+    parser.add_argument('--no_lca', action='store_true',
+                        help='Do not promote multi-assignment reads to their LCA; report counts at the original taxa.')
+    parser.add_argument('--show_zeros', action='store_true',
+                        help='Include taxa with zero reads in the report.')
+    parser.add_argument('--is_count_table', action='store_true',
+                        help='Input is a taxID<TAB>count table instead of the standard centrifuger output.')
+    parser.add_argument('--min_score', type=int, help='Minimum score for reads to be counted.')
+    parser.add_argument('--min_length', type=int, help='Minimum alignment length for reads to be counted.')
+    parser.add_argument('--report_score_data', action='store_true',
+                        help='Append an extra column summarizing classification scores.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_kreport, split_args=True)
+    return parser
+
+
+def main_centrifuger_kreport(db, classification, output, no_lca=False,
+                             show_zeros=False, is_count_table=False,
+                             min_score=None, min_length=None,
+                             report_score_data=False):
+    '''
+        Produce a Kraken-style hierarchical report from a Centrifuger
+        classification output file.
+    '''
+    centrifuger_tool = centrifuger.Centrifuger()
+    centrifuger_tool.kreport(
+        db,
+        classification,
+        output,
+        no_lca=no_lca,
+        show_zeros=show_zeros,
+        is_count_table=is_count_table,
+        min_score=min_score,
+        min_length=min_length,
+        report_score_data=report_score_data,
+    )
+
+
+__commands__.append(('centrifuger_kreport', parser_centrifuger_kreport))
+
+
 def parser_virnucpro_contigs(parser=argparse.ArgumentParser()):
     parser.add_argument('highestscore_tsv', help='VirNucPro highest-score TSV.')
     parser.add_argument('output_tsv', help='Output contig classification TSV.')
@@ -482,6 +657,21 @@ def parser_virnucpro_contigs(parser=argparse.ArgumentParser()):
                         help='Minimum confident non-viral chunk proportion. (default: %(default)s)')
     parser.add_argument('--minChunks', '--min-chunks', dest='min_chunks', type=int, default=5,
                         help='Minimum chunks for high/moderate confidence tiers. (default: %(default)s)')
+    parser.add_argument('--minConfidentScore', '--min-confident-score', dest='min_confident_score',
+                        type=float, default=0.8,
+                        help='Minimum winning class score for a chunk to count as confident. (default: %(default)s)')
+    parser.add_argument('--maxOpposingScore', '--max-opposing-score', dest='max_opposing_score',
+                        type=float, default=0.3,
+                        help='Maximum opposing class score for a chunk to count as confident. (default: %(default)s)')
+    parser.add_argument('--minAmbiguousScore', '--min-ambiguous-score', dest='min_ambiguous_score',
+                        type=float, default=0.7,
+                        help='Minimum score in both classes for a chunk to count as ambiguous. (default: %(default)s)')
+    parser.add_argument('--minWeightedDelta', '--min-weighted-delta', dest='min_weighted_delta',
+                        type=float, default=0.3,
+                        help='Minimum absolute weighted score delta required for a viral/non-viral call. (default: %(default)s)')
+    parser.add_argument('--highConfidenceDelta', '--high-confidence-delta', dest='high_confidence_delta',
+                        type=float, default=0.6,
+                        help='Minimum absolute weighted score delta required for high-confidence tiers. (default: %(default)s)')
     parser.add_argument('--idCol', '--id-col', dest='id_col', default='Modified_ID',
                         help='Column containing chunk/contig IDs. (default: %(default)s)')
     parser.add_argument('--idPattern', '--id-pattern', dest='id_pattern', default=r'(NODE\_\d+)',
@@ -497,22 +687,119 @@ def main_virnucpro_contigs(
     min_viral_prop=0.1,
     min_nonviral_prop=0.1,
     min_chunks=5,
+    min_confident_score=0.8,
+    max_opposing_score=0.3,
+    min_ambiguous_score=0.7,
+    min_weighted_delta=0.3,
+    high_confidence_delta=0.6,
     id_col='Modified_ID',
     id_pattern=r'(NODE\_\d+)',
 ):
-    '''Classify contigs from VirNucPro highest-score output.'''
+    '''
+        Classify contigs from VirNucPro highest-score output.
+
+        VirNucPro produces two raw prediction tables whose names are not
+        self-explanatory:
+
+        * ``prediction_results.txt`` contains one row per translated
+          sequence/chunk scored by the model. In the original implementation,
+          this has ``Sequence_ID``, ``Prediction``, ``score1``, and ``score2``.
+        * ``prediction_results_highestscore.csv`` is the per-input-contig
+          summary derived from ``prediction_results.txt``. Despite the ``.csv``
+          suffix, the original implementation writes it as a tab-delimited
+          table. This highest-score summary is the input expected by this
+          command, often passed through viral-ngs/WDL as ``highestscore_tsv``.
+    '''
     virnucpro.classify_contigs(
         highestscore_tsv,
         output_tsv,
         min_viral_prop=min_viral_prop,
         min_nonviral_prop=min_nonviral_prop,
         min_chunks=min_chunks,
+        min_confident_score=min_confident_score,
+        max_opposing_score=max_opposing_score,
+        min_ambiguous_score=min_ambiguous_score,
+        min_weighted_delta=min_weighted_delta,
+        high_confidence_delta=high_confidence_delta,
         id_col=id_col,
         id_pattern=id_pattern,
     )
 
 
 __commands__.append(('virnucpro_contigs', parser_virnucpro_contigs))
+
+
+def parser_virnucpro_label_reads_by_contig(parser=argparse.ArgumentParser()):
+    parser.add_argument('paf_file',
+                        help='Augmented minimap2 PAF (12 standard PAF columns + N tag columns + '
+                             'trailing pct_identity and pct_query_cov columns). Compressed inputs '
+                             '(.gz/.zst/.lz4/.bz2) are read transparently.')
+    parser.add_argument('contig_classifications',
+                        help='Per-contig VirNucPro classification TSV produced by virnucpro_contigs.')
+    parser.add_argument('output_tsv',
+                        help='Output per-read classification TSV. Compression is inferred from the '
+                             'extension (.gz/.zst/.lz4/.bz2).')
+    parser.add_argument('--minMapq', '--min-mapq', dest='min_mapq', type=int, default=5,
+                        help='Minimum mapping quality for the mapped_well flag. (default: %(default)s)')
+    parser.add_argument('--minIdentity', '--min-identity', dest='min_identity', type=float, default=90.0,
+                        help='Minimum percent identity for the mapped_well flag. Fractional-scale '
+                             '(0-1) inputs are auto-detected. (default: %(default)s)')
+    parser.add_argument('--minQueryCov', '--min-query-cov', dest='min_query_cov', type=float, default=80.0,
+                        help='Minimum percent query coverage for the mapped_well flag. Fractional-scale '
+                             '(0-1) inputs are auto-detected. (default: %(default)s)')
+    parser.add_argument('--duckdbMemoryLimit', '--duckdb-memory-limit', dest='duckdb_memory_limit',
+                        default=None,
+                        help='DuckDB memory cap, e.g. "8GB" (default: %(default)s = auto-detect ~75%% '
+                             'of the cgroup limit). Empty string disables any cap.')
+    parser.add_argument('--workDir', '--work-dir', dest='work_dir', default=None,
+                        help='Directory for the per-run temp dir / DuckDB spill '
+                             '(default: %(default)s = system tmp).')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_virnucpro_label_reads_by_contig, split_args=True)
+    return parser
+
+
+def main_virnucpro_label_reads_by_contig(
+    paf_file,
+    contig_classifications,
+    output_tsv,
+    min_mapq=5,
+    min_identity=90.0,
+    min_query_cov=80.0,
+    duckdb_memory_limit=None,
+    work_dir=None,
+):
+    '''
+        Label reads with the VirNucPro classification of their best-mapping
+        contig.
+
+        The output is a tab-delimited, one-row-per-read table. Each row
+        preserves the selected PAF alignment context (read length, contig,
+        contig length, strand, mapping quality, percent identity, percent
+        query coverage) and appends the VirNucPro contig-level call/tier and
+        supporting chunk summary metrics.
+
+        The selected contig is the best primary alignment for each read,
+        ordered by mapping quality, then percent identity, then input order.
+        ``mapped_well`` is a boolean flag derived from ``--min-mapq``,
+        ``--min-identity``, and ``--min-query-cov``. Reads with primary
+        alignments to contigs carrying different VirNucPro calls are labeled
+        ``Multi-mapped``. Reads whose selected contig has no VirNucPro
+        classification are labeled ``Unclassified``.
+    '''
+    virnucpro.classify_reads_by_contig(
+        paf_file,
+        contig_classifications,
+        output_tsv,
+        min_mapq=min_mapq,
+        min_identity=min_identity,
+        min_query_cov=min_query_cov,
+        duckdb_memory_limit=duckdb_memory_limit,
+        work_dir=work_dir,
+    )
+
+
+__commands__.append(('virnucpro_label_reads_by_contig', parser_virnucpro_label_reads_by_contig))
 
 
 def parser_krona(parser=argparse.ArgumentParser()):
