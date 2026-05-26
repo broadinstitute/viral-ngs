@@ -1,7 +1,13 @@
 '''
-kb_python classification tool
+Kallisto/kb-python classification tool.
+
+This wrapper exposes viral-ngs kallisto commands while using kb-python's `kb`
+CLI to orchestrate kallisto and bustools. Count outputs include a long-form
+collapsed hit table (`counts.tsv`) and the kb-generated h5ad needed by
+`kb extract`; extract outputs include a read-to-hit manifest (`read_hits.tsv`).
 '''
-import itertools
+import csv
+import gzip
 import glob
 import logging
 import os
@@ -11,7 +17,6 @@ import subprocess
 import tarfile
 
 import anndata
-import pandas as pd
 
 from viral_ngs import core
 from viral_ngs.core import picard
@@ -21,15 +26,21 @@ from viral_ngs.core import misc
 from builtins import super
 
 log = logging.getLogger(__name__)
+_FASTQ_SUFFIXES = ('.fastq', '.fq', '.fastq.gz', '.fq.gz')
 
-class kb(core.Tool):
+class Kallisto(core.Tool):
+    """Run kallisto workflows through kb-python and normalize public outputs."""
+
     SUBCOMMANDS = ['count', 'ref', 'extract']
+    COUNTS_TSV = 'counts.tsv'
+    H5AD = 'adata.h5ad'
+    READ_HITS_TSV = 'read_hits.tsv'
 
     def __init__(self, install_methods=None):
         if not install_methods:
             install_methods = []
             install_methods.append(core.PrexistingUnixCommand(shutil.which('kb'), require_executability=False))
-        super(kb, self).__init__(install_methods=install_methods)
+        super(Kallisto, self).__init__(install_methods=install_methods)
 
     def version(self):
         return '1'
@@ -42,11 +53,11 @@ class kb(core.Tool):
 
 
     def execute(self, command,output, args=None, options=None):
-        '''Run a kb * command.
+        '''Run a kallisto command via the kb executable.
 
         Args:
           command: Subcommand to run.
-          input: Input file kb_python/kallisto operates on.
+          input: Input file kallisto operates on.
           output: Output file to send to command.
           args: List of positional args.
           options: List of keyword options. Values can be single items or lists for multi-value options.
@@ -85,7 +96,7 @@ class kb(core.Tool):
         if stderr:
             log.info("kb stderr: %s", stderr)
             
-        # Check for errors: kb_python sometimes catches exceptions without proper exit codes
+        # Check for errors: the kb backend sometimes catches exceptions without proper exit codes
         # Look for Python tracebacks or subprocess errors in stderr
         has_error = stderr and ('Traceback (most recent call last)' in stderr or 'CalledProcessError' in stderr)
         
@@ -98,7 +109,7 @@ class kb(core.Tool):
             raise subprocess.CalledProcessError(process.returncode if process.returncode != 0 else 1, cmd, output=stdout, stderr=stderr)
         
     def build(self, ref_fasta, index, workflow='standard', kmer_len=31,  protein=False, num_threads=None):
-        '''Create a kb_python index.
+        '''Create a kallisto index.
         Args:
           ref_fasta: reference fasta file
           index: output index file
@@ -120,25 +131,21 @@ class kb(core.Tool):
             build_opts['--workflow'] = workflow
         self.execute('kb ref', None, args=[ref_fasta], options=build_opts)
         
-    def classify(self, in_bam, index_file, out_dir, t2g_file, k=31, parity='single', technology='bulk', h5ad=False, loom=False, protein=False, num_threads=None):
+    def classify(self, in_bam, index_file, out_dir, t2g_file, k=31, parity='single', technology='bulk', loom=False, protein=False, num_threads=None):
         """Classify input reads (bam)
 
         Args:
           in_bam: unaligned reads (single or paired-end) in BAM or FASTQ format.
-          index_file: kb_python index file
+          index_file: kallisto index file
           out_dir: output directory
           t2g_file: transcript to gene mapping file
           k: kmer size (default 31)
           parity: one of 'single', 'paired'
           technology: one of '10xv2', '10xv3', '10xv3cr', '10xv3multiome', '10xv1', 'dropseq', 'indrop', 'sci-rna-seq', 'bulk'
-          h5ad: output h5ad file
           loom: output loom file
           protein: ref_fasta file contains amino acid sequences
           num_threads: number of threads to use
         """
-        if samtools.SamtoolsTool().isEmpty(in_bam):
-            return
-
         opts = {
             '-i': index_file,
             '-g': t2g_file,
@@ -149,22 +156,21 @@ class kb(core.Tool):
             opts['-k'] = k
         if technology:
             opts['-x'] = technology
-        if h5ad:
-            opts['--h5ad'] = None
+        opts['--h5ad'] = None
         if loom:
-            opts['--loom'] = None   
+            opts['--loom'] = None
         if protein:
             opts['--aa'] = None
- 
+
         tmp_fastq1 = file.mkstempfname('.1.fastq')
         tmp_fastq2 = file.mkstempfname('.2.fastq')
         tmp_fastq3 = file.mkstempfname('.s.fastq')
         tmp_interleaved = None
         try:
-            if in_bam.lower().endswith('.fastq') or in_bam.lower().endswith('.fq') or in_bam.lower().endswith('.fastq.gz') or in_bam.lower().endswith('.fq.gz'):
+            if self._is_fastq(in_bam):
                 if not os.path.exists(in_bam):
                     return
-                
+
                 # Input is already FASTQ, use it directly (don't delete it later)
                 self.execute('kb count', out_dir, args=[in_bam], options=opts)
             else:
@@ -203,9 +209,6 @@ class kb(core.Tool):
                             raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
 
                     self.execute('kb count', out_dir, args=[tmp_interleaved], options=opts)
-        except Exception as e:
-            log.error("Error during kb count: %s", e)
-            raise
         finally:
             for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_interleaved):
                 if path and os.path.exists(path):
@@ -214,24 +217,15 @@ class kb(core.Tool):
                     except OSError as e:
                         log.warning("Failed to delete temporary file %s: %s", path, e)
 
-        # Add sample metadata to h5ad file if it was generated
-        if h5ad:
-            h5ad_files = glob.glob(os.path.join(out_dir, "counts_unfiltered", "*.h5ad"))
-            if h5ad_files:
-                for h5ad_file in h5ad_files:
-                    # Use the input bam filename (without extension) as sample name
-                    sample_name = os.path.splitext(os.path.basename(in_bam))[0]
-                    # Remove .bam if it's still there (handles .fastq.gz cases)
-                    if sample_name.endswith('.bam'):
-                        sample_name = os.path.splitext(sample_name)[0]
-                    self._add_sample_metadata_to_h5ad(h5ad_file, sample_name=sample_name)
+        sample_name = self._sample_name_from_input(in_bam)
+        self._finalize_count_outputs(out_dir, sample_name)
         
     def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, protein=False, num_threads=None):
         """Extracts reads mapping to target ids from input reads (bam)
         
         Args:
           in_bam: unaligned read to extract reads from (FASTQ or BAM)
-          index_file: kb_python index file
+          index_file: kallisto index file
           out_dir: output directory
           t2g_file: transcript to gene mapping file
           protein: ref_fasta file contains amino acid sequences
@@ -252,7 +246,7 @@ class kb(core.Tool):
         tmp_fastq3 = file.mkstempfname('.s.fastq')
         tmp_interleaved = None
         try:
-            if in_bam.lower().endswith('.fastq') or in_bam.lower().endswith('.fq') or in_bam.lower().endswith('.fastq.gz') or in_bam.lower().endswith('.fq.gz'):
+            if self._is_fastq(in_bam):
                 if not os.path.exists(in_bam):
                     return
                 
@@ -294,9 +288,6 @@ class kb(core.Tool):
                             raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
 
                     self.execute('kb extract', out_dir, args=[tmp_interleaved], options=opts)
-        except Exception as e:
-            log.error("Error during kb extract: %s", e)
-            raise
         finally:
             for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_interleaved):
                 if path and os.path.exists(path):
@@ -304,13 +295,123 @@ class kb(core.Tool):
                         os.unlink(path)
                     except OSError as e:
                         log.warning("Failed to delete temporary file %s: %s", path, e)
-        
+
+        self._write_read_hits_tsv(out_dir, target_ids)
+
+    @staticmethod
+    def _is_fastq(input_path):
+        return input_path.lower().endswith(_FASTQ_SUFFIXES)
+
+    @staticmethod
+    def _sample_name_from_input(input_path):
+        sample_name = os.path.basename(input_path)
+        for suffix in _FASTQ_SUFFIXES + ('.bam',):
+            if sample_name.lower().endswith(suffix):
+                return sample_name[:-len(suffix)]
+        return os.path.splitext(sample_name)[0]
+
+    def _finalize_count_outputs(self, out_dir, sample_name):
+        h5ad_file = self._find_count_h5ad(out_dir)
+        self._add_sample_metadata_to_h5ad(h5ad_file, sample_name=sample_name)
+
+        exposed_h5ad = os.path.join(out_dir, self.H5AD)
+        if os.path.abspath(h5ad_file) != os.path.abspath(exposed_h5ad):
+            shutil.copyfile(h5ad_file, exposed_h5ad)
+
+        self.write_counts_tsv_from_h5ad(exposed_h5ad, os.path.join(out_dir, self.COUNTS_TSV))
+
+    def _find_count_h5ad(self, out_dir):
+        h5ad_files = glob.glob(os.path.join(out_dir, "counts_unfiltered", "*.h5ad"))
+        if len(h5ad_files) == 0:
+            raise FileNotFoundError(f"No .h5ad file found in counts_unfiltered/ directory of {out_dir}")
+        if len(h5ad_files) > 1:
+            raise ValueError(f"Expected exactly one .h5ad file in counts_unfiltered/ directory of {out_dir}, found {len(h5ad_files)}")
+        return h5ad_files[0]
+
+    def write_counts_tsv_from_h5ad(self, h5ad_file, out_tsv):
+        """Write long-form collapsed kallisto counts from a kb-generated h5ad file.
+
+        The output has columns `sample_id`, `db_hit_id`, and `count`, with one
+        row per nonzero collapsed hit.
+        """
+        adata = anndata.read_h5ad(h5ad_file)
+        sample_ids = self._sample_ids_from_h5ad(adata)
+        hit_ids = adata.var.index.tolist()
+
+        with file.open_or_gzopen(out_tsv, 'wt') as outf:
+            writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
+            writer.writerow(('sample_id', 'db_hit_id', 'count'))
+            if hasattr(adata.X, 'getrow'):
+                for row_idx in range(adata.n_obs):
+                    row = adata.X.getrow(row_idx).tocoo()
+                    for col_idx, count in sorted(zip(row.col, row.data)):
+                        if count != 0:
+                            writer.writerow((sample_ids[row_idx], hit_ids[col_idx], self._format_count(count)))
+            else:
+                for row_idx, row in enumerate(adata.X):
+                    for col_idx, count in enumerate(row):
+                        if count != 0:
+                            writer.writerow((sample_ids[row_idx], hit_ids[col_idx], self._format_count(count)))
+
+    @staticmethod
+    def _sample_ids_from_h5ad(adata):
+        if 'sample' in adata.obs:
+            return [str(sample) for sample in adata.obs['sample'].tolist()]
+        return [str(obs_name) for obs_name in adata.obs_names.tolist()]
+
+    @staticmethod
+    def _format_count(count):
+        as_float = float(count)
+        if as_float.is_integer():
+            return str(int(as_float))
+        return str(as_float)
+
+    def _write_read_hits_tsv(self, out_dir, target_ids):
+        if not target_ids:
+            raise ValueError("target_ids must be provided when writing read hit TSV")
+        target_id_set = set(target_ids)
+        out_tsv = os.path.join(out_dir, self.READ_HITS_TSV)
+        with file.open_or_gzopen(out_tsv, 'wt') as outf:
+            writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
+            writer.writerow(('read_id', 'db_hit_id'))
+            for fastq_path, db_hit_id in self._iter_extracted_fastqs(out_dir, target_id_set):
+                for read_id in self._iter_fastq_read_ids(fastq_path):
+                    writer.writerow((read_id, db_hit_id))
+
+    @staticmethod
+    def _iter_extracted_fastqs(out_dir, target_ids):
+        for db_hit_id in sorted(target_ids):
+            target_dir = os.path.join(out_dir, db_hit_id)
+            if not os.path.isdir(target_dir):
+                continue
+            for root, dirs, filenames in os.walk(target_dir):
+                dirs[:] = sorted(dirs)
+                for filename in sorted(filenames):
+                    if filename.lower().endswith(_FASTQ_SUFFIXES):
+                        yield os.path.join(root, filename), db_hit_id
+
+    @staticmethod
+    def _iter_fastq_read_ids(fastq_path):
+        open_fn = gzip.open if fastq_path.lower().endswith('.gz') else open
+        with open_fn(fastq_path, 'rt') as inf:
+            while True:
+                header = inf.readline()
+                if not header:
+                    break
+                inf.readline()
+                inf.readline()
+                quality = inf.readline()
+                if not quality:
+                    raise ValueError(f"Unexpected end of FASTQ record in {fastq_path}")
+                if not header.startswith('@'):
+                    raise ValueError(f"Expected FASTQ header line starting with @ in {fastq_path}: {header.rstrip()}")
+                yield header[1:].strip().split()[0]
 
     def _extract_h5ad_from_tarball_to_tmpdir(self, count_tar, tmp_dir):
         """Helper function to extract h5ad file from a tarball into a temporary directory.
         
         Args:
-          count_tar: input kb count tarball file (tar.gz or tar.zst format)
+          count_tar: input kallisto count tarball file (tar.gz or tar.zst format)
           tmp_dir: temporary directory to extract into
           
         Returns:
@@ -385,53 +486,9 @@ class kb(core.Tool):
         # Write back to the h5ad file
         adata.write_h5ad(h5ad_file)
         log.debug(f"Added sample metadata to {h5ad_file}: sample={sample_name}")
-        
-    def merge_h5ads(self, in_count_tars, out_h5ad, tmp_dir_parent=None):
-        """Merge multiple kb count output tarballs into a single h5ad file.
-
-        Args:
-          in_count_tars: list of input kb count tarball files (tar.zst format)
-          out_h5ad: output h5ad file path
-          tmp_dir_parent: parent directory for temporary files (optional)
-        """
-
-        assert len(in_count_tars) > 0, "no input count tarballs provided"
-
-        adatas = []
-
-        for count_tar in in_count_tars:
-            # Extract tarball to temporary directory
-            with file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
-                log.debug(f"Extracting {count_tar} to temporary directory {tmp_dir}")
-                h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(count_tar, tmp_dir)
-                log.debug(f"Extracted h5ad file: {h5ad_file}")
-                
-                # Load h5ad file without metadata
-                adata = anndata.read_h5ad(h5ad_file)
-                adatas.append(adata)
-
-        # Handle single file case
-        if len(adatas) == 1:
-            log.warning("Only one count tarball provided - writing single file instead of merging")
-            adatas[0].write_h5ad(out_h5ad)
-            return
-
-        # Check that all h5ad files have the same number of variables (genes)
-        n_vars_ref = adatas[0].n_vars
-        var_names_ref = adatas[0].var_names
-        for i, adata in enumerate(adatas[1:], 1):
-            if adata.n_vars != n_vars_ref:
-                raise ValueError(f"Dimension mismatch: file {in_count_tars[0]} has {n_vars_ref} variables, "
-                            f"but file {in_count_tars[i]} has {adata.n_vars} variables")
-            if not adata.var_names.equals(var_names_ref):
-                raise ValueError(f"Variable names mismatch: file {in_count_tars[0]} and file {in_count_tars[i]} have different variable names")
-
-        # Straight merge of all anndata objects without metadata
-        combined = anndata.concat(adatas, join='outer', axis=0, fill_value=0)
-        combined.write_h5ad(out_h5ad)
 
     def parse_h5ad_counts(self, h5ad_file):
-        """Parse h5ad file and return gene IDs with their total counts.
+        """Parse h5ad file and return collapsed hit IDs with total counts.
 
         Args:
           h5ad_file: path to h5ad file
@@ -440,16 +497,7 @@ class kb(core.Tool):
           List of tuples (gene_id, count) sorted by gene ID
         """
         adata = anndata.read_h5ad(h5ad_file)
-
-        counts_mtx = adata.X.toarray() if hasattr(adata.X, 'toarray') else adata.X
-
-        gene_ids = adata.var.index.tolist()
-        gene_totals = counts_mtx.sum(axis=0)
-
-        if hasattr(gene_totals, 'A1'):  # numpy matrix
-            gene_totals = gene_totals.A1
-
-        return list(zip(gene_ids, gene_totals))
+        return list(zip(adata.var.index.tolist(), self._h5ad_hit_totals(adata)))
 
     def extract_hit_ids_from_h5ad(self, h5ad_file, threshold=1):
         """Parse h5ad file and extract all target IDs with 1 or more hits.
@@ -473,17 +521,18 @@ class kb(core.Tool):
             log.debug(f"Reading h5ad file: {h5ad_file}")
             adata = anndata.read_h5ad(h5ad_file)
 
-        # Get count matrix and sum across all observations (rows)
-        counts_mtx = adata.X.toarray() if hasattr(adata.X, 'toarray') else adata.X
-        gene_totals = counts_mtx.sum(axis=0)
-
-        if hasattr(gene_totals, 'A1'):  # numpy matrix
-            gene_totals = gene_totals.A1
-
-        # Extract gene IDs and filter to those with counts > 0
+        gene_totals = self._h5ad_hit_totals(adata)
         gene_ids = adata.var.index.tolist()
-        hit_ids = [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count > 0]
-        if threshold is not None:
-            hit_ids = [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count >= threshold]
+        if threshold is None:
+            return [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count > 0]
 
-        return hit_ids
+        return [gene_id for gene_id, count in zip(gene_ids, gene_totals) if count >= threshold]
+
+    @staticmethod
+    def _h5ad_hit_totals(adata):
+        gene_totals = adata.X.sum(axis=0)
+        if hasattr(gene_totals, 'A1'):  # numpy matrix
+            return gene_totals.A1
+        if hasattr(gene_totals, 'toarray'):
+            return gene_totals.toarray().ravel()
+        return gene_totals

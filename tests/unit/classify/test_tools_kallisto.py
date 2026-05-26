@@ -1,0 +1,245 @@
+# Unit tests for kallisto
+import csv
+import gzip
+import os
+from unittest.mock import patch
+
+import anndata
+import numpy as np
+import pytest
+import scipy.sparse
+
+from viral_ngs.classify import kallisto
+from viral_ngs.core import file as util_file
+from viral_ngs.core import misc as util_misc
+
+
+@pytest.fixture
+def kallisto_tool():
+    with patch('viral_ngs.classify.kallisto.shutil.which', return_value='/usr/bin/kb'):
+        yield kallisto.Kallisto()
+
+
+@pytest.fixture
+def kallisto_inputs():
+    base = os.path.join(util_file.get_test_input_path(), 'TestKallisto')
+    paths = {
+        'fastq': os.path.join(base, 'SRR12340077.2.sample.fastq.gz'),
+        'bam': os.path.join(util_file.get_test_input_path(), 'G5012.3.testreads.bam'),
+        'index': os.path.join(base, 'palmdb.corona.idx'),
+        't2g': os.path.join(base, 'palmdb_clustered_t2g.txt'),
+    }
+    for p in paths.values():
+        assert os.path.exists(p), f'Missing expected kallisto test input: {p}'
+    return paths
+
+
+def test_build_invokes_ref_with_expected_arguments(kallisto_tool, kallisto_inputs):
+    with patch('viral_ngs.classify.kallisto.subprocess.Popen', autospec=True) as mock_popen:
+        mock_process = mock_popen.return_value
+        mock_process.communicate.return_value = ('', '')
+        mock_process.returncode = 0
+
+        kallisto_tool.build(kallisto_inputs['fastq'], kallisto_inputs['index'], workflow='custom', kmer_len=27, protein=True, num_threads=9)
+
+        args = mock_popen.call_args[0][0]
+        assert ['kb', 'ref'] == args[:2]
+        assert util_misc.list_contains(['-i', kallisto_inputs['index']], args)
+        assert util_misc.list_contains(['-k', '27'], args)
+        assert util_misc.list_contains(['--workflow', 'custom'], args)
+        assert '--aa' in args
+        expected_threads = str(util_misc.sanitize_thread_count(9))
+        assert util_misc.list_contains(['-t', expected_threads], args)
+        assert args[-1] == kallisto_inputs['fastq']
+
+
+def test_classify_runs_count_single_end_from_bam(kallisto_tool, kallisto_inputs):
+    """Test classify with BAM input - should convert to FASTQ via Picard"""
+    mkstemp_vals = ['single.1.fastq', 'single.2.fastq', 'single.s.fastq']
+    size_map = {
+        'single.2.fastq': 1,
+        'single.s.fastq': 10,
+    }
+
+    with patch('viral_ngs.classify.kallisto.file.mkstempfname', side_effect=mkstemp_vals), \
+         patch('viral_ngs.classify.kallisto.os.unlink'), \
+         patch('viral_ngs.classify.kallisto.picard.SamToFastqTool', autospec=True) as picard_cls, \
+         patch('viral_ngs.classify.kallisto.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts'), \
+         patch('viral_ngs.classify.kallisto.samtools.SamtoolsTool', autospec=True) as samtools_cls, \
+         patch('viral_ngs.classify.kallisto.subprocess.Popen', autospec=True) as mock_popen, \
+         patch('viral_ngs.classify.kallisto.os.path.getsize', side_effect=lambda path: size_map.get(path, 1000)), \
+         patch.object(kallisto_tool, '_finalize_count_outputs') as finalize_outputs:
+
+        picard_cls.illumina_clipping_attribute = 'XT'
+        picard = picard_cls.return_value
+        picard.jvmMemDefault = '4G'
+        picard.execute.return_value = None
+
+        samtools = samtools_cls.return_value
+        samtools.isEmpty.return_value = False
+
+        mock_process = mock_popen.return_value
+        mock_process.communicate.return_value = ('', '')
+        mock_process.returncode = 0
+
+        kallisto_tool.classify(kallisto_inputs['bam'], kallisto_inputs['index'], 'out_dir', kallisto_inputs['t2g'], num_threads=3, loom=True)
+
+        args = mock_popen.call_args[0][0]
+        assert ['kb', 'count'] == args[:2]
+        assert args[-1] == 'single.s.fastq'
+        assert util_misc.list_contains(['--parity', 'single'], args)
+        assert '--loom' in args
+        assert '--h5ad' in args
+        expected_threads = str(util_misc.sanitize_thread_count(3))
+        assert util_misc.list_contains(['-t', expected_threads], args)
+        finalize_outputs.assert_called_once_with('out_dir', 'G5012.3.testreads')
+        picard.execute.assert_called_once_with(
+            kallisto_inputs['bam'],
+            'single.1.fastq',
+            'single.2.fastq',
+            outFastq0='single.s.fastq',
+            picardOptions='clip-opts',
+            JVMmemory='4G',
+        )
+
+
+def test_classify_runs_count_with_fastq_input(kallisto_tool, kallisto_inputs):
+    """Test classify with FASTQ input - should skip Picard and use file directly"""
+    with patch('viral_ngs.classify.kallisto.os.path.exists', return_value=True), \
+         patch('viral_ngs.classify.kallisto.subprocess.Popen', autospec=True) as mock_popen, \
+         patch('viral_ngs.classify.kallisto.samtools.SamtoolsTool', autospec=True) as samtools_cls, \
+         patch.object(kallisto_tool, '_finalize_count_outputs') as finalize_outputs:
+
+        samtools = samtools_cls.return_value
+        samtools.isEmpty.return_value = False
+
+        mock_process = mock_popen.return_value
+        mock_process.communicate.return_value = ('', '')
+        mock_process.returncode = 0
+
+        kallisto_tool.classify(kallisto_inputs['fastq'], kallisto_inputs['index'], 'out_dir', kallisto_inputs['t2g'], num_threads=3)
+
+        args = mock_popen.call_args[0][0]
+        assert ['kb', 'count'] == args[:2]
+        assert args[-1] == kallisto_inputs['fastq']
+        assert util_misc.list_contains(['--parity', 'single'], args)
+        assert '--h5ad' in args
+        expected_threads = str(util_misc.sanitize_thread_count(3))
+        assert util_misc.list_contains(['-t', expected_threads], args)
+        finalize_outputs.assert_called_once_with('out_dir', 'SRR12340077.2.sample')
+
+
+def test_classify_returns_early_when_bam_is_empty(kallisto_tool, kallisto_inputs):
+    mkstemp_vals = ['ignored.1.fastq', 'ignored.2.fastq', 'ignored.s.fastq']
+
+    with patch('viral_ngs.classify.kallisto.file.mkstempfname', side_effect=mkstemp_vals), \
+         patch('viral_ngs.classify.kallisto.os.unlink'), \
+         patch('viral_ngs.classify.kallisto.picard.SamToFastqTool', autospec=True) as picard_cls, \
+         patch('viral_ngs.classify.kallisto.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts'), \
+         patch('viral_ngs.classify.kallisto.samtools.SamtoolsTool', autospec=True) as samtools_cls, \
+         patch('viral_ngs.classify.kallisto.subprocess.Popen', autospec=True) as mock_popen, \
+         patch.object(kallisto_tool, '_finalize_count_outputs') as finalize_outputs:
+
+        picard_cls.illumina_clipping_attribute = 'XT'
+        picard = picard_cls.return_value
+        picard.jvmMemDefault = '4G'
+        picard.execute.return_value = None
+
+        samtools = samtools_cls.return_value
+        samtools.isEmpty.return_value = True
+
+        mock_process = mock_popen.return_value
+        mock_process.communicate.return_value = ('', '')
+        mock_process.returncode = 0
+
+        kallisto_tool.classify(kallisto_inputs['bam'], kallisto_inputs['index'], 'out_dir', kallisto_inputs['t2g'])
+
+        mock_popen.assert_not_called()
+        picard.execute.assert_not_called()
+        finalize_outputs.assert_not_called()
+
+
+def read_tsv(path):
+    with open(path) as inf:
+        return list(csv.DictReader(inf, delimiter='\t'))
+
+
+def test_sample_name_from_input_strips_known_suffixes():
+    assert kallisto.Kallisto._sample_name_from_input('/path/sample.fastq.gz') == 'sample'
+    assert kallisto.Kallisto._sample_name_from_input('/path/sample.fq.gz') == 'sample'
+    assert kallisto.Kallisto._sample_name_from_input('/path/sample.fastq') == 'sample'
+    assert kallisto.Kallisto._sample_name_from_input('/path/sample.fq') == 'sample'
+    assert kallisto.Kallisto._sample_name_from_input('/path/sample.bam') == 'sample'
+    assert kallisto.Kallisto._sample_name_from_input('/path/sample.txt') == 'sample'
+
+
+@pytest.mark.parametrize('matrix', [
+    np.array([[1, 0, 2], [0, 3, 0]]),
+    scipy.sparse.csr_matrix([[1, 0, 2], [0, 3, 0]]),
+])
+def test_write_counts_tsv_from_h5ad_writes_long_form_counts(kallisto_tool, tmp_path, matrix):
+    h5ad_path = tmp_path / 'adata.h5ad'
+    out_tsv = tmp_path / 'counts.tsv'
+    adata = anndata.AnnData(matrix)
+    adata.obs_names = ['barcode1', 'barcode2']
+    adata.obs['sample'] = ['sample1', 'sample2']
+    adata.var_names = ['hit1', 'hit2', 'hit3']
+    adata.write_h5ad(h5ad_path)
+
+    kallisto_tool.write_counts_tsv_from_h5ad(str(h5ad_path), str(out_tsv))
+
+    assert read_tsv(out_tsv) == [
+        {'sample_id': 'sample1', 'db_hit_id': 'hit1', 'count': '1'},
+        {'sample_id': 'sample1', 'db_hit_id': 'hit3', 'count': '2'},
+        {'sample_id': 'sample2', 'db_hit_id': 'hit2', 'count': '3'},
+    ]
+
+
+def test_write_counts_tsv_from_empty_h5ad_writes_header_only(kallisto_tool, tmp_path):
+    h5ad_path = tmp_path / 'empty.h5ad'
+    out_tsv = tmp_path / 'counts.tsv'
+    adata = anndata.AnnData(np.zeros((0, 2)))
+    adata.var_names = ['hit1', 'hit2']
+    adata.write_h5ad(h5ad_path)
+
+    kallisto_tool.write_counts_tsv_from_h5ad(str(h5ad_path), str(out_tsv))
+
+    with open(out_tsv) as inf:
+        assert inf.read() == 'sample_id\tdb_hit_id\tcount\n'
+
+
+def test_write_read_hits_tsv_writes_targeted_gz_fastq_hits(kallisto_tool, tmp_path):
+    target_dir = tmp_path / 'hit1'
+    target_dir.mkdir()
+    with gzip.open(target_dir / '1.fastq.gz', 'wt') as outf:
+        outf.write('@read one\nACGT\n+\n!!!!\n@read2\nTGCA\n+\n!!!!\n')
+    unrelated_dir = tmp_path / 'metadata'
+    unrelated_dir.mkdir()
+    with open(unrelated_dir / 'ignored.fastq', 'wt') as outf:
+        outf.write('@ignored\nACGT\n+\n!!!!\n')
+
+    kallisto_tool._write_read_hits_tsv(str(tmp_path), ['hit1'])
+
+    assert read_tsv(tmp_path / 'read_hits.tsv') == [
+        {'read_id': 'read', 'db_hit_id': 'hit1'},
+        {'read_id': 'read2', 'db_hit_id': 'hit1'},
+    ]
+
+
+def test_write_read_hits_tsv_requires_targets(kallisto_tool, tmp_path):
+    with pytest.raises(ValueError, match='target_ids must be provided'):
+        kallisto_tool._write_read_hits_tsv(str(tmp_path), [])
+
+
+def test_iter_fastq_read_ids_rejects_malformed_fastq(tmp_path):
+    malformed = tmp_path / 'bad.fastq'
+    malformed.write_text('not-a-header\nACGT\n+\n!!!!\n')
+
+    with pytest.raises(ValueError, match='Expected FASTQ header'):
+        list(kallisto.Kallisto._iter_fastq_read_ids(str(malformed)))
+
+    truncated = tmp_path / 'truncated.fastq'
+    truncated.write_text('@read\nACGT\n+\n')
+
+    with pytest.raises(ValueError, match='Unexpected end of FASTQ record'):
+        list(kallisto.Kallisto._iter_fastq_read_ids(str(truncated)))

@@ -41,7 +41,7 @@ from .classify import kma
 from .classify import kraken2
 from .classify import krona
 from .classify import centrifuger
-from .classify import kb
+from .classify import kallisto
 from .classify import genomad
 from .classify.taxonomy import (
     TaxIdError, TaxonomyDb, BlastRecord, blast_records, paired_query_id,
@@ -382,8 +382,8 @@ def main_kraken2(db, inBams, outReports=None, outReads=None, min_base_qual=None,
 __commands__.append(('kraken2', parser_kraken2))
 
 
-def parser_kb(parser=argparse.ArgumentParser()):
-    """Argument parser for the kb_python wrapper.
+def parser_kallisto(parser=argparse.ArgumentParser()):
+    """Argument parser for the kallisto wrapper.
 
     Args:
         parser (_type_, optional): _description_. Defaults to argparse.ArgumentParser().
@@ -392,40 +392,38 @@ def parser_kb(parser=argparse.ArgumentParser()):
         argparse.ArgumentParser: The parser with arguments added.
     """
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--index', help='kb index file.')
-    parser.add_argument('--t2g', help='Input unaligned reads, BAM format.')
+    parser.add_argument('--index', help='kallisto index file.')
+    parser.add_argument('--t2g', help='Transcript to gene mapping file.')
     parser.add_argument('--kmer_len', type=int, help='k-mer size (default: 31bp)', default=31)
     parser.add_argument('--parity', choices=['single', 'paired'], help='Library parity (default: single)', default='single')
     parser.add_argument('--technology', choices=['10xv2', '10xv3', '10xv3-3prime', '10xv3-5prime', 'dropseq', 
                                                  'indrop', 'celseq', 'celseq2', 'smartseq2', 'bulk'], 
                         help='Technology used to generate the data (default: bulk)', default='bulk')
-    parser.add_argument('--h5ad', action='store_true', help='Output HDF5 file (default: False)', default=False)
     parser.add_argument('--loom', action='store_true', help='Output Loom file (default: False)', default=False)
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
-    parser.add_argument('--out_dir', help='Output directory (default: kb_out)', default='kb_out')
+    parser.add_argument('--out_dir', help='Output directory (default: kallisto_out)', default='kallisto_out')
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    cmd.attach_main(parser, kb_python, split_args=True)
+    cmd.attach_main(parser, main_kallisto, split_args=True)
     return parser
-def kb_python(in_bam, index=None, t2g=None, kmer_len=31, parity='single', technology='bulk', h5ad=False, loom=False, protein=False, out_dir=None, threads=None):
-    """Runs kb count on the input BAM files.
+def main_kallisto(in_bam, index=None, t2g=None, kmer_len=31, parity='single', technology='bulk', loom=False, protein=False, out_dir=None, threads=None):
+    """Runs kallisto count on the input BAM files.
 
     Args:
         in_bam (list): List of input BAM files.
         out_dir (str): Output directory. Defaults to None.
-        index (str): Path to the kb index file.
+        index (str): Path to the kallisto index file.
         t2g (list|str): Transcript-to-gene mapping file(s).
         kmer_len (int, optional): K-mer size for the alignment. Defaults to 31.
         parity (str, optional): Library parity (default: single). Defaults to 'single'.
         technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
-        h5ad (bool, optional): Whether to output HDF5 file. Defaults to False.
         loom (bool, optional): Whether to output Loom file. Defaults to False.
         protein (bool, optional): Whether the sequence contains amino acids. Defaults to False.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
 
     assert out_dir, ('Output directory must be specified.')
-    kb_tool = kb.kb()
-    kb_tool.classify(
+    kallisto_tool = kallisto.Kallisto()
+    kallisto_tool.classify(
         in_bam=in_bam,
         out_dir=out_dir,
         index_file=index,
@@ -433,12 +431,11 @@ def kb_python(in_bam, index=None, t2g=None, kmer_len=31, parity='single', techno
         k=kmer_len,
         parity=parity,
         technology=technology,
-        h5ad=h5ad,
         loom=loom,
         protein=protein,
         num_threads=threads
     )
-__commands__.append(('kb', parser_kb))
+__commands__.append(('kallisto', parser_kallisto))
 
 def parser_kma(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='KMA database prefix.')
@@ -1224,8 +1221,8 @@ def taxlevel_plurality(summary_file, tax_heading, out_report, min_reads):
 
 __commands__.append(('taxlevel_plurality', parser_kraken_taxlevel_plurality))
 
-def parser_kb_extract(parser=argparse.ArgumentParser()):
-    """Argument parser for the kb_python extract command.
+def parser_kallisto_extract(parser=argparse.ArgumentParser()):
+    """Argument parser for the kallisto extract command.
 
     Args:
         parser (argparse.ArgumentParser): Argument parser instance. Defaults to argparse.ArgumentParser().
@@ -1234,22 +1231,22 @@ def parser_kb_extract(parser=argparse.ArgumentParser()):
         argparse.ArgumentParser: The parser with arguments added.
     """
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
-    parser.add_argument('--index', help='kb index file.')
+    parser.add_argument('--index', help='kallisto index file.')
     parser.add_argument('--t2g', help='Transcript to gene mapping file.')
-    parser.add_argument('--out_dir', dest='out_dir', help='Output directory (default: kb_out)', default='kb_out')
+    parser.add_argument('--out_dir', dest='out_dir', help='Output directory (default: kallisto_out)', default='kallisto_out')
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
     parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.', default=None)
-    parser.add_argument('--h5ad', help='Path to the output h5ad file. Can pull IDs to extract from this file.', default=None)
+    parser.add_argument('--h5ad', help='Path to a kallisto count h5ad file. Can pull IDs to extract from this file.', default=None)
     parser.add_argument('--threshold', type=int, help='Minimum read count threshold for a target to be extracted (only used when extractin IDs from h5ad; default: %(default)s)', default=1)
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    cmd.attach_main(parser, kb_extract, split_args=True)
+    cmd.attach_main(parser, kallisto_extract, split_args=True)
     return parser
-def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None, threshold=None):
-    """Runs kb extract on the input BAM file.
+def kallisto_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None, threshold=None):
+    """Runs kallisto extract on the input BAM file.
 
     Args:
         in_bam (str): Input BAM file.
-        index (str): Path to the kb index file.
+        index (str): Path to the kallisto index file.
         t2g (str): Path to the transcript-to-gene mapping file.
         targets (str): Comma-separated list of target sequences to extract.
         protein (bool): True if sequence contains amino acids. Defaults to False.
@@ -1260,18 +1257,18 @@ def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=No
     """
     assert out_dir, ('Output directory must be specified.')
 
-    kb_tool = kb.kb()
+    kallisto_tool = kallisto.Kallisto()
     
     target_ids = targets.split(',') if targets else []
     if not target_ids or len(target_ids) == 0:
         # TODO: This extraction method expects only to have a single row h5ad (i.e. 1 sample). This should be handled more robustly.
         log.warning('No targets specified for extraction. Trying to extract IDs from h5ad.')
-        target_ids = kb_tool.extract_hit_ids_from_h5ad(h5ad, threshold=threshold)
+        target_ids = kallisto_tool.extract_hit_ids_from_h5ad(h5ad, threshold=threshold)
         log.info("Target IDs extracted from h5ad: {}".format(target_ids))
         if len(target_ids) == 0:
             raise ValueError('No targets specified for extraction and no IDs found in h5ad.')
 
-    kb_tool.extract(
+    kallisto_tool.extract(
         in_bam=in_bam,
         index_file=index,
         target_ids=target_ids,
@@ -1280,30 +1277,30 @@ def kb_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=No
         protein=protein,
         num_threads=threads
     )
-__commands__.append(('kb_extract', parser_kb_extract))
+__commands__.append(('kallisto_extract', parser_kallisto_extract))
 
-def parser_kb_top_taxa(parser=argparse.ArgumentParser()):
-    parser.add_argument('counts_tar', help='Input kb count tarball (tar.zst format).')
+def parser_kallisto_top_taxa(parser=argparse.ArgumentParser()):
+    parser.add_argument('counts_tar', help='Input kallisto count tarball (tar.zst format).')
     parser.add_argument('--id-to-tax-map', dest='id_to_tax_map', help='ID to taxonomy mapping file (CSV format).')
     parser.add_argument('--target-taxon', dest='target_taxon', default='Viruses', help='Target taxonomic category to analyze (default: Viruses).')
     parser.add_argument('out_report', help='Tab-delimited output file.')
     cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    cmd.attach_main(parser, kb_top_taxa, split_args=True)
+    cmd.attach_main(parser, kallisto_top_taxa, split_args=True)
     return parser
 
-def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruses'):
-    """Identifies the most abundant taxon (of any rank) contributing to a taxa node of interest in kb count output.
+def kallisto_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruses'):
+    """Identifies the most abundant taxon contributing to a taxa node of interest in kallisto count output.
 
     It is intended to highlight the primary contributor of taxonomic signal within a taxonomic category of interest,
     for example, the most abundant virus among all viruses.
 
     Args:
-        counts_tar (str): Path to the input kb count tarball (tar.zst format).
+        counts_tar (str): Path to the input kallisto count tarball (tar.zst format).
         out_report (str): Path to the output report file.
         id_to_tax_map (str, optional): Path to the ID to taxonomy mapping file (CSV format).
         target_taxon (str): The taxonomic category to analyze (default: 'Viruses').
     """
-    kb_tool = kb.kb()
+    kallisto_tool = kallisto.Kallisto()
 
     # Extract and read h5ad file from tarball
     with file.tmp_dir() as tmp_dir:
@@ -1314,7 +1311,7 @@ def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruse
         h5ad_file = h5ad_files[0]
 
         # Use kb helper to parse h5ad file
-        gene_counts = kb_tool.parse_h5ad_counts(h5ad_file)
+        gene_counts = kallisto_tool.parse_h5ad_counts(h5ad_file)
 
         # Build results data with taxonomy information
         results_data = []
@@ -1420,34 +1417,7 @@ def kb_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruse
         writer.writeheader()
         writer.writerows(out)
 
-__commands__.append(('kb_top_taxa', parser_kb_top_taxa))
-
-def parser_kb_merge_h5ads(parser=argparse.ArgumentParser()):
-    parser.add_argument('in_count_tars', nargs='+', help='Input kb count tarballs to merge (tar.zst format).')
-    parser.add_argument('--out-h5ad', dest='out_h5ad', help='Output merged h5ad file.')
-    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
-    cmd.attach_main(parser, kb_merge_h5ads, split_args=True)
-    return parser
-def kb_merge_h5ads(in_count_tars, out_h5ad, tmp_dir=None):
-    '''
-    Merge multiple kb count output tarballs into a single h5ad file with sample metadata.
-
-    Extracts h5ad files from counts_unfiltered folder and adds sample names from matrix.cells.
-
-    Args:
-        in_count_tars (list): List of input kb count tarballs (tar.zst format).
-        out_h5ad (str): Path to the output h5ad file.
-        tmp_dir (str, optional): Temporary directory for extraction.
-    '''
-    assert out_h5ad, ('Output h5ad file must be specified.')
-    kb_tool = kb.kb()
-    kb_tool.merge_h5ads(
-        in_count_tars=in_count_tars,
-        out_h5ad=out_h5ad,
-        tmp_dir_parent=tmp_dir
-    )
-
-__commands__.append(('kb_merge_h5ads', parser_kb_merge_h5ads))
+__commands__.append(('kallisto_top_taxa', parser_kallisto_top_taxa))
 
 def parser_krona_build(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Krona taxonomy database output directory.')
@@ -1514,36 +1484,36 @@ def kraken2_build(db,
 __commands__.append(('kraken2_build', parser_kraken2_build))
 
 
-def parser_kb_build(parser=argparse.ArgumentParser()):
+def parser_kallisto_build(parser=argparse.ArgumentParser()):
     parser.add_argument('ref_fasta', help='Reference sequence fasta file.')
-    parser.add_argument('--index', help='kb output index file.')
+    parser.add_argument('--index', help='kallisto output index file.')
     parser.add_argument('--workflow', choices=['standard', 'nac', 'kite', 'custom'],
                         default='standard', help='Type of index to create (default: %(default)s).')
     parser.add_argument('--kmer_len', type=int, help='k-mer length (default: 31).')
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids(default: False).')
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    cmd.attach_main(parser, kb_build, split_args=True)
+    cmd.attach_main(parser, kallisto_build, split_args=True)
     return parser
-def kb_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, threads=None):
+def kallisto_build(ref_fasta, index, workflow='standard', kmer_len=31, protein=False, threads=None):
     '''
-    Builds a kb index from a reference fasta file.
+    Builds a kallisto index from a reference fasta file.
 
     Args:
         ref_fasta (str): Path to the reference sequence fasta file.
-        index (str): Path to the output kb index file.
+        index (str): Path to the output kallisto index file.
         workflow (str): Type of index to create. Options are 'standard', 'nac', 'kite', 'custom'.
         kmer_len (int): k-mer length (default: 31).
         protein (bool): True if sequence contains amino acids (default: False).
         threads (int): Number of threads to use (default: None).
     '''
-    kb_tool = kb.kb()
-    kb_tool.build(ref_fasta,
+    kallisto_tool = kallisto.Kallisto()
+    kallisto_tool.build(ref_fasta,
                         index=index,
                         workflow=workflow,
                         kmer_len=kmer_len,
                         protein=protein,
                         num_threads=threads)
-__commands__.append(('kb_build', parser_kb_build))
+__commands__.append(('kallisto_build', parser_kallisto_build))
 
 def parser_genomad(parser=argparse.ArgumentParser()):
     parser.add_argument('in_fasta', help='Input FASTA file with sequences to classify.')
