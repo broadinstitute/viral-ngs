@@ -730,10 +730,8 @@ __commands__.append(('virnucpro_contigs', parser_virnucpro_contigs))
 
 
 def parser_virnucpro_label_reads_by_contig(parser=argparse.ArgumentParser()):
-    parser.add_argument('paf_file',
-                        help='Augmented minimap2 PAF (12 standard PAF columns + N tag columns + '
-                             'trailing pct_identity and pct_query_cov columns). Compressed inputs '
-                             '(.gz/.zst/.lz4/.bz2) are read transparently.')
+    parser.add_argument('aligned_bam',
+                        help='Minimap2-aligned BAM with NM tags.')
     parser.add_argument('contig_classifications',
                         help='Per-contig VirNucPro classification TSV produced by virnucpro_contigs.')
     parser.add_argument('output_tsv',
@@ -742,11 +740,11 @@ def parser_virnucpro_label_reads_by_contig(parser=argparse.ArgumentParser()):
     parser.add_argument('--minMapq', '--min-mapq', dest='min_mapq', type=int, default=5,
                         help='Minimum mapping quality for the mapped_well flag. (default: %(default)s)')
     parser.add_argument('--minIdentity', '--min-identity', dest='min_identity', type=float, default=90.0,
-                        help='Minimum percent identity for the mapped_well flag. Fractional-scale '
-                             '(0-1) inputs are auto-detected. (default: %(default)s)')
+                        help='Minimum percent identity for the mapped_well flag. '
+                             'Use percent units, e.g. 90 not 0.9. (default: %(default)s)')
     parser.add_argument('--minQueryCov', '--min-query-cov', dest='min_query_cov', type=float, default=80.0,
-                        help='Minimum percent query coverage for the mapped_well flag. Fractional-scale '
-                             '(0-1) inputs are auto-detected. (default: %(default)s)')
+                        help='Minimum percent query coverage for the mapped_well flag. '
+                             'Use percent units, e.g. 80 not 0.8. (default: %(default)s)')
     parser.add_argument('--duckdbMemoryLimit', '--duckdb-memory-limit', dest='duckdb_memory_limit',
                         default=None,
                         help='DuckDB memory cap, e.g. "8GB" (default: %(default)s = auto-detect ~75%% '
@@ -760,7 +758,7 @@ def parser_virnucpro_label_reads_by_contig(parser=argparse.ArgumentParser()):
 
 
 def main_virnucpro_label_reads_by_contig(
-    paf_file,
+    aligned_bam,
     contig_classifications,
     output_tsv,
     min_mapq=5,
@@ -774,13 +772,16 @@ def main_virnucpro_label_reads_by_contig(
         contig.
 
         The output is a tab-delimited, one-row-per-read table. Each row
-        preserves the selected PAF alignment context (read length, contig,
+        preserves the selected BAM alignment context (read length, contig,
         contig length, strand, mapping quality, percent identity, percent
-        query coverage) and appends the VirNucPro contig-level call/tier and
-        supporting chunk summary metrics.
+        query coverage derived from CIGAR and NM) and appends the VirNucPro
+        contig-level call/tier and supporting chunk summary metrics.
 
         The selected contig is the best primary alignment for each read,
         ordered by mapping quality, then percent identity, then input order.
+        Input record order is the final deterministic tiebreaker; avoid
+        re-sorting or otherwise reordering the BAM between minimap2 alignment
+        and classification if exact tie reproducibility matters.
         ``mapped_well`` is a boolean flag derived from ``--min-mapq``,
         ``--min-identity``, and ``--min-query-cov``. Reads with primary
         alignments to contigs carrying different VirNucPro calls are labeled
@@ -788,7 +789,7 @@ def main_virnucpro_label_reads_by_contig(
         classification are labeled ``Unclassified``.
     '''
     virnucpro.classify_reads_by_contig(
-        paf_file,
+        aligned_bam,
         contig_classifications,
         output_tsv,
         min_mapq=min_mapq,

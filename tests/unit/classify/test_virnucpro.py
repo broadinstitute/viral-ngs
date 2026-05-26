@@ -199,6 +199,8 @@ def test_classify_reads_by_contig_writes_read_level_calls(tmp_path):
             _segment("read1", "NODE_1", mapq=60, nm=5),
             # Secondary alignment is ignored.
             _segment("read1", "NODE_2", mapq=60, nm=5, flag=0x100),
+            # Supplementary alignment is ignored before NM validation.
+            _segment("read1", "NODE_2", mapq=60, nm=None, flag=0x800),
             # read2 maps below the default mapq threshold to a non-viral contig.
             _segment("read2", "NODE_2", mapq=3, nm=5),
             # read3 maps to contigs with distinct calls and is flagged Multi-mapped.
@@ -284,6 +286,48 @@ def test_classify_reads_by_contig_computes_bam_identity_and_query_cov(tmp_path):
     assert result.loc[0, "pct_query_cov"] == pytest.approx(80.0)
 
 
+def test_classify_reads_by_contig_counts_indels_in_identity_denominator(tmp_path):
+    contig_classifications = tmp_path / "contigs.tsv"
+    aligned_bam = tmp_path / "reads.bam"
+    output_tsv = tmp_path / "reads_classified.tsv"
+
+    contig_classifications.write_text(
+        "ID\tcall\ttier\tweighted_delta\tn_chunks\tn_confident_viral\t"
+        "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
+        "nonviral_proportion\n"
+        "NODE_1\tViral\thigh_confidence\t0.9\t5\t5\t0\t0\t1.0\t0.0\n"
+    )
+    _write_bam(
+        aligned_bam,
+        [
+            _segment(
+                "read1",
+                "NODE_1",
+                cigar=[
+                    (pysam.CMATCH, 50),
+                    (pysam.CDEL, 5),
+                    (pysam.CMATCH, 50),
+                ],
+                nm=5,
+            ),
+        ],
+    )
+
+    virnucpro.classify_reads_by_contig(
+        str(aligned_bam),
+        str(contig_classifications),
+        str(output_tsv),
+        min_identity=95.0,
+        min_query_cov=100.0,
+    )
+
+    result = pd.read_csv(output_tsv, sep="\t")
+
+    assert result.loc[0, "mapped_well"]
+    assert result.loc[0, "pct_identity"] == pytest.approx(10000.0 / 105.0)
+    assert result.loc[0, "pct_query_cov"] == pytest.approx(100.0)
+
+
 def test_classify_reads_by_contig_writes_header_for_empty_bam(tmp_path):
     contig_classifications = tmp_path / "contigs.tsv"
     aligned_bam = tmp_path / "reads.bam"
@@ -304,6 +348,36 @@ def test_classify_reads_by_contig_writes_header_for_empty_bam(tmp_path):
 
     with util_file.open_or_gzopen(str(output_tsv), "rt") as inf:
         result = pd.read_csv(inf, sep="\t")
+
+    assert list(result.columns) == virnucpro.READ_CLASSIFICATION_COLUMNS
+    assert result.empty
+
+
+def test_classify_reads_by_contig_writes_header_for_all_unmapped_bam(tmp_path):
+    contig_classifications = tmp_path / "contigs.tsv"
+    aligned_bam = tmp_path / "reads.bam"
+    output_tsv = tmp_path / "reads_classified.tsv"
+
+    contig_classifications.write_text(
+        "ID\tcall\ttier\tweighted_delta\tn_chunks\tn_confident_viral\t"
+        "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
+        "nonviral_proportion\n"
+    )
+    _write_bam(
+        aligned_bam,
+        [
+            _segment("read1", flag=0x4),
+            _segment("read2", flag=0x4),
+        ],
+    )
+
+    virnucpro.classify_reads_by_contig(
+        str(aligned_bam),
+        str(contig_classifications),
+        str(output_tsv),
+    )
+
+    result = pd.read_csv(output_tsv, sep="\t")
 
     assert list(result.columns) == virnucpro.READ_CLASSIFICATION_COLUMNS
     assert result.empty
@@ -341,6 +415,36 @@ def test_classify_reads_by_contig_rejects_mapped_bam_without_nm(tmp_path):
             str(aligned_bam),
             str(contig_classifications),
             str(tmp_path / "reads_classified.tsv"),
+        )
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"min_identity": 0.9}, "min_identity must be specified as a percent"),
+        ({"min_query_cov": 0.8}, "min_query_cov must be specified as a percent"),
+        ({"min_identity": -1}, "min_identity must be between 0 and 100"),
+        ({"min_query_cov": 101}, "min_query_cov must be between 0 and 100"),
+    ],
+)
+def test_classify_reads_by_contig_rejects_invalid_percent_thresholds(
+        tmp_path, kwargs, match):
+    contig_classifications = tmp_path / "contigs.tsv"
+    aligned_bam = tmp_path / "reads.bam"
+
+    contig_classifications.write_text(
+        "ID\tcall\ttier\tweighted_delta\tn_chunks\tn_confident_viral\t"
+        "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
+        "nonviral_proportion\n"
+    )
+    _write_bam(aligned_bam, [])
+
+    with pytest.raises(ValueError, match=match):
+        virnucpro.classify_reads_by_contig(
+            str(aligned_bam),
+            str(contig_classifications),
+            str(tmp_path / "reads_classified.tsv"),
+            **kwargs
         )
 
 

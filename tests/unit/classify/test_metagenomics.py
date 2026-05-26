@@ -246,7 +246,7 @@ class TestVirNucProCalls(TestCaseWithTmp):
         args = metagenomics.parser_virnucpro_label_reads_by_contig(
             argparse.ArgumentParser()
         ).parse_args([
-            'reads.paf',
+            'reads.bam',
             'contigs.tsv',
             'reads_classified.tsv.zst',
             '--min-mapq', '10',
@@ -258,7 +258,7 @@ class TestVirNucProCalls(TestCaseWithTmp):
         args.func_main(args)
 
         mock_classify_reads_by_contig.assert_called_once_with(
-            'reads.paf',
+            'reads.bam',
             'contigs.tsv',
             'reads_classified.tsv.zst',
             min_mapq=10,
@@ -267,6 +267,14 @@ class TestVirNucProCalls(TestCaseWithTmp):
             duckdb_memory_limit='4GB',
             work_dir='/tmp/virnucpro',
         )
+
+    def test_virnucpro_label_reads_by_contig_help_uses_percent_units(self):
+        help_text = metagenomics.parser_virnucpro_label_reads_by_contig(
+            argparse.ArgumentParser()).format_help()
+
+        assert 'Fractional-scale' not in help_text
+        assert 'percent units, e.g. 90 not 0.9' in help_text
+        assert 'percent units, e.g. 80 not 0.8' in help_text
 
 
 @pytest.fixture

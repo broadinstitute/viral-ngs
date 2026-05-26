@@ -225,10 +225,13 @@ def classify_reads_by_contig(
     if not os.path.isfile(contig_classifications):
         raise FileNotFoundError(contig_classifications)
 
-    duckdb = _import_duckdb()
     min_mapq = int(min_mapq)
     min_identity = float(min_identity)
     min_query_cov = float(min_query_cov)
+    _validate_percent_threshold("min_identity", min_identity)
+    _validate_percent_threshold("min_query_cov", min_query_cov)
+
+    duckdb = _import_duckdb()
 
     _ensure_parent_dir(output_tsv)
     if work_dir:
@@ -237,10 +240,11 @@ def classify_reads_by_contig(
     with tempfile.TemporaryDirectory(
         prefix="virnucpro_reads_", dir=work_dir
     ) as tmp_dir:
-        normalized_alignments, n_alignments = _prepare_augmented_bam_file(
-            aligned_bam,
-            tmp_dir,
-        )
+        (
+            normalized_alignments,
+            n_alignments,
+            n_secondary,
+        ) = _prepare_augmented_bam_file(aligned_bam, tmp_dir)
         normalized_classifications = _prepare_contig_classifications_file(
             contig_classifications,
             tmp_dir,
@@ -249,12 +253,17 @@ def classify_reads_by_contig(
             _write_empty_read_classifications(output_tsv)
             stats = {
                 "n_primary": 0,
-                "n_secondary": 0,
+                "n_secondary": n_secondary,
                 "n_reads": 0,
                 "n_well": 0,
                 "n_multi": 0,
                 "pct_well": 0,
             }
+            if stats["n_secondary"] > 0:
+                log.info(
+                    "Removed %s secondary/supplementary alignments",
+                    stats["n_secondary"],
+                )
             log.info("%s primary alignments retained", stats["n_primary"])
             log.info("%s reads in output", stats["n_reads"])
             log.info(
@@ -282,6 +291,7 @@ def classify_reads_by_contig(
                 min_mapq=min_mapq,
                 min_identity=min_identity,
                 min_query_cov=min_query_cov,
+                n_secondary=n_secondary,
             )
         finally:
             con.close()
@@ -301,6 +311,16 @@ def classify_reads_by_contig(
     log.info("%s reads mapped well (%.1f%%)", stats["n_well"], stats["pct_well"])
     if stats["n_multi"] > 0:
         log.info("%s reads flagged as Multi-mapped", stats["n_multi"])
+
+
+def _validate_percent_threshold(name, value):
+    if 0 < value < 1.0:
+        raise ValueError(
+            "{} must be specified as a percent, not a fraction. "
+            "Use {} instead of {}.".format(name, value * 100.0, value)
+        )
+    if value < 0 or value > 100:
+        raise ValueError("{} must be between 0 and 100.".format(name))
 
 
 def _import_duckdb():
@@ -398,6 +418,7 @@ _CIGAR_ALIGNMENT_BLOCK_OPS = {
 def _prepare_augmented_bam_file(aligned_bam, tmp_dir):
     normalized_alignments = os.path.join(tmp_dir, "normalized.alignments.tsv")
     n_written = 0
+    n_secondary = 0
 
     with pysam.AlignmentFile(aligned_bam, "rb") as bam, open(
         normalized_alignments, "wt"
@@ -405,12 +426,15 @@ def _prepare_augmented_bam_file(aligned_bam, tmp_dir):
         for record in bam:
             if record.is_unmapped:
                 continue
+            if record.is_secondary or record.is_supplementary:
+                n_secondary += 1
+                continue
 
             n_written += 1
             row = _bam_record_to_alignment_row(bam, record, n_written)
             outf.write("\t".join(row) + "\n")
 
-    return normalized_alignments, n_written
+    return normalized_alignments, n_written, n_secondary
 
 
 def _bam_record_to_alignment_row(bam, record, source_order):
@@ -466,13 +490,6 @@ def _bam_record_to_alignment_row(bam, record, source_order):
     pct_identity = 100.0 * num_matches / alignment_block_length
     pct_query_cov = 100.0 * (query_end - query_start) / query_length
 
-    if record.is_secondary:
-        tags = "tp:A:S"
-    elif record.is_supplementary:
-        tags = "tp:A:I"
-    else:
-        tags = "tp:A:P"
-
     return [
         str(source_order),
         record.query_name,
@@ -487,7 +504,6 @@ def _bam_record_to_alignment_row(bam, record, source_order):
         str(num_matches),
         str(alignment_block_length),
         str(record.mapping_quality),
-        tags,
         "{:.6f}".format(pct_identity),
         "{:.6f}".format(pct_query_cov),
     ]
@@ -542,6 +558,7 @@ def _classify_reads_by_contig_duckdb(
     min_mapq,
     min_identity,
     min_query_cov,
+    n_secondary,
 ):
     con.execute(
         """
@@ -565,7 +582,6 @@ def _classify_reads_by_contig_duckdb(
                 'num_matches': 'VARCHAR',
                 'alignment_block_length': 'VARCHAR',
                 'mapping_quality': 'VARCHAR',
-                '_tags': 'VARCHAR',
                 'pct_identity': 'VARCHAR',
                 'pct_query_cov': 'VARCHAR'
             }
@@ -573,7 +589,6 @@ def _classify_reads_by_contig_duckdb(
         """,
         [normalized_alignments],
     )
-    n_total = con.execute("SELECT count(*) FROM alignment_raw").fetchone()[0]
 
     con.execute(
         """
@@ -593,8 +608,7 @@ def _classify_reads_by_contig_duckdb(
             CAST(alignment_block_length AS BIGINT) AS alignment_block_length,
             CAST(mapping_quality AS BIGINT) AS mapping_quality,
             CAST(pct_identity AS DOUBLE) AS pct_identity,
-            CAST(pct_query_cov AS DOUBLE) AS pct_query_cov,
-            _tags
+            CAST(pct_query_cov AS DOUBLE) AS pct_query_cov
         FROM alignment_raw
         """
     )
@@ -625,14 +639,11 @@ def _classify_reads_by_contig_duckdb(
                 AND pct_query_cov >= ?
             ) AS mapped_well
         FROM alignment_typed
-        WHERE _tags IS NULL
-           OR NOT (_tags LIKE '%tp:A:S%' OR _tags LIKE '%tp:A:I%')
         """,
         [min_mapq, min_identity, min_query_cov],
     )
     con.execute("DROP TABLE alignment_typed")
     n_primary = con.execute("SELECT count(*) FROM alignment_filtered").fetchone()[0]
-    n_secondary = n_total - n_primary
 
     con.execute(
         """
