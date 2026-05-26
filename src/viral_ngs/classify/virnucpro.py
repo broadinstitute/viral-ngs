@@ -8,6 +8,7 @@ import shutil
 import tempfile
 
 import pandas as pd
+import pysam
 
 from viral_ngs.core import file
 
@@ -168,7 +169,7 @@ def classify_contigs(
 
 
 def classify_reads_by_contig(
-    paf_file,
+    aligned_bam,
     contig_classifications,
     output_tsv,
     min_mapq=5,
@@ -177,9 +178,9 @@ def classify_reads_by_contig(
     duckdb_memory_limit=None,
     work_dir=None,
 ):
-    """Classify reads using PAF alignments and VirNucPro contig calls."""
-    if not os.path.isfile(paf_file):
-        raise FileNotFoundError(paf_file)
+    """Classify reads using minimap2 BAM alignments and VirNucPro contig calls."""
+    if not os.path.isfile(aligned_bam):
+        raise FileNotFoundError(aligned_bam)
     if not os.path.isfile(contig_classifications):
         raise FileNotFoundError(contig_classifications)
 
@@ -195,8 +196,8 @@ def classify_reads_by_contig(
     with tempfile.TemporaryDirectory(
         prefix="virnucpro_reads_", dir=work_dir
     ) as tmp_dir:
-        normalized_paf, n_alignments, n_skipped = _prepare_augmented_paf_file(
-            paf_file,
+        normalized_alignments, n_alignments = _prepare_augmented_bam_file(
+            aligned_bam,
             tmp_dir,
         )
         normalized_classifications = _prepare_contig_classifications_file(
@@ -213,11 +214,6 @@ def classify_reads_by_contig(
                 "n_multi": 0,
                 "pct_well": 0,
             }
-            if n_skipped > 0:
-                log.warning(
-                    "Skipped %s malformed PAF rows with fewer than 14 fields",
-                    n_skipped,
-                )
             log.info("%s primary alignments retained", stats["n_primary"])
             log.info("%s reads in output", stats["n_reads"])
             log.info(
@@ -239,7 +235,7 @@ def classify_reads_by_contig(
             result_tsv = os.path.join(tmp_dir, "reads_classified.tsv")
             stats = _classify_reads_by_contig_duckdb(
                 con,
-                normalized_paf,
+                normalized_alignments,
                 normalized_classifications,
                 result_tsv,
                 min_mapq=min_mapq,
@@ -254,11 +250,6 @@ def classify_reads_by_contig(
         ) as outf:
             shutil.copyfileobj(inf, outf)
 
-    if n_skipped > 0:
-        log.warning(
-            "Skipped %s malformed PAF rows with fewer than 14 fields",
-            n_skipped,
-        )
     if stats["n_secondary"] > 0:
         log.info(
             "Removed %s secondary/supplementary alignments",
@@ -312,7 +303,7 @@ _CGROUP_V1_UNLIMITED = 0x7FFFFFFFFFFFF000
 
 # Fraction of the cgroup limit handed to DuckDB. The remaining 25% is
 # reserved for the python process, pandas dataframes, file buffers, and
-# the kernel page cache for the PAF/classification spills.
+# the kernel page cache for the alignment/classification spills.
 _DUCKDB_MEM_FRACTION = 0.75
 
 
@@ -354,28 +345,119 @@ def _default_memory_limit():
     return "{}MB".format(capped_mib)
 
 
-def _prepare_augmented_paf_file(paf_file, tmp_dir):
-    normalized_paf = os.path.join(tmp_dir, "normalized.paf.tsv")
-    n_written = 0
-    n_skipped = 0
+_CIGAR_ALIGNMENT_BLOCK_OPS = {
+    pysam.CMATCH,
+    pysam.CINS,
+    pysam.CDEL,
+    pysam.CEQUAL,
+    pysam.CDIFF,
+}
 
-    with file.open_or_gzopen(paf_file, "rt") as inf, open(
-        normalized_paf, "wt"
+
+def _prepare_augmented_bam_file(aligned_bam, tmp_dir):
+    normalized_alignments = os.path.join(tmp_dir, "normalized.alignments.tsv")
+    n_written = 0
+
+    with pysam.AlignmentFile(aligned_bam, "rb") as bam, open(
+        normalized_alignments, "wt"
     ) as outf:
-        for line in inf:
-            fields = line.rstrip("\n").split("\t")
-            if len(fields) < 14:
-                n_skipped += 1
+        for record in bam:
+            if record.is_unmapped:
                 continue
 
             n_written += 1
-            row = [str(n_written)]
-            row.extend(fields[:12])
-            row.append(";".join(fields[12:-2]))
-            row.extend(fields[-2:])
+            row = _bam_record_to_alignment_row(bam, record, n_written)
             outf.write("\t".join(row) + "\n")
 
-    return normalized_paf, n_written, n_skipped
+    return normalized_alignments, n_written
+
+
+def _bam_record_to_alignment_row(bam, record, source_order):
+    if not record.has_tag("NM"):
+        raise ValueError(
+            "Mapped BAM record {} is missing required NM tag".format(
+                record.query_name
+            )
+        )
+
+    query_length = record.infer_read_length()
+    if query_length is None:
+        query_length = record.infer_query_length(always=True)
+    if query_length is None:
+        query_length = record.query_length
+    if query_length is None or query_length == 0:
+        raise ValueError(
+            "Mapped BAM record {} has no inferable query length".format(
+                record.query_name
+            )
+        )
+
+    query_start = record.query_alignment_start
+    query_end = record.query_alignment_end
+    target_name = bam.get_reference_name(record.reference_id)
+    target_length = bam.get_reference_length(target_name)
+    target_start = record.reference_start
+    target_end = record.reference_end
+    if target_end is None:
+        raise ValueError(
+            "Mapped BAM record {} has no inferable reference end".format(
+                record.query_name
+            )
+        )
+
+    alignment_block_length = _alignment_block_length(record)
+    if alignment_block_length == 0:
+        raise ValueError(
+            "Mapped BAM record {} has zero alignment block length".format(
+                record.query_name
+            )
+        )
+
+    nm = int(record.get_tag("NM"))
+    num_matches = alignment_block_length - nm
+    if num_matches < 0:
+        raise ValueError(
+            "Mapped BAM record {} has NM larger than alignment block length".format(
+                record.query_name
+            )
+        )
+
+    pct_identity = 100.0 * num_matches / alignment_block_length
+    pct_query_cov = 100.0 * (query_end - query_start) / query_length
+
+    if record.is_secondary:
+        tags = "tp:A:S"
+    elif record.is_supplementary:
+        tags = "tp:A:I"
+    else:
+        tags = "tp:A:P"
+
+    return [
+        str(source_order),
+        record.query_name,
+        str(query_length),
+        str(query_start),
+        str(query_end),
+        "-" if record.is_reverse else "+",
+        target_name,
+        str(target_length),
+        str(target_start),
+        str(target_end),
+        str(num_matches),
+        str(alignment_block_length),
+        str(record.mapping_quality),
+        tags,
+        "{:.6f}".format(pct_identity),
+        "{:.6f}".format(pct_query_cov),
+    ]
+
+
+def _alignment_block_length(record):
+    return sum(
+        length
+        for op, length in (record.cigartuples or [])
+        if op in _CIGAR_ALIGNMENT_BLOCK_OPS
+    )
 
 
 def _prepare_contig_classifications_file(contig_classifications, tmp_dir):
@@ -413,7 +495,7 @@ def _prepare_contig_classifications_file(contig_classifications, tmp_dir):
 
 def _classify_reads_by_contig_duckdb(
     con,
-    normalized_paf,
+    normalized_alignments,
     normalized_classifications,
     result_tsv,
     min_mapq,
@@ -422,7 +504,7 @@ def _classify_reads_by_contig_duckdb(
 ):
     con.execute(
         """
-        CREATE TABLE paf_raw AS
+        CREATE TABLE alignment_raw AS
         SELECT * FROM read_csv(
             ?,
             delim='\t',
@@ -448,13 +530,13 @@ def _classify_reads_by_contig_duckdb(
             }
         )
         """,
-        [normalized_paf],
+        [normalized_alignments],
     )
-    n_total = con.execute("SELECT count(*) FROM paf_raw").fetchone()[0]
+    n_total = con.execute("SELECT count(*) FROM alignment_raw").fetchone()[0]
 
     con.execute(
         """
-        CREATE TABLE paf_typed AS
+        CREATE TABLE alignment_typed AS
         SELECT
             CAST(source_order AS BIGINT) AS source_order,
             query_name,
@@ -472,26 +554,14 @@ def _classify_reads_by_contig_duckdb(
             CAST(pct_identity AS DOUBLE) AS pct_identity,
             CAST(pct_query_cov AS DOUBLE) AS pct_query_cov,
             _tags
-        FROM paf_raw
+        FROM alignment_raw
         """
     )
-    con.execute("DROP TABLE paf_raw")
-
-    max_identity, max_query_cov = con.execute(
-        "SELECT max(pct_identity), max(pct_query_cov) FROM paf_typed"
-    ).fetchone()
-    fractional_scale = (
-        max_identity is not None
-        and max_identity <= 1.0
-        and max_query_cov is not None
-        and max_query_cov <= 1.0
-    )
-    identity_threshold = min_identity / 100.0 if fractional_scale else min_identity
-    query_cov_threshold = min_query_cov / 100.0 if fractional_scale else min_query_cov
+    con.execute("DROP TABLE alignment_raw")
 
     con.execute(
         """
-        CREATE TABLE paf_filtered AS
+        CREATE TABLE alignment_filtered AS
         SELECT
             query_name,
             query_length,
@@ -513,14 +583,14 @@ def _classify_reads_by_contig_duckdb(
                 AND pct_identity >= ?
                 AND pct_query_cov >= ?
             ) AS mapped_well
-        FROM paf_typed
+        FROM alignment_typed
         WHERE _tags IS NULL
            OR NOT (_tags LIKE '%tp:A:S%' OR _tags LIKE '%tp:A:I%')
         """,
-        [min_mapq, identity_threshold, query_cov_threshold],
+        [min_mapq, min_identity, min_query_cov],
     )
-    con.execute("DROP TABLE paf_typed")
-    n_primary = con.execute("SELECT count(*) FROM paf_filtered").fetchone()[0]
+    con.execute("DROP TABLE alignment_typed")
+    n_primary = con.execute("SELECT count(*) FROM alignment_filtered").fetchone()[0]
     n_secondary = n_total - n_primary
 
     con.execute(
@@ -570,11 +640,11 @@ def _classify_reads_by_contig_duckdb(
             COALESCE(c.n_ambiguous, 0) AS n_ambiguous,
             COALESCE(c.viral_proportion, 0) AS viral_proportion,
             COALESCE(c.nonviral_proportion, 0) AS nonviral_proportion
-        FROM paf_filtered p
+        FROM alignment_filtered p
         LEFT JOIN clf c ON p.target_name = c.ID
         """
     )
-    con.execute("DROP TABLE paf_filtered")
+    con.execute("DROP TABLE alignment_filtered")
     con.execute("DROP TABLE clf")
 
     con.execute(
