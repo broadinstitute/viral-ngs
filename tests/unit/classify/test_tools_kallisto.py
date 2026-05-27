@@ -226,6 +226,45 @@ def test_write_read_hits_tsv_writes_targeted_gz_fastq_hits(kallisto_tool, tmp_pa
     ]
 
 
+def test_write_extract_tsvs_writes_summary_with_taxonomy(kallisto_tool, tmp_path):
+    target_dir = tmp_path / 'hit1'
+    target_dir.mkdir()
+    with gzip.open(target_dir / '1.fastq.gz', 'wt') as outf:
+        outf.write('@read1/1\nACGT\n+\n!!!!\n@read2/2\nTGCAT\n+\n!!!!!\n')
+    taxonomy_map = tmp_path / 'taxonomy.csv'
+    taxonomy_map.write_text(
+        'palmDB_ID,palmDB_ID,tax_level_1,tax_level_2,strand\n'
+        'hit1,hit1,Viruses,Coronaviridae,+\n'
+    )
+
+    kallisto_tool._write_extract_tsvs(
+        str(tmp_path),
+        ['hit1'],
+        sample_name='sampleA',
+        id_to_tax_map=str(taxonomy_map),
+        taxonomy_level='deepest',
+    )
+
+    assert read_tsv(tmp_path / 'summary.tsv') == [
+        {
+            'SAMPLE_ID': 'sampleA',
+            'READ_ID': 'read1/1',
+            'DB_ID': 'hit1',
+            'TAXONOMY_LINEAGE': 'Viruses;Coronaviridae',
+            'TAXONOMY_NAME': 'Coronaviridae',
+            'SEQUENCE_LENGTH': '4',
+        },
+        {
+            'SAMPLE_ID': 'sampleA',
+            'READ_ID': 'read2/2',
+            'DB_ID': 'hit1',
+            'TAXONOMY_LINEAGE': 'Viruses;Coronaviridae',
+            'TAXONOMY_NAME': 'Coronaviridae',
+            'SEQUENCE_LENGTH': '5',
+        },
+    ]
+
+
 def test_write_read_hits_tsv_requires_targets(kallisto_tool, tmp_path):
     with pytest.raises(ValueError, match='target_ids must be provided'):
         kallisto_tool._write_read_hits_tsv(str(tmp_path), [])

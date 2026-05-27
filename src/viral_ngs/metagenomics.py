@@ -402,10 +402,11 @@ def parser_kallisto(parser=argparse.ArgumentParser()):
     parser.add_argument('--loom', action='store_true', help='Output Loom file (default: False)', default=False)
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
     parser.add_argument('--out_dir', help='Output directory (default: kallisto_out)', default='kallisto_out')
+    parser.add_argument('--sample-id', dest='sample_id', help='Sample identifier to write in counts.tsv. Defaults to the input basename.')
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     cmd.attach_main(parser, main_kallisto, split_args=True)
     return parser
-def main_kallisto(in_bam, index=None, t2g=None, kmer_len=31, parity='single', technology='bulk', loom=False, protein=False, out_dir=None, threads=None):
+def main_kallisto(in_bam, index=None, t2g=None, kmer_len=31, parity='single', technology='bulk', loom=False, protein=False, out_dir=None, sample_id=None, threads=None):
     """Runs kallisto count on the input BAM files.
 
     Args:
@@ -418,6 +419,7 @@ def main_kallisto(in_bam, index=None, t2g=None, kmer_len=31, parity='single', te
         technology (str, optional): Sequencing technology used. Defaults to 'bulk'.
         loom (bool, optional): Whether to output Loom file. Defaults to False.
         protein (bool, optional): Whether the sequence contains amino acids. Defaults to False.
+        sample_id (str, optional): Sample identifier to write in counts.tsv. Defaults to None.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
 
@@ -433,7 +435,8 @@ def main_kallisto(in_bam, index=None, t2g=None, kmer_len=31, parity='single', te
         technology=technology,
         loom=loom,
         protein=protein,
-        num_threads=threads
+        num_threads=threads,
+        sample_name=sample_id
     )
 __commands__.append(('kallisto', parser_kallisto))
 
@@ -1238,10 +1241,13 @@ def parser_kallisto_extract(parser=argparse.ArgumentParser()):
     parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.', default=None)
     parser.add_argument('--h5ad', help='Path to a kallisto count h5ad file. Can pull IDs to extract from this file.', default=None)
     parser.add_argument('--threshold', type=int, help='Minimum read count threshold for a target to be extracted (only used when extractin IDs from h5ad; default: %(default)s)', default=1)
+    parser.add_argument('--sample-id', dest='sample_id', help='Sample identifier to write in summary.tsv. Defaults to the input basename.')
+    parser.add_argument('--id-to-tax-map', dest='id_to_tax_map', help='Optional ID to taxonomy mapping CSV/TSV file.')
+    parser.add_argument('--taxonomy-level', choices=['highest', 'deepest'], default='highest', help='Taxonomy name to report from --id-to-tax-map (default: %(default)s).')
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     cmd.attach_main(parser, kallisto_extract, split_args=True)
     return parser
-def kallisto_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None, threshold=None):
+def kallisto_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h5ad=None, threads=None, threshold=None, sample_id=None, id_to_tax_map=None, taxonomy_level='highest'):
     """Runs kallisto extract on the input BAM file.
 
     Args:
@@ -1253,14 +1259,19 @@ def kallisto_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h
         out_dir (str): Output directory. Defaults to None.
         h5ad (str): Path to the output h5ad file. Can pull IDs to extract from this file. Defaults to None.
         threshold (int, optional): Minimum read count threshold for a target to be extracted. Defaults to 1.
+        sample_id (str, optional): Sample identifier to write in summary.tsv. Defaults to None.
+        id_to_tax_map (str, optional): ID to taxonomy mapping CSV/TSV. Defaults to None.
+        taxonomy_level (str): Taxonomy name to report from the mapping. Defaults to highest.
         threads (int, optional): Number of threads to use. Defaults to None.
     """
     assert out_dir, ('Output directory must be specified.')
 
     kallisto_tool = kallisto.Kallisto()
     
-    target_ids = targets.split(',') if targets else []
+    target_ids = [target.strip() for target in targets.split(',') if target.strip()] if targets else []
     if not target_ids or len(target_ids) == 0:
+        if not h5ad:
+            raise ValueError('No targets specified for extraction and no h5ad provided.')
         # TODO: This extraction method expects only to have a single row h5ad (i.e. 1 sample). This should be handled more robustly.
         log.warning('No targets specified for extraction. Trying to extract IDs from h5ad.')
         target_ids = kallisto_tool.extract_hit_ids_from_h5ad(h5ad, threshold=threshold)
@@ -1275,7 +1286,10 @@ def kallisto_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h
         out_dir=out_dir,
         t2g_file=t2g,
         protein=protein,
-        num_threads=threads
+        num_threads=threads,
+        sample_name=sample_id,
+        id_to_tax_map=id_to_tax_map,
+        taxonomy_level=taxonomy_level
     )
 __commands__.append(('kallisto_extract', parser_kallisto_extract))
 

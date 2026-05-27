@@ -4,7 +4,7 @@ Kallisto/kb-python classification tool.
 This wrapper exposes viral-ngs kallisto commands while using kb-python's `kb`
 CLI to orchestrate kallisto and bustools. Count outputs include a long-form
 collapsed hit table (`counts.tsv`) and the kb-generated h5ad needed by
-`kb extract`; extract outputs include a read-to-hit manifest (`read_hits.tsv`).
+`kb extract`; extract outputs include the downstream read summary (`summary.tsv`).
 '''
 import csv
 import gzip
@@ -35,6 +35,7 @@ class Kallisto(core.Tool):
     COUNTS_TSV = 'counts.tsv'
     H5AD = 'adata.h5ad'
     READ_HITS_TSV = 'read_hits.tsv'
+    SUMMARY_TSV = 'summary.tsv'
 
     def __init__(self, install_methods=None):
         if not install_methods:
@@ -131,7 +132,7 @@ class Kallisto(core.Tool):
             build_opts['--workflow'] = workflow
         self.execute('kb ref', None, args=[ref_fasta], options=build_opts)
         
-    def classify(self, in_bam, index_file, out_dir, t2g_file, k=31, parity='single', technology='bulk', loom=False, protein=False, num_threads=None):
+    def classify(self, in_bam, index_file, out_dir, t2g_file, k=31, parity='single', technology='bulk', loom=False, protein=False, num_threads=None, sample_name=None):
         """Classify input reads (bam)
 
         Args:
@@ -145,6 +146,7 @@ class Kallisto(core.Tool):
           loom: output loom file
           protein: ref_fasta file contains amino acid sequences
           num_threads: number of threads to use
+          sample_name: sample name to use in counts.tsv
         """
         opts = {
             '-i': index_file,
@@ -217,10 +219,10 @@ class Kallisto(core.Tool):
                     except OSError as e:
                         log.warning("Failed to delete temporary file %s: %s", path, e)
 
-        sample_name = self._sample_name_from_input(in_bam)
+        sample_name = sample_name or self._sample_name_from_input(in_bam)
         self._finalize_count_outputs(out_dir, sample_name)
         
-    def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, protein=False, num_threads=None):
+    def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, protein=False, num_threads=None, sample_name=None, id_to_tax_map=None, taxonomy_level='highest'):
         """Extracts reads mapping to target ids from input reads (bam)
         
         Args:
@@ -231,6 +233,9 @@ class Kallisto(core.Tool):
           protein: ref_fasta file contains amino acid sequences
           target_ids: list of target ids to extract
           num_threads: number of threads to use
+          sample_name: sample name to use in summary.tsv
+          id_to_tax_map: optional mapping from target IDs to taxonomy lineage
+          taxonomy_level: taxonomy name to report from the mapping, one of highest or deepest
         """
         opts = {
             '-i': index_file,
@@ -296,7 +301,8 @@ class Kallisto(core.Tool):
                     except OSError as e:
                         log.warning("Failed to delete temporary file %s: %s", path, e)
 
-        self._write_read_hits_tsv(out_dir, target_ids)
+        sample_name = sample_name or self._sample_name_from_input(in_bam)
+        self._write_extract_tsvs(out_dir, target_ids, sample_name, id_to_tax_map=id_to_tax_map, taxonomy_level=taxonomy_level)
 
     @staticmethod
     def _is_fastq(input_path):
@@ -367,16 +373,87 @@ class Kallisto(core.Tool):
         return str(as_float)
 
     def _write_read_hits_tsv(self, out_dir, target_ids):
+        self._write_extract_tsvs(out_dir, target_ids, sample_name='')
+
+    def _write_extract_tsvs(self, out_dir, target_ids, sample_name, id_to_tax_map=None, taxonomy_level='highest'):
         if not target_ids:
             raise ValueError("target_ids must be provided when writing read hit TSV")
+        taxonomy_map = self._load_id_to_tax_map(id_to_tax_map, taxonomy_level)
         target_id_set = set(target_ids)
         out_tsv = os.path.join(out_dir, self.READ_HITS_TSV)
-        with file.open_or_gzopen(out_tsv, 'wt') as outf:
-            writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
-            writer.writerow(('read_id', 'db_hit_id'))
+        summary_tsv = os.path.join(out_dir, self.SUMMARY_TSV)
+        with file.open_or_gzopen(out_tsv, 'wt') as read_hits_outf, file.open_or_gzopen(summary_tsv, 'wt') as summary_outf:
+            read_hits_writer = csv.writer(read_hits_outf, delimiter='\t', lineterminator='\n')
+            summary_writer = csv.writer(summary_outf, delimiter='\t', lineterminator='\n')
+            read_hits_writer.writerow(('read_id', 'db_hit_id'))
+            summary_writer.writerow(('SAMPLE_ID', 'READ_ID', 'DB_ID', 'TAXONOMY_LINEAGE', 'TAXONOMY_NAME', 'SEQUENCE_LENGTH'))
             for fastq_path, db_hit_id in self._iter_extracted_fastqs(out_dir, target_id_set):
-                for read_id in self._iter_fastq_read_ids(fastq_path):
-                    writer.writerow((read_id, db_hit_id))
+                taxonomy_lineage, taxonomy_name = self._taxonomy_for_hit(db_hit_id, taxonomy_map, id_to_tax_map is not None)
+                for read_id, sequence_length in self._iter_fastq_records(fastq_path):
+                    read_hits_writer.writerow((read_id, db_hit_id))
+                    summary_writer.writerow((sample_name, read_id, db_hit_id, taxonomy_lineage, taxonomy_name, sequence_length))
+
+    @classmethod
+    def _load_id_to_tax_map(cls, id_to_tax_map, taxonomy_level='highest'):
+        if taxonomy_level not in ('highest', 'deepest'):
+            raise ValueError("taxonomy_level must be one of: highest, deepest")
+        if not id_to_tax_map:
+            return {}
+
+        taxonomy_map = {}
+        with file.open_or_gzopen(id_to_tax_map, 'rt') as inf:
+            header_line = inf.readline()
+            if not header_line:
+                raise ValueError(f"Empty ID to taxonomy mapping file: {id_to_tax_map}")
+            delimiter = cls._detect_mapping_delimiter(id_to_tax_map, header_line)
+            header = next(csv.reader([header_line], delimiter=delimiter))
+            tax_start, tax_end = cls._taxonomy_column_bounds(header)
+            reader = csv.reader(inf, delimiter=delimiter)
+            for row in reader:
+                if not row:
+                    continue
+                if len(row) <= tax_start:
+                    raise ValueError(f"Malformed taxonomy mapping row for {row[0]!r}: expected taxonomy columns")
+                db_hit_id = row[0]
+                tax_values = [value.strip() for value in row[tax_start:tax_end] if value.strip()]
+                taxonomy_map[db_hit_id] = cls._format_taxonomy_values(tax_values, taxonomy_level)
+        return taxonomy_map
+
+    @staticmethod
+    def _detect_mapping_delimiter(mapping_path, header_line):
+        lower_path = mapping_path.lower()
+        if lower_path.endswith(('.tsv', '.tsv.gz')):
+            return '\t'
+        if lower_path.endswith(('.csv', '.csv.gz')):
+            return ','
+        return '\t' if '\t' in header_line else ','
+
+    @staticmethod
+    def _taxonomy_column_bounds(header):
+        if len(header) < 2:
+            raise ValueError("ID to taxonomy mapping must contain at least an ID column and one taxonomy column")
+        normalized = [column.strip().lower() for column in header]
+        tax_start = 2 if len(normalized) > 2 and normalized[0] == normalized[1] else 1
+        tax_end = len(header) - 1 if normalized[-1] == 'strand' else len(header)
+        if tax_start >= tax_end:
+            raise ValueError("ID to taxonomy mapping does not contain taxonomy columns")
+        return tax_start, tax_end
+
+    @staticmethod
+    def _format_taxonomy_values(tax_values, taxonomy_level):
+        if not tax_values:
+            return ('Unclassified RdRP', 'Unclassified RdRP')
+        taxonomy_lineage = ';'.join(tax_values)
+        taxonomy_name = tax_values[-1] if taxonomy_level == 'deepest' else tax_values[0]
+        return taxonomy_lineage, taxonomy_name
+
+    @staticmethod
+    def _taxonomy_for_hit(db_hit_id, taxonomy_map, taxonomy_map_provided):
+        if db_hit_id in taxonomy_map:
+            return taxonomy_map[db_hit_id]
+        if taxonomy_map_provided:
+            return ('Unclassified RdRP', 'Unclassified RdRP')
+        return ('', '')
 
     @staticmethod
     def _iter_extracted_fastqs(out_dir, target_ids):
@@ -392,20 +469,27 @@ class Kallisto(core.Tool):
 
     @staticmethod
     def _iter_fastq_read_ids(fastq_path):
+        for read_id, _sequence_length in Kallisto._iter_fastq_records(fastq_path):
+            yield read_id
+
+    @staticmethod
+    def _iter_fastq_records(fastq_path):
         open_fn = gzip.open if fastq_path.lower().endswith('.gz') else open
         with open_fn(fastq_path, 'rt') as inf:
             while True:
                 header = inf.readline()
                 if not header:
                     break
-                inf.readline()
-                inf.readline()
+                sequence = inf.readline()
+                plus = inf.readline()
                 quality = inf.readline()
-                if not quality:
+                if not sequence or not plus or not quality:
                     raise ValueError(f"Unexpected end of FASTQ record in {fastq_path}")
                 if not header.startswith('@'):
                     raise ValueError(f"Expected FASTQ header line starting with @ in {fastq_path}: {header.rstrip()}")
-                yield header[1:].strip().split()[0]
+                if not plus.startswith('+'):
+                    raise ValueError(f"Expected FASTQ separator line starting with + in {fastq_path}: {plus.rstrip()}")
+                yield header[1:].strip().split()[0], len(sequence.strip())
 
     def _extract_h5ad_from_tarball_to_tmpdir(self, count_tar, tmp_dir):
         """Helper function to extract h5ad file from a tarball into a temporary directory.
