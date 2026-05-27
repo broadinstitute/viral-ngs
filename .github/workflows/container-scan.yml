@@ -16,6 +16,11 @@ on:
         required: false
         type: boolean
         default: false
+      skip_fix_pr:
+        description: 'Skip the downstream auto-fix PR job (useful for isolating scan/triage testing)'
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -25,6 +30,10 @@ env:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    outputs:
+      # Exposed so the downstream cve-fix-pr job can gate on them.
+      cve_ids:   ${{ steps.triage.outputs.cve_ids }}
+      test_mode: ${{ steps.triage.outputs.test_mode }}
     permissions:
       contents: read
       packages: read
@@ -404,3 +413,410 @@ jobs:
           else
             echo "::notice::Scheduled scan filed issues for new fixable HIGH/CRITICAL CVE(s): ${{ steps.triage.outputs.cve_ids }}"
           fi
+
+  # ============================================================================
+  # CVE AUTO-FIX PR JOB — downstream of `scan`. When the scan job filed new
+  # `cve`-labeled issues, hand the full set of currently-open CVE issues to
+  # Claude Sonnet 4.6 (on Vertex AI) and ask it whether *all* of them can be
+  # closed by one clean, precedent-mirroring PR. If yes, the workflow opens a
+  # ready-for-review PR. If no, it uploads a decision-log artifact and exits
+  # cleanly — no churn on the issues.
+  #
+  # Confidence bar (enforced in the prompt):
+  #   - version-floor bumps in docker/requirements/*.txt
+  #   - inline Dockerfile mitigations that mirror an exact precedent commit
+  #   - .trivyignore entries with justifications that mirror existing entries
+  # Anything ambiguous, novel, or partial → skip the entire PR.
+  # ============================================================================
+  cve-fix-pr:
+    needs: scan
+    runs-on: ubuntu-latest
+    if: |
+      needs.scan.outputs.cve_ids != ''
+      && needs.scan.outputs.test_mode != 'true'
+      && (github.event.inputs.dry_run    || 'false') != 'true'
+      && (github.event.inputs.skip_fix_pr || 'false') != 'true'
+    permissions:
+      contents: write       # push the auto-fix branch
+      pull-requests: write  # open the PR
+      issues: write         # list open `cve` issues + apply labels via gh pr create
+                            # (label application is issue-scoped in the GH API; the
+                            #  `cve-fix` and `security` labels themselves are managed
+                            #  manually in the repo, NOT created by the workflow)
+      id-token: write       # OIDC → GCP WIF for Vertex AI
+    steps:
+      # Mint a short-lived (1-hour) installation token for a dedicated GitHub
+      # App, instead of using the default GITHUB_TOKEN. The reason: PRs/commits
+      # created with the default GITHUB_TOKEN do not trigger downstream
+      # workflows (a well-known GH limitation), so the on-PR Trivy + Build/Test
+      # required-status-checks would never run on the auto-fix PR, blocking the
+      # merge under the `default branch protection` ruleset. App-token-authored
+      # PRs DO trigger workflows.
+      #
+      # Required repo secrets (set up once, manually — see PR #1074 description):
+      #   AUTOFIX_APP_ID          — numeric App ID
+      #   AUTOFIX_APP_PRIVATE_KEY — full .pem contents (BEGIN/END lines included)
+      #
+      # This step runs BEFORE checkout so the App token can be passed to
+      # actions/checkout via `token:`, which persists it in the local git
+      # config for the subsequent `git push`. (Without that, git push would
+      # silently fall back to the cached default GITHUB_TOKEN, defeating the
+      # whole point of using the App.)
+      - name: Mint GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.AUTOFIX_APP_ID }}
+          private-key: ${{ secrets.AUTOFIX_APP_PRIVATE_KEY }}
+
+      - name: Resolve App bot user ID for git commit attribution
+        id: app-user
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          user_id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
+          echo "user_id=$user_id" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # Full history so Claude can `git log --grep` and `git show` precedent
+          # CVE-fix commits — required to satisfy the moderate confidence bar
+          # (mirror an exact precedent or skip).
+          fetch-depth: 0
+          # Persist the App token in .git/config so `git push` later in the
+          # job authenticates as the App, not the default GITHUB_TOKEN.
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Configure git author
+        run: |
+          git config user.name  '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config user.email '${{ steps.app-user.outputs.user_id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
+
+      - name: Download scan results from upstream job
+        uses: actions/download-artifact@v8
+        with:
+          name: trivy-mega-scheduled
+          path: .
+
+      - name: Gather context for Claude (open issues + in-flight fix PRs)
+        id: context
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p .cve-fix-context
+          gh issue list --repo "$GITHUB_REPOSITORY" \
+            --label cve --state open \
+            --json number,title,body,labels --limit 100 \
+            > .cve-fix-context/open-issues.json
+          gh pr list --repo "$GITHUB_REPOSITORY" \
+            --label cve-fix --state open \
+            --json number,title,headRefName,body --limit 50 \
+            > .cve-fix-context/open-fix-prs.json
+          issue_count=$(jq 'length' .cve-fix-context/open-issues.json)
+          echo "::notice::Found $issue_count open cve-labeled issue(s) to consider"
+          echo "issue_count=$issue_count" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if no open cve issues
+        if: steps.context.outputs.issue_count == '0'
+        run: |
+          echo "::notice::No open cve issues — nothing for the auto-fix pipeline to do."
+
+      - name: Authenticate to GCP via Workload Identity Federation
+        if: steps.context.outputs.issue_count != '0'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIP_PROVIDER }}
+          service_account: ${{ vars.GCP_SA_EMAIL }}
+
+      - name: Claude analysis on Vertex AI (auto-fix assessment)
+        if: steps.context.outputs.issue_count != '0'
+        # Pinned to the same commit SHA as the scan job's Claude step. When
+        # bumping, bump both call sites together so they stay aligned.
+        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
+        env:
+          CLAUDE_CODE_USE_VERTEX: '1'
+          CLOUD_ML_REGION: global
+          ANTHROPIC_VERTEX_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        with:
+          use_vertex: 'true'
+          github_token: ${{ steps.app-token.outputs.token }}
+          claude_args: '--model claude-sonnet-4-6 --max-turns 30'
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "Read",
+                  "Write",
+                  "Edit",
+                  "Bash(mkdir:*)",
+                  "Bash(git log:*)",
+                  "Bash(git show:*)",
+                  "Bash(git rev-parse:*)",
+                  "Bash(git grep:*)",
+                  "Bash(grep:*)",
+                  "Bash(find:*)",
+                  "Bash(jq:*)",
+                  "Bash(ls:*)",
+                  "Bash(cat:*)",
+                  "Bash(head:*)",
+                  "Bash(tail:*)",
+                  "Bash(echo:*)",
+                  "Bash(wc:*)",
+                  "Bash(sort:*)",
+                  "Bash(diff:*)",
+                  "Bash(sed:*)"
+                ]
+              }
+            }
+          prompt: |
+            You are assessing whether all currently-open container-vulnerability
+            issues in broadinstitute/viral-ngs can be closed by a single clean PR.
+
+            ## Your task
+
+            Read the inputs, decide PROCEED or SKIP, and write exactly one of:
+              - `.claude-fix-pr/PROCEED.md` — the PR body (and make the file edits
+                in the working tree). The workflow will commit + push + open the PR.
+              - `.claude-fix-pr/SKIPPED.md` — a decision log explaining, per-CVE,
+                what fix would be required and why it didn't meet the bar.
+
+            **Do NOT write both files. Do NOT commit, push, or create a PR
+            yourself — the workflow handles VCS operations.**
+
+            ## Inputs
+
+            1. `.cve-fix-context/open-issues.json` — every open issue with the
+               `cve` label. Each entry has `number`, `title`, `body`, `labels`.
+               The `body` contains the original triage report (CVSS, dependency
+               chain, recommended fix, etc.).
+            2. `.cve-fix-context/open-fix-prs.json` — every open PR with the
+               `cve-fix` label (prior auto-fix runs whose PRs haven't merged yet).
+            3. `trivy-results.json` — the most recent scan output. Use `jq` to
+               cross-reference CVSS data or confirm a CVE is still flagged.
+
+            ## Required reading
+
+            Before writing any output:
+
+            1. `.agents/skills/container-vulns/SKILL.md` — read fully. This is
+               the repo's playbook. The maintainers' definition of "actionable
+               vs. accepted risk" lives here.
+            2. `.trivyignore` — existing per-CVE exceptions with their
+               justifications. Any `.trivyignore` entry you add MUST mirror the
+               writing style and depth of justification of existing entries.
+            3. `.trivy-ignore-policy.rego` — Rego policy for class-level CVE
+               filtering. Don't ever modify this file.
+            4. `docker/Dockerfile.*` — container build files. Look for prior
+               inline mitigations (`find ... -exec rm`, `gem install`, etc.)
+               that may be precedent for new CVEs of similar shape.
+            5. `docker/requirements/*.txt` — conda dependency lists.
+            6. Recent git history — `fetch-depth: 0` is in effect. Use:
+                 - `git log --all --oneline --grep CVE-` for past CVE fixes
+                 - `git log --all --oneline --grep <package>` for prior commits
+                   touching the affected package
+                 - **`git show <sha>` to inspect the FULL DIFF of any precedent
+                   fix you plan to mirror. Read the diff, not just the message.**
+                   Many real fixes combine multiple elements (file removal +
+                   reinstall, etc.) — your fix must mirror ALL elements.
+                 - ALWAYS verify a commit SHA exists with `git show <sha>` before
+                   citing it.
+
+            ## Confidence bar (MODERATE) — you must PROCEED only if ALL open CVE
+            ## issues can be closed by changes that fall into one of these
+            ## categories:
+
+            **(a) Version-floor bump in `docker/requirements/*.txt`.** Direct
+            edit to a requirements file pinning the affected package to a
+            patched minimum. Verify the fix version against `trivy-results.json`
+            (the `FixedVersion` field) and ensure the package is available on
+            conda-forge (it often lags PyPI — flag this if unsure).
+
+            **(b) Inline Dockerfile mitigation that mirrors an exact precedent
+            commit.** You must cite the precedent SHA in your PR body. The
+            mitigation pattern (the RUN-block additions) must match the
+            precedent pattern; do not invent new mitigation shapes.
+
+            **(c) `.trivyignore` entry whose justification mirrors an existing
+            entry's wording and rationale.** Acceptable when (i) the CVE is
+            architecturally unreachable in our deployment model and (ii) at
+            least one existing `.trivyignore` entry already accepts a CVE for
+            the same class of reason. Cite the existing entry as precedent.
+
+            **If ANY open CVE issue requires:**
+            - a novel mitigation pattern with no precedent,
+            - a `.trivyignore` justification not mirrored by existing entries,
+            - an ARM64 solver-conflict workaround,
+            - a Java fat-JAR version bump,
+            - any judgment call where you're uncertain,
+
+            **→ then SKIP the entire PR.** Partial PRs are not allowed: it is
+            all-of-them-cleanly or none. The SKIPPED.md log will tell humans
+            exactly what needs their attention.
+
+            ## Dedup against in-flight auto-fix PRs
+
+            `.cve-fix-context/open-fix-prs.json` lists any unmerged auto-fix
+            PRs from prior runs. Default behavior:
+              - If an existing PR addresses some or all of the current open
+                CVE issues → SKIP, and in SKIPPED.md note the PR number(s) and
+                that the prior PR is in-flight.
+              - Only consider superseding a prior PR if it is clearly stale
+                (e.g., references issues that have since been closed/modified)
+                AND your proposed fix is materially cleaner. Explain reasoning
+                in SKIPPED.md or PROCEED.md as applicable.
+
+            ## PROCEED.md structure (when you decide to open a PR)
+
+            File path: `.claude-fix-pr/PROCEED.md`. Use this exact structure:
+
+            ```
+            ## Summary
+
+            <2–3 sentences: what this PR does, how many CVEs it addresses>
+
+            ## Closes
+
+            Closes #<N>
+            Closes #<M>
+            <one Closes line per addressed issue, exact format as shown>
+
+            ## Per-CVE rationale
+
+            ### [CVE-YYYY-NNNN] (#<issue-number>)
+            - **Fix:** <one-line description: e.g. "pin urllib3>=2.7.0 in baseimage.txt">
+            - **Precedent:** <commit SHA + one-line description, verified with git show>
+            - **Confidence:** <one of: version-bump | dockerfile-precedent | trivyignore-precedent>
+
+            <repeat per CVE>
+
+            ## Files changed
+
+            - `<path>` — <one-line description of the change>
+            <repeat per file>
+
+            ---
+
+            *This PR was authored by Claude Sonnet 4.6 (running on Google Vertex
+            AI via the `container-scan.yml` auto-fix pipeline). Review every
+            file change, every cited commit SHA, and every justification before
+            merging. The CI Trivy scan must pass before merge.*
+            ```
+
+            Plus: make the actual file edits in the working tree. Do NOT touch
+            anything under `.github/workflows/`, `.trivy-ignore-policy.rego`,
+            or the agent's own scratch directories (`.claude-fix-pr/`,
+            `.cve-fix-context/`).
+
+            ## SKIPPED.md structure (when you decide NOT to open a PR)
+
+            File path: `.claude-fix-pr/SKIPPED.md`. Use this structure:
+
+            ```
+            # Auto-fix decision log — <YYYY-MM-DD>
+
+            **Decision:** SKIP. <one-sentence summary of why.>
+
+            ## Per-CVE reasoning
+
+            ### [CVE-YYYY-NNNN] (#<issue-number>)
+            - **Fix that would be required:** <description>
+            - **Why this didn't meet the bar:** <specific category: e.g. "no
+              precedent for inline mitigation of this shape" / "would need
+              novel .trivyignore justification" / "ARM64 conflict risk on
+              version bump" / "in-flight PR #<N> already addresses this">
+
+            <repeat per CVE>
+
+            ## In-flight PRs considered
+
+            <list of `cve-fix`-labeled open PRs found, with one-line notes on
+            whether they were considered a duplicate>
+
+            ---
+
+            *Generated by Claude Sonnet 4.6 via the auto-fix pipeline.*
+            ```
+
+            ## Constraints
+
+            - `mkdir -p .claude-fix-pr` first.
+            - Write EXACTLY ONE of PROCEED.md / SKIPPED.md (never both, never
+              neither).
+            - Do NOT run git add / git commit / git push / gh — those tools
+              are explicitly NOT in your permission set.
+            - Do NOT modify files under `.github/workflows/`,
+              `.trivy-ignore-policy.rego`, `.claude-fix-pr/`, or
+              `.cve-fix-context/`.
+            - Verify every commit SHA you cite with `git show <sha>`.
+            - Verify every `FixedVersion` you cite against `trivy-results.json`.
+            - When uncertain, choose SKIP. The cost of a skip is a small
+              artifact upload; the cost of a bad PR is reviewer trust.
+            - If you finish with budget remaining, do NOT pad — stop.
+
+      - name: Validate Claude output and decide next step
+        id: decide
+        if: steps.context.outputs.issue_count != '0'
+        run: |
+          set -uo pipefail
+          have_proceed=0
+          have_skipped=0
+          [ -f .claude-fix-pr/PROCEED.md ] && have_proceed=1
+          [ -f .claude-fix-pr/SKIPPED.md ] && have_skipped=1
+          if [ "$have_proceed" = "1" ] && [ "$have_skipped" = "1" ]; then
+            echo "::error::Claude wrote both PROCEED.md and SKIPPED.md — refusing to act on ambiguous output"
+            exit 1
+          fi
+          if [ "$have_proceed" = "0" ] && [ "$have_skipped" = "0" ]; then
+            echo "::error::Claude wrote neither PROCEED.md nor SKIPPED.md — analysis step failed silently"
+            exit 1
+          fi
+          if [ "$have_proceed" = "1" ]; then
+            echo "decision=proceed" >> "$GITHUB_OUTPUT"
+            echo "::notice::Claude recommends opening an auto-fix PR"
+          else
+            echo "decision=skip" >> "$GITHUB_OUTPUT"
+            echo "::notice::Claude recommends skipping; decision log will be uploaded as an artifact"
+          fi
+
+      - name: Open auto-fix PR
+        if: steps.decide.outputs.decision == 'proceed'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          branch="cve-fix/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          # Stage everything EXCEPT the agent's scratch directories.
+          git add -A -- ':!.claude-fix-pr' ':!.cve-fix-context' ':!trivy-results.json'
+          if git diff --cached --quiet; then
+            echo "::error::PROCEED.md exists but no file changes were staged — Claude declared a fix without making one"
+            exit 1
+          fi
+          git commit -m "Auto-fix: address open CVE issues (run ${GITHUB_RUN_ID})"
+          git push -u origin "$branch"
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$branch" \
+            --title "Auto-fix: address open CVE issues ($(date -u +%Y-%m-%d))" \
+            --body-file .claude-fix-pr/PROCEED.md \
+            --label cve-fix --label security
+
+      - name: Upload decision log (skip case)
+        if: always() && steps.decide.outputs.decision == 'skip'
+        uses: actions/upload-artifact@v6
+        with:
+          name: cve-fix-decision-log
+          path: .claude-fix-pr/SKIPPED.md
+          if-no-files-found: warn
+
+      - name: Upload PR body (proceed case, for audit trail)
+        if: always() && steps.decide.outputs.decision == 'proceed'
+        uses: actions/upload-artifact@v6
+        with:
+          name: cve-fix-pr-body
+          path: .claude-fix-pr/PROCEED.md
+          if-no-files-found: warn
