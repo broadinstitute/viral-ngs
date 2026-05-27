@@ -431,11 +431,17 @@ jobs:
   cve-fix-pr:
     needs: scan
     runs-on: ubuntu-latest
+    # TEMP (revert before merge): unconditionally run on workflow_dispatch so we
+    # can exercise the App-token path during PR #1074 validation without needing
+    # the scheduled scan to find a new fixable CVE. See PR #1074 discussion.
     if: |
-      needs.scan.outputs.cve_ids != ''
-      && needs.scan.outputs.test_mode != 'true'
-      && (github.event.inputs.dry_run    || 'false') != 'true'
-      && (github.event.inputs.skip_fix_pr || 'false') != 'true'
+      github.event_name == 'workflow_dispatch'
+      || (
+        needs.scan.outputs.cve_ids != ''
+        && needs.scan.outputs.test_mode != 'true'
+        && (github.event.inputs.dry_run    || 'false') != 'true'
+        && (github.event.inputs.skip_fix_pr || 'false') != 'true'
+      )
     permissions:
       contents: write       # push the auto-fix branch
       pull-requests: write  # open the PR
