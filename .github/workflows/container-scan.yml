@@ -21,11 +21,6 @@ on:
         required: false
         type: boolean
         default: false
-      probe_app_token:
-        description: 'TEMP (PR #1074 validation): run only the App-token probe job (skips scan/triage)'
-        required: false
-        type: boolean
-        default: false
 
 permissions: {}
 
@@ -34,8 +29,6 @@ env:
 
 jobs:
   scan:
-    # TEMP (revert before merge): skipped when running the App-token probe so probe runs stay cheap.
-    if: (github.event.inputs.probe_app_token || 'false') != 'true'
     runs-on: ubuntu-latest
     outputs:
       # Exposed so the downstream cve-fix-pr job can gate on them.
@@ -833,70 +826,3 @@ jobs:
           name: cve-fix-pr-body
           path: .claude-fix-pr/PROCEED.md
           if-no-files-found: warn
-
-  # ============================================================================
-  # TEMP (revert before merge): one-shot probe that exercises the dedicated
-  # GitHub App's `contents: write` and `pull-requests: write` installation
-  # permissions end-to-end. Mints the App token, pushes an empty commit on a
-  # throwaway branch, opens a draft PR, and immediately closes it (deleting
-  # the branch). Runs only when probe_app_token=true.
-  # ============================================================================
-  app-token-probe:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.probe_app_token == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read   # checkout only; pushes use the App token instead
-    steps:
-      - name: Mint GitHub App installation token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
-        with:
-          app-id: ${{ secrets.AUTOFIX_APP_ID }}
-          private-key: ${{ secrets.AUTOFIX_APP_PRIVATE_KEY }}
-
-      - name: Checkout repository (with App token, so push uses it)
-        uses: actions/checkout@v5
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: Configure git author as App bot
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set -euo pipefail
-          user_id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
-          git config user.name  '${{ steps.app-token.outputs.app-slug }}[bot]'
-          git config user.email "${user_id}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
-
-      - name: Push empty commit, open draft PR, close it, delete branch
-        id: probe
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set -euo pipefail
-          branch="app-token-probe/$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_RUN_ID}"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
-          git checkout -b "$branch"
-          git commit --allow-empty -m "App-token probe (test; auto-closed by workflow)"
-          git push -u origin "$branch"
-          pr_url=$(gh pr create \
-            --repo "$GITHUB_REPOSITORY" \
-            --base main \
-            --head "$branch" \
-            --title "App-token probe (TEST — auto-closed)" \
-            --body "Automated probe of the dedicated GitHub App's contents:write and pull-requests:write installation permissions. This PR was created and immediately closed by the same workflow run; the branch is also deleted. No human action required. See PR #1074 discussion." \
-            --draft)
-          echo "::notice::Created draft PR: $pr_url"
-          gh pr close "$pr_url" --delete-branch --comment "Probe complete; cleaning up."
-          echo "::notice::App-token probe PASSED: push + PR create + PR close + branch delete all succeeded"
-
-      - name: Defensive branch cleanup (if probe failed mid-flight)
-        if: always() && failure()
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set +e
-          branch='${{ steps.probe.outputs.branch }}'
-          if [ -n "$branch" ]; then
-            git push origin --delete "$branch" 2>/dev/null || true
-          fi
