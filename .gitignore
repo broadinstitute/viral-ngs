@@ -87,3 +87,10 @@ vulnerability-mitigation-status.md
 .claude-issues/
 .cve-fix-context/
 .claude-fix-pr/
+
+# GSD planning directory (local-only)
+.planning/*
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

@@ -147,6 +147,17 @@ def test_decompress_line_by_line(request, expected_plaintext, compressed_input_f
     assert filecmp.cmp(out, expected_plaintext, shallow=False)
 
 
+def test_open_or_gzopen_writes_zst_text(tmp_path):
+    output = os.path.join(str(tmp_path), 'output.tsv.zst')
+    value = 'col1\tcol2\nvalue1\tvalue2\n'
+
+    with viral_ngs.core.file.open_or_gzopen(output, 'wt') as outf:
+        outf.write(value)
+
+    with viral_ngs.core.file.open_or_gzopen(output, 'rt') as inf:
+        assert inf.read() == value
+
+
 class TestExtractTarball(TestCaseWithTmp):
     def setUp(self):
         super(TestExtractTarball, self).setUp()

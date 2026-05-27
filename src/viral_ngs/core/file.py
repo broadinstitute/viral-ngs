@@ -374,12 +374,15 @@ def zstd_open(fname, mode='r', **kwargs):
         with open(fname, 'wb') as fh:
             cctx = zstd.ZstdCompressor(level=kwargs.get('level', 10),
                                        threads=util_misc.sanitize_thread_count(kwargs.get('threads', None)))
-            stream_writer = cctx.stream_writer(fh)
-            if 'b' not in mode:
-                text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8')
-                yield text_stream
-                return
-            yield stream_writer
+            with cctx.stream_writer(fh) as stream_writer:
+                if 'b' not in mode:
+                    text_stream = io.TextIOWrapper(stream_writer, encoding='utf-8')
+                    try:
+                        yield text_stream
+                    finally:
+                        text_stream.flush()
+                    return
+                yield stream_writer
 
 def open_or_gzopen(fname, mode='r', **kwargs):
     assert type(mode) == str, "open mode must be of type str"
@@ -1254,4 +1257,3 @@ class CountDB(DBConnection):
     def get_num_IDS(self):
         return self.cur.execute("SELECT COUNT() FROM counts").fetchone()[0]
     
-
