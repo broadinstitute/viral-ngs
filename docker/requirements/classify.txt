@@ -2,6 +2,12 @@
 # Note: x86-only packages (bmtagger, kallisto) are in classify-x86.txt
 anndata>=0.10
 blast>=2.15.0
+# Cap below 2.0 so a future major-version release does not silently
+# change SQL behavior in the VirNucPro read-by-contig classifier
+# (which uses EXCLUDE, window functions, and read_csv with the
+# explicit columns= arg). Revisit the pin when DuckDB 2.0 ships and
+# the SQL paths have been validated against it.
+duckdb>=1.1.0,<2.0
 genomad>=1.11.0
 # Pin <2.19: conda-forge tensorflow 2.19.1 ships libtensorflow_cc.so.2
 # with PT_GNU_STACK marked executable, which glibc refuses to load on
