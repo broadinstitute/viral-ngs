@@ -1,0 +1,19 @@
+docker/Dockerfile.classify
+  s_46d75e203f701d::t_a35e6d95618116 46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c599eca25f5e2dea1bcfaf3d73360d916824c2a6",
+  "prompts": {},
+  "sessions": {
+    "s_46d75e203f701d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6510-ca33-7620-a04e-da2ef0ba1d61",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
