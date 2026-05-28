@@ -9,6 +9,7 @@ collapsed hit table (`counts.tsv`) and the kb-generated h5ad needed by
 import csv
 import gzip
 import glob
+import itertools
 import logging
 import os
 import os.path
@@ -495,20 +496,26 @@ class Kallisto(core.Tool):
 
         taxonomy_map = {}
         with file.open_or_gzopen(id_to_tax_map, 'rt') as inf:
-            header_line = inf.readline()
-            if not header_line:
+            first_line = inf.readline()
+            if not first_line:
                 raise ValueError(f"Empty ID to taxonomy mapping file: {id_to_tax_map}")
-            delimiter = cls._detect_mapping_delimiter(id_to_tax_map, header_line)
-            header = next(csv.reader([header_line], delimiter=delimiter))
-            tax_start, tax_end = cls._taxonomy_column_bounds(header)
-            reader = csv.reader(inf, delimiter=delimiter)
-            for row in reader:
+            delimiter = cls._detect_mapping_delimiter(id_to_tax_map, first_line)
+            first_row = next(csv.reader([first_line], delimiter=delimiter))
+            has_header = cls._looks_like_taxonomy_header(first_row)
+            if has_header:
+                tax_start, tax_end = cls._taxonomy_column_bounds(first_row)
+                row_iter = csv.reader(inf, delimiter=delimiter)
+            else:
+                tax_start, tax_end = cls._taxonomy_row_bounds(first_row)
+                row_iter = itertools.chain([first_row], csv.reader(inf, delimiter=delimiter))
+
+            for row in row_iter:
                 if not row:
                     continue
                 if len(row) <= tax_start:
                     raise ValueError(f"Malformed taxonomy mapping row for {row[0]!r}: expected taxonomy columns")
                 db_hit_id = row[0]
-                tax_values = [value.strip() for value in row[tax_start:tax_end] if value.strip() and value.strip() != '.']
+                tax_values = cls._taxonomy_values_from_row(row, tax_start, tax_end)
                 taxonomy_map[db_hit_id] = cls._format_taxonomy_values(tax_values, taxonomy_level)
         return taxonomy_map
 
@@ -522,15 +529,62 @@ class Kallisto(core.Tool):
         return '\t' if '\t' in header_line else ','
 
     @staticmethod
+    def _looks_like_taxonomy_header(row):
+        normalized = [column.strip().lower() for column in row]
+        known_header_values = {
+            'id',
+            'palmdb_id',
+            'db_hit_id',
+            'gene_id',
+            'transcript_id',
+            'tax_level_1',
+            'taxonomy',
+            'strand',
+            'phylum',
+            'class',
+            'order',
+            'family',
+            'genus',
+            'species',
+        }
+        return any(column in known_header_values or column.startswith('tax_level_') for column in normalized)
+
+    @staticmethod
     def _taxonomy_column_bounds(header):
         if len(header) < 2:
             raise ValueError("ID to taxonomy mapping must contain at least an ID column and one taxonomy column")
         normalized = [column.strip().lower() for column in header]
         tax_start = 2 if len(normalized) > 2 and normalized[0] == normalized[1] else 1
-        tax_end = len(header) - 1 if normalized[-1] == 'strand' else len(header)
+        tax_end = len(header) - 1 if Kallisto._is_strand_column_name(normalized[-1]) else len(header)
         if tax_start >= tax_end:
             raise ValueError("ID to taxonomy mapping does not contain taxonomy columns")
         return tax_start, tax_end
+
+    @classmethod
+    def _taxonomy_row_bounds(cls, row):
+        if len(row) < 2:
+            raise ValueError("ID to taxonomy mapping must contain at least an ID column and one taxonomy column")
+        tax_start = 2 if len(row) > 2 and row[0].strip() == row[1].strip() else 1
+        tax_end = len(row) - 1 if cls._is_strand_value(row[-1]) else len(row)
+        if tax_start >= tax_end:
+            raise ValueError("ID to taxonomy mapping does not contain taxonomy columns")
+        return tax_start, tax_end
+
+    @classmethod
+    def _taxonomy_values_from_row(cls, row, tax_start, tax_end):
+        tax_values = [value.strip() for value in row[tax_start:min(tax_end, len(row))]]
+        if tax_values and cls._is_strand_value(tax_values[-1]):
+            tax_values = tax_values[:-1]
+        return [value for value in tax_values if value and value != '.']
+
+    @staticmethod
+    def _is_strand_column_name(column_name):
+        return column_name in {'strand', 'sense', 'rna_type', 'genome_type'}
+
+    @staticmethod
+    def _is_strand_value(value):
+        normalized = value.strip().lower()
+        return normalized in {'+', '-', '+ssrna', '-ssrna', 'ssrna', 'dsrna', '+ssdna', '-ssdna', 'ssdna', 'dsdna'}
 
     @staticmethod
     def _format_taxonomy_values(tax_values, taxonomy_level):

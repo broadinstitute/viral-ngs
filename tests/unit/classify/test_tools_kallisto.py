@@ -256,6 +256,54 @@ def test_write_top_taxa_report_from_counts_tsv_filters_and_ranks_focal_taxon(kal
     ]
 
 
+def test_write_top_taxa_report_from_headerless_taxonomy_map_ignores_trailing_strand(kallisto_tool, tmp_path):
+    counts_tsv = tmp_path / 'counts.tsv'
+    counts_tsv.write_text('sample_id\tdb_hit_id\tcount\nsampleA\tu104347\t429\n')
+    taxonomy_map = tmp_path / 'taxonomy.csv'
+    taxonomy_map.write_text(
+        'u104347,Viruses,u1,Pisuviricota,Pisoniviricetes,Nidovirales,'
+        'Coronaviridae,Betacoronavirus,'
+        'Severe acute respiratory syndrome-related coronavirus,-ssRNA\n'
+    )
+    out_report = tmp_path / 'top_taxa.tsv'
+
+    kallisto_tool.write_top_taxa_report_from_counts_tsv(
+        str(counts_tsv),
+        str(out_report),
+        id_to_tax_map=str(taxonomy_map),
+        target_taxon='Viruses',
+    )
+
+    assert read_tsv(out_report) == [
+        {
+            'focal_taxon_name': 'Viruses',
+            'focal_taxon_count': '429',
+            'palmdb_id': 'u104347',
+            'hit_id': 'Severe acute respiratory syndrome-related coronavirus',
+            'hit_lowest_taxa_name': 'Severe acute respiratory syndrome-related coronavirus',
+            'hit_reads': '429',
+            'pct_of_focal': '100.0',
+        },
+    ]
+
+
+def test_load_id_to_tax_map_includes_first_headerless_row(kallisto_tool, tmp_path):
+    taxonomy_map = tmp_path / 'taxonomy.csv'
+    taxonomy_map.write_text(
+        'u1,Viruses,u1,Pisuviricota,Pisoniviricetes,Nidovirales,'
+        'Coronaviridae,Betacoronavirus,'
+        'Severe acute respiratory syndrome-related coronavirus,+ssRNA\n'
+    )
+
+    assert kallisto_tool._load_id_to_tax_map(str(taxonomy_map), taxonomy_level='deepest') == {
+        'u1': (
+            'Viruses;u1;Pisuviricota;Pisoniviricetes;Nidovirales;Coronaviridae;'
+            'Betacoronavirus;Severe acute respiratory syndrome-related coronavirus',
+            'Severe acute respiratory syndrome-related coronavirus',
+        )
+    }
+
+
 def test_write_top_taxa_report_from_counts_tsv_without_taxonomy_reports_all_hits(kallisto_tool, tmp_path):
     counts_tsv = tmp_path / 'counts.tsv'
     counts_tsv.write_text(
