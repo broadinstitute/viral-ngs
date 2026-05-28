@@ -1,0 +1,27 @@
+src/viral_ngs/classify/kallisto.py
+  s_46d75e203f701d::t_ba742ffe77adc3 375-467
+  s_46d75e203f701d::t_7729960792a7cb 511
+tests/unit/classify/test_tools_kallisto.py
+  s_46d75e203f701d::t_4da0b8d48d48f7 223-226
+  s_46d75e203f701d::t_e02b5c103eab7e 211-222,227-334
+src/viral_ngs/metagenomics.py
+  s_46d75e203f701d::t_77e7926c692727 1294-1295,1302,1309,1311,1314-1319
+tests/unit/classify/test_metagenomics.py
+  s_46d75e203f701d::t_562c369f98360a 208-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5b0e531a54ac7f517bf759786b26a382cdd6012b",
+  "prompts": {},
+  "sessions": {
+    "s_46d75e203f701d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6510-ca33-7620-a04e-da2ef0ba1d61",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
