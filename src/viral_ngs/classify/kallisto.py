@@ -15,7 +15,6 @@ import os
 import os.path
 import shutil
 import subprocess
-import tarfile
 
 import anndata
 
@@ -638,73 +637,19 @@ class Kallisto(core.Tool):
                     raise ValueError(f"Expected FASTQ separator line starting with + in {fastq_path}: {plus.rstrip()}")
                 yield header[1:].strip().split()[0], len(sequence.strip())
 
-    def _extract_h5ad_from_tarball_to_tmpdir(self, count_tar, tmp_dir):
-        """Helper function to extract h5ad file from a tarball into a temporary directory.
-        
-        Args:
-          count_tar: input kallisto count tarball file (tar.gz or tar.zst format)
-          tmp_dir: temporary directory to extract into
-          
-        Returns:
-          Path to the extracted h5ad file
-        """
-        file.extract_tarball(count_tar, tmp_dir)
-        
-        # Find h5ad file in counts_unfiltered folder
-        h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", "*.h5ad"))
-        log.debug(f"Found h5ad files in {count_tar}: {h5ad_files}")
-        if len(h5ad_files) == 0:
-            raise FileNotFoundError(f"No .h5ad file found in counts_unfiltered/ directory of {count_tar}")
-        if len(h5ad_files) > 1:
-            log.warning(f"Multiple .h5ad files found in {count_tar}, using first one: {h5ad_files[0]}")
-        
-        return h5ad_files[0]
-    
-    def _add_sample_metadata_to_h5ad(self, h5ad_or_tarball, sample_name=None, tmp_dir_parent=None):
+    def _add_sample_metadata_to_h5ad(self, h5ad_file, sample_name=None):
         """Add sample metadata to an h5ad file (in-place modification).
         
         Args:
-          h5ad_or_tarball: path to h5ad file or tarball containing h5ad file
-          sample_name: optional sample name to use. If not provided, will try to read from matrix.cells
-                       or use the filename as fallback
-          tmp_dir_parent: parent directory for temporary files (optional, only used for tarballs)
+          h5ad_file: path to h5ad file
+          sample_name: optional sample name to use. If not provided, use the filename as fallback
         """
-        # Check if input is a tarball
-        if tarfile.is_tarfile(h5ad_or_tarball) or h5ad_or_tarball.endswith('.tar.zst'):
-            with file.tmp_dir(dir=tmp_dir_parent) as tmp_dir:
-                log.debug(f"Extracting {h5ad_or_tarball} to temporary directory {tmp_dir}")
-                h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(h5ad_or_tarball, tmp_dir)
-                
-                # Read sample name from matrix.cells file if not provided
-                if sample_name is None:
-                    cells_file = os.path.join(tmp_dir, "matrix.cells")
-                    if os.path.exists(cells_file):
-                        with open(cells_file, 'r') as f:
-                            sample_name = f.read().strip()
-                    else:
-                        # Fallback to tarball basename if matrix.cells doesn't exist
-                        sample_name = os.path.splitext(os.path.splitext(os.path.basename(h5ad_or_tarball))[0])[0]
-                        log.warning(f"matrix.cells not found in {h5ad_or_tarball}, using filename as sample name: {sample_name}")
-                
-                # Load h5ad file
-                adata = anndata.read_h5ad(h5ad_file)
-                
-                # Check if matrix.sample.barcodes exists and read barcodes
-                barcodes = None
-                barcodes_file = os.path.join(tmp_dir, "matrix.sample.barcodes")
-                if os.path.exists(barcodes_file):
-                    with open(barcodes_file, 'r') as f:
-                        barcodes = [line.strip() for line in f]
-        else:
-            # Direct h5ad file
-            h5ad_file = h5ad_or_tarball
-            if sample_name is None:
-                # Use filename as fallback
-                sample_name = os.path.splitext(os.path.basename(h5ad_file))[0]
-                log.warning(f"No sample name provided for {h5ad_file}, using filename as sample name: {sample_name}")
-            
-            adata = anndata.read_h5ad(h5ad_file)
-            barcodes = None
+        if sample_name is None:
+            sample_name = os.path.splitext(os.path.basename(h5ad_file))[0]
+            log.warning(f"No sample name provided for {h5ad_file}, using filename as sample name: {sample_name}")
+
+        adata = anndata.read_h5ad(h5ad_file)
+        barcodes = None
         
         # Add sample metadata to observations
         adata.obs['sample'] = sample_name
@@ -736,21 +681,14 @@ class Kallisto(core.Tool):
         Assumes h5ad contains a single sample (single row).
 
         Args:
-          h5ad_file: path to h5ad file or tarball containing h5ad file
+          h5ad_file: path to h5ad file
           threshold: minimum count threshold to consider a target ID to return (default 1)
 
         Returns:
           List of target IDs (strings) with counts > 0
         """
-        ## Check if file passed in is a tarball, if so we need to grab the h5ad
-        if tarfile.is_tarfile(h5ad_file) or h5ad_file.endswith('.tar.zst'):
-            with file.tmp_dir() as tmp_dir:
-                h5ad_file = self._extract_h5ad_from_tarball_to_tmpdir(h5ad_file, tmp_dir)
-                log.debug(f"Reading h5ad file from tarball: {h5ad_file}")
-                adata = anndata.read_h5ad(h5ad_file)
-        else:
-            log.debug(f"Reading h5ad file: {h5ad_file}")
-            adata = anndata.read_h5ad(h5ad_file)
+        log.debug(f"Reading h5ad file: {h5ad_file}")
+        adata = anndata.read_h5ad(h5ad_file)
 
         gene_totals = self._h5ad_hit_totals(adata)
         gene_ids = adata.var.index.tolist()
