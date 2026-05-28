@@ -2,6 +2,7 @@
 import csv
 import gzip
 import os
+import subprocess
 from unittest.mock import patch
 
 import anndata
@@ -51,6 +52,44 @@ def test_build_invokes_ref_with_expected_arguments(kallisto_tool, kallisto_input
         expected_threads = str(util_misc.sanitize_thread_count(9))
         assert util_misc.list_contains(['-t', expected_threads], args)
         assert args[-1] == kallisto_inputs['fastq']
+
+
+def test_version_parses_kb_python_version_from_micromamba_json(kallisto_tool):
+    package_json = (
+        '[\n'
+        '  {\n'
+        '    "name": "kb-python",\n'
+        '    "version": "0.30.2",\n'
+        '    "dist_name": "kb-python-0.30.2-pyh106432d_0"\n'
+        '  }\n'
+        ']\n'
+    )
+
+    with patch(
+        'viral_ngs.classify.kallisto.subprocess.run',
+        return_value=subprocess.CompletedProcess(
+            ['micromamba', 'list', 'kb-python', '--json'],
+            0,
+            stdout=package_json,
+            stderr='',
+        ),
+    ) as mock_run:
+        assert kallisto_tool.version() == '0.30.2'
+
+    mock_run.assert_called_once_with(
+        ['micromamba', 'list', 'kb-python', '--json'],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def test_version_returns_unknown_when_micromamba_fails(kallisto_tool):
+    with patch(
+        'viral_ngs.classify.kallisto.subprocess.run',
+        side_effect=subprocess.CalledProcessError(1, ['micromamba', 'list', 'kb-python', '--json']),
+    ):
+        assert kallisto_tool.version() == 'unknown'
 
 
 def test_classify_runs_count_single_end_from_bam(kallisto_tool, kallisto_inputs):

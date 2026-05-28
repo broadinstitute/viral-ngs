@@ -10,6 +10,7 @@ import csv
 import gzip
 import glob
 import itertools
+import json
 import logging
 import os
 import os.path
@@ -44,7 +45,26 @@ class Kallisto(core.Tool):
         super(Kallisto, self).__init__(install_methods=install_methods)
 
     def version(self):
-        return '1'
+        try:
+            result = subprocess.run(
+                ['micromamba', 'list', 'kb-python', '--json'],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return 'unknown'
+
+        try:
+            packages = json.loads(result.stdout or '[]')
+        except json.JSONDecodeError:
+            return 'unknown'
+
+        for package in packages:
+            if package.get('name') == 'kb-python' and package.get('version'):
+                return package['version']
+
+        return 'unknown'
 
     @property
     def libexec(self):
