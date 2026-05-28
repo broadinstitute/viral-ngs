@@ -9,7 +9,6 @@ __author__ = "yesimon@broadinstitute.org"
 import argparse
 import collections
 import csv
-import glob
 import gzip
 import io
 import itertools
@@ -28,8 +27,6 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 import anndata
-import numpy as np
-import pandas as pd
 import pysam
 
 from .core import cmd
@@ -1294,142 +1291,32 @@ def kallisto_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h
 __commands__.append(('kallisto_extract', parser_kallisto_extract))
 
 def parser_kallisto_top_taxa(parser=argparse.ArgumentParser()):
-    parser.add_argument('counts_tar', help='Input kallisto count tarball (tar.zst format).')
-    parser.add_argument('--id-to-tax-map', dest='id_to_tax_map', help='ID to taxonomy mapping file (CSV format).')
+    parser.add_argument('counts_tsv', help='Input long-form kallisto counts TSV.')
+    parser.add_argument('--id-to-tax-map', dest='id_to_tax_map', help='ID to taxonomy mapping file (CSV/TSV format).')
     parser.add_argument('--target-taxon', dest='target_taxon', default='Viruses', help='Target taxonomic category to analyze (default: Viruses).')
     parser.add_argument('out_report', help='Tab-delimited output file.')
     cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     cmd.attach_main(parser, kallisto_top_taxa, split_args=True)
     return parser
 
-def kallisto_top_taxa(counts_tar, out_report, id_to_tax_map=None, target_taxon='Viruses'):
+def kallisto_top_taxa(counts_tsv, out_report, id_to_tax_map=None, target_taxon='Viruses'):
     """Identifies the most abundant taxon contributing to a taxa node of interest in kallisto count output.
 
     It is intended to highlight the primary contributor of taxonomic signal within a taxonomic category of interest,
     for example, the most abundant virus among all viruses.
 
     Args:
-        counts_tar (str): Path to the input kallisto count tarball (tar.zst format).
+        counts_tsv (str): Path to the input long-form kallisto counts TSV.
         out_report (str): Path to the output report file.
-        id_to_tax_map (str, optional): Path to the ID to taxonomy mapping file (CSV format).
+        id_to_tax_map (str, optional): Path to the ID to taxonomy mapping file (CSV/TSV format).
         target_taxon (str): The taxonomic category to analyze (default: 'Viruses').
     """
-    kallisto_tool = kallisto.Kallisto()
-
-    # Extract and read h5ad file from tarball
-    with file.tmp_dir() as tmp_dir:
-        file.extract_tarball(counts_tar, tmp_dir)
-        h5ad_files = glob.glob(os.path.join(tmp_dir, "counts_unfiltered", '*.h5ad'))
-
-        assert len(h5ad_files) == 1, "Expected exactly one .h5ad file in the counts tarball, found {}".format(len(h5ad_files))
-        h5ad_file = h5ad_files[0]
-
-        # Use kb helper to parse h5ad file
-        gene_counts = kallisto_tool.parse_h5ad_counts(h5ad_file)
-
-        # Build results data with taxonomy information
-        results_data = []
-
-        if id_to_tax_map:
-            # Load taxonomy mapping
-            tax_map_df = pd.read_csv(id_to_tax_map)
-            tax_map_df = tax_map_df.replace('.', np.nan)
-
-            # Standardize column name: handle both 'ID' and 'id'
-            if 'ID' in tax_map_df.columns:
-                tax_map_df = tax_map_df.rename(columns={'ID': 'id'})
-            elif 'id' not in tax_map_df.columns:
-                # If neither exists, use the first column as 'id'
-                tax_map_df = tax_map_df.rename(columns={tax_map_df.columns[0]: 'id'})
-
-            # Get the farthest (most specific) non-empty taxonomy for each gene
-            # Define taxonomy rank columns in order from broad to specific
-            taxonomy_columns = [col for col in ['phylum', 'class', 'order', 'family', 'genus', 'species']
-                              if col in tax_map_df.columns]
-
-            def get_farthest_taxa(row):
-                # Only consider taxonomy columns, in reverse order (most specific first)
-                for col in reversed(taxonomy_columns):
-                    if pd.notna(row[col]) and row[col] != '':
-                        return row[col]
-                return 'Unknown'
-
-            tax_map_df['farthest_taxa'] = tax_map_df.apply(get_farthest_taxa, axis=1)
-
-            # Get the root taxonomy category
-            if 'root' in tax_map_df.columns:
-                tax_map_df['tax_category'] = tax_map_df['root']
-            elif 'phylum' in tax_map_df.columns:
-                tax_map_df['tax_category'] = tax_map_df['phylum']
-            else:
-                # Assume first column after 'id' is the root category
-                tax_map_df['tax_category'] = tax_map_df.iloc[:, 1]
-
-            # OPTIMIZATION: Set 'id' as index for O(1) lookups instead of O(n) filtering
-            tax_map_df = tax_map_df.set_index('id')
-
-            # Filter by target taxon - optimized with index-based lookup
-            for gene_id, count in gene_counts:
-                # Skip genes with 0 counts
-                if count == 0:
-                    continue
-                if gene_id in tax_map_df.index:
-                    tax_info = tax_map_df.loc[gene_id]
-                    tax_category = tax_info['tax_category']
-                    if tax_category == target_taxon:
-                        # Use species name if available, otherwise use farthest_taxa
-                        species_name = tax_info.get('species', tax_info['farthest_taxa']) if 'species' in tax_info.index else tax_info['farthest_taxa']
-                        if pd.isna(species_name) or species_name == '':
-                            species_name = tax_info['farthest_taxa']
-
-                        results_data.append({
-                            'palmdb_id': gene_id,
-                            'sotu_id': species_name,
-                            'count': int(count),
-                            'tax_category': tax_category,
-                            'farthest_taxa': tax_info['farthest_taxa']
-                        })
-        else:
-            # No taxonomy mapping - report all genes
-            for gene_id, count in gene_counts:
-                # Skip genes with 0 counts
-                if count == 0:
-                    continue
-                results_data.append({
-                    'palmdb_id': gene_id,
-                    'sotu_id': gene_id,
-                    'count': int(count),
-                    'tax_category': 'Unknown',
-                    'farthest_taxa': gene_id
-                })
-
-        # Create output
-        if not results_data:
-            out = [{'focal_taxon_name': target_taxon, 'focal_taxon_count': 0, 'pct_of_focal': 0.0,
-                    'palmdb_id': '', 'hit_id': '', 'hit_lowest_taxa_name': '', 'hit_reads': 0}]
-        else:
-            results_df = pd.DataFrame(results_data)
-            total_focal_count = results_df['count'].sum()
-            results_df = results_df.sort_values(by='count', ascending=False).reset_index(drop=True)
-
-            # OPTIMIZATION: Use vectorized operations instead of iterrows()
-            results_df['focal_taxon_name'] = target_taxon
-            results_df['focal_taxon_count'] = total_focal_count
-            results_df['pct_of_focal'] = 100.0 * results_df['count'] / total_focal_count
-
-            # Create output dict
-            out = results_df.rename(columns={
-                'sotu_id': 'hit_id',
-                'farthest_taxa': 'hit_lowest_taxa_name',
-                'count': 'hit_reads'
-            })[['focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal']].to_dict('records')
-
-    # Write output
-    with file.open_or_gzopen(out_report, 'wt') as outf:
-        header = ('focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal')
-        writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
-        writer.writeheader()
-        writer.writerows(out)
+    kallisto.Kallisto().write_top_taxa_report_from_counts_tsv(
+        counts_tsv,
+        out_report,
+        id_to_tax_map=id_to_tax_map,
+        target_taxon=target_taxon,
+    )
 
 __commands__.append(('kallisto_top_taxa', parser_kallisto_top_taxa))
 

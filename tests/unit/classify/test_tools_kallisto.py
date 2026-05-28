@@ -208,6 +208,130 @@ def test_write_counts_tsv_from_empty_h5ad_writes_header_only(kallisto_tool, tmp_
         assert inf.read() == 'sample_id\tdb_hit_id\tcount\n'
 
 
+def test_write_top_taxa_report_from_counts_tsv_filters_and_ranks_focal_taxon(kallisto_tool, tmp_path):
+    counts_tsv = tmp_path / 'counts.tsv'
+    counts_tsv.write_text(
+        'sample_id\tdb_hit_id\tcount\n'
+        'sampleA\thit1\t3\n'
+        'sampleA\thit2\t2\n'
+        'sampleA\thit3\t5\n'
+        'sampleB\thit1\t1\n'
+        'sampleB\thit4\t0\n'
+    )
+    taxonomy_map = tmp_path / 'taxonomy.csv'
+    taxonomy_map.write_text(
+        'palmDB_ID,palmDB_ID,tax_level_1,tax_level_2,tax_level_3,strand\n'
+        'hit1,hit1,Viruses,.,Coronaviridae,+\n'
+        'hit2,hit2,Viruses,Filoviridae,.,+\n'
+        'hit3,hit3,Bacteria,Firmicutes,.,+\n'
+    )
+    out_report = tmp_path / 'top_taxa.tsv'
+
+    kallisto_tool.write_top_taxa_report_from_counts_tsv(
+        str(counts_tsv),
+        str(out_report),
+        id_to_tax_map=str(taxonomy_map),
+        target_taxon='Viruses',
+    )
+
+    assert read_tsv(out_report) == [
+        {
+            'focal_taxon_name': 'Viruses',
+            'focal_taxon_count': '6',
+            'palmdb_id': 'hit1',
+            'hit_id': 'Coronaviridae',
+            'hit_lowest_taxa_name': 'Coronaviridae',
+            'hit_reads': '4',
+            'pct_of_focal': '66.66666666666667',
+        },
+        {
+            'focal_taxon_name': 'Viruses',
+            'focal_taxon_count': '6',
+            'palmdb_id': 'hit2',
+            'hit_id': 'Filoviridae',
+            'hit_lowest_taxa_name': 'Filoviridae',
+            'hit_reads': '2',
+            'pct_of_focal': '33.333333333333336',
+        },
+    ]
+
+
+def test_write_top_taxa_report_from_counts_tsv_without_taxonomy_reports_all_hits(kallisto_tool, tmp_path):
+    counts_tsv = tmp_path / 'counts.tsv'
+    counts_tsv.write_text(
+        'sample_id\tdb_hit_id\tcount\n'
+        'sampleA\thit2\t2\n'
+        'sampleA\thit1\t3\n'
+    )
+    out_report = tmp_path / 'top_taxa.tsv'
+
+    kallisto_tool.write_top_taxa_report_from_counts_tsv(str(counts_tsv), str(out_report))
+
+    assert read_tsv(out_report) == [
+        {
+            'focal_taxon_name': 'Viruses',
+            'focal_taxon_count': '5',
+            'palmdb_id': 'hit1',
+            'hit_id': 'hit1',
+            'hit_lowest_taxa_name': 'hit1',
+            'hit_reads': '3',
+            'pct_of_focal': '60.0',
+        },
+        {
+            'focal_taxon_name': 'Viruses',
+            'focal_taxon_count': '5',
+            'palmdb_id': 'hit2',
+            'hit_id': 'hit2',
+            'hit_lowest_taxa_name': 'hit2',
+            'hit_reads': '2',
+            'pct_of_focal': '40.0',
+        },
+    ]
+
+
+def test_write_top_taxa_report_from_counts_tsv_writes_zero_row_for_no_focal_hits(kallisto_tool, tmp_path):
+    counts_tsv = tmp_path / 'counts.tsv'
+    counts_tsv.write_text('sample_id\tdb_hit_id\tcount\nsampleA\thit1\t3\n')
+    taxonomy_map = tmp_path / 'taxonomy.tsv'
+    taxonomy_map.write_text('id\ttax_level_1\ttax_level_2\nhit1\tBacteria\tFirmicutes\n')
+    out_report = tmp_path / 'top_taxa.tsv'
+
+    kallisto_tool.write_top_taxa_report_from_counts_tsv(
+        str(counts_tsv),
+        str(out_report),
+        id_to_tax_map=str(taxonomy_map),
+        target_taxon='Viruses',
+    )
+
+    assert read_tsv(out_report) == [
+        {
+            'focal_taxon_name': 'Viruses',
+            'focal_taxon_count': '0',
+            'palmdb_id': '',
+            'hit_id': '',
+            'hit_lowest_taxa_name': '',
+            'hit_reads': '0',
+            'pct_of_focal': '0.0',
+        },
+    ]
+
+
+def test_write_top_taxa_report_from_counts_tsv_validates_counts_schema(kallisto_tool, tmp_path):
+    counts_tsv = tmp_path / 'bad_counts.tsv'
+    counts_tsv.write_text('sample_id\tdb_hit_id\nsampleA\thit1\n')
+
+    with pytest.raises(ValueError, match='missing required columns'):
+        kallisto_tool.write_top_taxa_report_from_counts_tsv(str(counts_tsv), str(tmp_path / 'top_taxa.tsv'))
+
+
+def test_write_top_taxa_report_from_counts_tsv_rejects_invalid_count(kallisto_tool, tmp_path):
+    counts_tsv = tmp_path / 'bad_counts.tsv'
+    counts_tsv.write_text('sample_id\tdb_hit_id\tcount\nsampleA\thit1\t1.5\n')
+
+    with pytest.raises(ValueError, match='Non-integer count'):
+        kallisto_tool.write_top_taxa_report_from_counts_tsv(str(counts_tsv), str(tmp_path / 'top_taxa.tsv'))
+
+
 def test_write_read_hits_tsv_writes_targeted_gz_fastq_hits(kallisto_tool, tmp_path):
     target_dir = tmp_path / 'hit1'
     target_dir.mkdir()

@@ -372,6 +372,99 @@ class Kallisto(core.Tool):
             return str(int(as_float))
         return str(as_float)
 
+    def write_top_taxa_report_from_counts_tsv(self, counts_tsv, out_report, id_to_tax_map=None, target_taxon='Viruses'):
+        """Write a ranked focal-taxon report from long-form kallisto counts.
+
+        The output schema intentionally matches the historical kb/kallisto
+        top-taxa report consumed by WDL scalar outputs.
+        """
+        counts_by_hit = self._read_counts_tsv(counts_tsv)
+        taxonomy_map = self._load_id_to_tax_map(id_to_tax_map, taxonomy_level='deepest')
+        rows = []
+
+        for db_hit_id, hit_reads in sorted(counts_by_hit.items()):
+            if hit_reads <= 0:
+                continue
+            if id_to_tax_map:
+                taxonomy_lineage, taxonomy_name = self._taxonomy_for_hit(db_hit_id, taxonomy_map, taxonomy_map_provided=True)
+                if not self._taxonomy_lineage_contains(taxonomy_lineage, target_taxon):
+                    continue
+                hit_name = taxonomy_name
+            else:
+                taxonomy_name = db_hit_id
+                hit_name = db_hit_id
+
+            rows.append({
+                'palmdb_id': db_hit_id,
+                'hit_id': hit_name,
+                'hit_lowest_taxa_name': taxonomy_name,
+                'hit_reads': int(hit_reads),
+            })
+
+        total_focal_count = sum(row['hit_reads'] for row in rows)
+        if total_focal_count == 0:
+            out_rows = [{
+                'focal_taxon_name': target_taxon,
+                'focal_taxon_count': 0,
+                'palmdb_id': '',
+                'hit_id': '',
+                'hit_lowest_taxa_name': '',
+                'hit_reads': 0,
+                'pct_of_focal': 0.0,
+            }]
+        else:
+            out_rows = []
+            for row in sorted(rows, key=lambda item: (-item['hit_reads'], item['palmdb_id'])):
+                out_row = {
+                    'focal_taxon_name': target_taxon,
+                    'focal_taxon_count': total_focal_count,
+                    'pct_of_focal': 100.0 * row['hit_reads'] / total_focal_count,
+                }
+                out_row.update(row)
+                out_rows.append(out_row)
+
+        header = ('focal_taxon_name', 'focal_taxon_count', 'palmdb_id', 'hit_id', 'hit_lowest_taxa_name', 'hit_reads', 'pct_of_focal')
+        with file.open_or_gzopen(out_report, 'wt') as outf:
+            writer = csv.DictWriter(outf, header, delimiter='\t', dialect=csv.unix_dialect, quoting=csv.QUOTE_MINIMAL)
+            writer.writeheader()
+            writer.writerows(out_rows)
+
+    @classmethod
+    def _read_counts_tsv(cls, counts_tsv):
+        counts_by_hit = {}
+        with file.open_or_gzopen(counts_tsv, 'rt') as inf:
+            reader = csv.DictReader(inf, delimiter='\t')
+            required_columns = {'sample_id', 'db_hit_id', 'count'}
+            if reader.fieldnames is None:
+                raise ValueError(f"Empty kallisto counts TSV: {counts_tsv}")
+            missing_columns = required_columns.difference(reader.fieldnames)
+            if missing_columns:
+                raise ValueError(f"Kallisto counts TSV missing required columns: {', '.join(sorted(missing_columns))}")
+            for row in reader:
+                db_hit_id = row['db_hit_id'].strip()
+                if not db_hit_id:
+                    raise ValueError("Kallisto counts TSV contains an empty db_hit_id")
+                count = cls._parse_counts_tsv_count(row['count'], db_hit_id)
+                counts_by_hit[db_hit_id] = counts_by_hit.get(db_hit_id, 0) + count
+        return counts_by_hit
+
+    @staticmethod
+    def _parse_counts_tsv_count(raw_count, db_hit_id):
+        try:
+            count = float(raw_count)
+        except ValueError:
+            raise ValueError(f"Invalid count for {db_hit_id!r}: {raw_count!r}")
+        if count < 0:
+            raise ValueError(f"Negative count for {db_hit_id!r}: {raw_count!r}")
+        if not count.is_integer():
+            raise ValueError(f"Non-integer count for {db_hit_id!r}: {raw_count!r}")
+        return int(count)
+
+    @staticmethod
+    def _taxonomy_lineage_contains(taxonomy_lineage, target_taxon):
+        target = target_taxon.strip().lower()
+        return any(value.strip().lower() == target for value in taxonomy_lineage.split(';'))
+
     def _write_read_hits_tsv(self, out_dir, target_ids):
         self._write_extract_tsvs(out_dir, target_ids, sample_name='')
 
@@ -415,7 +508,7 @@ class Kallisto(core.Tool):
                 if len(row) <= tax_start:
                     raise ValueError(f"Malformed taxonomy mapping row for {row[0]!r}: expected taxonomy columns")
                 db_hit_id = row[0]
-                tax_values = [value.strip() for value in row[tax_start:tax_end] if value.strip()]
+                tax_values = [value.strip() for value in row[tax_start:tax_end] if value.strip() and value.strip() != '.']
                 taxonomy_map[db_hit_id] = cls._format_taxonomy_values(tax_values, taxonomy_level)
         return taxonomy_map
 

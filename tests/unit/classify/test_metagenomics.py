@@ -205,6 +205,25 @@ def test_centrifuger_kreport_parser_invokes_tool():
         )
 
 
+def test_kallisto_top_taxa_parser_invokes_tool():
+    with patch('viral_ngs.metagenomics.kallisto.Kallisto', autospec=True) as mock_kallisto:
+        args = [
+            'counts.tsv',
+            'top_taxa.tsv',
+            '--id-to-tax-map', 'taxonomy.csv',
+            '--target-taxon', 'Viruses',
+        ]
+        args = metagenomics.parser_kallisto_top_taxa(argparse.ArgumentParser()).parse_args(args)
+        args.func_main(args)
+
+        mock_kallisto.return_value.write_top_taxa_report_from_counts_tsv.assert_called_once_with(
+            'counts.tsv',
+            'top_taxa.tsv',
+            id_to_tax_map='taxonomy.csv',
+            target_taxon='Viruses',
+        )
+
+
 @pytest.fixture
 def taxa_db_simple():
     db = metagenomics.TaxonomyDb()
