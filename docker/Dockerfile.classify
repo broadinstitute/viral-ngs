@@ -43,7 +43,7 @@ RUN pip install --no-cache-dir . && \
 # Verify installation
 RUN python -c "from viral_ngs import read_utils, illumina; print('Core modules OK')" && \
     python -c "from viral_ngs import metagenomics, taxon_filter, kmer_utils; print('Classify command modules OK')" && \
-    python -c "from viral_ngs.classify import blast, bmtagger, genomad, kraken2, krona, kma, kmc, last, virnucpro; print('Classify tools OK')"
+    python -c "from viral_ngs.classify import blast, bmtagger, genomad, kallisto, kraken2, krona, kma, kmc, last, virnucpro; print('Classify tools OK')"
 
 # Clean up
 RUN rm -rf /tmp/requirements /tmp/install-conda-deps.sh
