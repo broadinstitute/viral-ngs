@@ -14,4 +14,3 @@ Command line tools
    ncbi
    reports
    file_utils
-   broad_utils
