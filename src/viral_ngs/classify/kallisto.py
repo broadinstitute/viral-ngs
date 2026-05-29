@@ -38,6 +38,9 @@ class Kallisto(core.Tool):
     H5AD = 'adata.h5ad'
     READ_HITS_TSV = 'read_hits.tsv'
     SUMMARY_TSV = 'summary.tsv'
+    COUNTS_HEADER = ('sample_id', 'db_hit_id', 'count')
+    READ_HITS_HEADER = ('read_id', 'db_hit_id')
+    SUMMARY_HEADER = ('SAMPLE_ID', 'READ_ID', 'DB_ID', 'TAXONOMY_LINEAGE', 'TAXONOMY_NAME', 'SEQUENCE_LENGTH')
 
     def __init__(self, install_methods=None):
         if not install_methods:
@@ -79,7 +82,6 @@ class Kallisto(core.Tool):
 
         Args:
           command: Subcommand to run.
-          input: Input file kallisto operates on.
           output: Output file to send to command.
           args: List of positional args.
           options: List of keyword options. Values can be single items or lists for multi-value options.
@@ -185,23 +187,22 @@ class Kallisto(core.Tool):
         if protein:
             opts['--aa'] = None
 
+        if not os.path.exists(in_bam):
+            raise FileNotFoundError(in_bam)
+
         sample_name = sample_name or self._sample_name_from_input(in_bam)
-        tmp_fastq1 = file.mkstempfname('.1.fastq')
-        tmp_fastq2 = file.mkstempfname('.2.fastq')
-        tmp_fastq3 = file.mkstempfname('.s.fastq')
-        tmp_interleaved = None
-        try:
-            if self._is_fastq(in_bam):
-                if not os.path.exists(in_bam):
-                    return
+        if self._is_fastq(in_bam):
+            self.execute('kb count', out_dir, args=[in_bam], options=opts)
+        else:
+            if samtools.SamtoolsTool().isEmpty(in_bam):
+                self._write_empty_count_outputs(out_dir, sample_name)
+                return
 
-                # Input is already FASTQ, use it directly (don't delete it later)
-                self.execute('kb count', out_dir, args=[in_bam], options=opts)
-            else:
-                if samtools.SamtoolsTool().isEmpty(in_bam):
-                    self._write_empty_count_outputs(out_dir, sample_name)
-                    return
-
+            tmp_fastq1 = file.mkstempfname('.1.fastq')
+            tmp_fastq2 = file.mkstempfname('.2.fastq')
+            tmp_fastq3 = file.mkstempfname('.s.fastq')
+            tmp_interleaved = None
+            try:
                 # Do not convert this to samtools bam2fq unless we can figure out how to replicate
                 # the clipping functionality of Picard SamToFastq
                 picard_tool = picard.SamToFastqTool()
@@ -234,13 +235,13 @@ class Kallisto(core.Tool):
                             raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
 
                     self.execute('kb count', out_dir, args=[tmp_interleaved], options=opts)
-        finally:
-            for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_interleaved):
-                if path and os.path.exists(path):
-                    try:
-                        os.unlink(path)
-                    except OSError as e:
-                        log.warning("Failed to delete temporary file %s: %s", path, e)
+            finally:
+                for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_interleaved):
+                    if path and os.path.exists(path):
+                        try:
+                            os.unlink(path)
+                        except OSError as e:
+                            log.warning("Failed to delete temporary file %s: %s", path, e)
 
         self._finalize_count_outputs(out_dir, sample_name)
         
@@ -259,6 +260,7 @@ class Kallisto(core.Tool):
           id_to_tax_map: optional mapping from target IDs to taxonomy lineage
           taxonomy_level: taxonomy name to report from the mapping, one of highest or deepest
         """
+        target_ids = [target_id for target_id in (target_ids or []) if target_id]
         opts = {
             '-i': index_file,
             '-g': t2g_file,
@@ -267,22 +269,27 @@ class Kallisto(core.Tool):
         }
         if protein:
             opts['--aa'] = None
-            
-        tmp_fastq1 = file.mkstempfname('.1.fastq')
-        tmp_fastq2 = file.mkstempfname('.2.fastq')
-        tmp_fastq3 = file.mkstempfname('.s.fastq')
-        tmp_interleaved = None
-        try:
-            if self._is_fastq(in_bam):
-                if not os.path.exists(in_bam):
-                    return
-                
-                # Input is already FASTQ, use it directly (don't delete it later)
-                self.execute('kb extract', out_dir, args=[in_bam], options=opts)
-            else:
-                if samtools.SamtoolsTool().isEmpty(in_bam):
-                    return
 
+        if not os.path.exists(in_bam):
+            raise FileNotFoundError(in_bam)
+
+        sample_name = sample_name or self._sample_name_from_input(in_bam)
+        if not target_ids:
+            self._write_empty_extract_outputs(out_dir)
+            return
+
+        if self._is_fastq(in_bam):
+            self.execute('kb extract', out_dir, args=[in_bam], options=opts)
+        else:
+            if samtools.SamtoolsTool().isEmpty(in_bam):
+                self._write_empty_extract_outputs(out_dir)
+                return
+
+            tmp_fastq1 = file.mkstempfname('.1.fastq')
+            tmp_fastq2 = file.mkstempfname('.2.fastq')
+            tmp_fastq3 = file.mkstempfname('.s.fastq')
+            tmp_interleaved = None
+            try:
                 # Do not convert this to samtools bam2fq unless we can figure out how to replicate
                 # the clipping functionality of Picard SamToFastq
                 picard_tool = picard.SamToFastqTool()
@@ -315,15 +322,14 @@ class Kallisto(core.Tool):
                             raise ValueError("Read 2 FASTQ contains extra data after interleaving paired data")
 
                     self.execute('kb extract', out_dir, args=[tmp_interleaved], options=opts)
-        finally:
-            for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_interleaved):
-                if path and os.path.exists(path):
-                    try:
-                        os.unlink(path)
-                    except OSError as e:
-                        log.warning("Failed to delete temporary file %s: %s", path, e)
+            finally:
+                for path in (tmp_fastq1, tmp_fastq2, tmp_fastq3, tmp_interleaved):
+                    if path and os.path.exists(path):
+                        try:
+                            os.unlink(path)
+                        except OSError as e:
+                            log.warning("Failed to delete temporary file %s: %s", path, e)
 
-        sample_name = sample_name or self._sample_name_from_input(in_bam)
         self._write_extract_tsvs(out_dir, target_ids, sample_name, id_to_tax_map=id_to_tax_map, taxonomy_level=taxonomy_level)
 
     @staticmethod
@@ -368,6 +374,13 @@ class Kallisto(core.Tool):
         adata.write_h5ad(exposed_h5ad)
         self.write_counts_tsv_from_h5ad(exposed_h5ad, os.path.join(out_dir, self.COUNTS_TSV))
 
+    def _write_empty_extract_outputs(self, out_dir):
+        file.mkdir_p(out_dir)
+        with file.open_or_gzopen(os.path.join(out_dir, self.READ_HITS_TSV), 'wt') as read_hits_outf:
+            csv.writer(read_hits_outf, delimiter='\t', lineterminator='\n').writerow(self.READ_HITS_HEADER)
+        with file.open_or_gzopen(os.path.join(out_dir, self.SUMMARY_TSV), 'wt') as summary_outf:
+            csv.writer(summary_outf, delimiter='\t', lineterminator='\n').writerow(self.SUMMARY_HEADER)
+
     def write_counts_tsv_from_h5ad(self, h5ad_file, out_tsv):
         """Write long-form collapsed kallisto counts from a kb-generated h5ad file.
 
@@ -380,7 +393,7 @@ class Kallisto(core.Tool):
 
         with file.open_or_gzopen(out_tsv, 'wt') as outf:
             writer = csv.writer(outf, delimiter='\t', lineterminator='\n')
-            writer.writerow(('sample_id', 'db_hit_id', 'count'))
+            writer.writerow(self.COUNTS_HEADER)
             if hasattr(adata.X, 'getrow'):
                 for row_idx in range(adata.n_obs):
                     row = adata.X.getrow(row_idx).tocoo()
@@ -499,9 +512,6 @@ class Kallisto(core.Tool):
         target = target_taxon.strip().lower()
         return any(value.strip().lower() == target for value in taxonomy_lineage.split(';'))
 
-    def _write_read_hits_tsv(self, out_dir, target_ids):
-        self._write_extract_tsvs(out_dir, target_ids, sample_name='')
-
     def _write_extract_tsvs(self, out_dir, target_ids, sample_name, id_to_tax_map=None, taxonomy_level='highest'):
         if not target_ids:
             raise ValueError("target_ids must be provided when writing read hit TSV")
@@ -512,8 +522,8 @@ class Kallisto(core.Tool):
         with file.open_or_gzopen(out_tsv, 'wt') as read_hits_outf, file.open_or_gzopen(summary_tsv, 'wt') as summary_outf:
             read_hits_writer = csv.writer(read_hits_outf, delimiter='\t', lineterminator='\n')
             summary_writer = csv.writer(summary_outf, delimiter='\t', lineterminator='\n')
-            read_hits_writer.writerow(('read_id', 'db_hit_id'))
-            summary_writer.writerow(('SAMPLE_ID', 'READ_ID', 'DB_ID', 'TAXONOMY_LINEAGE', 'TAXONOMY_NAME', 'SEQUENCE_LENGTH'))
+            read_hits_writer.writerow(self.READ_HITS_HEADER)
+            summary_writer.writerow(self.SUMMARY_HEADER)
             for fastq_path, db_hit_id in self._iter_extracted_fastqs(out_dir, target_id_set):
                 taxonomy_lineage, taxonomy_name = self._taxonomy_for_hit(db_hit_id, taxonomy_map, id_to_tax_map is not None)
                 for read_id, sequence_length in self._iter_fastq_records(fastq_path):
@@ -648,11 +658,6 @@ class Kallisto(core.Tool):
                         yield os.path.join(root, filename), db_hit_id
 
     @staticmethod
-    def _iter_fastq_read_ids(fastq_path):
-        for read_id, _sequence_length in Kallisto._iter_fastq_records(fastq_path):
-            yield read_id
-
-    @staticmethod
     def _iter_fastq_records(fastq_path):
         open_fn = gzip.open if fastq_path.lower().endswith('.gz') else open
         with open_fn(fastq_path, 'rt') as inf:
@@ -697,18 +702,6 @@ class Kallisto(core.Tool):
         adata.write_h5ad(h5ad_file)
         log.debug(f"Added sample metadata to {h5ad_file}: sample={sample_name}")
 
-    def parse_h5ad_counts(self, h5ad_file):
-        """Parse h5ad file and return collapsed hit IDs with total counts.
-
-        Args:
-          h5ad_file: path to h5ad file
-
-        Returns:
-          List of tuples (gene_id, count) sorted by gene ID
-        """
-        adata = anndata.read_h5ad(h5ad_file)
-        return list(zip(adata.var.index.tolist(), self._h5ad_hit_totals(adata)))
-
     def extract_hit_ids_from_h5ad(self, h5ad_file, threshold=1):
         """Parse h5ad file and extract all target IDs with 1 or more hits.
         
@@ -723,6 +716,10 @@ class Kallisto(core.Tool):
         """
         log.debug(f"Reading h5ad file: {h5ad_file}")
         adata = anndata.read_h5ad(h5ad_file)
+        if adata.n_obs != 1:
+            raise ValueError(
+                f"Expected single-sample h5ad for kallisto extract target selection; found {adata.n_obs} observations"
+            )
 
         gene_totals = self._h5ad_hit_totals(adata)
         gene_ids = adata.var.index.tolist()

@@ -296,6 +296,36 @@ def test_kallisto_top_taxa_parser_invokes_tool():
         )
 
 
+def test_kallisto_extract_passes_empty_h5ad_targets_to_extract():
+    with patch('viral_ngs.metagenomics.kallisto.Kallisto', autospec=True) as mock_kallisto:
+        tool = mock_kallisto.return_value
+        tool.extract_hit_ids_from_h5ad.return_value = []
+        args = metagenomics.parser_kallisto_extract(argparse.ArgumentParser()).parse_args([
+            '--index', 'index.idx',
+            '--t2g', 't2g.txt',
+            '--out_dir', 'extract_out',
+            '--h5ad', 'adata.h5ad',
+            '--threads', '3',
+            'reads.bam',
+        ])
+
+        args.func_main(args)
+
+        tool.extract_hit_ids_from_h5ad.assert_called_once_with('adata.h5ad', threshold=1)
+        tool.extract.assert_called_once_with(
+            in_bam='reads.bam',
+            index_file='index.idx',
+            target_ids=[],
+            out_dir='extract_out',
+            t2g_file='t2g.txt',
+            protein=False,
+            num_threads=3,
+            sample_name=None,
+            id_to_tax_map=None,
+            taxonomy_level='highest',
+        )
+
+
 @pytest.fixture
 def taxa_db_simple():
     db = metagenomics.TaxonomyDb()

@@ -1392,8 +1392,8 @@ def parser_kallisto_extract(parser=argparse.ArgumentParser()):
     parser.add_argument('--out_dir', dest='out_dir', help='Output directory (default: kallisto_out)', default='kallisto_out')
     parser.add_argument('--protein', action='store_true', help='True if sequence contains amino acids (default: False).')
     parser.add_argument('--targets', help='Comma-separated list of target sequences to extract from input sequences.', default=None)
-    parser.add_argument('--h5ad', help='Path to a kallisto count h5ad file. Can pull IDs to extract from this file.', default=None)
-    parser.add_argument('--threshold', type=int, help='Minimum read count threshold for a target to be extracted (only used when extractin IDs from h5ad; default: %(default)s)', default=1)
+    parser.add_argument('--h5ad', help='Path to the exposed adata.h5ad from a prior metagenomics kallisto count run. Used only when --targets is omitted to derive raw DB hit IDs to extract.', default=None)
+    parser.add_argument('--threshold', type=int, help='Minimum count threshold for target IDs derived from --h5ad. Only used when --targets is omitted; default: %(default)s.', default=1)
     parser.add_argument('--sample-id', dest='sample_id', help='Sample identifier to write in summary.tsv. Defaults to the input basename.')
     parser.add_argument('--id-to-tax-map', dest='id_to_tax_map', help='Optional ID to taxonomy mapping CSV/TSV file.')
     parser.add_argument('--taxonomy-level', choices=['highest', 'deepest'], default='highest', help='Taxonomy name to report from --id-to-tax-map (default: %(default)s).')
@@ -1410,8 +1410,8 @@ def kallisto_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h
         targets (str): Comma-separated list of target sequences to extract.
         protein (bool): True if sequence contains amino acids. Defaults to False.
         out_dir (str): Output directory. Defaults to None.
-        h5ad (str): Path to the output h5ad file. Can pull IDs to extract from this file. Defaults to None.
-        threshold (int, optional): Minimum read count threshold for a target to be extracted. Defaults to 1.
+        h5ad (str): Path to the exposed adata.h5ad from a prior kallisto count run. Used only when targets is not provided.
+        threshold (int, optional): Minimum count threshold for target IDs derived from h5ad. Defaults to 1.
         sample_id (str, optional): Sample identifier to write in summary.tsv. Defaults to None.
         id_to_tax_map (str, optional): ID to taxonomy mapping CSV/TSV. Defaults to None.
         taxonomy_level (str): Taxonomy name to report from the mapping. Defaults to highest.
@@ -1425,12 +1425,11 @@ def kallisto_extract(in_bam, index, t2g, targets, protein=False, out_dir=None, h
     if not target_ids or len(target_ids) == 0:
         if not h5ad:
             raise ValueError('No targets specified for extraction and no h5ad provided.')
-        # TODO: This extraction method expects only to have a single row h5ad (i.e. 1 sample). This should be handled more robustly.
         log.warning('No targets specified for extraction. Trying to extract IDs from h5ad.')
         target_ids = kallisto_tool.extract_hit_ids_from_h5ad(h5ad, threshold=threshold)
         log.info("Target IDs extracted from h5ad: {}".format(target_ids))
         if len(target_ids) == 0:
-            raise ValueError('No targets specified for extraction and no IDs found in h5ad.')
+            log.info("No target IDs found in h5ad; writing empty extract outputs.")
 
     kallisto_tool.extract(
         in_bam=in_bam,

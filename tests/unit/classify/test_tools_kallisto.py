@@ -92,6 +92,18 @@ def test_version_returns_unknown_when_micromamba_fails(kallisto_tool):
         assert kallisto_tool.version() == 'unknown'
 
 
+def test_execute_raises_when_kb_writes_traceback_with_zero_return_code(kallisto_tool):
+    with patch('viral_ngs.classify.kallisto.subprocess.Popen', autospec=True) as mock_popen:
+        mock_process = mock_popen.return_value
+        mock_process.communicate.return_value = ('', 'Traceback (most recent call last)\nboom\n')
+        mock_process.returncode = 0
+
+        with pytest.raises(subprocess.CalledProcessError) as exc_info:
+            kallisto_tool.execute('kb count', None)
+
+    assert exc_info.value.returncode == 1
+
+
 def test_classify_runs_count_single_end_from_bam(kallisto_tool, kallisto_inputs):
     """Test classify with BAM input - should convert to FASTQ via Picard"""
     mkstemp_vals = ['single.1.fastq', 'single.2.fastq', 'single.s.fastq']
@@ -168,6 +180,14 @@ def test_classify_runs_count_with_fastq_input(kallisto_tool, kallisto_inputs):
         finalize_outputs.assert_called_once_with('out_dir', 'SRR12340077.2.sample')
 
 
+@pytest.mark.parametrize('missing_name', ['missing.bam', 'missing.fastq'])
+def test_classify_raises_when_input_is_missing(kallisto_tool, kallisto_inputs, tmp_path, missing_name):
+    missing_input = tmp_path / missing_name
+
+    with pytest.raises(FileNotFoundError, match=missing_name):
+        kallisto_tool.classify(str(missing_input), kallisto_inputs['index'], str(tmp_path / 'out'), kallisto_inputs['t2g'])
+
+
 def test_classify_returns_early_when_bam_is_empty(kallisto_tool, kallisto_inputs, tmp_path):
     mkstemp_vals = ['ignored.1.fastq', 'ignored.2.fastq', 'ignored.s.fastq']
     out_dir = str(tmp_path / 'empty-kallisto-out')
@@ -196,6 +216,35 @@ def test_classify_returns_early_when_bam_is_empty(kallisto_tool, kallisto_inputs
         assert inf.read() == 'sample_id\tdb_hit_id\tcount\n'
 
 
+@pytest.mark.parametrize('missing_name', ['missing.bam', 'missing.fastq'])
+def test_extract_raises_when_input_is_missing(kallisto_tool, kallisto_inputs, tmp_path, missing_name):
+    missing_input = tmp_path / missing_name
+
+    with pytest.raises(FileNotFoundError, match=missing_name):
+        kallisto_tool.extract(
+            str(missing_input),
+            kallisto_inputs['index'],
+            ['hit1'],
+            str(tmp_path / 'out'),
+            kallisto_inputs['t2g'],
+        )
+
+
+def test_extract_writes_empty_tsvs_when_bam_is_empty(kallisto_tool, kallisto_inputs, tmp_path):
+    out_dir = str(tmp_path / 'empty-extract-out')
+
+    with patch('viral_ngs.classify.kallisto.samtools.SamtoolsTool', autospec=True) as samtools_cls:
+        samtools = samtools_cls.return_value
+        samtools.isEmpty.return_value = True
+
+        kallisto_tool.extract(kallisto_inputs['bam'], kallisto_inputs['index'], ['hit1'], out_dir, kallisto_inputs['t2g'])
+
+    with open(os.path.join(out_dir, 'read_hits.tsv')) as inf:
+        assert inf.read() == 'read_id\tdb_hit_id\n'
+    with open(os.path.join(out_dir, 'summary.tsv')) as inf:
+        assert inf.read() == 'SAMPLE_ID\tREAD_ID\tDB_ID\tTAXONOMY_LINEAGE\tTAXONOMY_NAME\tSEQUENCE_LENGTH\n'
+
+
 def test_write_empty_count_outputs_creates_h5ad_and_header_only_counts(kallisto_tool, tmp_path):
     kallisto_tool._write_empty_count_outputs(str(tmp_path), 'empty-sample')
 
@@ -213,6 +262,15 @@ def test_write_empty_count_outputs_creates_h5ad_and_header_only_counts(kallisto_
 
     with open(counts_tsv) as inf:
         assert inf.read() == 'sample_id\tdb_hit_id\tcount\n'
+
+
+def test_extract_with_no_targets_writes_empty_tsvs(kallisto_tool, kallisto_inputs, tmp_path):
+    kallisto_tool.extract(kallisto_inputs['bam'], kallisto_inputs['index'], [], str(tmp_path), kallisto_inputs['t2g'])
+
+    with open(tmp_path / 'read_hits.tsv') as inf:
+        assert inf.read() == 'read_id\tdb_hit_id\n'
+    with open(tmp_path / 'summary.tsv') as inf:
+        assert inf.read() == 'SAMPLE_ID\tREAD_ID\tDB_ID\tTAXONOMY_LINEAGE\tTAXONOMY_NAME\tSEQUENCE_LENGTH\n'
 
 
 def read_tsv(path):
@@ -262,6 +320,17 @@ def test_write_counts_tsv_from_empty_h5ad_writes_header_only(kallisto_tool, tmp_
 
     with open(out_tsv) as inf:
         assert inf.read() == 'sample_id\tdb_hit_id\tcount\n'
+
+
+def test_extract_hit_ids_from_h5ad_rejects_multi_sample_h5ad(kallisto_tool, tmp_path):
+    h5ad_path = tmp_path / 'multi_sample.h5ad'
+    adata = anndata.AnnData(np.array([[1, 0], [0, 2]]))
+    adata.obs_names = ['sample1', 'sample2']
+    adata.var_names = ['hit1', 'hit2']
+    adata.write_h5ad(h5ad_path)
+
+    with pytest.raises(ValueError, match='Expected single-sample h5ad'):
+        kallisto_tool.extract_hit_ids_from_h5ad(str(h5ad_path))
 
 
 def test_write_top_taxa_report_from_counts_tsv_filters_and_ranks_focal_taxon(kallisto_tool, tmp_path):
@@ -436,7 +505,7 @@ def test_write_top_taxa_report_from_counts_tsv_rejects_invalid_count(kallisto_to
         kallisto_tool.write_top_taxa_report_from_counts_tsv(str(counts_tsv), str(tmp_path / 'top_taxa.tsv'))
 
 
-def test_write_read_hits_tsv_writes_targeted_gz_fastq_hits(kallisto_tool, tmp_path):
+def test_write_extract_tsvs_writes_targeted_gz_fastq_hits(kallisto_tool, tmp_path):
     target_dir = tmp_path / 'hit1'
     target_dir.mkdir()
     with gzip.open(target_dir / '1.fastq.gz', 'wt') as outf:
@@ -446,7 +515,7 @@ def test_write_read_hits_tsv_writes_targeted_gz_fastq_hits(kallisto_tool, tmp_pa
     with open(unrelated_dir / 'ignored.fastq', 'wt') as outf:
         outf.write('@ignored\nACGT\n+\n!!!!\n')
 
-    kallisto_tool._write_read_hits_tsv(str(tmp_path), ['hit1'])
+    kallisto_tool._write_extract_tsvs(str(tmp_path), ['hit1'], sample_name='')
 
     assert read_tsv(tmp_path / 'read_hits.tsv') == [
         {'read_id': 'read', 'db_hit_id': 'hit1'},
@@ -493,20 +562,20 @@ def test_write_extract_tsvs_writes_summary_with_taxonomy(kallisto_tool, tmp_path
     ]
 
 
-def test_write_read_hits_tsv_requires_targets(kallisto_tool, tmp_path):
+def test_write_extract_tsvs_requires_targets(kallisto_tool, tmp_path):
     with pytest.raises(ValueError, match='target_ids must be provided'):
-        kallisto_tool._write_read_hits_tsv(str(tmp_path), [])
+        kallisto_tool._write_extract_tsvs(str(tmp_path), [], sample_name='')
 
 
-def test_iter_fastq_read_ids_rejects_malformed_fastq(tmp_path):
+def test_iter_fastq_records_rejects_malformed_fastq(tmp_path):
     malformed = tmp_path / 'bad.fastq'
     malformed.write_text('not-a-header\nACGT\n+\n!!!!\n')
 
     with pytest.raises(ValueError, match='Expected FASTQ header'):
-        list(kallisto.Kallisto._iter_fastq_read_ids(str(malformed)))
+        list(kallisto.Kallisto._iter_fastq_records(str(malformed)))
 
     truncated = tmp_path / 'truncated.fastq'
     truncated.write_text('@read\nACGT\n+\n')
 
     with pytest.raises(ValueError, match='Unexpected end of FASTQ record'):
-        list(kallisto.Kallisto._iter_fastq_read_ids(str(truncated)))
+        list(kallisto.Kallisto._iter_fastq_records(str(truncated)))
