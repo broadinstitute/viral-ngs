@@ -57,7 +57,6 @@ illumina = "viral_ngs.illumina:main"
 read_utils = "viral_ngs.read_utils:main"
 reports = "viral_ngs.reports:main"
 file_utils = "viral_ngs.file_utils:main"
-broad_utils = "viral_ngs.broad_utils:main"
 # Assembly commands
 assembly = "viral_ngs.assembly:main"
 # Classification commands
