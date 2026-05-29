@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+import importlib.util
 
 import pandas as pd
 import pytest
@@ -22,6 +22,11 @@ _BAM_HEADER = {
         {"SN": "NODE_3", "LN": 1000},
     ],
 }
+
+requires_duckdb = pytest.mark.skipif(
+    importlib.util.find_spec("duckdb") is None,
+    reason="DuckDB is required for VirNucPro read classification tests",
+)
 
 
 def _write_bam(path, records):
@@ -180,6 +185,7 @@ def test_classify_contigs_rejects_unmatched_ids(tmp_path):
         )
 
 
+@requires_duckdb
 def test_classify_reads_by_contig_writes_read_level_calls(tmp_path):
     contig_classifications = tmp_path / "contigs.tsv"
     aligned_bam = tmp_path / "reads.bam"
@@ -244,6 +250,7 @@ def test_classify_reads_by_contig_writes_read_level_calls(tmp_path):
     assert contigs["read3"] == "NODE_2"
 
 
+@requires_duckdb
 def test_classify_reads_by_contig_computes_bam_identity_and_query_cov(tmp_path):
     contig_classifications = tmp_path / "contigs.tsv"
     aligned_bam = tmp_path / "reads.bam"
@@ -286,6 +293,7 @@ def test_classify_reads_by_contig_computes_bam_identity_and_query_cov(tmp_path):
     assert result.loc[0, "pct_query_cov"] == pytest.approx(80.0)
 
 
+@requires_duckdb
 def test_classify_reads_by_contig_counts_indels_in_identity_denominator(tmp_path):
     contig_classifications = tmp_path / "contigs.tsv"
     aligned_bam = tmp_path / "reads.bam"
@@ -328,6 +336,7 @@ def test_classify_reads_by_contig_counts_indels_in_identity_denominator(tmp_path
     assert result.loc[0, "pct_query_cov"] == pytest.approx(100.0)
 
 
+@requires_duckdb
 def test_classify_reads_by_contig_writes_header_for_empty_bam(tmp_path):
     contig_classifications = tmp_path / "contigs.tsv"
     aligned_bam = tmp_path / "reads.bam"
@@ -353,6 +362,7 @@ def test_classify_reads_by_contig_writes_header_for_empty_bam(tmp_path):
     assert result.empty
 
 
+@requires_duckdb
 def test_classify_reads_by_contig_writes_header_for_all_unmapped_bam(tmp_path):
     contig_classifications = tmp_path / "contigs.tsv"
     aligned_bam = tmp_path / "reads.bam"
@@ -383,6 +393,7 @@ def test_classify_reads_by_contig_writes_header_for_all_unmapped_bam(tmp_path):
     assert result.empty
 
 
+@requires_duckdb
 def test_classify_reads_by_contig_rejects_missing_classification_columns(tmp_path):
     contig_classifications = tmp_path / "contigs.tsv"
     aligned_bam = tmp_path / "reads.bam"
@@ -398,6 +409,7 @@ def test_classify_reads_by_contig_rejects_missing_classification_columns(tmp_pat
         )
 
 
+@requires_duckdb
 def test_classify_reads_by_contig_rejects_mapped_bam_without_nm(tmp_path):
     contig_classifications = tmp_path / "contigs.tsv"
     aligned_bam = tmp_path / "reads.bam"
@@ -446,125 +458,3 @@ def test_classify_reads_by_contig_rejects_invalid_percent_thresholds(
             str(tmp_path / "reads_classified.tsv"),
             **kwargs
         )
-
-
-# -- _default_memory_limit cgroup auto-detect -------------------------------
-
-
-def _patch_cgroup_paths(monkeypatch, v2_path=None, v1_path=None):
-    """Point the helper at tmp paths instead of /sys/fs/cgroup."""
-    monkeypatch.setattr(
-        virnucpro, "_CGROUP_V2_PATH", str(v2_path) if v2_path else "/nonexistent/v2",
-    )
-    monkeypatch.setattr(
-        virnucpro, "_CGROUP_V1_PATH", str(v1_path) if v1_path else "/nonexistent/v1",
-    )
-
-
-def test_default_memory_limit_reads_cgroup_v2_byte_count(tmp_path, monkeypatch):
-    v2 = tmp_path / "memory.max"
-    v2.write_text("8589934592\n")  # 8 GiB
-    _patch_cgroup_paths(monkeypatch, v2_path=v2)
-
-    # 8 GiB * 0.75 = 6 GiB = 6144 MiB
-    assert virnucpro._default_memory_limit() == "6144MB"
-
-
-def test_default_memory_limit_returns_none_when_cgroup_v2_unlimited(tmp_path, monkeypatch):
-    v2 = tmp_path / "memory.max"
-    v2.write_text("max\n")
-    _patch_cgroup_paths(monkeypatch, v2_path=v2)
-
-    assert virnucpro._default_memory_limit() is None
-
-
-def test_default_memory_limit_falls_back_to_cgroup_v1(tmp_path, monkeypatch):
-    v1 = tmp_path / "memory.limit_in_bytes"
-    v1.write_text("4294967296\n")  # 4 GiB
-    _patch_cgroup_paths(monkeypatch, v1_path=v1)
-
-    # 4 GiB * 0.75 = 3 GiB = 3072 MiB
-    assert virnucpro._default_memory_limit() == "3072MB"
-
-
-def test_default_memory_limit_returns_none_for_cgroup_v1_unlimited_sentinel(tmp_path, monkeypatch):
-    v1 = tmp_path / "memory.limit_in_bytes"
-    v1.write_text("{}\n".format(virnucpro._CGROUP_V1_UNLIMITED))
-    _patch_cgroup_paths(monkeypatch, v1_path=v1)
-
-    assert virnucpro._default_memory_limit() is None
-
-
-def test_default_memory_limit_returns_none_when_no_cgroup_files(monkeypatch):
-    _patch_cgroup_paths(monkeypatch)
-    assert virnucpro._default_memory_limit() is None
-
-
-def test_default_memory_limit_returns_none_on_malformed_content(tmp_path, monkeypatch):
-    v2 = tmp_path / "memory.max"
-    v2.write_text("not-a-number\n")
-    _patch_cgroup_paths(monkeypatch, v2_path=v2)
-
-    assert virnucpro._default_memory_limit() is None
-
-
-def test_default_memory_limit_returns_none_for_zero_byte_limit(tmp_path, monkeypatch):
-    v2 = tmp_path / "memory.max"
-    v2.write_text("0\n")
-    _patch_cgroup_paths(monkeypatch, v2_path=v2)
-
-    assert virnucpro._default_memory_limit() is None
-
-
-def test_connect_duckdb_caller_value_wins_over_autodetect(tmp_path, monkeypatch):
-    """Explicit caller-supplied limit must not be overridden by cgroup auto-detect."""
-    v2 = tmp_path / "memory.max"
-    v2.write_text("8589934592\n")  # would auto-detect to 6144MB
-    _patch_cgroup_paths(monkeypatch, v2_path=v2)
-
-    fake_conn = MagicMock()
-    fake_duckdb = MagicMock()
-    fake_duckdb.connect.return_value = fake_conn
-
-    virnucpro._connect_duckdb(
-        fake_duckdb,
-        duckdb_temp_dir=str(tmp_path),
-        duckdb_memory_limit="2GB",
-    )
-
-    config = fake_duckdb.connect.call_args.kwargs["config"]
-    assert config["memory_limit"] == "2GB"
-
-
-def test_connect_duckdb_empty_string_opts_out_of_limit(tmp_path, monkeypatch):
-    """Empty-string limit must skip both the override and the auto-detect."""
-    v2 = tmp_path / "memory.max"
-    v2.write_text("8589934592\n")
-    _patch_cgroup_paths(monkeypatch, v2_path=v2)
-
-    fake_duckdb = MagicMock()
-    virnucpro._connect_duckdb(
-        fake_duckdb,
-        duckdb_temp_dir=str(tmp_path),
-        duckdb_memory_limit="",
-    )
-
-    config = fake_duckdb.connect.call_args.kwargs["config"]
-    assert "memory_limit" not in config
-
-
-def test_connect_duckdb_autodetect_when_caller_passes_none(tmp_path, monkeypatch):
-    """When caller passes None, helper should call _default_memory_limit() and use it."""
-    v2 = tmp_path / "memory.max"
-    v2.write_text("8589934592\n")
-    _patch_cgroup_paths(monkeypatch, v2_path=v2)
-
-    fake_duckdb = MagicMock()
-    virnucpro._connect_duckdb(
-        fake_duckdb,
-        duckdb_temp_dir=str(tmp_path),
-        duckdb_memory_limit=None,
-    )
-
-    config = fake_duckdb.connect.call_args.kwargs["config"]
-    assert config["memory_limit"] == "6144MB"

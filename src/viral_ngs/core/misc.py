@@ -34,6 +34,11 @@ __author__ = "dpark@broadinstitute.org"
 
 MAX_INT32 = (2 ** 31)-1
 
+_CGROUP_V2_MEMORY_MAX = "/sys/fs/cgroup/memory.max"
+_CGROUP_V1_MEMORY_LIMIT = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+_PROC_MEMINFO = "/proc/meminfo"
+_CGROUP_V1_MEMORY_UNLIMITED = 0x7FFFFFFFFFFFF000
+
 def unambig_count(seq):
     unambig = set(('A', 'T', 'C', 'G'))
     return sum(1 for s in seq if s.upper() in unambig)
@@ -455,6 +460,90 @@ def available_cpu_count():
     log.debug('min(cgroup_cpus %d, proc_cpus %d, multiprocessing cpus %d) = %d',
               cgroup_cpus, proc_cpus, multiprocessing.cpu_count(), min_cpu_count_reported)
     return min_cpu_count_reported
+
+
+def available_mem_bytes(fraction=1.0, per_cpu=False):
+    """Return a cgroup-aware memory limit in bytes, or None if uncapped.
+
+    This intentionally returns None when no finite cgroup memory limit is
+    detected. Callers such as DuckDB wrappers can then fall back to the tool's
+    own default on uncapped development hosts while still respecting container
+    limits in production.
+    """
+    try:
+        fraction = float(fraction)
+    except (TypeError, ValueError):
+        raise ValueError("fraction must be numeric")
+    if fraction <= 0 or fraction > 1:
+        raise ValueError("fraction must be > 0 and <= 1")
+
+    cgroup_limit = _cgroup_mem_limit_bytes()
+    if cgroup_limit is None:
+        return None
+
+    candidates = [cgroup_limit]
+    proc_mem = _proc_meminfo_bytes()
+    if proc_mem is not None:
+        candidates.append(proc_mem)
+    psutil_mem = _psutil_mem_bytes()
+    if psutil_mem is not None:
+        candidates.append(psutil_mem)
+
+    mem_bytes = min(candidates)
+    if per_cpu:
+        mem_bytes = mem_bytes // available_cpu_count()
+
+    mem_bytes = int(mem_bytes * fraction)
+    if mem_bytes <= 0:
+        return None
+    return mem_bytes
+
+
+def _cgroup_mem_limit_bytes():
+    try:
+        if os.path.isfile(_CGROUP_V2_MEMORY_MAX):
+            raw = util_file.slurp_file(_CGROUP_V2_MEMORY_MAX).strip()
+            if raw == "max":
+                return None
+            value = int(raw)
+        elif os.path.isfile(_CGROUP_V1_MEMORY_LIMIT):
+            value = int(util_file.slurp_file(_CGROUP_V1_MEMORY_LIMIT).strip())
+            if value >= _CGROUP_V1_MEMORY_UNLIMITED:
+                return None
+        else:
+            return None
+    except (OSError, ValueError):
+        return None
+
+    return value if value > 0 else None
+
+
+def _proc_meminfo_bytes():
+    try:
+        with open(_PROC_MEMINFO, "rt") as inf:
+            for line in inf:
+                if line.startswith("MemTotal:"):
+                    parts = line.strip().split()
+                    value = int(parts[1])
+                    unit = parts[2].lower()
+                    if unit == "kb":
+                        return value * 1024
+                    if unit == "mb":
+                        return value * 1024 * 1024
+                    if unit == "gb":
+                        return value * 1024 * 1024 * 1024
+                    return value
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _psutil_mem_bytes():
+    try:
+        import psutil
+        return int(psutil.virtual_memory().total)
+    except Exception:
+        return None
 
 def sanitize_thread_count(threads=None, tool_max_cores_value=available_cpu_count):
     ''' Given a user specified thread count, this function will:

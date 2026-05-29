@@ -44,6 +44,7 @@ from .classify import centrifuger
 from .classify import kb
 from .classify import genomad
 from .classify import virnucpro
+from .classify import read_classifications
 from .classify.taxonomy import (
     TaxIdError, TaxonomyDb, BlastRecord, blast_records, paired_query_id,
     blast_m8_taxids, extract_tax_id, coverage_lca, parents_to_children,
@@ -646,6 +647,167 @@ def main_centrifuger_kreport(db, classification, output, no_lca=False,
 
 
 __commands__.append(('centrifuger_kreport', parser_centrifuger_kreport))
+
+
+def parser_kraken2_annotate_reads(parser=argparse.ArgumentParser()):
+    parser.add_argument('kraken2_reads',
+                        help='Native Kraken2 --outReads file.')
+    parser.add_argument('taxonomy_duckdb',
+                        help='Prebuilt taxonomy DuckDB reference.')
+    parser.add_argument('output_tsv',
+                        help='Output normalized read taxonomy TSV. Compression is inferred from extension.')
+    parser.add_argument('--sample-id', '--sampleId', dest='sample_id',
+                        required=True,
+                        help='Sample ID to stamp into the output.')
+    parser.add_argument('--resolve-strains', '--resolveStrains',
+                        dest='resolve_strains',
+                        action='store_true',
+                        help='Resolve no-rank strain nodes to the nearest ranked parent when parent_id is available.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_kraken2_annotate_reads, split_args=True)
+    return parser
+
+
+def main_kraken2_annotate_reads(
+    kraken2_reads,
+    taxonomy_duckdb,
+    output_tsv,
+    sample_id,
+    resolve_strains=False,
+):
+    '''
+        Annotate native Kraken2 per-read output with taxonomy metadata.
+    '''
+    read_classifications.kraken2_annotate_reads(
+        kraken2_reads,
+        taxonomy_duckdb,
+        output_tsv,
+        sample_id,
+        resolve_strains=resolve_strains,
+    )
+
+
+__commands__.append(('kraken2_annotate_reads', parser_kraken2_annotate_reads))
+
+
+def parser_centrifuger_annotate_reads(parser=argparse.ArgumentParser()):
+    parser.add_argument('centrifuger_reads',
+                        help='Native Centrifuger read classification TSV.')
+    parser.add_argument('taxonomy_duckdb',
+                        help='Prebuilt taxonomy DuckDB reference.')
+    parser.add_argument('output_tsv',
+                        help='Output normalized read taxonomy TSV. Compression is inferred from extension.')
+    parser.add_argument('--sample-id', '--sampleId', dest='sample_id',
+                        required=True,
+                        help='Sample ID to stamp into the output.')
+    parser.add_argument('--resolve-strains', '--resolveStrains',
+                        dest='resolve_strains',
+                        action='store_true',
+                        help='Resolve no-rank strain nodes to the nearest ranked parent when parent_id is available.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_centrifuger_annotate_reads, split_args=True)
+    return parser
+
+
+def main_centrifuger_annotate_reads(
+    centrifuger_reads,
+    taxonomy_duckdb,
+    output_tsv,
+    sample_id,
+    resolve_strains=False,
+):
+    '''
+        Annotate native Centrifuger per-read output with taxonomy metadata.
+    '''
+    read_classifications.centrifuger_annotate_reads(
+        centrifuger_reads,
+        taxonomy_duckdb,
+        output_tsv,
+        sample_id,
+        resolve_strains=resolve_strains,
+    )
+
+
+__commands__.append(('centrifuger_annotate_reads', parser_centrifuger_annotate_reads))
+
+
+def parser_join_read_classifications(parser=argparse.ArgumentParser()):
+    parser.add_argument('--sample-id', '--sampleId', dest='sample_id',
+                        required=True,
+                        help='Sample ID for the joined output.')
+    parser.add_argument('--out-parquet', '--outParquet', dest='out_parquet',
+                        required=True,
+                        help='Output ZSTD-compressed Parquet file.')
+    parser.add_argument('--kallisto-summary', '--kallistoSummary',
+                        dest='kallisto_summary',
+                        default=None,
+                        help='Kallisto extract summary TSV.')
+    parser.add_argument('--kraken2-reads', '--kraken2Reads',
+                        dest='kraken2_reads',
+                        default=None,
+                        help='Normalized Kraken2 read taxonomy TSV or Parquet.')
+    parser.add_argument('--vnp-reads', '--vnpReads',
+                        dest='vnp_reads',
+                        default=None,
+                        help='VirNucPro per-read TSV.')
+    parser.add_argument('--genomad-virus-summary', '--genomadVirusSummary',
+                        dest='genomad_virus_summary',
+                        default=None,
+                        help='geNomad virus_summary TSV.')
+    parser.add_argument('--centrifuger-reads', '--centrifugerReads',
+                        dest='centrifuger_reads',
+                        default=None,
+                        help='Normalized Centrifuger read taxonomy TSV or Parquet.')
+    parser.add_argument('--filter-human-only-k2',
+                        dest='filter_human_only_k2',
+                        action=argparse.BooleanOptionalAction,
+                        default=True,
+                        help='Drop human-only Kraken2 rows absent from Kallisto/VirNucPro signal. (default: %(default)s)')
+    parser.add_argument('--duckdb-memory-limit', '--duckdbMemoryLimit',
+                        dest='duckdb_memory_limit',
+                        default=None,
+                        help='DuckDB memory cap, e.g. "8GB" (default: %(default)s = auto-detect ~75%% '
+                             'of the cgroup limit). Empty string disables any cap.')
+    parser.add_argument('--work-dir', '--workDir',
+                        dest='work_dir',
+                        default=None,
+                        help='Directory for the per-run temp dir / DuckDB spill '
+                             '(default: %(default)s = system tmp).')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_join_read_classifications, split_args=True)
+    return parser
+
+
+def main_join_read_classifications(
+    sample_id,
+    out_parquet,
+    kallisto_summary=None,
+    kraken2_reads=None,
+    vnp_reads=None,
+    genomad_virus_summary=None,
+    centrifuger_reads=None,
+    filter_human_only_k2=True,
+    duckdb_memory_limit=None,
+    work_dir=None,
+):
+    '''
+        Join read-level classification outputs into a stable Parquet table.
+    '''
+    read_classifications.join_read_classifications(
+        out_parquet,
+        sample_id,
+        kallisto_summary=kallisto_summary,
+        kraken2_reads=kraken2_reads,
+        vnp_reads=vnp_reads,
+        genomad_virus_summary=genomad_virus_summary,
+        centrifuger_reads=centrifuger_reads,
+        filter_human_only_k2=filter_human_only_k2,
+        duckdb_memory_limit=duckdb_memory_limit,
+        work_dir=work_dir,
+    )
+
+
+__commands__.append(('join_read_classifications', parser_join_read_classifications))
 
 
 def parser_virnucpro_contigs(parser=argparse.ArgumentParser()):

@@ -220,3 +220,76 @@ alignment row for output.
 | Mark mixed-call reads as `Multi-mapped`. | If retained primary alignments connect a read to contigs with different biological calls, reporting a single selected call would hide ambiguity. This intentionally considers low-quality retained alignments too; `mapped_well` remains separate context. |
 | Keep `mapped_well` separate from call assignment. | Alignment quality is useful context, but low-quality mapped reads should still be visible to downstream review rather than silently removed. |
 | Treat the normalized alignment TSV as an implementation detail. | The TSV keeps ingestion simple and memory-bounded today, but it is not a pipeline contract and can be replaced by a typed/batched DuckDB ingestion path. |
+
+## Read Classification Joining
+
+The read-classification component productionizes the inline viral-pipelines
+post-processing that joins per-read calls from Kallisto, Kraken2, VirNucPro,
+Centrifuger, and geNomad into one Parquet table.
+
+The public API is intentionally workflow-specific:
+
+```text
+metagenomics kraken2_annotate_reads
+metagenomics centrifuger_annotate_reads
+metagenomics join_read_classifications
+```
+
+There is no public generic read-table merger in the first implementation.
+Tool-specific interpretation stays in tested viral-ngs Python code rather than
+being pushed into WDL or JSON/YAML configuration.
+
+### Input Producers
+
+`kraken2_annotate_reads` and `centrifuger_annotate_reads` consume native
+classifier read output and a prebuilt taxonomy DuckDB reference. The taxonomy
+DuckDB is a distributed input, analogous to a Kraken2 database or Centrifuger
+index; viral-ngs reads it but does not build it in this component.
+
+The annotate commands produce normalized TSVs with `SAMPLE_ID` and `READ_ID`
+columns plus taxonomy metadata. `join_read_classifications` consumes those
+normalized TSVs, the Kallisto summary TSV, the VirNucPro read TSV, and optional
+geNomad virus summary TSV.
+
+### Join Contract
+
+The joined output is a ZSTD-compressed Parquet file with one row per
+`(SAMPLE_ID, READ_ID)`.
+
+Kallisto and VirNucPro read IDs are normalized by stripping `/1` and `/2` mate
+suffixes before joining. Kraken2 and Centrifuger IDs are normalized the same way
+so single-end or paired-end mode differences do not silently prevent joins.
+VirNucPro output does not carry `SAMPLE_ID`, so the join command stamps the
+caller-supplied sample ID onto that source before joining.
+
+Kallisto, VirNucPro, and Kraken2 are primary read-level sources and are joined
+with full-outer semantics. Centrifuger is treated as read-level enrichment and
+is left-joined by read ID. geNomad is contig-level enrichment and is left-joined
+through `VNP_CONTIG_ID = seq_name`.
+
+### Filtering And Cardinality
+
+The Kraken2 human-only filter is applied before the Kraken2 full outer join. A
+Kraken2 row with `TAX_NAME = Homo sapiens` is dropped only when the read has no
+Kallisto or VirNucPro signal. Non-human Kraken2-only reads remain in the output.
+
+Every normalized read-level source must be unique on `(SAMPLE_ID, READ_ID)`
+before joining. geNomad must be unique on contig ID. The final output must have
+exactly one row per `(SAMPLE_ID, READ_ID)`.
+
+### Empty Inputs
+
+Missing optional join inputs are allowed, but all join inputs missing is fatal.
+Header-only inputs are valid empty sources. If at least one valid input exists
+but all rows are filtered out, the join writes an empty Parquet file with the
+full typed schema.
+
+For annotate commands, missing native classifier output or missing taxonomy DB
+is fatal. Empty native classifier output writes a header-only normalized TSV.
+
+### Resource Management
+
+DuckDB execution uses `viral_ngs.core.duckdb_utils`, which lazy-imports DuckDB
+and configures an in-memory connection with a per-run spill directory. Memory
+limits are derived from the shared cgroup-aware memory helper in
+`viral_ngs.core.misc`; passing an empty DuckDB memory limit disables the cap.
