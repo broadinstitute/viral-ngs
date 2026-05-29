@@ -322,6 +322,18 @@ def test_write_counts_tsv_from_empty_h5ad_writes_header_only(kallisto_tool, tmp_
         assert inf.read() == 'sample_id\tdb_hit_id\tcount\n'
 
 
+def test_write_counts_tsv_from_h5ad_rejects_fractional_counts(kallisto_tool, tmp_path):
+    h5ad_path = tmp_path / 'counts.h5ad'
+    out_tsv = tmp_path / 'counts.tsv'
+    adata = anndata.AnnData(np.array([[1.5]]))
+    adata.obs_names = ['sample1']
+    adata.var_names = ['hit1']
+    adata.write_h5ad(h5ad_path)
+
+    with pytest.raises(ValueError, match='Non-integer kallisto count'):
+        kallisto_tool.write_counts_tsv_from_h5ad(str(h5ad_path), str(out_tsv))
+
+
 def test_extract_hit_ids_from_h5ad_rejects_multi_sample_h5ad(kallisto_tool, tmp_path):
     h5ad_path = tmp_path / 'multi_sample.h5ad'
     adata = anndata.AnnData(np.array([[1, 0], [0, 2]]))

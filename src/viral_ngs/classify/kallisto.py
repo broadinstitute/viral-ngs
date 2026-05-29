@@ -415,9 +415,9 @@ class Kallisto(core.Tool):
     @staticmethod
     def _format_count(count):
         as_float = float(count)
-        if as_float.is_integer():
-            return str(int(as_float))
-        return str(as_float)
+        if not as_float.is_integer():
+            raise ValueError(f"Non-integer kallisto count: {count!r}")
+        return str(int(as_float))
 
     def write_top_taxa_report_from_counts_tsv(self, counts_tsv, out_report, id_to_tax_map=None, target_taxon='Viruses'):
         """Write a ranked focal-taxon report from long-form kallisto counts.
