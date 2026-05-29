@@ -18,6 +18,7 @@ import shutil
 import subprocess
 
 import anndata
+import numpy as np
 
 from viral_ngs import core
 from viral_ngs.core import picard
@@ -184,6 +185,7 @@ class Kallisto(core.Tool):
         if protein:
             opts['--aa'] = None
 
+        sample_name = sample_name or self._sample_name_from_input(in_bam)
         tmp_fastq1 = file.mkstempfname('.1.fastq')
         tmp_fastq2 = file.mkstempfname('.2.fastq')
         tmp_fastq3 = file.mkstempfname('.s.fastq')
@@ -197,6 +199,7 @@ class Kallisto(core.Tool):
                 self.execute('kb count', out_dir, args=[in_bam], options=opts)
             else:
                 if samtools.SamtoolsTool().isEmpty(in_bam):
+                    self._write_empty_count_outputs(out_dir, sample_name)
                     return
 
                 # Do not convert this to samtools bam2fq unless we can figure out how to replicate
@@ -239,7 +242,6 @@ class Kallisto(core.Tool):
                     except OSError as e:
                         log.warning("Failed to delete temporary file %s: %s", path, e)
 
-        sample_name = sample_name or self._sample_name_from_input(in_bam)
         self._finalize_count_outputs(out_dir, sample_name)
         
     def extract(self, in_bam, index_file, target_ids, out_dir, t2g_file, protein=False, num_threads=None, sample_name=None, id_to_tax_map=None, taxonomy_level='highest'):
@@ -353,6 +355,18 @@ class Kallisto(core.Tool):
         if len(h5ad_files) > 1:
             raise ValueError(f"Expected exactly one .h5ad file in counts_unfiltered/ directory of {out_dir}, found {len(h5ad_files)}")
         return h5ad_files[0]
+
+    def _write_empty_count_outputs(self, out_dir, sample_name):
+        file.mkdir_p(out_dir)
+
+        adata = anndata.AnnData(np.zeros((1, 0), dtype=np.int64))
+        adata.obs_names = [sample_name]
+        adata.obs['sample'] = [sample_name]
+        adata.obs['batch_name'] = [sample_name]
+
+        exposed_h5ad = os.path.join(out_dir, self.H5AD)
+        adata.write_h5ad(exposed_h5ad)
+        self.write_counts_tsv_from_h5ad(exposed_h5ad, os.path.join(out_dir, self.COUNTS_TSV))
 
     def write_counts_tsv_from_h5ad(self, h5ad_file, out_tsv):
         """Write long-form collapsed kallisto counts from a kb-generated h5ad file.

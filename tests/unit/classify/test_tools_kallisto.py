@@ -168,34 +168,51 @@ def test_classify_runs_count_with_fastq_input(kallisto_tool, kallisto_inputs):
         finalize_outputs.assert_called_once_with('out_dir', 'SRR12340077.2.sample')
 
 
-def test_classify_returns_early_when_bam_is_empty(kallisto_tool, kallisto_inputs):
+def test_classify_returns_early_when_bam_is_empty(kallisto_tool, kallisto_inputs, tmp_path):
     mkstemp_vals = ['ignored.1.fastq', 'ignored.2.fastq', 'ignored.s.fastq']
+    out_dir = str(tmp_path / 'empty-kallisto-out')
 
     with patch('viral_ngs.classify.kallisto.file.mkstempfname', side_effect=mkstemp_vals), \
          patch('viral_ngs.classify.kallisto.os.unlink'), \
-         patch('viral_ngs.classify.kallisto.picard.SamToFastqTool', autospec=True) as picard_cls, \
-         patch('viral_ngs.classify.kallisto.picard.PicardTools.dict_to_picard_opts', return_value='clip-opts'), \
-         patch('viral_ngs.classify.kallisto.samtools.SamtoolsTool', autospec=True) as samtools_cls, \
-         patch('viral_ngs.classify.kallisto.subprocess.Popen', autospec=True) as mock_popen, \
-         patch.object(kallisto_tool, '_finalize_count_outputs') as finalize_outputs:
-
-        picard_cls.illumina_clipping_attribute = 'XT'
-        picard = picard_cls.return_value
-        picard.jvmMemDefault = '4G'
-        picard.execute.return_value = None
+         patch('viral_ngs.classify.kallisto.samtools.SamtoolsTool', autospec=True) as samtools_cls:
 
         samtools = samtools_cls.return_value
         samtools.isEmpty.return_value = True
 
-        mock_process = mock_popen.return_value
-        mock_process.communicate.return_value = ('', '')
-        mock_process.returncode = 0
+        kallisto_tool.classify(kallisto_inputs['bam'], kallisto_inputs['index'], out_dir, kallisto_inputs['t2g'])
 
-        kallisto_tool.classify(kallisto_inputs['bam'], kallisto_inputs['index'], 'out_dir', kallisto_inputs['t2g'])
+    h5ad_path = os.path.join(out_dir, 'adata.h5ad')
+    counts_tsv = os.path.join(out_dir, 'counts.tsv')
+    assert os.path.exists(h5ad_path)
+    assert os.path.exists(counts_tsv)
 
-        mock_popen.assert_not_called()
-        picard.execute.assert_not_called()
-        finalize_outputs.assert_not_called()
+    adata = anndata.read_h5ad(h5ad_path)
+    assert adata.shape == (1, 0)
+    assert adata.obs_names.tolist() == ['G5012.3.testreads']
+    assert adata.obs['sample'].tolist() == ['G5012.3.testreads']
+    assert adata.obs['batch_name'].tolist() == ['G5012.3.testreads']
+
+    with open(counts_tsv) as inf:
+        assert inf.read() == 'sample_id\tdb_hit_id\tcount\n'
+
+
+def test_write_empty_count_outputs_creates_h5ad_and_header_only_counts(kallisto_tool, tmp_path):
+    kallisto_tool._write_empty_count_outputs(str(tmp_path), 'empty-sample')
+
+    h5ad_path = tmp_path / 'adata.h5ad'
+    counts_tsv = tmp_path / 'counts.tsv'
+
+    assert h5ad_path.exists()
+    assert counts_tsv.exists()
+
+    adata = anndata.read_h5ad(h5ad_path)
+    assert adata.shape == (1, 0)
+    assert adata.obs_names.tolist() == ['empty-sample']
+    assert adata.obs['sample'].tolist() == ['empty-sample']
+    assert adata.obs['batch_name'].tolist() == ['empty-sample']
+
+    with open(counts_tsv) as inf:
+        assert inf.read() == 'sample_id\tdb_hit_id\tcount\n'
 
 
 def read_tsv(path):
