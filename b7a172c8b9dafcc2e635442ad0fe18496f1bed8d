@@ -1,0 +1,21 @@
+src/viral_ngs/classify/kallisto.py
+  s_15cd171b22deb7::t_fbf4e7887a7bd1 418-420
+tests/unit/classify/test_tools_kallisto.py
+  s_15cd171b22deb7::t_607b260f35a215 325-336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b7a172c8b9dafcc2e635442ad0fe18496f1bed8d",
+  "prompts": {},
+  "sessions": {
+    "s_15cd171b22deb7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e506e-7202-76a1-b98b-f01f17dfd2c8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
