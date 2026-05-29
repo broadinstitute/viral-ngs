@@ -335,7 +335,7 @@ The `pyproject.toml` has empty dependencies - conda handles everything.
 
 3. For x86-only packages (no ARM64 build), add to the appropriate `-x86.txt` file:
    - `core-x86.txt` - novoalign, mvicuna
-   - `classify-x86.txt` - bmtagger, kallisto, kb-python
+   - `classify-x86.txt` - bmtagger, kallisto
    - `phylo-x86.txt` - table2asn
 
 ### Dependency Resolution
@@ -456,7 +456,7 @@ Each x86 test job uploads coverage to Codecov with flavor-specific flags.
 
 - Images built natively for `linux/amd64` and `linux/arm64` using parallel runners
 - Multi-arch manifests created with OCI annotations using `docker buildx imagetools create`
-- x86-only packages (novoalign, mvicuna, bmtagger, kallisto, kb-python, table2asn) handled via `--x86-only:` prefix in `install-conda-deps.sh`
+- x86-only packages (novoalign, mvicuna, bmtagger, kallisto, table2asn) handled via `--x86-only:` prefix in `install-conda-deps.sh`
 - Python tool wrappers still importable on ARM64; only runtime execution fails for missing binaries
 - Tests using x86-only tools have `@unittest.skipIf(IS_ARM, ...)` decorators
 - Architecture-specific caches prevent cross-arch cache pollution
