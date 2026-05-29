@@ -156,6 +156,41 @@ def test_kallisto_count_produces_h5ad_and_counts_tsv(kallisto_count_result):
     assert sum(int(row['count']) for row in rows) == int(adata.X.sum())
 
 
+def test_kallisto_count_output_feeds_top_taxa_report(kallisto_count_result):
+    out_report = kallisto_count_result['workdir'] / 'top_taxa.tsv'
+
+    _run_metagenomics(
+        metagenomics.parser_kallisto_top_taxa,
+        [str(kallisto_count_result['counts_tsv']), str(out_report)],
+        cwd=str(kallisto_count_result['workdir']),
+    )
+
+    counts_by_hit = {}
+    with open(kallisto_count_result['counts_tsv']) as inf:
+        for row in csv.DictReader(inf, delimiter='\t'):
+            counts_by_hit[row['db_hit_id']] = counts_by_hit.get(row['db_hit_id'], 0) + int(row['count'])
+
+    with open(out_report) as inf:
+        report_rows = list(csv.DictReader(inf, delimiter='\t'))
+
+    assert report_rows
+    assert set(report_rows[0]) == {
+        'focal_taxon_name',
+        'focal_taxon_count',
+        'palmdb_id',
+        'hit_id',
+        'hit_lowest_taxa_name',
+        'hit_reads',
+        'pct_of_focal',
+    }
+    assert {
+        row['palmdb_id']: int(row['hit_reads'])
+        for row in report_rows
+    } == counts_by_hit
+    assert {row['focal_taxon_count'] for row in report_rows} == {str(sum(counts_by_hit.values()))}
+    assert all(float(row['pct_of_focal']) >= 0.0 for row in report_rows)
+
+
 def test_kallisto_extract_yields_expected_reads(kallisto_extract_result):
     assert kallisto_extract_result['count'] == 3
     with open(kallisto_extract_result['read_hits']) as inf:
