@@ -7,14 +7,24 @@ in the viral-ngs Docker image hierarchy.
 
 Container images are scanned for vulnerabilities using [Trivy](https://aquasecurity.github.io/trivy/):
 
-- **On every PR/push**: `docker.yml` scans each image flavor after build (SARIF -> GitHub Security tab, JSON -> artifact)
-- **Weekly schedule**: `container-scan.yml` scans the latest published images. When new
-  fixable HIGH/CRITICAL CVEs are detected (i.e. CVE IDs not already present in any open
-  or closed GH issue title), the workflow invokes Claude Sonnet 4.6 on Vertex AI to
-  triage each one and files a GitHub issue per CVE (labels: `security`, `cve`). The
-  Vertex/WIF infra used here is documented in `.agents/skills/claude-on-vertex-ci/SKILL.md`.
-- Scans filter to **CRITICAL/HIGH** severity, **ignore-unfixed**, and apply a Rego policy (`.trivy-ignore-policy.rego`)
-- Per-CVE exceptions go in `.trivyignore` with mandatory justification comments
+### PR/Push Scans (`docker.yml`)
+
+- Runs on every PR/push after image build
+- **SARIF scan**: CRITICAL/HIGH, fixable-only → uploads to GitHub Security tab
+- **JSON scan**: CRITICAL/HIGH, fixable-only, **exit-code: 1** → gates CI (fails if CVEs found)
+- Both apply `.trivyignore` and `.trivy-ignore-policy.rego`
+
+### Scheduled Scans (`container-scan.yml`)
+
+- Runs daily at 09:00 UTC on published `main-mega-amd64` image
+- **SARIF scan**: CRITICAL/HIGH, fixable-only → uploads to GitHub Security tab
+- **JSON scan**: CRITICAL/HIGH/MEDIUM, all vulnerabilities (fixable + non-fixable), **exit-code: 0** → uploaded as artifact for comprehensive debugging and Claude analysis
+- When new fixable HIGH/CRITICAL CVEs are detected (i.e. CVE IDs not already present in any open or closed GH issue title), the workflow invokes Claude Sonnet 4.6 on Vertex AI to triage each one and files a GitHub issue per CVE (labels: `security`, `cve`)
+- The Vertex/WIF infra used here is documented in `.agents/skills/claude-on-vertex-ci/SKILL.md`
+
+**Key difference**: The scheduled scan's JSON output includes MEDIUM severity and non-fixable vulnerabilities to provide full visibility for risk assessment and debugging, while the control flow (issue filing, CI gates) still filters to fixable HIGH/CRITICAL only.
+
+Per-CVE exceptions go in `.trivyignore` with mandatory justification comments.
 
 ## Rego Policy (`.trivy-ignore-policy.rego`)
 
