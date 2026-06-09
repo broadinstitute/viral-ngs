@@ -84,9 +84,9 @@ jobs:
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'json'
           output: 'trivy-results.json'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL,HIGH,MEDIUM'  # Include MEDIUM for debugging context
           exit-code: '0'   # don't fail here — Claude pipeline + final-step gate handles signaling
-          ignore-unfixed: true
+          ignore-unfixed: false  # Include non-fixable CVEs for comprehensive debugging/analysis
           trivyignores: '.trivyignore'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
@@ -138,6 +138,8 @@ jobs:
           fi
 
           # Production mode: parse trivy JSON for fixable HIGH/CRITICAL CVEs.
+          # Note: trivy-results.json contains all CRITICAL/HIGH/MEDIUM (fixable + non-fixable)
+          # for comprehensive debugging, but we only auto-triage fixable HIGH/CRITICAL here.
           all_cves=$(jq -r '
             [.Results[]?.Vulnerabilities[]?
               | select((.Severity == "HIGH" or .Severity == "CRITICAL")
@@ -257,8 +259,9 @@ jobs:
             ## Required reading (do this BEFORE writing reports)
 
             1. `trivy-results.json` (in the workspace root) — **the authoritative source for
-               CVSS score, CVSS vector, package path, fix version, and references.** Query
-               it with `jq` before writing any report. Example:
+               CVSS score, CVSS vector, package path, fix version, and references.** This
+               file contains ALL vulnerabilities (CRITICAL/HIGH/MEDIUM, fixable and non-fixable)
+               for comprehensive analysis. Query it with `jq` before writing any report. Example:
                ```
                jq '.Results[]?.Vulnerabilities[]? | select(.VulnerabilityID == "<CVE-ID>")' trivy-results.json
                ```
@@ -594,8 +597,9 @@ jobs:
                chain, recommended fix, etc.).
             2. `.cve-fix-context/open-fix-prs.json` — every open PR with the
                `cve-fix` label (prior auto-fix runs whose PRs haven't merged yet).
-            3. `trivy-results.json` — the most recent scan output. Use `jq` to
-               cross-reference CVSS data or confirm a CVE is still flagged.
+            3. `trivy-results.json` — the most recent scan output containing ALL
+               vulnerabilities (CRITICAL/HIGH/MEDIUM, fixable and non-fixable). Use `jq`
+               to cross-reference CVSS data or confirm a CVE is still flagged.
 
             ## Required reading
 
