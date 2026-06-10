@@ -76,6 +76,10 @@ vulnerability-mitigation-status.md
 .cve-fix-context/
 .claude-fix-pr/
 
+# GCP credential files written to the workspace by google-github-actions/auth
+# (defence-in-depth: even if git add -A runs in a workflow, these are never staged)
+gha-creds-*.json
+
 # GSD planning directory (local-only)
 .planning/*
 

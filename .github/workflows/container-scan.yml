@@ -805,12 +805,15 @@ jobs:
           branch="cve-fix/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
           git checkout -b "$branch"
           # Stage everything EXCEPT the downloaded trivy-results.json artifact.
-          # .claude-fix-pr/ and .cve-fix-context/ are gitignored, so `git add -A`
-          # already skips them silently — do NOT name them in :! pathspecs, because
-          # `git add` exits 1 ("paths are ignored" advisory) when an exclude pathspec
-          # matches a gitignored path, which kills this step under `set -e`.
+          # .claude-fix-pr/, .cve-fix-context/, and gha-creds-*.json are gitignored,
+          # so `git add -A` skips them silently — do NOT name them in :! pathspecs,
+          # because `git add` exits 1 ("paths are ignored" advisory) when an exclude
+          # pathspec matches a gitignored path, which kills this step under `set -e`.
           # trivy-results.json is NOT gitignored, so it still needs the explicit exclude.
           git add -A -- ':!trivy-results.json'
+          # Scan staged diff for secrets before committing (defence-in-depth).
+          # gitleaks is pre-installed on ubuntu-latest runners.
+          git diff --cached | gitleaks detect --pipe --redact --exit-code 1
           if git diff --cached --quiet; then
             echo "::error::PROCEED.md exists but no file changes were staged — Claude declared a fix without making one"
             exit 1
