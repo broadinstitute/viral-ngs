@@ -796,6 +796,10 @@ jobs:
             echo "::notice::Claude recommends skipping; decision log will be uploaded as an artifact"
           fi
 
+      - name: Install gitleaks
+        if: steps.decide.outputs.decision == 'proceed'
+        uses: gacts/gitleaks@c9a0338361dc45a01aa7ebaaa5330179f3c62873  # v1.3.2
+
       - name: Open auto-fix PR
         if: steps.decide.outputs.decision == 'proceed'
         env:
@@ -812,7 +816,8 @@ jobs:
           # trivy-results.json is NOT gitignored, so it still needs the explicit exclude.
           git add -A -- ':!trivy-results.json'
           # Scan staged diff for secrets before committing (defence-in-depth).
-          # gitleaks is pre-installed on ubuntu-latest runners.
+          # gitleaks is installed by the "Install gitleaks" step above (it is NOT
+          # pre-installed on GitHub-hosted ubuntu-latest runners).
           git diff --cached | gitleaks detect --pipe --redact --exit-code 1
           if git diff --cached --quiet; then
             echo "::error::PROCEED.md exists but no file changes were staged — Claude declared a fix without making one"
