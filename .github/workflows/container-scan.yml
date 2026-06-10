@@ -799,6 +799,12 @@ jobs:
       - name: Install gitleaks
         if: steps.decide.outputs.decision == 'proceed'
         uses: gacts/gitleaks@c9a0338361dc45a01aa7ebaaa5330179f3c62873  # v1.3.2
+        with:
+          # Install the binary onto PATH only; do NOT let the action run its own
+          # scan. By default this action scans the entire repo history, which
+          # trips on pre-existing historical findings unrelated to the auto-fix
+          # diff. We scan just the staged diff ourselves in the next step.
+          run: false
 
       - name: Open auto-fix PR
         if: steps.decide.outputs.decision == 'proceed'
