@@ -21,6 +21,11 @@ on:
         required: false
         type: boolean
         default: false
+      force_fix_pr:
+        description: 'Force the auto-fix PR job to run against all currently-open cve issues, even if this scan found no NEW CVEs (recovery path when a prior fix-PR run failed)'
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -435,10 +440,16 @@ jobs:
     needs: scan
     runs-on: ubuntu-latest
     if: |
-      needs.scan.outputs.cve_ids != ''
-      && needs.scan.outputs.test_mode != 'true'
-      && (github.event.inputs.dry_run    || 'false') != 'true'
-      && (github.event.inputs.skip_fix_pr || 'false') != 'true'
+      (
+        needs.scan.outputs.cve_ids != ''
+        && needs.scan.outputs.test_mode != 'true'
+        && (github.event.inputs.dry_run    || 'false') != 'true'
+        && (github.event.inputs.skip_fix_pr || 'false') != 'true'
+      )
+      || (
+        (github.event.inputs.force_fix_pr || 'false') == 'true'
+        && needs.scan.outputs.test_mode != 'true'
+      )
     permissions:
       contents: write       # push the auto-fix branch
       pull-requests: write  # open the PR
@@ -793,8 +804,13 @@ jobs:
           set -euo pipefail
           branch="cve-fix/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
           git checkout -b "$branch"
-          # Stage everything EXCEPT the agent's scratch directories.
-          git add -A -- ':!.claude-fix-pr' ':!.cve-fix-context' ':!trivy-results.json'
+          # Stage everything EXCEPT the downloaded trivy-results.json artifact.
+          # .claude-fix-pr/ and .cve-fix-context/ are gitignored, so `git add -A`
+          # already skips them silently — do NOT name them in :! pathspecs, because
+          # `git add` exits 1 ("paths are ignored" advisory) when an exclude pathspec
+          # matches a gitignored path, which kills this step under `set -e`.
+          # trivy-results.json is NOT gitignored, so it still needs the explicit exclude.
+          git add -A -- ':!trivy-results.json'
           if git diff --cached --quiet; then
             echo "::error::PROCEED.md exists but no file changes were staged — Claude declared a fix without making one"
             exit 1
