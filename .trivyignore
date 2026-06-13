@@ -40,3 +40,31 @@
 # ADDED: 2026-03-20
 # -----------------------------------------------------------------------------
 CVE-2020-25649
+
+# -----------------------------------------------------------------------------
+# GHSA-36hh-v3qg-5jq4 — pyo3 Out-of-bounds Read in PyList/PyTuple iterators
+# Severity: HIGH (CVSS 4.0: 8.7, AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N)
+# Package: pyo3 0.28.3 compiled into rpds-py 2026.5.1
+# Location: opt/conda/lib/python3.12/site-packages/rpds/rpds.cpython-312-x86_64-linux-gnu.so
+#
+# JUSTIFICATION:
+#   The vulnerable code path is BoundListIterator::nth and
+#   BoundTupleIterator::nth_back, invoked when Python code calls .nth(n)
+#   or .nth_back(n) on a PyList or PyTuple iterator with a large enough n
+#   to overflow unchecked usize arithmetic, producing an out-of-bounds read.
+#
+#   rpds-py is used internally by jsonschema and referencing to manage
+#   immutable persistent data structures (schema registries, validation
+#   state). These libraries iterate over internally-constructed objects
+#   (JSON schema documents, WDL task graphs) using standard sequential
+#   traversal — not via .nth() with externally-controlled step indices.
+#   Pipeline inputs (FASTQ, BAM, VCF, reference FASTA) are processed by
+#   bioinformatics tools; no code path maps raw file content to a PyList
+#   or PyTuple iterator step argument. The vulnerable arithmetic is never
+#   reachable with an attacker-controlled index in this deployment model.
+#
+# RESOLUTION: Upgrade rpds-py to a conda-forge build that bundles pyo3>=0.29.0.
+# ADDED: 2026-06-13
+# REVIEW: Remove once rpds-py on conda-forge ships pyo3>=0.29.0
+# -----------------------------------------------------------------------------
+GHSA-36hh-v3qg-5jq4
