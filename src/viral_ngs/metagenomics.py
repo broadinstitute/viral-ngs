@@ -40,6 +40,7 @@ from .classify import krona
 from .classify import centrifuger
 from .classify import kallisto
 from .classify import genomad
+from .classify import lucavirus
 from .classify import virnucpro
 from .classify.taxonomy import (
     TaxIdError, TaxonomyDb, BlastRecord, blast_records, paired_query_id,
@@ -643,6 +644,99 @@ def main_centrifuger_kreport(db, classification, output, no_lca=False,
 
 
 __commands__.append(('centrifuger_kreport', parser_centrifuger_kreport))
+
+
+def parser_lucavirus_prepare(parser=argparse.ArgumentParser()):
+    parser.add_argument('contigs_fasta',
+                        help='Input FASTA containing sequences to pass to LucaVirus.')
+    parser.add_argument('lucavirus_input_csv',
+                        help='Output LucaVirus input CSV with seq_id,seq_type,seq columns.')
+    parser.add_argument('stats_tsv',
+                        help='Output preflight stats TSV for WDL branching.')
+    parser.add_argument('--seqType', '--seq-type', dest='seq_type',
+                        default='prot', choices=['prot'],
+                        help='LucaVirus sequence type to write in the CSV. '
+                             '(default: %(default)s)')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_lucavirus_prepare, split_args=True)
+    return parser
+
+
+def main_lucavirus_prepare(
+    contigs_fasta,
+    lucavirus_input_csv,
+    stats_tsv,
+    seq_type='prot',
+):
+    '''
+        Convert input FASTA records into LucaVirus CSV input and write
+        preflight stats for conditional GPU-task execution.
+
+        This command does not call ORFs or translate sequences. It only
+        validates the FASTA container shape and repackages records into the
+        LucaVirus single-sequence CSV contract expected by lucavirus-cuda.
+    '''
+    lucavirus.prepare_contigs(
+        contigs_fasta,
+        lucavirus_input_csv,
+        stats_tsv,
+        seq_type=seq_type,
+    )
+
+
+__commands__.append(('lucavirus_prepare', parser_lucavirus_prepare))
+
+
+def parser_lucavirus_empty_predictions(parser=argparse.ArgumentParser()):
+    parser.add_argument('output_tsv',
+                        help='Output header-only LucaVirus prediction TSV.')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_lucavirus_empty_predictions, split_args=True)
+    return parser
+
+
+def main_lucavirus_empty_predictions(output_tsv):
+    '''
+        Write a header-only raw LucaVirus prediction TSV for empty-input WDL
+        branches.
+    '''
+    lucavirus.write_empty_predictions(output_tsv)
+
+
+__commands__.append(('lucavirus_empty_predictions', parser_lucavirus_empty_predictions))
+
+
+def parser_lucavirus_normalize(parser=argparse.ArgumentParser()):
+    parser.add_argument('raw_tsv',
+                        help='Raw LucaVirus output TSV from lucavirus-cuda.')
+    parser.add_argument('output_tsv',
+                        help='Validated LucaVirus output TSV.')
+    parser.add_argument('--taskProfile', '--task-profile', dest='task_profile',
+                        default='rdrp', choices=lucavirus.TASK_PROFILES,
+                        help='LucaVirus task profile used to generate raw_tsv. '
+                             '(default: %(default)s)')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_lucavirus_normalize, split_args=True)
+    return parser
+
+
+def main_lucavirus_normalize(
+    raw_tsv,
+    output_tsv,
+    task_profile='rdrp',
+):
+    '''
+        Validate lucavirus-cuda output and copy it to the durable viral-ngs
+        LucaVirus TSV artifact.
+    '''
+    lucavirus.normalize_output(
+        raw_tsv,
+        output_tsv,
+        task_profile=task_profile,
+    )
+
+
+__commands__.append(('lucavirus_normalize', parser_lucavirus_normalize))
 
 
 def parser_virnucpro_contigs(parser=argparse.ArgumentParser()):

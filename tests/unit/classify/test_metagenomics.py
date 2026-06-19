@@ -205,6 +205,65 @@ def test_centrifuger_kreport_parser_invokes_tool():
         )
 
 
+class TestLucaVirusCalls(TestCaseWithTmp):
+    @patch('viral_ngs.metagenomics.lucavirus.prepare_contigs', autospec=True)
+    def test_lucavirus_prepare(self, mock_prepare_contigs):
+        args = metagenomics.parser_lucavirus_prepare(
+            argparse.ArgumentParser()
+        ).parse_args([
+            'contigs.fasta',
+            'lucavirus_input.csv',
+            'lucavirus_prepare_stats.tsv',
+            '--seq-type', 'prot',
+        ])
+        args.func_main(args)
+
+        mock_prepare_contigs.assert_called_once_with(
+            'contigs.fasta',
+            'lucavirus_input.csv',
+            'lucavirus_prepare_stats.tsv',
+            seq_type='prot',
+        )
+
+    @patch('viral_ngs.metagenomics.lucavirus.write_empty_predictions', autospec=True)
+    def test_lucavirus_empty_predictions(self, mock_write_empty_predictions):
+        args = metagenomics.parser_lucavirus_empty_predictions(
+            argparse.ArgumentParser()
+        ).parse_args([
+            'raw.empty.lucavirus.tsv',
+        ])
+        args.func_main(args)
+
+        mock_write_empty_predictions.assert_called_once_with(
+            'raw.empty.lucavirus.tsv',
+        )
+
+    @patch('viral_ngs.metagenomics.lucavirus.normalize_output', autospec=True)
+    def test_lucavirus_normalize(self, mock_normalize_output):
+        args = metagenomics.parser_lucavirus_normalize(
+            argparse.ArgumentParser()
+        ).parse_args([
+            'raw.lucavirus.tsv',
+            'lucavirus.tsv',
+            '--task-profile', 'virus_ec4',
+        ])
+        args.func_main(args)
+
+        mock_normalize_output.assert_called_once_with(
+            'raw.lucavirus.tsv',
+            'lucavirus.tsv',
+            task_profile='virus_ec4',
+        )
+
+    def test_lucavirus_normalize_help_lists_profiles(self):
+        help_text = metagenomics.parser_lucavirus_normalize(
+            argparse.ArgumentParser()).format_help()
+
+        assert 'rdrp' in help_text
+        assert 'viral_capsid' in help_text
+        assert 'virus_ec4' in help_text
+
+
 class TestVirNucProCalls(TestCaseWithTmp):
     @patch('viral_ngs.metagenomics.virnucpro.classify_contigs', autospec=True)
     def test_virnucpro_contigs(self, mock_classify_contigs):

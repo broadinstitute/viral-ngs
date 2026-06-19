@@ -7,6 +7,70 @@ The intent is to preserve why each component behaves the way it does, not just
 what the code currently does. Add a new section for each classifier as behavior
 becomes non-obvious or pipeline-facing contracts are established.
 
+## LucaVirus
+
+LucaVirus support in viral-ngs is preflight and post-processing around the
+standalone `lucavirus-cuda` image. The model runner, CUDA dependencies, PyTorch,
+and model assets are not installed in the viral-ngs classify image. Pipeline
+tasks invoke `/opt/lucavirus_cli.py` from the LucaVirus CUDA container directly.
+
+The relevant helpers are:
+
+- `prepare_contigs()`: reads an input FASTA and writes LucaVirus CSV input with
+  `seq_id,seq_type,seq` columns plus a small stats TSV for WDL branching.
+- `normalize_output()`: validates raw lucavirus-cuda TSV output and writes the
+  durable viral-ngs LucaVirus TSV artifact.
+- `write_empty_predictions()`: writes a header-only LucaVirus prediction table
+  for no-call branches.
+- `metagenomics.py lucavirus_prepare`,
+  `metagenomics.py lucavirus_empty_predictions`, and
+  `metagenomics.py lucavirus_normalize`: CLI entry points for those helpers.
+
+### Input Preparation
+
+`lucavirus_prepare` is intentionally a format preflight, not an ORF caller. It
+does not translate nucleotide sequences, call genes, filter by biological
+content, or enforce a protein alphabet. Those decisions belong upstream of this
+helper and/or inside the LucaVirus runtime contract. This command only converts
+FASTA records into the stable CSV shape consumed by lucavirus-cuda and records
+whether there is anything to score.
+
+The prepared CSV uses:
+
+```text
+seq_id,seq_type,seq
+```
+
+`seq_type` is currently fixed to `prot` because the accepted LucaVirus task
+profiles (`rdrp`, `viral_capsid`, `virus_ec4`) are protein profiles. The FASTA
+record ID is preserved as `seq_id`; the sequence string is copied as-is apart
+from FASTA parsing. Empty FASTA files or FASTA files with no non-empty sequence
+records produce a header-only CSV and stats with
+`has_lucavirus_input=false`.
+
+### Output Validation
+
+The durable LucaVirus output is a tab-delimited table with exactly:
+
+```text
+seq_id	seq	prob	label_index	label
+```
+
+Zero-byte raw output is fatal. Header-only raw output is valid because it is the
+expected no-call artifact for empty-input branches and can also represent a
+legitimate model run with no predictions. Blank data rows and data rows with any
+column count other than five are fatal. Duplicate `seq_id` values are preserved
+because multi-label profiles may emit more than one row for a sequence.
+
+`prob`, `label_index`, and `label` are preserved as strings. The first pass does
+not reinterpret scores or combine profiles into a biological decision.
+
+### Non-goals
+
+These helpers do not run LucaVirus, install CUDA dependencies, call ORFs,
+translate contigs, convert LucaVirus outputs to Kraken/Krona/taxonomy formats,
+or aggregate the three task profiles into a single call.
+
 ## VirNucPro
 
 VirNucPro support in viral-ngs is post-processing around VirNucPro outputs. The
