@@ -40,3 +40,12 @@
 # ADDED: 2026-03-20
 # -----------------------------------------------------------------------------
 CVE-2020-25649
+
+# GHSA-36hh-v3qg-5jq4 — pyo3 OOB read in PyList/PyTuple iterators (via rpds-py)
+# # Severity: HIGH (CVSS 4.0: 8.7). Package: pyo3 bundled in rpds-py 2026.5.1.
+# # Location: opt/conda/lib/python3.12/site-packages/rpds/rpds.cpython-312-x86_64-linux-gnu.so
+# # rpds-py is internal plumbing for jsonschema/referencing; not exposed to attacker-controlled
+# # iterator indices in this image. See broadinstitute/viral-ngs#1092 for full justification.
+# # RESOLUTION: remove once rpds-py on conda-forge ships pyo3>=0.29.0.
+# # ADDED: 2026-06-13
+GHSA-36hh-v3qg-5jq4
