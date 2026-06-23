@@ -3017,6 +3017,69 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         finally:
             shutil.rmtree(out_dir)
 
+    def test_splitcode_demux_fastqs_parser_trim_hamming_args(self):
+        """
+        CLI parser round-trip for the trim/hamming knobs added in GH #1095.
+
+        Verifies that parser_splitcode_demux_fastqs() exposes:
+          --max_hamming_dist (default 1)
+          --predemux_trim_r1_5prime  (dest: predemux_r1_trim_5prime_num_bp, const 18)
+          --predemux_trim_r1_3prime  (dest: predemux_r1_trim_3prime_num_bp, const 18)
+          --predemux_trim_r2_5prime  (dest: predemux_r2_trim_5prime_num_bp, const 18)
+          --predemux_trim_r2_3prime  (dest: predemux_r2_trim_3prime_num_bp, const 18)
+          --trim_r1_right_of_barcode (dest: r1_trim_bp_right_of_barcode,    const 10)
+          --trim_r2_left_of_barcode  (dest: r2_trim_bp_left_of_barcode,     const 10)
+        """
+        parser = viral_ngs.illumina.parser_splitcode_demux_fastqs(argparse.ArgumentParser())
+        required_args = ['--fastq_r1', 'R1.fastq.gz',
+                         '--fastq_r2', 'R2.fastq.gz',
+                         '--samplesheet', 'samples.tsv',
+                         '--outdir', '/tmp/out']
+
+        # ---- defaults (flags absent) ----
+        args = parser.parse_args(required_args)
+        self.assertEqual(args.max_hamming_dist, 1, "--max_hamming_dist default should be 1")
+        self.assertIsNone(args.predemux_r1_trim_5prime_num_bp,  "--predemux_trim_r1_5prime default should be None")
+        self.assertIsNone(args.predemux_r1_trim_3prime_num_bp,  "--predemux_trim_r1_3prime default should be None")
+        self.assertIsNone(args.predemux_r2_trim_5prime_num_bp,  "--predemux_trim_r2_5prime default should be None")
+        self.assertIsNone(args.predemux_r2_trim_3prime_num_bp,  "--predemux_trim_r2_3prime default should be None")
+        self.assertIsNone(args.r1_trim_bp_right_of_barcode,     "--trim_r1_right_of_barcode default should be None")
+        self.assertIsNone(args.r2_trim_bp_left_of_barcode,      "--trim_r2_left_of_barcode default should be None")
+
+        # ---- explicit int values ----
+        args2 = parser.parse_args(required_args + [
+            '--max_hamming_dist', '2',
+            '--predemux_trim_r1_5prime', '12',
+            '--predemux_trim_r1_3prime', '14',
+            '--predemux_trim_r2_5prime', '16',
+            '--predemux_trim_r2_3prime', '20',
+            '--trim_r1_right_of_barcode', '8',
+            '--trim_r2_left_of_barcode', '6',
+        ])
+        self.assertEqual(args2.max_hamming_dist,                2)
+        self.assertEqual(args2.predemux_r1_trim_5prime_num_bp, 12)
+        self.assertEqual(args2.predemux_r1_trim_3prime_num_bp, 14)
+        self.assertEqual(args2.predemux_r2_trim_5prime_num_bp, 16)
+        self.assertEqual(args2.predemux_r2_trim_3prime_num_bp, 20)
+        self.assertEqual(args2.r1_trim_bp_right_of_barcode,    8)
+        self.assertEqual(args2.r2_trim_bp_left_of_barcode,     6)
+
+        # ---- bare flags → const values ----
+        args3 = parser.parse_args(required_args + [
+            '--predemux_trim_r1_5prime',
+            '--predemux_trim_r1_3prime',
+            '--predemux_trim_r2_5prime',
+            '--predemux_trim_r2_3prime',
+            '--trim_r1_right_of_barcode',
+            '--trim_r2_left_of_barcode',
+        ])
+        self.assertEqual(args3.predemux_r1_trim_5prime_num_bp, 18)
+        self.assertEqual(args3.predemux_r1_trim_3prime_num_bp, 18)
+        self.assertEqual(args3.predemux_r2_trim_5prime_num_bp, 18)
+        self.assertEqual(args3.predemux_r2_trim_3prime_num_bp, 18)
+        self.assertEqual(args3.r1_trim_bp_right_of_barcode,    10)
+        self.assertEqual(args3.r2_trim_bp_left_of_barcode,     10)
+
     def test_i5_reverse_complement_3bc_demux(self):
         """
         Test 3-barcode demultiplexing when i5 barcode requires reverse complement.

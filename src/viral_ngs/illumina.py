@@ -1504,6 +1504,9 @@ def splitcode_demux_fastqs(
             keep_r1_r2_suffixes=True,
             splitcode_opts=[f"--output={dummy_output_r1},{dummy_output_r2}"]
         )
+        # Patch the summary JSON with the ground-truth unassigned read-pair count
+        # so create_splitcode_lookup_table() can use it directly (see GH #1091).
+        splitcode.record_unassigned_count_in_summary(summary_stats, unassigned_r1)
 
         # Convert splitcode FASTQs to BAMs in parallel
         # Build mapping from sample_library_id to sample name
@@ -1760,6 +1763,60 @@ def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
         help='Number of reads to examine from the FASTQ to form a consensus barcode sequence. '
              'Using multiple reads avoids relying on a single read that may have a mismatched '
              'index. (default: %(default)s)'
+    )
+    parser.add_argument(
+        "--max_hamming_dist",
+        type=int,
+        default=1,
+        help="Max allowed Hamming distance for inline barcode matching. Default: 1.",
+    )
+    parser.add_argument(
+        "--predemux_trim_r1_5prime",
+        dest="predemux_r1_trim_5prime_num_bp",
+        const=18,
+        nargs="?",
+        help="number of bases to trim from the 5' end of read 1 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r1_3prime",
+        dest="predemux_r1_trim_3prime_num_bp",
+        const=18,
+        nargs="?",
+        help="number of bases to trim from the 3' end of read 1 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r2_5prime",
+        dest="predemux_r2_trim_5prime_num_bp",
+        const=18,
+        nargs="?",
+        help="number of bases to trim from the 5' end of read 2 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r2_3prime",
+        dest="predemux_r2_trim_3prime_num_bp",
+        const=18,
+        nargs="?",
+        help="number of bases to trim from the 3' end of read 2 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--trim_r1_right_of_barcode",
+        dest="r1_trim_bp_right_of_barcode",
+        const=10,
+        nargs="?",
+        help="number of bases to trim after the barcode on the right (3') side of read 1 (after demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--trim_r2_left_of_barcode",
+        dest="r2_trim_bp_left_of_barcode",
+        const=10,
+        nargs="?",
+        help="number of bases to trim after the barcode on the left (5') side of read 2 (after demux)",
+        type=int,
     )
     util_cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util_cmd.attach_main(parser, splitcode_demux_fastqs, split_args=True)
