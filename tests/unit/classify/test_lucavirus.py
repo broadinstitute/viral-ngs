@@ -15,19 +15,19 @@ def _read_tsv(path):
         return list(csv.reader(fh, delimiter="\t"))
 
 
-def test_prepare_contigs_writes_lucavirus_csv_and_stats(tmp_path):
-    contigs_fasta = tmp_path / "contigs.fasta"
+def test_prepare_sequences_writes_lucavirus_csv_and_stats(tmp_path):
+    input_fasta = tmp_path / "sequences.fasta"
     lucavirus_input_csv = tmp_path / "lucavirus_input.csv"
     stats_tsv = tmp_path / "lucavirus_prepare_stats.tsv"
-    contigs_fasta.write_text(
-        ">contig_a description\n"
+    input_fasta.write_text(
+        ">sequence_a description\n"
         "MKTIIALSYIFCLVFADYKDDDDK\n"
-        ">contig_b\n"
+        ">sequence_b\n"
         "GAVLIPFYWSTCMNQDEKRH\n"
     )
 
-    stats = lucavirus.prepare_contigs(
-        str(contigs_fasta),
+    stats = lucavirus.prepare_sequences(
+        str(input_fasta),
         str(lucavirus_input_csv),
         str(stats_tsv),
     )
@@ -35,8 +35,8 @@ def test_prepare_contigs_writes_lucavirus_csv_and_stats(tmp_path):
     assert stats == {"n_sequences": 2, "has_lucavirus_input": True}
     assert _read_csv(lucavirus_input_csv) == [
         lucavirus.LUCAVIRUS_INPUT_HEADER,
-        ["contig_a", "prot", "MKTIIALSYIFCLVFADYKDDDDK"],
-        ["contig_b", "prot", "GAVLIPFYWSTCMNQDEKRH"],
+        ["sequence_a", "prot", "MKTIIALSYIFCLVFADYKDDDDK"],
+        ["sequence_b", "prot", "GAVLIPFYWSTCMNQDEKRH"],
     ]
     assert _read_tsv(stats_tsv) == [
         lucavirus.PREPARE_STATS_HEADER,
@@ -44,14 +44,61 @@ def test_prepare_contigs_writes_lucavirus_csv_and_stats(tmp_path):
     ]
 
 
-def test_prepare_contigs_empty_fasta_writes_header_only_input(tmp_path):
-    contigs_fasta = tmp_path / "empty.fasta"
+def test_prepare_sequences_filters_by_min_length(tmp_path):
+    input_fasta = tmp_path / "sequences.fasta"
     lucavirus_input_csv = tmp_path / "lucavirus_input.csv"
     stats_tsv = tmp_path / "lucavirus_prepare_stats.tsv"
-    contigs_fasta.write_text("")
+    input_fasta.write_text(
+        ">short_sequence\nMKT\n>long_sequence\nMKTIIALSYIFCLVFADYKDDDDK\n"
+    )
 
-    stats = lucavirus.prepare_contigs(
-        str(contigs_fasta),
+    stats = lucavirus.prepare_sequences(
+        str(input_fasta),
+        str(lucavirus_input_csv),
+        str(stats_tsv),
+        min_length=10,
+    )
+
+    assert stats == {"n_sequences": 1, "has_lucavirus_input": True}
+    assert _read_csv(lucavirus_input_csv) == [
+        lucavirus.LUCAVIRUS_INPUT_HEADER,
+        ["long_sequence", "prot", "MKTIIALSYIFCLVFADYKDDDDK"],
+    ]
+    assert _read_tsv(stats_tsv) == [
+        lucavirus.PREPARE_STATS_HEADER,
+        ["1", "true"],
+    ]
+
+
+def test_prepare_sequences_min_length_can_filter_all_input(tmp_path):
+    input_fasta = tmp_path / "sequences.fasta"
+    lucavirus_input_csv = tmp_path / "lucavirus_input.csv"
+    stats_tsv = tmp_path / "lucavirus_prepare_stats.tsv"
+    input_fasta.write_text(">short_sequence\nMKT\n>another_short_sequence\nGAVL\n")
+
+    stats = lucavirus.prepare_sequences(
+        str(input_fasta),
+        str(lucavirus_input_csv),
+        str(stats_tsv),
+        min_length=10,
+    )
+
+    assert stats == {"n_sequences": 0, "has_lucavirus_input": False}
+    assert _read_csv(lucavirus_input_csv) == [lucavirus.LUCAVIRUS_INPUT_HEADER]
+    assert _read_tsv(stats_tsv) == [
+        lucavirus.PREPARE_STATS_HEADER,
+        ["0", "false"],
+    ]
+
+
+def test_prepare_sequences_empty_fasta_writes_header_only_input(tmp_path):
+    input_fasta = tmp_path / "empty.fasta"
+    lucavirus_input_csv = tmp_path / "lucavirus_input.csv"
+    stats_tsv = tmp_path / "lucavirus_prepare_stats.tsv"
+    input_fasta.write_text("")
+
+    stats = lucavirus.prepare_sequences(
+        str(input_fasta),
         str(lucavirus_input_csv),
         str(stats_tsv),
     )
@@ -64,14 +111,14 @@ def test_prepare_contigs_empty_fasta_writes_header_only_input(tmp_path):
     ]
 
 
-def test_prepare_contigs_whitespace_only_fasta_writes_header_only_input(tmp_path):
-    contigs_fasta = tmp_path / "empty.fasta"
+def test_prepare_sequences_whitespace_only_fasta_writes_header_only_input(tmp_path):
+    input_fasta = tmp_path / "empty.fasta"
     lucavirus_input_csv = tmp_path / "lucavirus_input.csv"
     stats_tsv = tmp_path / "lucavirus_prepare_stats.tsv"
-    contigs_fasta.write_text("\n \t\n")
+    input_fasta.write_text("\n \t\n")
 
-    stats = lucavirus.prepare_contigs(
-        str(contigs_fasta),
+    stats = lucavirus.prepare_sequences(
+        str(input_fasta),
         str(lucavirus_input_csv),
         str(stats_tsv),
     )
@@ -84,16 +131,29 @@ def test_prepare_contigs_whitespace_only_fasta_writes_header_only_input(tmp_path
     ]
 
 
-def test_prepare_contigs_rejects_unsupported_seq_type(tmp_path):
-    contigs_fasta = tmp_path / "contigs.fasta"
-    contigs_fasta.write_text(">contig_a\nACGT\n")
+def test_prepare_sequences_rejects_unsupported_seq_type(tmp_path):
+    input_fasta = tmp_path / "sequences.fasta"
+    input_fasta.write_text(">sequence_a\nACGT\n")
 
     with pytest.raises(ValueError, match="Unsupported LucaVirus seq_type"):
-        lucavirus.prepare_contigs(
-            str(contigs_fasta),
+        lucavirus.prepare_sequences(
+            str(input_fasta),
             str(tmp_path / "lucavirus_input.csv"),
             str(tmp_path / "lucavirus_prepare_stats.tsv"),
             seq_type="gene",
+        )
+
+
+def test_prepare_sequences_rejects_negative_min_length(tmp_path):
+    input_fasta = tmp_path / "sequences.fasta"
+    input_fasta.write_text(">sequence_a\nACGT\n")
+
+    with pytest.raises(ValueError, match="min_length must be non-negative"):
+        lucavirus.prepare_sequences(
+            str(input_fasta),
+            str(tmp_path / "lucavirus_input.csv"),
+            str(tmp_path / "lucavirus_prepare_stats.tsv"),
+            min_length=-1,
         )
 
 
@@ -170,10 +230,7 @@ def test_normalize_output_rejects_bad_header(tmp_path):
 def test_normalize_output_rejects_malformed_row(tmp_path):
     raw_tsv = tmp_path / "raw.tsv"
     output_tsv = tmp_path / "normalized.tsv"
-    raw_tsv.write_text(
-        "\t".join(lucavirus.OUTPUT_HEADER) + "\n"
-        "seq1\tMKT\t0.8\t1\n"
-    )
+    raw_tsv.write_text("\t".join(lucavirus.OUTPUT_HEADER) + "\nseq1\tMKT\t0.8\t1\n")
 
     with pytest.raises(ValueError, match="line 2"):
         lucavirus.normalize_output(str(raw_tsv), str(output_tsv))

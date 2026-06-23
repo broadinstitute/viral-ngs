@@ -206,23 +206,25 @@ def test_centrifuger_kreport_parser_invokes_tool():
 
 
 class TestLucaVirusCalls(TestCaseWithTmp):
-    @patch('viral_ngs.metagenomics.lucavirus.prepare_contigs', autospec=True)
-    def test_lucavirus_prepare(self, mock_prepare_contigs):
+    @patch('viral_ngs.metagenomics.lucavirus.prepare_sequences', autospec=True)
+    def test_lucavirus_prepare(self, mock_prepare_sequences):
         args = metagenomics.parser_lucavirus_prepare(
             argparse.ArgumentParser()
         ).parse_args([
-            'contigs.fasta',
+            'sequences.fasta',
             'lucavirus_input.csv',
             'lucavirus_prepare_stats.tsv',
             '--seq-type', 'prot',
+            '--min-length', '10',
         ])
         args.func_main(args)
 
-        mock_prepare_contigs.assert_called_once_with(
-            'contigs.fasta',
+        mock_prepare_sequences.assert_called_once_with(
+            'sequences.fasta',
             'lucavirus_input.csv',
             'lucavirus_prepare_stats.tsv',
             seq_type='prot',
+            min_length=10,
         )
 
     @patch('viral_ngs.metagenomics.lucavirus.write_empty_predictions', autospec=True)

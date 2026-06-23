@@ -16,8 +16,8 @@ tasks invoke `/opt/lucavirus_cli.py` from the LucaVirus CUDA container directly.
 
 The relevant helpers are:
 
-- `prepare_contigs()`: reads an input FASTA and writes LucaVirus CSV input with
-  `seq_id,seq_type,seq` columns plus a small stats TSV for WDL branching.
+- `prepare_sequences()`: reads an input FASTA and writes LucaVirus CSV input
+  with `seq_id,seq_type,seq` columns plus a small stats TSV for WDL branching.
 - `normalize_output()`: validates raw lucavirus-cuda TSV output and writes the
   durable viral-ngs LucaVirus TSV artifact.
 - `write_empty_predictions()`: writes a header-only LucaVirus prediction table
@@ -31,9 +31,10 @@ The relevant helpers are:
 `lucavirus_prepare` is intentionally a format preflight, not an ORF caller. It
 does not translate nucleotide sequences, call genes, filter by biological
 content, or enforce a protein alphabet. Those decisions belong upstream of this
-helper and/or inside the LucaVirus runtime contract. This command only converts
-FASTA records into the stable CSV shape consumed by lucavirus-cuda and records
-whether there is anything to score.
+helper and/or inside the LucaVirus runtime contract. This command converts
+FASTA records into the stable CSV shape consumed by lucavirus-cuda, can omit
+records below an explicit minimum sequence length, and records whether there is
+anything to score.
 
 The prepared CSV uses:
 
@@ -44,9 +45,9 @@ seq_id,seq_type,seq
 `seq_type` is currently fixed to `prot` because the accepted LucaVirus task
 profiles (`rdrp`, `viral_capsid`, `virus_ec4`) are protein profiles. The FASTA
 record ID is preserved as `seq_id`; the sequence string is copied as-is apart
-from FASTA parsing. Empty FASTA files or FASTA files with no non-empty sequence
-records produce a header-only CSV and stats with
-`has_lucavirus_input=false`.
+from FASTA parsing. Empty FASTA files, FASTA files with no non-empty sequence
+records, or inputs whose records are all below the configured minimum sequence
+length produce a header-only CSV and stats with `has_lucavirus_input=false`.
 
 ### Output Validation
 

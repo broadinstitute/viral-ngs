@@ -7,7 +7,6 @@ from Bio import SeqIO
 
 from viral_ngs.core import file
 
-
 OUTPUT_HEADER = ["seq_id", "seq", "prob", "label_index", "label"]
 LUCAVIRUS_INPUT_HEADER = ["seq_id", "seq_type", "seq"]
 PREPARE_STATS_HEADER = ["n_sequences", "has_lucavirus_input"]
@@ -24,14 +23,22 @@ def validate_task_profile(task_profile):
         )
 
 
-def prepare_contigs(contigs_fasta, lucavirus_input_csv, stats_tsv, seq_type="prot"):
-    """Convert input FASTA records to LucaVirus CSV and write preflight stats."""
-    if not os.path.isfile(contigs_fasta):
-        raise FileNotFoundError(contigs_fasta)
+def prepare_sequences(
+    input_fasta,
+    lucavirus_input_csv,
+    stats_tsv,
+    seq_type="prot",
+    min_length=None,
+):
+    """Convert input FASTA sequences to LucaVirus CSV and write preflight stats."""
+    if not os.path.isfile(input_fasta):
+        raise FileNotFoundError(input_fasta)
     if seq_type != "prot":
         raise ValueError(
             "Unsupported LucaVirus seq_type '{}'. Expected 'prot'.".format(seq_type)
         )
+    if min_length is not None and min_length < 0:
+        raise ValueError("min_length must be non-negative")
 
     _ensure_parent_dir(lucavirus_input_csv)
     _ensure_parent_dir(stats_tsv)
@@ -40,11 +47,13 @@ def prepare_contigs(contigs_fasta, lucavirus_input_csv, stats_tsv, seq_type="pro
     with file.open_or_gzopen(lucavirus_input_csv, "wt", newline="") as out_fh:
         writer = csv.writer(out_fh, lineterminator="\n")
         writer.writerow(LUCAVIRUS_INPUT_HEADER)
-        if not _is_blank_text_file(contigs_fasta):
-            with file.open_or_gzopen(contigs_fasta, "rt") as in_fh:
+        if not _is_blank_text_file(input_fasta):
+            with file.open_or_gzopen(input_fasta, "rt") as in_fh:
                 for record in SeqIO.parse(in_fh, "fasta"):
                     sequence = str(record.seq).strip()
                     if not sequence:
+                        continue
+                    if min_length is not None and len(sequence) < min_length:
                         continue
                     writer.writerow([record.id, seq_type, sequence])
                     n_sequences += 1

@@ -647,7 +647,7 @@ __commands__.append(('centrifuger_kreport', parser_centrifuger_kreport))
 
 
 def parser_lucavirus_prepare(parser=argparse.ArgumentParser()):
-    parser.add_argument('contigs_fasta',
+    parser.add_argument('input_fasta',
                         help='Input FASTA containing sequences to pass to LucaVirus.')
     parser.add_argument('lucavirus_input_csv',
                         help='Output LucaVirus input CSV with seq_id,seq_type,seq columns.')
@@ -657,30 +657,37 @@ def parser_lucavirus_prepare(parser=argparse.ArgumentParser()):
                         default='prot', choices=['prot'],
                         help='LucaVirus sequence type to write in the CSV. '
                              '(default: %(default)s)')
+    parser.add_argument('--minLength', '--min-length', dest='min_length',
+                        type=int, default=None,
+                        help='Minimum sequence length to include in LucaVirus input. '
+                             'Shorter sequences are omitted before GPU scoring.')
     cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     cmd.attach_main(parser, main_lucavirus_prepare, split_args=True)
     return parser
 
 
 def main_lucavirus_prepare(
-    contigs_fasta,
+    input_fasta,
     lucavirus_input_csv,
     stats_tsv,
     seq_type='prot',
+    min_length=None,
 ):
     '''
         Convert input FASTA records into LucaVirus CSV input and write
         preflight stats for conditional GPU-task execution.
 
         This command does not call ORFs or translate sequences. It only
-        validates the FASTA container shape and repackages records into the
-        LucaVirus single-sequence CSV contract expected by lucavirus-cuda.
+        validates the FASTA container shape, optionally filters short records,
+        and repackages records into the LucaVirus single-sequence CSV contract
+        expected by lucavirus-cuda.
     '''
-    lucavirus.prepare_contigs(
-        contigs_fasta,
+    lucavirus.prepare_sequences(
+        input_fasta,
         lucavirus_input_csv,
         stats_tsv,
         seq_type=seq_type,
+        min_length=min_length,
     )
 
 
