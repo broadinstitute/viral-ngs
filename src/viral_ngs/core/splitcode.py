@@ -500,7 +500,7 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
             "library_id_per_sample" : list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
             "run"                   : f"{unmatched_name}.{barcode_group}",
             "muxed_pool"            : barcode_group,
-            "count"                 : splitcode_summary["num_reads_unassigned"],  # ground-truth; see GH #1091
+            "count"                 : splitcode_summary.get("num_reads_unassigned", splitcode_summary["n_processed"] - splitcode_summary["n_assigned"]),  # ground-truth; see GH #1091
             "count_h1"              : 0,
             "barcode_1"             : list(samplesheet_rows_for_pool_hx_df["barcode_1"])[0],
             "barcode_2"             : list(samplesheet_rows_for_pool_hx_df["barcode_2"])[0],
