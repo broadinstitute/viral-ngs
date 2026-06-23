@@ -506,7 +506,7 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
             "barcode_2"             : list(samplesheet_rows_for_pool_hx_df["barcode_2"])[0],
             "barcode_3"             : "N" * len(list(samplesheet_rows_for_pool_hx_df["barcode_3"])[0]),
         }
-        unmatched_df = pd.DataFrame.from_dict([unmatched_dict], dtype=str)
+        unmatched_df = pd.DataFrame.from_dict([unmatched_dict])  # no dtype=str; count/count_h1 must stay int
         unmatched_dfs.append(unmatched_df)
 
     all_pools_and_unmatched_df = pd.concat(pool_dfs + unmatched_dfs, ignore_index=True)

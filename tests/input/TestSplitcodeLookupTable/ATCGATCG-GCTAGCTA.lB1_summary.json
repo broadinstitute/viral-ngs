@@ -1,6 +1,6 @@
 {
-  "n_processed": 1000000,
-  "n_assigned": 950000,
+  "n_processed": 100000,
+  "n_assigned": 95000,
   "num_reads_unassigned": 5000,
   "tag_qc": [
     {

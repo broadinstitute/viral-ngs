@@ -71,9 +71,12 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             unmatched_row = unmatched_rows.iloc[0]
             self.assertTrue(unmatched_row['inline_barcode'].replace('N', '') == '')
             # Unmatched count comes from num_reads_unassigned in the summary JSON (GH #1091).
-            # Fixture has num_reads_unassigned=5000 and inflated n_processed/n_assigned
-            # (1000000/950000) to show the old n_processed-n_assigned formula was wrong.
+            # The true inflation mechanism was dtype=str string concatenation:
+            # pd.DataFrame.from_dict([unmatched_dict], dtype=str) coerced count to "5000",
+            # so num_reads_total = "5000" + "0" = "50000" (×10). Fixed by dropping dtype=str.
             self.assertEqual(int(unmatched_row['num_reads_hdistance0']), 5000)
+            # Regression guard: if dtype=str crept back, total would be "50000" not 5000.
+            self.assertEqual(int(unmatched_row['num_reads_total']), 5000)
 
             # Verify read counts for Sample2 (should have highest count)
             sample2_row = df[df['sample'] == 'Sample2'].iloc[0]
@@ -162,6 +165,8 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             liba_unmatched = df[df['muxed_pool'] == 'AAAAAAAA-TTTTTTTT']
             liba_unmatched = liba_unmatched[liba_unmatched['sample'].str.contains('Unmatched')].iloc[0]
             self.assertEqual(int(liba_unmatched['num_reads_hdistance0']), 2000)
+            # Regression guard for dtype=str concat bug: total must be int 2000, not "20000"
+            self.assertEqual(int(liba_unmatched['num_reads_total']), 2000)
 
     def test_append_run_id(self):
         """Test append_run_id parameter."""
