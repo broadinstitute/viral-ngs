@@ -500,7 +500,7 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
             "library_id_per_sample" : list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
             "run"                   : f"{unmatched_name}.{barcode_group}",
             "muxed_pool"            : barcode_group,
-            "count"                 : splitcode_summary["n_processed"] - splitcode_summary["n_assigned"],
+            "count"                 : splitcode_summary["num_reads_unassigned"],  # ground-truth; see GH #1091
             "count_h1"              : 0,
             "barcode_1"             : list(samplesheet_rows_for_pool_hx_df["barcode_1"])[0],
             "barcode_2"             : list(samplesheet_rows_for_pool_hx_df["barcode_2"])[0],
@@ -688,6 +688,34 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
         f"{out_dir}/{out_basename}.png", bbox_inches="tight", dpi=300
     )
 
+def record_unassigned_count_in_summary(summary_json_path, unassigned_r1_fastq):
+    """Patch a splitcode --summary JSON with a ground-truth count of unassigned read
+    pairs, obtained by counting records in the unassigned R1 FASTQ.  This is the
+    authoritative unmatched count; the binary's top-level n_processed/n_assigned
+    counters accumulate across hamming-distance buckets and are not true read-pair
+    totals (see GH #1091).
+
+    Args:
+        summary_json_path: Path to the splitcode --summary JSON to patch in-place.
+        unassigned_r1_fastq: Path to the unassigned/unmatched R1 FASTQ produced by
+            splitcode's --unassigned flag.  May be plain .fastq or .fastq.gz.
+            If the file is absent (zero-unmatched pool), count is recorded as 0.
+
+    Returns:
+        int: the recorded unassigned read-pair count.
+    """
+    if os.path.exists(unassigned_r1_fastq):
+        n_unassigned = util_file.count_fastq_reads(unassigned_r1_fastq)
+    else:
+        n_unassigned = 0
+    with open(summary_json_path) as f:
+        summary = json.load(f)
+    summary["num_reads_unassigned"] = n_unassigned
+    with open(summary_json_path, "w") as f:
+        json.dump(summary, f)
+    return n_unassigned
+
+
 # this function is called in new processes
 # and must remain at the top level (global scope) of this file
 # to be picklable and thus compatible
@@ -794,7 +822,12 @@ def run_splitcode_on_pool(  pool_id,
         }
         if string_to_log:
             log.info(string_to_log)
-        return (splitcode_tool.execute(**splitcode_kwargs), pool_id)
+        return_code = splitcode_tool.execute(**splitcode_kwargs)
+        # Patch the summary JSON with the ground-truth unassigned read-pair count so
+        # create_splitcode_lookup_table() can read it directly instead of computing
+        # n_processed - n_assigned (which is inflated ~10x; see GH #1091).
+        record_unassigned_count_in_summary(summary_stats, unmapped_r1)
+        return (return_code, pool_id)
 
 def generate_splitcode_config_and_keep_files(
     inner_demux_barcode_map_df,
