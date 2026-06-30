@@ -124,12 +124,12 @@ steps:
     uses: anthropics/claude-code-action@<FULL_40_CHAR_SHA>  # v1
     env:
       CLAUDE_CODE_USE_VERTEX: '1'
-      CLOUD_ML_REGION: global              # Sonnet 4.6 supports the global endpoint
+      CLOUD_ML_REGION: global              # Sonnet 5 supports the global endpoint
       ANTHROPIC_VERTEX_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
     with:
       use_vertex: 'true'
       github_token: ${{ secrets.GITHUB_TOKEN }}    # avoids needing the Claude Code GitHub App
-      claude_args: '--model claude-sonnet-4-6 --max-turns 30'
+      claude_args: '--model claude-sonnet-5 --max-turns 30'
       settings: |
         {
           "permissions": {
@@ -175,7 +175,7 @@ steps:
   on prompt instructions to constrain output paths.
 
 - **Region `global` (recommended) gives dynamic routing across regions for
-  Sonnet 4.6.** Pin to a specific region (e.g., `us-east5`, `europe-west1`)
+  Sonnet 5.** Pin to a specific region (e.g., `us-east5`, `europe-west1`)
   only if you need data-residency control.
 
 - **`fetch-depth: 0` if Claude needs git history.** Default `actions/checkout`
@@ -194,7 +194,7 @@ steps:
   schedule tick unconditionally.
 - **Turn cap:** `--max-turns 30` is generous for triage-style tasks; tighten
   if you can. Observed: 6–10 turns for one-CVE analyses.
-- **Cost order of magnitude:** Sonnet 4.6 ≈ $0.10–1 per non-trivial task
+- **Cost order of magnitude:** Sonnet 5 ≈ $0.10–1 per non-trivial task
   (one-CVE analysis with full repo reading). Opus 4.7 is ~5× more expensive
   for marginal quality gain on most CI tasks.
 - **Provider gate:** the OIDC provider attribute condition limits token
