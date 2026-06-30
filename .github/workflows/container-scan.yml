@@ -329,7 +329,7 @@ jobs:
             8. **Attribution footer** — at the very end of the report, add a horizontal
                rule (`---`) on its own line, then this exact paragraph (italicized):
 
-               `*This analysis and report were authored entirely by Claude Sonnet 5 (running on Google Vertex AI via the `container-scan.yml` triage pipeline). Independently verify the CVSS data, dependency chain, recommended fix, and commit SHAs before acting on this report.*`
+               *This analysis and report were authored entirely by Claude Sonnet 5 (running on Google Vertex AI via the `container-scan.yml` triage pipeline). Independently verify the CVSS data, dependency chain, recommended fix, and commit SHAs before acting on this report.*
 
             ## Constraints
 
