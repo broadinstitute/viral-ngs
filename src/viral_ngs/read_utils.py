@@ -31,6 +31,7 @@ from .core import bwa
 from .core import cdhit
 from .core import picard
 from .core import samtools
+from .core import minibwa
 from .core import minimap2
 from .core import mvicuna
 from .core import prinseq
@@ -1260,7 +1261,7 @@ def align_and_fix(
         log.warning("are you sure you meant to do nothing?")
         return
 
-    assert aligner in ["novoalign", "bwa", "minimap2"]
+    assert aligner in ["novoalign", "bwa", "minimap2", "minibwa"]
     samtools_tool = samtools.SamtoolsTool()
 
     refFastaCopy = mkstempfname('.ref_copy.fasta')
@@ -1303,6 +1304,11 @@ def align_and_fix(
     elif aligner=='minimap2':
         mm2 = minimap2.Minimap2()
         mm2.align_bam(inBam, refFastaCopy, bam_aligned, threads=threads, options=aligner_options.split())
+
+    elif aligner=='minibwa':
+        minibwa_tool = minibwa.Minibwa()
+        minibwa_tool.index(refFastaCopy)
+        minibwa_tool.align_bam(inBam, refFastaCopy, bam_aligned, threads=threads, options=aligner_options.split())
 
     # Mark duplicates with sambamba (default) or Picard
     if skip_mark_dupes:
@@ -1367,7 +1373,7 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
                 duplicates will be not be marked and will be included in the output.'''
     )
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
-    parser.add_argument('--aligner', choices=['novoalign', 'minimap2', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
+    parser.add_argument('--aligner', choices=['novoalign', 'minimap2', 'bwa', 'minibwa'], default='novoalign', help='aligner (default: %(default)s)')
     parser.add_argument('--bwa_min_score', type=int, default=None, help='BWA mem on paired reads ignores the -T parameter. Set a value here (e.g. 30) to invoke a custom post-alignment filter (default: no filtration)')
     parser.add_argument('--novoalign_amplicons_bed', default=None, help='Novoalign only: amplicon primer file (BED format) to soft clip')
     parser.add_argument('--amplicon_window', type=int, default=4, help='Novoalign only: amplicon primer window size (default: %(default)s)')

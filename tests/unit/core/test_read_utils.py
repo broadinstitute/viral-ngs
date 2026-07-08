@@ -827,6 +827,9 @@ class TestAlignAndFix(TestCaseWithTmp):
     def test_minimap2(self):
         self.simple_execution('minimap2')
 
+    def test_minibwa(self):
+        self.simple_execution('minibwa')
+
     def simple_execution(self, aligner):
         inBam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.subset.bam')
         outBamAll = viral_ngs.core.file.mkstempfname('.outBamAll.bam')

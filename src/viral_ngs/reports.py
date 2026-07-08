@@ -25,6 +25,7 @@ import matplotlib.pyplot
 from .core import file as util_file, misc as util_misc, cmd as util_cmd
 from .core import samtools
 from .core import bwa
+from .core import minibwa
 from .core import fastqc
 from .core import picard
 from .core.stats import mean, median
@@ -813,12 +814,14 @@ def align_and_plot_coverage(
     else:
         bam_aligned = out_bam
 
-    assert aligner in ["bwa", "novoalign"]
+    assert aligner in ["bwa", "novoalign", "minibwa"]
     if aligner_options is None:
         if aligner=="novoalign":
             aligner_options = '-r Random -l 40 -g 40 -x 20 -t 100 -k'
         elif aligner=='bwa':
             aligner_options = '-1' # hidden option to work around kernel/cpu bug; disables multithreaded file read: https://github.com/lh3/bwa/issues/102
+        elif aligner=='minibwa':
+            aligner_options = '' # use defaults
 
     samtools_tool = samtools.SamtoolsTool()
 
@@ -839,7 +842,7 @@ def align_and_plot_coverage(
         bwa_tool.align_mem_bam(in_bam, ref_indexed, aln_bam, options=bwa_opts,
                           min_score_to_filter=min_score_to_filter)
     elif aligner=="novoalign":
-        
+
         novoalign.NovoalignTool(license_path=novoalign_license_path).index_fasta(ref_indexed)
 
         novoalign.NovoalignTool(license_path=novoalign_license_path).execute(
@@ -847,6 +850,10 @@ def align_and_plot_coverage(
             options=aligner_options.split(),
             JVMmemory=JVMmemory
         )
+    elif aligner=="minibwa":
+        minibwa_tool = minibwa.Minibwa()
+        minibwa_tool.index(ref_indexed)
+        minibwa_tool.align_bam(in_bam, ref_indexed, aln_bam, options=aligner_options.split())
 
     aln_bam_dupe_processed = util_file.mkstempfname('.filtered_dupe_processed.bam')
     if excludeDuplicates:
@@ -931,7 +938,7 @@ def parser_align_and_plot_coverage(parser=argparse.ArgumentParser()):
               "is in the aligner options). (default: not set - i.e., do not "
               "filter bwa's output)")
     )
-    parser.add_argument('--aligner', choices=['novoalign', 'bwa'], default='bwa', help='aligner (default: %(default)s)')
+    parser.add_argument('--aligner', choices=['novoalign', 'bwa', 'minibwa'], default='bwa', help='aligner (default: %(default)s)')
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random -l 40 -g 40 -x 20 -t 100 -k", bwa: bwa defaults')
     parser.add_argument(
         '--NOVOALIGN_LICENSE_PATH',
