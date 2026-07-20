@@ -1,0 +1,16 @@
+Rank	Size	Similarity	Sequence	Database
+1	18872	98.831	G5012.3	allref.fasta
+2	18959	98.146	KJ660346.2	allref.fasta
+3	18959	97.549	Zaire_ebolavirus_isolate_H.sapiens-wt/GIN/2014/Gueckedou-C05_complete_genome	allref.fasta
+4	18959	86.315	Zaire_ebolavirus_isolate_EBOV/H.sapiens-tc/COD/1977/Bonduni_complete_genome	allref.fasta
+5	18958	86.285	Zaire_ebolavirus_isolate_EBOV/H.sapiens-tc/COD/2007/43_Luebo_complete_genome	allref.fasta
+6	18961	85.653	Zaire_ebolavirus_strain_Zaire_1995_complete_genome	allref.fasta
+7	18958	85.403	Zaire_ebolavirus_isolate_EBOV/H.sapiens-tc/GAB/1996/Ilembe_complete_genome	allref.fasta
+8	18958	84.506	Zaire_ebolavirus_isolate_EBOV/H.sapiens-tc/GAB/1996/1Eko_complete_genome	allref.fasta
+9	18959	84.436	Zaire_ebolavirus_isolate_EBOV/H.sapiens-tc/GAB/1996/2Nza_complete_genome	allref.fasta
+10	18935	 4.435	Cote_dIvoire_ebolavirus_complete_genome	allref.fasta
+11	18939	 4.004	Bundibugyo_ebolavirus_isolate_EboBund-14_2012_complete_genome	allref.fasta
+12	18940	 3.946	Bundibugyo_ebolavirus_complete_genome	allref.fasta
+13	18835	 2.958	Reston_ebolavirus_-_Reston_strain_Reston08-C_complete_genome	allref.fasta
+14	18887	 2.897	Reston_ebolavirus_isolate_RESTV/Sus-wt/PHL/2009/09A_Farm_A_complete_genome	allref.fasta
+15	18891	 2.490	Reston_ebolavirus_isolate_RESTV/M.fascicularis-tc/PHL-USA/1996/Ferlite_Philippines/Alice_TX_complete_genome	allref.fasta
