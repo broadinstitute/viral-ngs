@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError
 from decimal import Decimal
 import inspect
 import re
+import zlib
 
 import pytest
 
@@ -645,6 +646,45 @@ def test_compression_errors_wrap_mislabeled_or_corrupt_files(
         field="file",
     )
     assert error.__cause__ is not None
+
+
+def test_compression_errors_wrap_invalid_gzip_deflate_block(tmp_path):
+    path = tmp_path / "scores.tsv.gz"
+    path.write_bytes(bytes.fromhex("1f8b08000000000000ff07"))
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        list(lyra.iter_lyra_score_records(str(path), "sample"))
+
+    error = _assert_input_error(
+        exc_info,
+        category="compression",
+        path=path,
+        line_number=None,
+        field="file",
+    )
+    assert isinstance(error.__cause__, zlib.error)
+
+
+@pytest.mark.parametrize(
+    "filesystem_error",
+    [PermissionError("permission denied"), OSError("filesystem failure")],
+)
+def test_compressed_filesystem_errors_remain_distinguishable(
+    tmp_path,
+    monkeypatch,
+    filesystem_error,
+):
+    path = tmp_path / "scores.tsv.gz"
+
+    def raise_filesystem_error(*args, **kwargs):
+        raise filesystem_error
+
+    monkeypatch.setattr(util_file, "open_or_gzopen", raise_filesystem_error)
+
+    with pytest.raises(type(filesystem_error)) as exc_info:
+        list(lyra.iter_lyra_score_records(str(path), "sample"))
+
+    assert exc_info.value is filesystem_error
 
 
 @pytest.mark.parametrize("suffix", [".tsv.gz", ".tsv.zst"])
