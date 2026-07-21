@@ -2,6 +2,7 @@ import codecs
 from dataclasses import FrozenInstanceError
 from decimal import Decimal
 import inspect
+import os
 import re
 import zlib
 
@@ -43,6 +44,67 @@ class _RaisingRepr:
         raise _REPR_FAILURE
 
 
+class _RaisingPathLike(os.PathLike):
+    def __init__(self):
+        self.fspath_calls = 0
+
+    def __fspath__(self):
+        self.fspath_calls += 1
+        raise RuntimeError("path conversion must not be invoked")
+
+
+class _HugePathLike(os.PathLike):
+    def __init__(self):
+        self.fspath_calls = 0
+
+    def __fspath__(self):
+        self.fspath_calls += 1
+        return "x" * 1_000_000
+
+
+class _RaisingBytesGetitem(bytes):
+    def __new__(cls):
+        instance = super().__new__(cls, b"unsafe")
+        instance.getitem_calls = 0
+        return instance
+
+    def __getitem__(self, key):
+        self.getitem_calls += 1
+        raise RuntimeError("bytes slicing must not be invoked")
+
+
+class _RaisingBytesLen(bytes):
+    def __new__(cls):
+        instance = super().__new__(cls, b"unsafe")
+        instance.len_calls = 0
+        return instance
+
+    def __len__(self):
+        self.len_calls += 1
+        raise RuntimeError("bytes length must not be invoked")
+
+
+class _HostileString(str):
+    def __new__(cls):
+        instance = super().__new__(cls, "unsafe")
+        instance.getitem_calls = 0
+        instance.len_calls = 0
+        instance.repr_calls = 0
+        return instance
+
+    def __getitem__(self, key):
+        self.getitem_calls += 1
+        raise RuntimeError("string slicing must not be invoked")
+
+    def __len__(self):
+        self.len_calls += 1
+        raise RuntimeError("string length must not be invoked")
+
+    def __repr__(self):
+        self.repr_calls += 1
+        raise RuntimeError("string repr must not be invoked")
+
+
 def _write_plain_score_file(tmp_path, contents, name="scores.tsv"):
     path = tmp_path / name
     path.write_bytes(contents)
@@ -71,6 +133,19 @@ def _assert_input_error(
     assert error.field == field
     assert error.reason
     return error
+
+
+def _assert_safe_sample_error(error):
+    assert error.category == "sample_id"
+    assert error.path is None
+    assert error.line_number is None
+    assert error.field == "sample_id"
+    assert error.reason
+    assert error.offending_value == "<non-string value>"
+    assert len(error.offending_value) <= lyra.RENDERED_VALUE_CAP
+    assert "\r" not in str(error)
+    assert "\n" not in str(error)
+    assert len(str(error)) <= lyra.RENDERED_VALUE_CAP * 4
 
 
 def test_validate_sample_id_preserves_valid_values():
@@ -142,6 +217,53 @@ def test_validate_sample_id_does_not_invoke_arbitrary_repr(sample_factory):
     assert "\r" not in str(error)
     assert "\n" not in str(error)
     assert len(str(error)) <= lyra.RENDERED_VALUE_CAP * 4
+
+
+@pytest.mark.parametrize("sample_factory", [_RaisingPathLike, _HugePathLike])
+def test_validate_sample_id_does_not_invoke_pathlike_hooks(sample_factory):
+    sample_id = sample_factory()
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        lyra.validate_sample_id(sample_id)
+
+    _assert_safe_sample_error(exc_info.value)
+    assert sample_id.fspath_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("sample_factory", "counter_name"),
+    [
+        (_RaisingBytesGetitem, "getitem_calls"),
+        (_RaisingBytesLen, "len_calls"),
+    ],
+)
+def test_validate_sample_id_does_not_invoke_bytes_subclass_hooks(
+    sample_factory,
+    counter_name,
+):
+    sample_id = sample_factory()
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        lyra.validate_sample_id(sample_id)
+
+    _assert_safe_sample_error(exc_info.value)
+    assert getattr(sample_id, counter_name) == 0
+
+
+def test_input_error_does_not_invoke_string_subclass_hooks():
+    offending_value = _HostileString()
+
+    error = lyra.LyraInputError(
+        category="sample_id",
+        field="sample_id",
+        reason="sample ID must be a string",
+        offending_value=offending_value,
+    )
+
+    _assert_safe_sample_error(error)
+    assert offending_value.getitem_calls == 0
+    assert offending_value.len_calls == 0
+    assert offending_value.repr_calls == 0
 
 
 def test_input_error_escapes_and_caps_caller_values():
