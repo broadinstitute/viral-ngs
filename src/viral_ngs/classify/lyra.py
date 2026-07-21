@@ -31,13 +31,10 @@ _COMPRESSION_EXCEPTIONS = (
 
 def _bounded_repr(value):
     """Render a caller value without emitting controls or unbounded text."""
-    if isinstance(value, os.PathLike):
-        value = os.fspath(value)
-
-    if isinstance(value, str):
+    if type(value) is str:
         prefix = value[:RENDERED_VALUE_CAP]
         was_truncated = len(value) > len(prefix)
-    elif isinstance(value, bytes):
+    elif type(value) is bytes:
         prefix = value[:RENDERED_VALUE_CAP]
         was_truncated = len(value) > len(prefix)
     else:
