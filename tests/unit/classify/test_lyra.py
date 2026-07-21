@@ -2,18 +2,28 @@ import codecs
 from dataclasses import FrozenInstanceError
 from decimal import Decimal
 import inspect
+import re
 
 import pytest
 
 from viral_ngs.classify import lyra
+import viral_ngs.core.file as util_file
 
 
 _HEADER = b"read_id\tscore\tcall"
+_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 
 
 def _write_plain_score_file(tmp_path, contents, name="scores.tsv"):
     path = tmp_path / name
     path.write_bytes(contents)
+    return path
+
+
+def _write_score_file(tmp_path, suffix, contents, stem="scores"):
+    path = tmp_path / (stem + suffix)
+    with util_file.open_or_gzopen(str(path), "wb") as outf:
+        outf.write(contents)
     return path
 
 
@@ -499,6 +509,200 @@ def test_valid_iterator_is_lazy_after_each_record(tmp_path):
     records = lyra.iter_lyra_score_records(str(path), "sample")
 
     assert not inspect.isgeneratorfunction(lyra.iter_lyra_score_records)
+    assert next(records).read_id == "read-1"
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        next(records)
+    assert exc_info.value.category == "score_syntax"
+    assert exc_info.value.line_number == 3
+
+
+def test_compression_parity_produces_equal_exact_records(tmp_path):
+    contents = (
+        codecs.BOM_UTF8
+        + _HEADER
+        + b"\r\nread-1\t0.800000\t1\r\nread-2\t0\t0"
+    )
+    record_sets = []
+    for suffix in _SCORE_SUFFIXES:
+        path = _write_score_file(tmp_path, suffix, contents)
+        record_sets.append(
+            list(lyra.iter_lyra_score_records(str(path), "sample A"))
+        )
+
+    assert record_sets[0] == record_sets[1] == record_sets[2]
+    assert record_sets[0] == [
+        lyra.LyraScoreRecord(
+            read_id="read-1",
+            score_text="0.800000",
+            score=Decimal("0.800000"),
+            native_call="1",
+            line_number=2,
+        ),
+        lyra.LyraScoreRecord(
+            read_id="read-2",
+            score_text="0",
+            score=Decimal("0"),
+            native_call="0",
+            line_number=3,
+        ),
+    ]
+
+
+@pytest.mark.parametrize("suffix", _SCORE_SUFFIXES)
+def test_compression_parity_accepts_header_only_table(tmp_path, suffix):
+    path = _write_score_file(tmp_path, suffix, _HEADER + b"\n")
+
+    assert list(lyra.iter_lyra_score_records(str(path), "sample")) == []
+
+
+@pytest.mark.parametrize("suffix", _SCORE_SUFFIXES)
+def test_compression_parity_rejects_logically_empty_file(tmp_path, suffix):
+    path = _write_score_file(tmp_path, suffix, b"")
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        list(lyra.iter_lyra_score_records(str(path), "sample"))
+
+    _assert_input_error(
+        exc_info,
+        category="empty_file",
+        path=path,
+        line_number=None,
+        field="file",
+    )
+
+
+@pytest.mark.parametrize("suffix", _SCORE_SUFFIXES)
+@pytest.mark.parametrize(
+    ("contents", "category", "line_number", "field"),
+    [
+        (
+            codecs.BOM_UTF8 + codecs.BOM_UTF8 + _HEADER + b"\n",
+            "header_schema",
+            1,
+            "read_id",
+        ),
+        (_HEADER + b"\nread-1\t0.8\r1\n", "line_ending", 2, "row"),
+        (_HEADER + b"\n\n", "blank_row", 2, "row"),
+        (_HEADER + b"\nread-\xff\t0.8\t1\n", "utf8", 2, "read_id"),
+        (_HEADER + b"\nread-1\t0.\xff\t1\n", "utf8", 2, "score"),
+        (_HEADER + b"\nread-1\t0.8\t\xff\n", "utf8", 2, "call"),
+        (b"score\tread_id\tcall\n", "header_schema", 1, "read_id"),
+        (_HEADER + b"\nread-1\t0.8\n", "row_width", 2, "row"),
+        (
+            _HEADER + b"\nread-1\t 0.8\tbad-call\n",
+            "field_whitespace",
+            2,
+            "score",
+        ),
+        (_HEADER + b"\n\t0.8\t1\n", "empty_read_id", 2, "read_id"),
+        (_HEADER + b"\nread-1\t00\t1\n", "score_syntax", 2, "score"),
+        (_HEADER + b"\nread-1\t00.80\t1\n", "score_syntax", 2, "score"),
+        (_HEADER + b"\nread-1\t01.0\t1\n", "score_syntax", 2, "score"),
+        (_HEADER + b"\nread-1\t2\t1\n", "score_range", 2, "score"),
+        (_HEADER + b"\nread-1\t0.8\tTrue\n", "call", 2, "call"),
+    ],
+)
+def test_compression_parity_preserves_malformed_input_context(
+    tmp_path,
+    suffix,
+    contents,
+    category,
+    line_number,
+    field,
+):
+    path = _write_score_file(tmp_path, suffix, contents)
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        list(lyra.iter_lyra_score_records(str(path), "sample"))
+
+    _assert_input_error(
+        exc_info,
+        category=category,
+        path=path,
+        line_number=line_number,
+        field=field,
+    )
+
+
+@pytest.mark.parametrize("suffix", [".tsv.gz", ".tsv.zst"])
+@pytest.mark.parametrize("raw_bytes", [b"not compressed", b"\x00\xffcorrupt"])
+def test_compression_errors_wrap_mislabeled_or_corrupt_files(
+    tmp_path,
+    suffix,
+    raw_bytes,
+):
+    path = tmp_path / ("scores" + suffix)
+    path.write_bytes(raw_bytes)
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        list(lyra.iter_lyra_score_records(str(path), "sample"))
+
+    error = _assert_input_error(
+        exc_info,
+        category="compression",
+        path=path,
+        line_number=None,
+        field="file",
+    )
+    assert error.__cause__ is not None
+
+
+@pytest.mark.parametrize("suffix", [".tsv.gz", ".tsv.zst"])
+def test_compression_errors_wrap_truncated_frames(tmp_path, suffix):
+    path = _write_score_file(
+        tmp_path,
+        suffix,
+        _HEADER + b"\nread-1\t0.800000\t1\n" + (b"x" * 10000),
+    )
+    compressed = path.read_bytes()
+    path.write_bytes(compressed[: max(1, len(compressed) // 2)])
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        list(lyra.iter_lyra_score_records(str(path), "sample"))
+
+    error = _assert_input_error(
+        exc_info,
+        category="compression",
+        path=path,
+        line_number=None,
+        field="file",
+    )
+    assert error.__cause__ is not None
+
+
+def test_diagnostic_escapes_control_path_and_caps_huge_field(tmp_path):
+    path = _write_plain_score_file(
+        tmp_path,
+        _HEADER + b"\nread-1\t" + (b"9" * 1000000) + b"x\t1\n",
+        name="unsafe\npath.tsv",
+    )
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        list(lyra.iter_lyra_score_records(str(path), "sample"))
+
+    error = exc_info.value
+    assert error.category == "score_syntax"
+    assert len(error.offending_value) <= lyra.RENDERED_VALUE_CAP
+    assert "\n" not in str(error)
+    assert "\\n" in str(error)
+    assert len(str(error)) < 600
+
+
+def test_score_regex_is_one_fixed_ascii_linear_pattern():
+    assert lyra._SCORE_PATTERN.pattern == r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?"
+    assert lyra._SCORE_PATTERN.flags & re.ASCII
+
+
+@pytest.mark.parametrize("suffix", _SCORE_SUFFIXES)
+def test_compression_iterator_does_not_read_later_bad_row_early(tmp_path, suffix):
+    path = _write_score_file(
+        tmp_path,
+        suffix,
+        _HEADER + b"\nread-1\t0.8\t1\nread-2\tbad-score\t1\n",
+    )
+
+    records = lyra.iter_lyra_score_records(str(path), "sample")
+
     assert next(records).read_id == "read-1"
     with pytest.raises(lyra.LyraInputError) as exc_info:
         next(records)

@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 
+import zstandard as zstd
+
 import viral_ngs.core.file as util_file
 
 
@@ -17,6 +19,7 @@ _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
 _MIN_SCORE = Decimal("0")
 _MAX_SCORE = Decimal("1")
+_COMPRESSION_EXCEPTIONS = (OSError, EOFError, zstd.ZstdError)
 
 
 def _bounded_repr(value):
@@ -160,12 +163,60 @@ def _iter_lyra_score_records(path, caller_path):
 
 
 def _iter_physical_rows(path, caller_path):
-    with util_file.open_or_gzopen(path, "rb") as raw_stream:
-        if isinstance(raw_stream, io.BufferedIOBase):
-            yield from _iter_buffered_rows(raw_stream, caller_path)
-        else:
-            with io.BufferedReader(raw_stream) as buffered_stream:
-                yield from _iter_buffered_rows(buffered_stream, caller_path)
+    try:
+        with util_file.open_or_gzopen(path, "rb") as raw_stream:
+            if isinstance(raw_stream, io.BufferedIOBase):
+                yield from _iter_buffered_rows(raw_stream, caller_path)
+            else:
+                with io.BufferedReader(raw_stream) as buffered_stream:
+                    yield from _iter_buffered_rows(buffered_stream, caller_path)
+        if path.endswith(".tsv.zst"):
+            _validate_complete_zstd_frames(path)
+    except LyraInputError as exc:
+        if path.endswith(".tsv.zst") and exc.category == "empty_file":
+            try:
+                _validate_complete_zstd_frames(path)
+            except _COMPRESSION_EXCEPTIONS as compression_exc:
+                raise _compression_error(caller_path) from compression_exc
+        raise
+    except FileNotFoundError:
+        raise
+    except _COMPRESSION_EXCEPTIONS as exc:
+        if not path.endswith((".tsv.gz", ".tsv.zst")):
+            raise
+        raise _compression_error(caller_path) from exc
+
+
+def _validate_complete_zstd_frames(path):
+    decompressor = None
+    saw_complete_frame = False
+    with open(path, "rb") as compressed_stream:
+        for chunk in iter(lambda: compressed_stream.read(64 * 1024), b""):
+            pending = chunk
+            while pending:
+                if decompressor is None:
+                    decompressor = zstd.ZstdDecompressor().decompressobj()
+                decompressor.decompress(pending)
+                pending = decompressor.unused_data
+                if decompressor.eof:
+                    saw_complete_frame = True
+                    decompressor = None
+                elif pending:
+                    raise zstd.ZstdError("invalid trailing Zstandard frame data")
+                else:
+                    break
+
+    if decompressor is not None or not saw_complete_frame:
+        raise EOFError("truncated Zstandard frame")
+
+
+def _compression_error(caller_path):
+    return LyraInputError(
+        category="compression",
+        path=caller_path,
+        field="file",
+        reason="compressed score table could not be decoded",
+    )
 
 
 def _iter_buffered_rows(stream, caller_path):
