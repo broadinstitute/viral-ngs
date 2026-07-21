@@ -41,8 +41,7 @@ def _bounded_repr(value):
         prefix = value[:RENDERED_VALUE_CAP]
         was_truncated = len(value) > len(prefix)
     else:
-        prefix = value
-        was_truncated = False
+        return "<non-string value>"
 
     rendered = repr(prefix)
     if was_truncated or len(rendered) > RENDERED_VALUE_CAP:
