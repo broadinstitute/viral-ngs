@@ -13,6 +13,34 @@ import viral_ngs.core.file as util_file
 
 _HEADER = b"read_id\tscore\tcall"
 _SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
+_REPR_FAILURE = RuntimeError("repr must not be invoked")
+
+
+class _NewlineRepr:
+    def __init__(self):
+        self.repr_calls = 0
+
+    def __repr__(self):
+        self.repr_calls += 1
+        return "unsafe\r\nrepresentation"
+
+
+class _HugeRepr:
+    def __init__(self):
+        self.repr_calls = 0
+
+    def __repr__(self):
+        self.repr_calls += 1
+        return "x" * 1_000_000
+
+
+class _RaisingRepr:
+    def __init__(self):
+        self.repr_calls = 0
+
+    def __repr__(self):
+        self.repr_calls += 1
+        raise _REPR_FAILURE
 
 
 def _write_plain_score_file(tmp_path, contents, name="scores.tsv"):
@@ -90,6 +118,30 @@ def test_validate_sample_id_rejects_unsafe_values(sample_id):
     assert error.reason
     if sample_id is not None:
         assert error.offending_value is not None
+
+
+@pytest.mark.parametrize(
+    "sample_factory",
+    [_NewlineRepr, _HugeRepr, _RaisingRepr],
+)
+def test_validate_sample_id_does_not_invoke_arbitrary_repr(sample_factory):
+    sample_id = sample_factory()
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        lyra.validate_sample_id(sample_id)
+
+    error = exc_info.value
+    assert sample_id.repr_calls == 0
+    assert error.category == "sample_id"
+    assert error.path is None
+    assert error.line_number is None
+    assert error.field == "sample_id"
+    assert error.reason
+    assert error.offending_value == "<non-string value>"
+    assert len(error.offending_value) <= lyra.RENDERED_VALUE_CAP
+    assert "\r" not in str(error)
+    assert "\n" not in str(error)
+    assert len(str(error)) <= lyra.RENDERED_VALUE_CAP * 4
 
 
 def test_input_error_escapes_and_caps_caller_values():
