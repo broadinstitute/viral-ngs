@@ -1,9 +1,11 @@
 """Strict validation helpers for native Lyra score tables."""
 
 import codecs
+import gzip
 import io
 import os
 import re
+import zlib
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -19,7 +21,12 @@ _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
 _MIN_SCORE = Decimal("0")
 _MAX_SCORE = Decimal("1")
-_COMPRESSION_EXCEPTIONS = (OSError, EOFError, zstd.ZstdError)
+_COMPRESSION_EXCEPTIONS = (
+    EOFError,
+    gzip.BadGzipFile,
+    zlib.error,
+    zstd.ZstdError,
+)
 
 
 def _bounded_repr(value):
