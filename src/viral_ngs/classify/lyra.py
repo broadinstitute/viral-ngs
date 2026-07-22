@@ -448,6 +448,68 @@ class LyraFragmentStore:
             "SELECT * FROM evidence ORDER BY read_id_key ASC"
         )
 
+    def iter_fragments(self):
+        """Return a fresh streaming cursor of fragments in exact key order."""
+        if self._closed:
+            raise RuntimeError("Lyra fragment store is closed")
+        cursor = self._connection.execute(
+            """
+            SELECT
+                read_id_key,
+                n_scores,
+                pairing,
+                min_score_text,
+                max_score_text,
+                threshold_text,
+                call
+            FROM fragments
+            ORDER BY read_id_key ASC
+            """
+        )
+
+        def _iterate():
+            try:
+                for row in cursor:
+                    yield LyraFragment(
+                        read_id=row["read_id_key"].decode(
+                            "utf-8",
+                            errors="strict",
+                        ),
+                        n_scores=row["n_scores"],
+                        pairing=row["pairing"],
+                        min_score=Decimal(row["min_score_text"]),
+                        max_score=Decimal(row["max_score_text"]),
+                        threshold=Decimal(row["threshold_text"]),
+                        call=row["call"],
+                    )
+            finally:
+                cursor.close()
+
+        return _iterate()
+
+    def iter_viral_read_ids(self):
+        """Return a fresh streaming cursor of exact Viral read IDs."""
+        if self._closed:
+            raise RuntimeError("Lyra fragment store is closed")
+        cursor = self._connection.execute(
+            """
+            SELECT read_id_key
+            FROM fragments
+            WHERE call = ?
+            ORDER BY read_id_key ASC
+            """,
+            (CALL_VIRAL,),
+        )
+
+        def _iterate():
+            try:
+                for row in cursor:
+                    yield row["read_id_key"].decode("utf-8", errors="strict")
+            finally:
+                cursor.close()
+
+        return _iterate()
+
     def close(self):
         if self._closed:
             return
