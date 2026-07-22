@@ -123,6 +123,53 @@ def _representative_store(tmp_path):
     )
 
 
+def _logical_output_bytes(path):
+    with util_file.open_or_gzopen(str(path), "rb") as stream:
+        return stream.read()
+
+
+def _summary_row(path):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert lines[0].split("\t") == list(SUMMARY_HEADER)
+    assert len(lines) == 2
+    values = lines[1].split("\t")
+    assert len(values) == len(SUMMARY_HEADER)
+    return dict(zip(SUMMARY_HEADER, values))
+
+
+def _assert_summary_equations(row, normalized_rows, actual_bam_records):
+    values = {
+        name: int(row[name])
+        for name in SUMMARY_HEADER[2:]
+    }
+    assert normalized_rows == values["LYRA_FRAGMENTS"]
+    assert (
+        values["LYRA_ELIGIBLE_BAM_RECORDS"]
+        == values["LYRA_SCORE_RECORDS"]
+    )
+    assert values["LYRA_SCORE_RECORDS"] == (
+        values["LYRA_SINGLE_END_FRAGMENTS"]
+        + values["LYRA_INCOMPLETE_PAIR_FRAGMENTS"]
+        + 2 * values["LYRA_COMPLETE_PAIR_FRAGMENTS"]
+    )
+    assert values["LYRA_FRAGMENTS"] == (
+        values["LYRA_SINGLE_END_FRAGMENTS"]
+        + values["LYRA_COMPLETE_PAIR_FRAGMENTS"]
+        + values["LYRA_INCOMPLETE_PAIR_FRAGMENTS"]
+    )
+    assert values["LYRA_FRAGMENTS"] == (
+        values["LYRA_VIRAL_FRAGMENT_CALLS"]
+        + values["LYRA_NONVIRAL_FRAGMENT_CALLS"]
+    )
+    assert 0 <= values["LYRA_OUTPUT_BAM_RECORDS"] <= values[
+        "LYRA_INPUT_BAM_RECORDS"
+    ]
+    assert (values["LYRA_OUTPUT_BAM_RECORDS"] == 0) == (
+        values["LYRA_VIRAL_FRAGMENT_CALLS"] == 0
+    )
+    assert values["LYRA_OUTPUT_BAM_RECORDS"] == actual_bam_records
+
+
 def test_summary_has_exact_schema_and_one_canonical_data_row(tmp_path):
     output = tmp_path / "summary.tsv"
     store = SimpleNamespace(
@@ -720,3 +767,248 @@ def test_viral_bam_rejects_a_mismatched_exact_id_cursor(tmp_path, monkeypatch):
     assert exc_info.value.category == "viral_read_id_count"
     assert exc_info.value.expected == 1
     assert exc_info.value.actual == 0
+
+
+@pytest.mark.parametrize(
+    ("case", "input_bam_records"),
+    [("empty", 0), ("all_ineligible", 4)],
+)
+def test_coordinated_empty_and_all_ineligible_artifacts(
+    tmp_path,
+    case,
+    input_bam_records,
+):
+    header = {
+        "HD": {"VN": "1.6", "SO": "unsorted"},
+        "PG": [{"ID": "source", "PN": "fixture"}],
+    }
+    records = []
+    if case == "all_ineligible":
+        records = [
+            _segment("short", query_length=49),
+            _segment("sequence-less", sequence_present=False),
+            _segment("secondary", flag=0x4 | 0x100),
+            _segment("supplementary", flag=0x4 | 0x800),
+        ]
+    source_bam = _write_bam(
+        tmp_path,
+        records,
+        name=case + "-source.bam",
+        header=header,
+    )
+    score_path = _write_score_table(tmp_path, [], name=case + "-scores.tsv")
+    normalized = tmp_path / (case + "-normalized.tsv")
+    summary = tmp_path / (case + "-summary.tsv")
+    viral_bam = tmp_path / (case + "-viral.bam")
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        source_bam,
+        "sample empty",
+        Decimal("8e-1"),
+        work_dir=tmp_path,
+    ) as store:
+        lyra.write_lyra_artifacts(
+            store,
+            source_bam,
+            normalized,
+            summary,
+            viral_bam,
+            work_dir=tmp_path,
+        )
+
+    normalized_bytes = _logical_output_bytes(normalized)
+    assert normalized_bytes == (
+        "\t".join(lyra.NORMALIZED_HEADER) + "\n"
+    ).encode("utf-8")
+    expected_counts = [input_bam_records] + [0] * 9
+    assert summary.read_bytes() == (
+        "\t".join(SUMMARY_HEADER)
+        + "\n"
+        + "sample empty\t0.8\t"
+        + "\t".join(str(value) for value in expected_counts)
+        + "\n"
+    ).encode("utf-8")
+
+    with pysam.AlignmentFile(source_bam, "rb", check_sq=False) as source:
+        source_header = source.header.to_dict()
+    with pysam.AlignmentFile(viral_bam, "rb", check_sq=False) as output:
+        assert output.header.to_dict() == source_header
+        output_records = list(output.fetch(until_eof=True))
+    assert output_records == []
+    _assert_summary_equations(
+        _summary_row(summary),
+        normalized_rows=0,
+        actual_bam_records=0,
+    )
+
+
+def test_coordinated_no_hit_compressed_normalized_retains_every_fragment(tmp_path):
+    header = {
+        "HD": {"VN": "1.6", "SO": "unsorted"},
+        "PG": [{"ID": "source", "PN": "fixture"}],
+    }
+    records = [
+        _segment("pair", flag=0x4 | 0x1 | 0x80),
+        _segment("single"),
+        _segment("incomplete", flag=0x4 | 0x1 | 0x40),
+        _segment("pair", flag=0x4 | 0x1 | 0x40),
+    ]
+    source_bam = _write_bam(
+        tmp_path,
+        records,
+        name="no-hit-source.bam",
+        header=header,
+    )
+    score_path = _write_score_table(
+        tmp_path,
+        [
+            ("pair", "0.9", "1"),
+            ("single", "0.1", "1"),
+            ("incomplete", "1.0", "0"),
+            ("pair", "0.2", "0"),
+        ],
+        name="no-hit-scores.tsv",
+    )
+    normalized = tmp_path / "no-hit-normalized.tsv.zst"
+    summary = tmp_path / "no-hit-summary.tsv"
+    viral_bam = tmp_path / "no-hit-viral.bam"
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        source_bam,
+        "sample no hit",
+        "0.8",
+        work_dir=tmp_path,
+    ) as store:
+        lyra.write_lyra_artifacts(
+            store,
+            source_bam,
+            normalized,
+            summary,
+            viral_bam,
+            work_dir=tmp_path,
+        )
+
+    expected_normalized = (
+        "\t".join(lyra.NORMALIZED_HEADER)
+        + "\n"
+        + "sample no hit\tincomplete\t1\tPaired-incomplete\t1\t1\t0.8\tNon-viral\n"
+        + "sample no hit\tpair\t2\tPaired-complete\t0.2\t0.9\t0.8\tNon-viral\n"
+        + "sample no hit\tsingle\t1\tSingle-end\t0.1\t0.1\t0.8\tNon-viral\n"
+    ).encode("utf-8")
+    assert _logical_output_bytes(normalized) == expected_normalized
+
+    row = _summary_row(summary)
+    assert row == {
+        "SAMPLE_ID": "sample no hit",
+        "LYRA_THRESHOLD": "0.8",
+        "LYRA_INPUT_BAM_RECORDS": "4",
+        "LYRA_ELIGIBLE_BAM_RECORDS": "4",
+        "LYRA_SCORE_RECORDS": "4",
+        "LYRA_FRAGMENTS": "3",
+        "LYRA_SINGLE_END_FRAGMENTS": "1",
+        "LYRA_COMPLETE_PAIR_FRAGMENTS": "1",
+        "LYRA_INCOMPLETE_PAIR_FRAGMENTS": "1",
+        "LYRA_VIRAL_FRAGMENT_CALLS": "0",
+        "LYRA_NONVIRAL_FRAGMENT_CALLS": "3",
+        "LYRA_OUTPUT_BAM_RECORDS": "0",
+    }
+    with pysam.AlignmentFile(source_bam, "rb", check_sq=False) as source:
+        source_header = source.header.to_dict()
+    with pysam.AlignmentFile(viral_bam, "rb", check_sq=False) as output:
+        assert output.header.to_dict() == source_header
+        output_records = list(output.fetch(until_eof=True))
+    assert output_records == []
+    _assert_summary_equations(row, normalized_rows=3, actual_bam_records=0)
+
+
+def test_coordinated_bam_fidelity_counts_every_same_qname_companion(tmp_path):
+    header = {
+        "HD": {"VN": "1.6", "SO": "unsorted"},
+        "SQ": [{"SN": "ref", "LN": 1000}],
+        "RG": [{"ID": "rg1", "SM": "sample"}],
+        "PG": [{"ID": "existing", "PN": "source", "VN": "1.0"}],
+    }
+    records = [
+        _rich_segment("viral", tag_value=1),
+        _rich_segment("nonviral", reference_start=20, tag_value=2),
+        _rich_segment("viral", sequence="C" * 49, reference_start=30, tag_value=3),
+        _rich_segment("other", reference_start=40, tag_value=4),
+        _rich_segment("viral", flag=0x4, sequence=None, tag_value=5),
+        _rich_segment("viral", flag=0x100, reference_start=50, tag_value=6),
+        _rich_segment("viral", flag=0x800, reference_start=60, tag_value=7),
+    ]
+    source_bam = _write_bam(
+        tmp_path,
+        records,
+        name="coordinated-fidelity-source.bam",
+        header=header,
+    )
+    score_path = _write_score_table(
+        tmp_path,
+        [
+            ("viral", "0.9", "0"),
+            ("nonviral", "0.1", "1"),
+            ("other", "0.1", "1"),
+        ],
+        name="coordinated-fidelity.tsv",
+    )
+    normalized = tmp_path / "coordinated-fidelity-normalized.tsv"
+    summary = tmp_path / "coordinated-fidelity-summary.tsv"
+    viral_bam = tmp_path / "coordinated-fidelity-viral.bam"
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        source_bam,
+        "sample",
+        "0.8",
+        work_dir=tmp_path,
+    ) as store:
+        lyra.write_lyra_artifacts(
+            store,
+            source_bam,
+            normalized,
+            summary,
+            viral_bam,
+            work_dir=tmp_path,
+        )
+
+    normalized_rows = _logical_output_bytes(normalized).decode("utf-8").splitlines()
+    assert normalized_rows[0].split("\t") == list(lyra.NORMALIZED_HEADER)
+    assert [row.split("\t")[1] for row in normalized_rows[1:]] == [
+        "nonviral",
+        "other",
+        "viral",
+    ]
+    assert len(normalized_rows[1:]) == 3 < len(records)
+
+    with pysam.AlignmentFile(source_bam, "rb", check_sq=False) as source:
+        source_header = source.header.to_dict()
+        expected_records = [
+            _record_snapshot(record)
+            for record in source.fetch(until_eof=True)
+            if record.query_name == "viral"
+        ]
+    with pysam.AlignmentFile(viral_bam, "rb", check_sq=False) as output:
+        output_header = output.header.to_dict()
+        output_records = [
+            _record_snapshot(record)
+            for record in output.fetch(until_eof=True)
+        ]
+
+    assert output_header == source_header
+    assert output_header["PG"] == header["PG"]
+    assert output_records == expected_records
+    assert [record[0] for record in output_records] == ["viral"] * 5
+    row = _summary_row(summary)
+    assert row["LYRA_SCORE_RECORDS"] == "3"
+    assert row["LYRA_FRAGMENTS"] == "3"
+    assert row["LYRA_VIRAL_FRAGMENT_CALLS"] == "1"
+    assert row["LYRA_OUTPUT_BAM_RECORDS"] == "5"
+    assert int(row["LYRA_OUTPUT_BAM_RECORDS"]) > int(row["LYRA_SCORE_RECORDS"])
+    _assert_summary_equations(
+        row,
+        normalized_rows=len(normalized_rows) - 1,
+        actual_bam_records=len(output_records),
+    )
