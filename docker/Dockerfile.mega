@@ -28,6 +28,7 @@ COPY docker/install-conda-deps.sh /tmp/
 # conflicts with Pillow 12.3.
 # Post-install fixups (inline so vulnerable files never appear in a committed layer):
 #   - mafft's dash_client: Go 1.22.1 binary with Go stdlib CVEs; we never use --dash mode
+#   - snpEff config: remove a deprecated, commented Azure SAS token
 #   - Ruby json gem: mummer4 → yaggo → Ruby, whose bundled json gem has CVE-2026-33210;
 #     remove the old default gem and install patched version (>=2.19.2)
 #   - Ruby erb gem: same chain (mummer4 → yaggo → ruby), CVE-2026-41316 (Marshal
@@ -43,6 +44,7 @@ RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements
     micromamba clean -y --all && \
     rm -rf /opt/conda/pkgs/* && \
     rm -f /opt/conda/libexec/mafft/dash_client && \
+    sed -i '/^#database\.repositoryKey = /d' /opt/conda/share/snpeff-*/snpEff.config && \
     find /opt/conda/lib/ruby -maxdepth 3 -name 'json*' -not -path '*/psych/*' -exec rm -rf {} + && \
     rm -f /opt/conda/lib/ruby/gems/*/specifications/default/json-*.gemspec && \
     gem install json --version '>=2.19.2' --no-document && \
