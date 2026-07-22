@@ -69,8 +69,12 @@ jobs:
         # commits). This SHA is the vetted v0.36.0 release per broadinstitute/py3-bio#12;
         # do NOT blindly bump to whatever the upstream v0.36.0 tag currently points to —
         # the tag has been moved since. Verify any new SHA against multiple sources.
+        # `version:` pins the Trivy scanner binary itself (independent of the action
+        # wrapper's SHA above) so it doesn't silently drift if the action's own
+        # default changes; bump explicitly rather than relying on the wrapper default.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
+          version: 'v0.72.0'
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'sarif'
           output: 'trivy-results.sarif'
@@ -86,6 +90,7 @@ jobs:
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
         with:
+          version: 'v0.72.0'
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'json'
           output: 'trivy-results.json'
@@ -208,9 +213,14 @@ jobs:
 
       - name: Claude analysis on Vertex AI
         if: steps.triage.outputs.cve_ids != ''
-        # Pinned to commit SHA (== v1 as of 2026-04-27) for supply-chain safety;
-        # bump this SHA when picking up new claude-code-action releases.
-        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
+        # Pinned to commit SHA (== v1.0.179 as of 2026-07-21) for supply-chain
+        # safety; bump this SHA when picking up new claude-code-action releases.
+        # Bumped from 567fe954 (v1, 2026-04-27 / agent-SDK ^0.2.119) because that
+        # pin predates Claude Sonnet 5 support: its SDK still emitted the legacy
+        # `thinking.type.enabled` request shape, which Vertex rejects with HTTP 400
+        # for Sonnet 5 ("Use thinking.type.adaptive and output_config.effort").
+        # v1.0.179 ships agent-SDK ^0.3.216, which speaks the adaptive-thinking API.
+        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
@@ -549,7 +559,7 @@ jobs:
         if: steps.context.outputs.issue_count != '0'
         # Pinned to the same commit SHA as the scan job's Claude step. When
         # bumping, bump both call sites together so they stay aligned.
-        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
+        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
