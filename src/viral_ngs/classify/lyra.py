@@ -27,6 +27,16 @@ PAIRING_COMPLETE = "Paired-complete"
 PAIRING_INCOMPLETE = "Paired-incomplete"
 CALL_VIRAL = "Viral"
 CALL_NONVIRAL = "Non-viral"
+NORMALIZED_HEADER = (
+    "SAMPLE_ID",
+    "READ_ID",
+    "LYRA_N_SCORES",
+    "LYRA_PAIRING",
+    "LYRA_MIN_SCORE",
+    "LYRA_MAX_SCORE",
+    "LYRA_THRESHOLD",
+    "LYRA_CALL",
+)
 
 _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
@@ -244,6 +254,37 @@ class LyraReconciliationError(LyraInputError):
         ValueError.__init__(self, "Lyra reconciliation error: " + "; ".join(details))
 
 
+class LyraArtifactConsistencyError(RuntimeError):
+    """An impossible finalized-artifact mismatch with bounded scalar context."""
+
+    def __init__(
+        self,
+        category,
+        field=None,
+        expected=None,
+        actual=None,
+        read_id=None,
+    ):
+        self.category = category
+        self.field = field
+        self.expected = expected
+        self.actual = actual
+        self.read_id = read_id
+
+        details = ["category={}".format(_bounded_repr(category))]
+        for name, value in (
+            ("field", field),
+            ("expected", expected),
+            ("actual", actual),
+            ("read_id", read_id),
+        ):
+            if value is not None:
+                details.append(
+                    "{}={}".format(name, _bounded_repr(str(value)))
+                )
+        super().__init__("Lyra artifact consistency error: " + "; ".join(details))
+
+
 def _pairing_state(eligible_bam_count, bam_role_counts):
     """Return the locked pairing state and intrinsic BAM error category."""
     if eligible_bam_count > 2:
@@ -345,6 +386,118 @@ def _canonical_decimal_text(text):
     return whole or "0"
 
 
+def _canonical_output_decimal(value):
+    """Render a Decimal as canonical ordinary text without arithmetic."""
+    if value.is_zero():
+        return "0"
+    return _canonical_decimal_text(format(value, "f"))
+
+
+def _write_tsv_row(binary_stream, values):
+    """Write one strict UTF-8 TSV row with an LF terminator."""
+    row = "\t".join(str(value) for value in values) + "\n"
+    binary_stream.write(row.encode("utf-8", errors="strict"))
+
+
+def _write_normalized(store, normalized_output):
+    """Stream one exact normalized row per finalized fragment."""
+    threshold = store.threshold
+    pairing_values = {
+        PAIRING_SINGLE_END,
+        PAIRING_COMPLETE,
+        PAIRING_INCOMPLETE,
+    }
+    call_values = {CALL_VIRAL, CALL_NONVIRAL}
+    row_count = 0
+    path = os.fspath(normalized_output)
+    with util_file.open_or_gzopen(path, "wb") as output_stream:
+        _write_tsv_row(output_stream, NORMALIZED_HEADER)
+        for fragment in store.iter_fragments():
+            if fragment.pairing not in pairing_values:
+                raise LyraArtifactConsistencyError(
+                    category="pairing",
+                    field="LYRA_PAIRING",
+                    expected="locked pairing vocabulary",
+                    actual=fragment.pairing,
+                    read_id=fragment.read_id,
+                )
+            if fragment.call not in call_values:
+                raise LyraArtifactConsistencyError(
+                    category="call",
+                    field="LYRA_CALL",
+                    expected="locked call vocabulary",
+                    actual=fragment.call,
+                    read_id=fragment.read_id,
+                )
+            if fragment.threshold != threshold:
+                raise LyraArtifactConsistencyError(
+                    category="threshold",
+                    field="LYRA_THRESHOLD",
+                    expected=threshold,
+                    actual=fragment.threshold,
+                    read_id=fragment.read_id,
+                )
+            _write_tsv_row(
+                output_stream,
+                (
+                    store.sample_id,
+                    fragment.read_id,
+                    fragment.n_scores,
+                    fragment.pairing,
+                    _canonical_output_decimal(fragment.min_score),
+                    _canonical_output_decimal(fragment.max_score),
+                    _canonical_output_decimal(threshold),
+                    fragment.call,
+                ),
+            )
+            row_count += 1
+    return row_count
+
+
+def _validate_artifact_output_suffixes(
+    normalized_output,
+    summary_output,
+    viral_bam_output,
+):
+    """Return output paths after exact case-sensitive suffix validation."""
+    caller_paths = (
+        normalized_output,
+        summary_output,
+        viral_bam_output,
+    )
+    converted_paths = tuple(os.fspath(path) for path in caller_paths)
+    checks = (
+        (
+            "normalized_output",
+            converted_paths[0],
+            _SUPPORTED_SCORE_SUFFIXES,
+            "normalized output must end with .tsv, .tsv.gz, or .tsv.zst",
+        ),
+        (
+            "summary_output",
+            converted_paths[1],
+            (".tsv",),
+            "summary output must end with .tsv",
+        ),
+        (
+            "viral_bam_output",
+            converted_paths[2],
+            (".bam",),
+            "viral BAM output must end with .bam",
+        ),
+    )
+    for index, (field, path, suffixes, reason) in enumerate(checks):
+        if not isinstance(path, str) or not path.endswith(suffixes):
+            raise LyraInputError(
+                category="output_extension",
+                path=caller_paths[index],
+                field=field,
+                reason=reason,
+                offending_value=path,
+            )
+    return converted_paths
+
+
 class LyraFragmentStore:
     """Context-bound SQLite state for bounded Lyra reconciliation."""
 
@@ -354,6 +507,7 @@ class LyraFragmentStore:
         self._input_bam_records = 0
         self._eligible_bam_records = 0
         self._counts = None
+        self._threshold = None
         self._closed = False
         self._temporary_directory = tempfile.TemporaryDirectory(
             prefix="lyra_reconciliation_",
@@ -400,6 +554,14 @@ class LyraFragmentStore:
         if self._counts is None:
             raise RuntimeError("Lyra fragment store is not finalized")
         return self._counts
+
+    @property
+    def threshold(self):
+        if self._closed:
+            raise RuntimeError("Lyra fragment store is closed")
+        if self._threshold is None:
+            raise RuntimeError("Lyra fragment store is not finalized")
+        return self._threshold
 
     def _configure_database(self):
         self._connection.execute("PRAGMA journal_mode = OFF")
@@ -712,6 +874,7 @@ def _finalize_fragments(store, threshold):
         viral_fragment_calls=viral_fragment_calls,
         nonviral_fragment_calls=nonviral_fragment_calls,
     )
+    store._threshold = threshold
 
 
 @contextmanager
