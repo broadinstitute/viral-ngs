@@ -393,6 +393,41 @@ def test_iter_fragments_is_repeatable_ordered_and_immutable(tmp_path):
         list(store.iter_fragments())
 
 
+def test_reconciliation_preserves_exact_interior_whitespace_qname(tmp_path):
+    read_id = "read  with interior whitespace"
+    score_path = _write_score_table(
+        tmp_path,
+        [(read_id, "0.9", "1")],
+        name="interior-whitespace.tsv",
+    )
+    bam_path = _write_bam(
+        tmp_path,
+        [_segment(read_id)],
+        name="interior-whitespace.bam",
+    )
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        bam_path,
+        "sample",
+        "0.8",
+        work_dir=tmp_path,
+    ) as store:
+        fragments = list(store.iter_fragments())
+
+    assert fragments == [
+        lyra.LyraFragment(
+            read_id=read_id,
+            n_scores=1,
+            pairing="Single-end",
+            min_score=Decimal("0.9"),
+            max_score=Decimal("0.9"),
+            threshold=Decimal("0.8"),
+            call="Viral",
+        )
+    ]
+
+
 def test_iter_viral_read_ids_preserves_exact_ids_in_utf8_blob_order(tmp_path):
     read_ids = [
         "read-2",

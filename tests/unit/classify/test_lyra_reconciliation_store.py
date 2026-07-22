@@ -304,6 +304,65 @@ def test_sql_looking_and_control_bearing_read_ids_remain_bound_values(tmp_path):
     assert evidence_count == 2
 
 
+def test_collectors_treat_sql_looking_and_control_like_qnames_as_exact_data(
+    tmp_path,
+):
+    sql_read_id = "read'); DROP TABLE evidence; --"
+    control_read_id = "read\x01control-like"
+    score_path = _write_score_table(
+        tmp_path,
+        [
+            (sql_read_id, "0.9", "1"),
+            (control_read_id, "0.1", "0"),
+            (sql_read_id, "0.8", "1"),
+        ],
+        name="bound-qnames.tsv",
+    )
+    bam_path = _write_bam(
+        tmp_path,
+        [
+            _segment(sql_read_id, flag=0x4 | 0x1 | 0x40),
+            _segment(control_read_id),
+            _segment(sql_read_id, flag=0x4 | 0x1 | 0x80),
+        ],
+        name="bound-qnames.bam",
+    )
+
+    with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
+        lyra._collect_score_evidence(store, score_path, "sample")
+        lyra._collect_bam_evidence(store, bam_path)
+        lyra._validate_reconciliation(store, score_path, bam_path)
+
+        evidence = _evidence_by_read_id(store)
+        table_names = {
+            row["name"]
+            for row in store._connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = ?",
+                ("table",),
+            )
+        }
+        evidence_columns = [
+            row["name"]
+            for row in store._connection.execute("PRAGMA table_info(evidence)")
+        ]
+        fragment_columns = [
+            row["name"]
+            for row in store._connection.execute("PRAGMA table_info(fragments)")
+        ]
+        integrity = store._connection.execute("PRAGMA integrity_check").fetchone()[0]
+
+        assert set(evidence) == {sql_read_id, control_read_id}
+        assert evidence[sql_read_id]["score_count"] == 2
+        assert evidence[sql_read_id]["eligible_bam_count"] == 2
+        assert evidence[control_read_id]["score_count"] == 1
+        assert evidence[control_read_id]["eligible_bam_count"] == 1
+        assert store.score_records == store.eligible_bam_records == 3
+        assert table_names == {"evidence", "fragments"}
+        assert evidence_columns == _EVIDENCE_COLUMNS
+        assert fragment_columns == _FRAGMENT_COLUMNS
+        assert integrity == "ok"
+
+
 def test_store_preserves_one_immutable_sample_scalar_for_unique_fragment_keys(tmp_path):
     sample_id = "échantillon exact"
     read_ids = ["read-1", "read-2", "Read-2"]
