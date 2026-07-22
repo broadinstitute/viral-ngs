@@ -1,0 +1,19 @@
+tests/unit/classify/test_lyra_reconciliation_store.py
+  s_a354a182b0026c::t_8053b7af2a2c6c 8,49-104,329-499
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2d7b7a34699807ae9bc2f3decae37d2e2c4b8afd",
+  "prompts": {},
+  "sessions": {
+    "s_a354a182b0026c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_075e73ad9ffe7YY0vdlufvEcId",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
