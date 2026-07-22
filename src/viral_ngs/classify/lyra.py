@@ -38,6 +38,20 @@ NORMALIZED_HEADER = (
     "LYRA_THRESHOLD",
     "LYRA_CALL",
 )
+SUMMARY_HEADER = (
+    "SAMPLE_ID",
+    "LYRA_THRESHOLD",
+    "LYRA_INPUT_BAM_RECORDS",
+    "LYRA_ELIGIBLE_BAM_RECORDS",
+    "LYRA_SCORE_RECORDS",
+    "LYRA_FRAGMENTS",
+    "LYRA_SINGLE_END_FRAGMENTS",
+    "LYRA_COMPLETE_PAIR_FRAGMENTS",
+    "LYRA_INCOMPLETE_PAIR_FRAGMENTS",
+    "LYRA_VIRAL_FRAGMENT_CALLS",
+    "LYRA_NONVIRAL_FRAGMENT_CALLS",
+    "LYRA_OUTPUT_BAM_RECORDS",
+)
 
 _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
@@ -455,6 +469,100 @@ def _write_normalized(store, normalized_output):
     return row_count
 
 
+def _validate_artifact_counts(counts, normalized_rows, output_bam_records):
+    """Require finalized and in-pass artifact counts to agree exactly."""
+    if normalized_rows != counts.fragments:
+        raise LyraArtifactConsistencyError(
+            category="normalized_row_count",
+            field="LYRA_FRAGMENTS",
+            expected=counts.fragments,
+            actual=normalized_rows,
+        )
+    if counts.eligible_bam_records != counts.score_records:
+        raise LyraArtifactConsistencyError(
+            category="eligible_score_record_count",
+            field="LYRA_ELIGIBLE_BAM_RECORDS",
+            expected=counts.score_records,
+            actual=counts.eligible_bam_records,
+        )
+
+    pairing_score_records = (
+        counts.single_end_fragments
+        + counts.incomplete_pair_fragments
+        + 2 * counts.complete_pair_fragments
+    )
+    if counts.score_records != pairing_score_records:
+        raise LyraArtifactConsistencyError(
+            category="score_pairing_record_count",
+            field="LYRA_SCORE_RECORDS",
+            expected=pairing_score_records,
+            actual=counts.score_records,
+        )
+
+    pairing_fragments = (
+        counts.single_end_fragments
+        + counts.complete_pair_fragments
+        + counts.incomplete_pair_fragments
+    )
+    if counts.fragments != pairing_fragments:
+        raise LyraArtifactConsistencyError(
+            category="fragment_pairing_count",
+            field="LYRA_FRAGMENTS",
+            expected=pairing_fragments,
+            actual=counts.fragments,
+        )
+
+    call_fragments = (
+        counts.viral_fragment_calls + counts.nonviral_fragment_calls
+    )
+    if counts.fragments != call_fragments:
+        raise LyraArtifactConsistencyError(
+            category="fragment_call_count",
+            field="LYRA_FRAGMENTS",
+            expected=call_fragments,
+            actual=counts.fragments,
+        )
+    if not 0 <= output_bam_records <= counts.input_bam_records:
+        raise LyraArtifactConsistencyError(
+            category="output_bam_record_range",
+            field="LYRA_OUTPUT_BAM_RECORDS",
+            expected="0..{}".format(counts.input_bam_records),
+            actual=output_bam_records,
+        )
+    if (output_bam_records == 0) != (counts.viral_fragment_calls == 0):
+        raise LyraArtifactConsistencyError(
+            category="output_bam_viral_equivalence",
+            field="LYRA_OUTPUT_BAM_RECORDS",
+            expected=(counts.viral_fragment_calls == 0),
+            actual=(output_bam_records == 0),
+        )
+
+
+def _write_summary(store, summary_output, output_bam_records):
+    """Write one exact summary row from finalized and checked counts."""
+    counts = store.counts
+    path = os.fspath(summary_output)
+    with open(path, "wb") as output_stream:
+        _write_tsv_row(output_stream, SUMMARY_HEADER)
+        _write_tsv_row(
+            output_stream,
+            (
+                store.sample_id,
+                _canonical_output_decimal(store.threshold),
+                counts.input_bam_records,
+                counts.eligible_bam_records,
+                counts.score_records,
+                counts.fragments,
+                counts.single_end_fragments,
+                counts.complete_pair_fragments,
+                counts.incomplete_pair_fragments,
+                counts.viral_fragment_calls,
+                counts.nonviral_fragment_calls,
+                output_bam_records,
+            ),
+        )
+
+
 def _write_viral_bam(
     store,
     source_bam,
@@ -531,6 +639,35 @@ def _validate_artifact_output_suffixes(
                 offending_value=path,
             )
     return converted_paths
+
+
+def write_lyra_artifacts(
+    store,
+    source_bam,
+    normalized_output,
+    summary_output,
+    viral_bam_output,
+    work_dir=None,
+):
+    """Generate normalized and BAM artifacts, validate counts, then summarize."""
+    _validate_artifact_output_suffixes(
+        normalized_output,
+        summary_output,
+        viral_bam_output,
+    )
+    normalized_rows = _write_normalized(store, normalized_output)
+    output_bam_records = _write_viral_bam(
+        store,
+        source_bam,
+        viral_bam_output,
+        work_dir=work_dir,
+    )
+    _validate_artifact_counts(
+        store.counts,
+        normalized_rows,
+        output_bam_records,
+    )
+    _write_summary(store, summary_output, output_bam_records)
 
 
 class LyraFragmentStore:

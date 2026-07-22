@@ -1,11 +1,43 @@
 from contextlib import contextmanager
+from dataclasses import replace
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 import pysam
 
 import viral_ngs.core.file as util_file
 from viral_ngs.classify import lyra
+
+
+SUMMARY_HEADER = (
+    "SAMPLE_ID",
+    "LYRA_THRESHOLD",
+    "LYRA_INPUT_BAM_RECORDS",
+    "LYRA_ELIGIBLE_BAM_RECORDS",
+    "LYRA_SCORE_RECORDS",
+    "LYRA_FRAGMENTS",
+    "LYRA_SINGLE_END_FRAGMENTS",
+    "LYRA_COMPLETE_PAIR_FRAGMENTS",
+    "LYRA_INCOMPLETE_PAIR_FRAGMENTS",
+    "LYRA_VIRAL_FRAGMENT_CALLS",
+    "LYRA_NONVIRAL_FRAGMENT_CALLS",
+    "LYRA_OUTPUT_BAM_RECORDS",
+)
+
+
+def _consistent_counts():
+    return lyra.LyraReconciliationCounts(
+        input_bam_records=8,
+        eligible_bam_records=4,
+        score_records=4,
+        fragments=3,
+        single_end_fragments=1,
+        complete_pair_fragments=1,
+        incomplete_pair_fragments=1,
+        viral_fragment_calls=1,
+        nonviral_fragment_calls=2,
+    )
 
 
 def _segment(
@@ -89,6 +121,256 @@ def _representative_store(tmp_path):
         threshold=Decimal("8e-1"),
         name="representative",
     )
+
+
+def test_summary_has_exact_schema_and_one_canonical_data_row(tmp_path):
+    output = tmp_path / "summary.tsv"
+    store = SimpleNamespace(
+        sample_id="sample exact",
+        threshold=Decimal("0.8000"),
+        counts=_consistent_counts(),
+    )
+
+    lyra._write_summary(store, output, output_bam_records=5)
+
+    assert lyra.SUMMARY_HEADER == SUMMARY_HEADER
+    assert output.read_bytes() == (
+        "\t".join(SUMMARY_HEADER)
+        + "\n"
+        + "sample exact\t0.8\t8\t4\t4\t3\t1\t1\t1\t1\t2\t5\n"
+    ).encode("utf-8")
+
+
+@pytest.mark.parametrize(
+    ("counts", "normalized_rows", "output_bam_records", "category"),
+    [
+        (_consistent_counts(), 2, 5, "normalized_row_count"),
+        (
+            replace(_consistent_counts(), eligible_bam_records=3),
+            3,
+            5,
+            "eligible_score_record_count",
+        ),
+        (
+            replace(
+                _consistent_counts(),
+                eligible_bam_records=5,
+                score_records=5,
+            ),
+            3,
+            5,
+            "score_pairing_record_count",
+        ),
+        (
+            replace(_consistent_counts(), fragments=4),
+            4,
+            5,
+            "fragment_pairing_count",
+        ),
+        (
+            replace(_consistent_counts(), nonviral_fragment_calls=1),
+            3,
+            5,
+            "fragment_call_count",
+        ),
+        (_consistent_counts(), 3, -1, "output_bam_record_range"),
+        (_consistent_counts(), 3, 9, "output_bam_record_range"),
+        (_consistent_counts(), 3, 0, "output_bam_viral_equivalence"),
+        (
+            replace(
+                _consistent_counts(),
+                viral_fragment_calls=0,
+                nonviral_fragment_calls=3,
+            ),
+            3,
+            5,
+            "output_bam_viral_equivalence",
+        ),
+    ],
+)
+def test_artifact_invariant_category_identifies_each_failed_equation(
+    counts,
+    normalized_rows,
+    output_bam_records,
+    category,
+):
+    with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+        lyra._validate_artifact_counts(
+            counts,
+            normalized_rows,
+            output_bam_records,
+        )
+
+    assert exc_info.value.category == category
+
+
+def test_artifact_invariants_accept_actual_bam_records_above_score_records():
+    lyra._validate_artifact_counts(
+        _consistent_counts(),
+        normalized_rows=3,
+        output_bam_records=5,
+    )
+
+
+def test_coordinator_calls_collaborators_in_summary_last_order(
+    tmp_path,
+    monkeypatch,
+):
+    calls = []
+    counts = _consistent_counts()
+    store = SimpleNamespace(counts=counts)
+    paths = (
+        tmp_path / "normalized.tsv",
+        tmp_path / "summary.tsv",
+        tmp_path / "viral.bam",
+    )
+
+    monkeypatch.setattr(
+        lyra,
+        "_validate_artifact_output_suffixes",
+        lambda *args: calls.append(("suffixes", args)),
+    )
+    monkeypatch.setattr(
+        lyra,
+        "_write_normalized",
+        lambda current_store, path: calls.append(
+            ("normalized", current_store, path)
+        ) or 3,
+    )
+    monkeypatch.setattr(
+        lyra,
+        "_write_viral_bam",
+        lambda current_store, source, path, work_dir=None: calls.append(
+            ("bam", current_store, source, path, work_dir)
+        ) or 5,
+    )
+    monkeypatch.setattr(
+        lyra,
+        "_validate_artifact_counts",
+        lambda current_counts, normalized_rows, output_bam_records: calls.append(
+            ("invariants", current_counts, normalized_rows, output_bam_records)
+        ),
+    )
+    monkeypatch.setattr(
+        lyra,
+        "_write_summary",
+        lambda current_store, path, output_bam_records: calls.append(
+            ("summary", current_store, path, output_bam_records)
+        ),
+    )
+
+    lyra.write_lyra_artifacts(
+        store,
+        tmp_path / "source.bam",
+        *paths,
+        work_dir=tmp_path / "work",
+    )
+
+    assert [call[0] for call in calls] == [
+        "suffixes",
+        "normalized",
+        "bam",
+        "invariants",
+        "summary",
+    ]
+    assert calls[3][1:] == (counts, 3, 5)
+    assert calls[4][2:] == (paths[1], 5)
+
+
+@pytest.mark.parametrize("producer", ["normalized", "bam"])
+def test_coordinator_producer_failure_leaves_summary_unopened(
+    tmp_path,
+    monkeypatch,
+    producer,
+):
+    summary = tmp_path / "summary.tsv"
+    store = SimpleNamespace(counts=_consistent_counts())
+
+    if producer == "normalized":
+        monkeypatch.setattr(
+            lyra,
+            "_write_normalized",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("normalized")),
+        )
+    else:
+        monkeypatch.setattr(lyra, "_write_normalized", lambda *args, **kwargs: 3)
+        monkeypatch.setattr(
+            lyra,
+            "_write_viral_bam",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("bam")),
+        )
+
+    with pytest.raises(RuntimeError, match=producer):
+        lyra.write_lyra_artifacts(
+            store,
+            tmp_path / "source.bam",
+            tmp_path / "normalized.tsv",
+            summary,
+            tmp_path / "viral.bam",
+            work_dir=tmp_path,
+        )
+
+    assert not summary.exists()
+
+
+@pytest.mark.parametrize(
+    ("normalized_rows", "output_bam_records", "category"),
+    [
+        (2, 5, "normalized_row_count"),
+        (3, 0, "output_bam_viral_equivalence"),
+    ],
+)
+def test_coordinator_count_mismatch_leaves_summary_unopened(
+    tmp_path,
+    monkeypatch,
+    normalized_rows,
+    output_bam_records,
+    category,
+):
+    summary = tmp_path / "summary.tsv"
+    store = SimpleNamespace(counts=_consistent_counts())
+    monkeypatch.setattr(
+        lyra,
+        "_write_normalized",
+        lambda *args, **kwargs: normalized_rows,
+    )
+    monkeypatch.setattr(
+        lyra,
+        "_write_viral_bam",
+        lambda *args, **kwargs: output_bam_records,
+    )
+
+    with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+        lyra.write_lyra_artifacts(
+            store,
+            tmp_path / "source.bam",
+            tmp_path / "normalized.tsv",
+            summary,
+            tmp_path / "viral.bam",
+            work_dir=tmp_path,
+        )
+
+    assert exc_info.value.category == category
+    assert not summary.exists()
+
+
+def test_coordinator_invalid_suffix_opens_no_output(tmp_path):
+    paths = (
+        tmp_path / "normalized.tsv",
+        tmp_path / "summary.txt",
+        tmp_path / "viral.bam",
+    )
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        lyra.write_lyra_artifacts(
+            SimpleNamespace(),
+            tmp_path / "source.bam",
+            *paths,
+            work_dir=tmp_path,
+        )
+
+    assert exc_info.value.category == "output_extension"
+    assert not any(path.exists() for path in paths)
 
 
 def test_normalized_output_has_exact_utf8_lf_schema_order_and_values(tmp_path):
