@@ -21,6 +21,9 @@ import viral_ngs.core.file as util_file
 RENDERED_VALUE_CAP = 160
 EXPECTED_SCORE_HEADER = ("read_id", "score", "call")
 SQLITE_COMMIT_INTERVAL = 10000
+PAIRING_SINGLE_END = "Single-end"
+PAIRING_COMPLETE = "Paired-complete"
+PAIRING_INCOMPLETE = "Paired-incomplete"
 
 _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
@@ -110,6 +113,20 @@ _BAM_ROLE_INDEX = {
     (True, False, True): 6,
     (True, True, True): 7,
 }
+_BAM_ROLE_LABELS = (
+    "U--",
+    "U1-",
+    "U-2",
+    "U12",
+    "P--",
+    "P1-",
+    "P-2",
+    "P12",
+)
+_SINGLE_END_ROLE_COUNTS = (1, 0, 0, 0, 0, 0, 0, 0)
+_PAIRED_R1_ROLE_COUNTS = (0, 0, 0, 0, 0, 1, 0, 0)
+_PAIRED_R2_ROLE_COUNTS = (0, 0, 0, 0, 0, 0, 1, 0)
+_COMPLETE_PAIR_ROLE_COUNTS = (0, 0, 0, 0, 0, 1, 1, 0)
 
 
 def _bounded_repr(value):
@@ -162,6 +179,68 @@ class LyraInputError(ValueError):
         if self.offending_value is not None:
             details.append("offending_value={}".format(self.offending_value))
         super().__init__("Lyra input error: " + "; ".join(details))
+
+
+class LyraReconciliationError(LyraInputError):
+    """A whole-store reconciliation failure with bounded evidence context."""
+
+    def __init__(
+        self,
+        category,
+        score_path,
+        bam_path,
+        read_id,
+        score_count,
+        eligible_bam_count,
+        score_line_numbers,
+        bam_role_counts,
+        reason,
+    ):
+        self.category = category
+        self.score_path = score_path
+        self.bam_path = bam_path
+        self.read_id = read_id
+        self.score_count = score_count
+        self.eligible_bam_count = eligible_bam_count
+        self.score_line_numbers = tuple(score_line_numbers)[:2]
+        self.bam_role_counts = tuple(
+            (label, count)
+            for label, count in zip(_BAM_ROLE_LABELS, bam_role_counts)
+            if count
+        )
+        self.reason = reason
+
+        details = [
+            "category={}".format(_bounded_repr(category)),
+            "score_path={}".format(_bounded_repr(score_path)),
+            "bam_path={}".format(_bounded_repr(bam_path)),
+            "read_id={}".format(_bounded_repr(read_id)),
+            "score_count={}".format(score_count),
+            "eligible_bam_count={}".format(eligible_bam_count),
+            "score_line_numbers={}".format(self.score_line_numbers),
+            "bam_role_counts={}".format(self.bam_role_counts),
+            "reason={}".format(_bounded_repr(reason)),
+        ]
+        ValueError.__init__(self, "Lyra reconciliation error: " + "; ".join(details))
+
+
+def _pairing_state(eligible_bam_count, bam_role_counts):
+    """Return the locked pairing state and intrinsic BAM error category."""
+    if eligible_bam_count > 2:
+        return None, "bam_record_limit"
+    if eligible_bam_count == 0:
+        return None, None
+    if eligible_bam_count == 1:
+        if bam_role_counts == _SINGLE_END_ROLE_COUNTS:
+            return PAIRING_SINGLE_END, None
+        if bam_role_counts in (_PAIRED_R1_ROLE_COUNTS, _PAIRED_R2_ROLE_COUNTS):
+            return PAIRING_INCOMPLETE, None
+        return None, "bam_pairing_flags"
+    if eligible_bam_count == 2:
+        if bam_role_counts == _COMPLETE_PAIR_ROLE_COUNTS:
+            return PAIRING_COMPLETE, None
+        return None, "bam_pairing_flags"
+    return None, "bam_pairing_flags"
 
 
 @dataclass(frozen=True)
