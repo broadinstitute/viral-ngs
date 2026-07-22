@@ -216,7 +216,7 @@ def test_finalized_fragment_rows_and_counts_have_complete_locked_contract(tmp_pa
 
 
 def test_equal_score_spellings_finalize_canonically_without_context_rounding(tmp_path):
-    exact_text = "0." + ("1234567890" * 8)
+    exact_text = "0." + ("1234567890" * 8) + "1"
     with localcontext() as context:
         context.prec = 3
         assert lyra._canonical_decimal_text(exact_text + "0000") == exact_text

@@ -8,6 +8,7 @@ import re
 import sqlite3
 import tempfile
 import zlib
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
 from decimal import InvalidOperation
@@ -24,6 +25,8 @@ SQLITE_COMMIT_INTERVAL = 10000
 PAIRING_SINGLE_END = "Single-end"
 PAIRING_COMPLETE = "Paired-complete"
 PAIRING_INCOMPLETE = "Paired-incomplete"
+CALL_VIRAL = "Viral"
+CALL_NONVIRAL = "Non-viral"
 
 _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
@@ -331,6 +334,17 @@ def _read_id_key(read_id):
     return read_id.encode("utf-8", errors="strict")
 
 
+def _canonical_decimal_text(text):
+    """Remove redundant fractional zeroes from validated score text."""
+    if "." not in text:
+        return text
+    whole, fractional = text.split(".", 1)
+    fractional = fractional.rstrip("0")
+    if fractional:
+        return whole + "." + fractional
+    return whole or "0"
+
+
 class LyraFragmentStore:
     """Context-bound SQLite state for bounded Lyra reconciliation."""
 
@@ -339,6 +353,7 @@ class LyraFragmentStore:
         self._score_records = 0
         self._input_bam_records = 0
         self._eligible_bam_records = 0
+        self._counts = None
         self._closed = False
         self._temporary_directory = tempfile.TemporaryDirectory(
             prefix="lyra_reconciliation_",
@@ -377,6 +392,14 @@ class LyraFragmentStore:
     @property
     def eligible_bam_records(self):
         return self._eligible_bam_records
+
+    @property
+    def counts(self):
+        if self._closed:
+            raise RuntimeError("Lyra fragment store is closed")
+        if self._counts is None:
+            raise RuntimeError("Lyra fragment store is not finalized")
+        return self._counts
 
     def _configure_database(self):
         self._connection.execute("PRAGMA journal_mode = OFF")
@@ -536,6 +559,116 @@ def _validate_reconciliation(store, score_path, bam_path):
                 bam_role_counts=bam_role_counts,
                 reason=_RECONCILIATION_REASONS[category],
             )
+
+
+def _finalize_fragments(store, threshold):
+    """Finalize one exact Decimal classification for every evidence key."""
+    fragments = 0
+    single_end_fragments = 0
+    complete_pair_fragments = 0
+    incomplete_pair_fragments = 0
+    viral_fragment_calls = 0
+    nonviral_fragment_calls = 0
+    threshold_text = str(threshold)
+
+    for row in store._ordered_evidence_cursor():
+        bam_role_counts = tuple(row[column] for column in _BAM_ROLE_COLUMNS)
+        pairing, intrinsic_category = _pairing_state(
+            row["eligible_bam_count"],
+            bam_role_counts,
+        )
+        assert intrinsic_category is None
+
+        n_scores = row["score_count"]
+        score_texts = [row["score_1_text"]]
+        if n_scores == 2:
+            score_texts.append(row["score_2_text"])
+        scores = [
+            (Decimal(text), _canonical_decimal_text(text))
+            for text in score_texts
+        ]
+        minimum = min(value for value, _ in scores)
+        maximum = max(value for value, _ in scores)
+        min_score_text = min(
+            text for value, text in scores if value == minimum
+        )
+        max_score_text = min(
+            text for value, text in scores if value == maximum
+        )
+
+        if pairing == PAIRING_SINGLE_END:
+            is_viral = scores[0][0] >= threshold
+            single_end_fragments += 1
+        elif pairing == PAIRING_COMPLETE:
+            is_viral = all(value >= threshold for value, _ in scores)
+            complete_pair_fragments += 1
+        else:
+            assert pairing == PAIRING_INCOMPLETE
+            is_viral = False
+            incomplete_pair_fragments += 1
+        call = CALL_VIRAL if is_viral else CALL_NONVIRAL
+
+        store._connection.execute(
+            """
+            INSERT INTO fragments (
+                read_id_key,
+                n_scores,
+                pairing,
+                min_score_text,
+                max_score_text,
+                threshold_text,
+                call
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row["read_id_key"],
+                n_scores,
+                pairing,
+                min_score_text,
+                max_score_text,
+                threshold_text,
+                call,
+            ),
+        )
+        fragments += 1
+        if is_viral:
+            viral_fragment_calls += 1
+        else:
+            nonviral_fragment_calls += 1
+        if fragments % SQLITE_COMMIT_INTERVAL == 0:
+            store._connection.commit()
+
+    store._connection.commit()
+    store._counts = LyraReconciliationCounts(
+        input_bam_records=store.input_bam_records,
+        eligible_bam_records=store.eligible_bam_records,
+        score_records=store.score_records,
+        fragments=fragments,
+        single_end_fragments=single_end_fragments,
+        complete_pair_fragments=complete_pair_fragments,
+        incomplete_pair_fragments=incomplete_pair_fragments,
+        viral_fragment_calls=viral_fragment_calls,
+        nonviral_fragment_calls=nonviral_fragment_calls,
+    )
+
+
+@contextmanager
+def reconcile_lyra_fragments(
+    score_path,
+    bam_path,
+    sample_id,
+    threshold,
+    work_dir=None,
+):
+    """Yield one fully validated and finalized file-backed fragment store."""
+    iter_lyra_score_records(score_path, sample_id)
+    validated_threshold = validate_lyra_threshold(threshold)
+    with LyraFragmentStore(sample_id=sample_id, work_dir=work_dir) as store:
+        _collect_score_evidence(store, score_path, sample_id)
+        _collect_bam_evidence(store, bam_path)
+        _validate_reconciliation(store, score_path, bam_path)
+        _finalize_fragments(store, validated_threshold)
+        yield store
 
 
 def validate_sample_id(sample_id):
