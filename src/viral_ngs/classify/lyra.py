@@ -123,10 +123,27 @@ _BAM_ROLE_LABELS = (
     "P-2",
     "P12",
 )
+_BAM_ROLE_COLUMNS = (
+    "unpaired_none_count",
+    "unpaired_r1_count",
+    "unpaired_r2_count",
+    "unpaired_both_count",
+    "paired_none_count",
+    "paired_r1_count",
+    "paired_r2_count",
+    "paired_both_count",
+)
 _SINGLE_END_ROLE_COUNTS = (1, 0, 0, 0, 0, 0, 0, 0)
 _PAIRED_R1_ROLE_COUNTS = (0, 0, 0, 0, 0, 1, 0, 0)
 _PAIRED_R2_ROLE_COUNTS = (0, 0, 0, 0, 0, 0, 1, 0)
 _COMPLETE_PAIR_ROLE_COUNTS = (0, 0, 0, 0, 0, 1, 1, 0)
+_RECONCILIATION_REASONS = {
+    "bam_record_limit": "more than two eligible BAM records share this read ID",
+    "bam_pairing_flags": "eligible BAM records have incoherent pairing flags",
+    "score_only": "score records have no matching eligible BAM records",
+    "bam_only": "eligible BAM records have no matching score records",
+    "record_count_mismatch": "score and eligible BAM record counts differ",
+}
 
 
 def _bounded_repr(value):
@@ -481,6 +498,44 @@ def _collect_bam_evidence(store, bam_path):
             if store._eligible_bam_records % SQLITE_COMMIT_INTERVAL == 0:
                 store._connection.commit()
     store._connection.commit()
+
+
+def _validate_reconciliation(store, score_path, bam_path):
+    """Raise one deterministic error unless all stored evidence is coherent."""
+    converted_score_path = os.fspath(score_path)
+    converted_bam_path = os.fspath(bam_path)
+    for row in store._ordered_evidence_cursor():
+        score_count = row["score_count"]
+        eligible_bam_count = row["eligible_bam_count"]
+        bam_role_counts = tuple(row[column] for column in _BAM_ROLE_COLUMNS)
+        _, category = _pairing_state(eligible_bam_count, bam_role_counts)
+
+        if category is None:
+            if score_count > 0 and eligible_bam_count == 0:
+                category = "score_only"
+            elif eligible_bam_count > 0 and score_count == 0:
+                category = "bam_only"
+            elif score_count > 0 and eligible_bam_count > 0:
+                if score_count != eligible_bam_count:
+                    category = "record_count_mismatch"
+
+        if category is not None:
+            score_line_numbers = tuple(
+                line_number
+                for line_number in (row["score_1_line"], row["score_2_line"])
+                if line_number is not None
+            )
+            raise LyraReconciliationError(
+                category=category,
+                score_path=converted_score_path,
+                bam_path=converted_bam_path,
+                read_id=row["read_id_key"].decode("utf-8", errors="strict"),
+                score_count=score_count,
+                eligible_bam_count=eligible_bam_count,
+                score_line_numbers=score_line_numbers,
+                bam_role_counts=bam_role_counts,
+                reason=_RECONCILIATION_REASONS[category],
+            )
 
 
 def validate_sample_id(sample_id):
