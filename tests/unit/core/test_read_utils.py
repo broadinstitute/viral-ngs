@@ -7,7 +7,10 @@ import argparse
 import filecmp
 import os
 import glob
+import io
 import platform
+import subprocess
+from unittest import mock
 
 import pysam
 import viral_ngs.read_utils
@@ -546,11 +549,16 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path = viral_ngs.core.file.mkstempfname('.db')
         with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(read_names)
-            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+            emitted_count = store.filter_bam_by_ids(
+                input_bam,
+                output_bam,
+                include=True,
+            )
 
         # Output should have exactly len(read_names) * 2 reads (paired-end)
         output_count = samtools.count(output_bam)
         self.assertEqual(output_count, len(read_names) * 2)
+        self.assertEqual(emitted_count, output_count)
 
     def test_filter_bam_by_ids_exclude(self):
         """Test filter_bam_by_ids with include=False excludes matching reads."""
@@ -572,12 +580,17 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path = viral_ngs.core.file.mkstempfname('.db')
         with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(read_names)
-            store.filter_bam_by_ids(input_bam, output_bam, include=False)
+            emitted_count = store.filter_bam_by_ids(
+                input_bam,
+                output_bam,
+                include=False,
+            )
 
         # Output should have input_count - (len(read_names) * 2) reads
         output_count = samtools.count(output_bam)
         expected = input_count - (len(read_names) * 2)
         self.assertEqual(output_count, expected)
+        self.assertEqual(emitted_count, output_count)
 
     def test_filter_bam_by_ids_header_preserved(self):
         """Test that BAM headers are semantically equivalent after filtering."""
@@ -626,9 +639,14 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path = viral_ngs.core.file.mkstempfname('.db')
         with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(['read1', 'read2'])
-            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+            emitted_count = store.filter_bam_by_ids(
+                input_bam,
+                output_bam,
+                include=True,
+            )
 
         self.assertEqual(samtools.count(output_bam), 0)
+        self.assertEqual(emitted_count, 0)
 
     def test_filter_bam_by_ids_empty_store_include(self):
         """Test include mode with empty store produces empty BAM with header."""
@@ -640,10 +658,15 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path = viral_ngs.core.file.mkstempfname('.db')
         with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             # Empty store
-            store.filter_bam_by_ids(input_bam, output_bam, include=True)
+            emitted_count = store.filter_bam_by_ids(
+                input_bam,
+                output_bam,
+                include=True,
+            )
 
         # Output should have 0 reads
         self.assertEqual(samtools.count(output_bam), 0)
+        self.assertEqual(emitted_count, 0)
 
         # But should have valid header
         with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as bam:
@@ -660,10 +683,83 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path = viral_ngs.core.file.mkstempfname('.db')
         with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             # Empty store
-            store.filter_bam_by_ids(input_bam, output_bam, include=False)
+            emitted_count = store.filter_bam_by_ids(
+                input_bam,
+                output_bam,
+                include=False,
+            )
 
         # Output should have all input reads
         self.assertEqual(samtools.count(output_bam), input_count)
+        self.assertEqual(emitted_count, input_count)
+
+    def test_filter_bam_by_ids_child_statuses_are_checked(self):
+        """A failed samtools child must prevent returning an emitted count."""
+
+        class FakeProcess:
+            def __init__(self, returncode, *, stdout=None, stdin=None):
+                self.returncode = returncode
+                self.stdout = stdout
+                self.stdin = stdin
+
+            def wait(self):
+                return self.returncode
+
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+
+        for failed_child, returncode in (("reader", 17), ("writer", 23)):
+            reader_status = returncode if failed_child == "reader" else 0
+            writer_status = returncode if failed_child == "writer" else 0
+            reader = FakeProcess(
+                reader_status,
+                stdout=io.BytesIO(
+                    b"@HD\tVN:1.6\n"
+                    b"read\t4\t*\t0\t0\t*\t*\t0\t0\tA\tI\n"
+                ),
+            )
+            writer = FakeProcess(writer_status, stdin=io.BytesIO())
+            expected_argv = (
+                ["samtools", "view", "-h", "--no-PG", input_bam]
+                if failed_child == "reader"
+                else [
+                    "samtools",
+                    "view",
+                    "-b",
+                    "-@",
+                    "2",
+                    "--no-PG",
+                    "-o",
+                    output_bam,
+                    "-",
+                ]
+            )
+
+            with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+                store.extend(["read"])
+                with mock.patch.object(
+                    viral_ngs.core.samtools.SamtoolsTool,
+                    "isEmpty",
+                    return_value=False,
+                ), mock.patch.object(
+                    viral_ngs.core.samtools.SamtoolsTool,
+                    "install_and_get_path",
+                    return_value="samtools",
+                ), mock.patch(
+                    "viral_ngs.core.misc.subprocess.Popen",
+                    side_effect=[reader, writer],
+                ) as popen:
+                    with self.assertRaises(subprocess.CalledProcessError) as raised:
+                        store.filter_bam_by_ids(
+                            input_bam,
+                            output_bam,
+                            include=True,
+                        )
+
+            self.assertEqual(raised.exception.returncode, returncode)
+            self.assertEqual(raised.exception.cmd, expected_argv)
+            self.assertEqual(popen.call_count, 2)
 
 
 class TestRmdupBbnorm(TestCaseWithTmp):

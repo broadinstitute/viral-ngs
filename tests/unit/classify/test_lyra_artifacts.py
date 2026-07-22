@@ -26,12 +26,12 @@ def _segment(
     return record
 
 
-def _write_bam(tmp_path, records, name="reads.bam"):
+def _write_bam(tmp_path, records, name="reads.bam", header=None):
     path = tmp_path / name
     with pysam.AlignmentFile(
         str(path),
         "wb",
-        header={"HD": {"VN": "1.6"}},
+        header=header or {"HD": {"VN": "1.6"}},
     ) as bam:
         for record in records:
             bam.write(record)
@@ -262,3 +262,179 @@ def test_artifact_suffix_gate_accepts_only_locked_destinations(
         str(path) for path in paths
     )
     assert not any(path.exists() for path in paths)
+
+
+def _rich_segment(
+    query_name,
+    *,
+    flag=0,
+    sequence="A" * 60,
+    reference_start=10,
+    tag_value=1,
+):
+    record = pysam.AlignedSegment()
+    record.query_name = query_name
+    record.flag = flag
+    record.query_sequence = sequence
+    if sequence is not None:
+        record.query_qualities = pysam.qualitystring_to_array("I" * len(sequence))
+    if flag & 0x4:
+        record.reference_id = -1
+        record.reference_start = -1
+    else:
+        record.reference_id = 0
+        record.reference_start = reference_start
+        record.mapping_quality = 37
+        record.cigarstring = "{}M".format(len(sequence))
+    record.next_reference_id = -1
+    record.next_reference_start = -1
+    record.template_length = 0
+    record.set_tags(
+        [("RG", "rg1"), ("NM", tag_value), ("XY", float(tag_value))]
+    )
+    return record
+
+
+def _record_snapshot(record):
+    return (
+        record.query_name,
+        record.flag,
+        record.reference_id,
+        record.reference_start,
+        record.mapping_quality,
+        record.cigarstring,
+        record.next_reference_id,
+        record.next_reference_start,
+        record.template_length,
+        record.query_sequence,
+        None if record.query_qualities is None else tuple(record.query_qualities),
+        record.get_tags(with_value_type=True),
+    )
+
+
+def test_viral_bam_fidelity_preserves_all_exact_qname_records(tmp_path):
+    header = {
+        "HD": {"VN": "1.6", "SO": "unsorted"},
+        "SQ": [{"SN": "ref", "LN": 1000}],
+        "RG": [{"ID": "rg1", "SM": "sample"}],
+        "PG": [{"ID": "existing", "PN": "source", "VN": "1.0"}],
+    }
+    records = [
+        _rich_segment("viral", tag_value=1),
+        _rich_segment("nonviral", reference_start=20, tag_value=2),
+        _rich_segment("viral", sequence="C" * 49, reference_start=30, tag_value=3),
+        _rich_segment("other", reference_start=40, tag_value=4),
+        _rich_segment("viral", flag=0x4, sequence=None, tag_value=5),
+        _rich_segment("viral", flag=0x100, reference_start=50, tag_value=6),
+        _rich_segment("viral", flag=0x800, reference_start=60, tag_value=7),
+    ]
+    source_bam = _write_bam(
+        tmp_path,
+        records,
+        name="fidelity-source.bam",
+        header=header,
+    )
+    score_path = _write_score_table(
+        tmp_path,
+        [("viral", "0.9", "0"), ("nonviral", "0.1", "1"), ("other", "0.1", "1")],
+        name="fidelity.tsv",
+    )
+    output_bam = tmp_path / "viral-output.bam"
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        source_bam,
+        "sample",
+        "0.8",
+        work_dir=tmp_path,
+    ) as store:
+        assert store.counts.score_records == 3
+        emitted_count = lyra._write_viral_bam(
+            store,
+            source_bam,
+            output_bam,
+            work_dir=tmp_path,
+        )
+
+    with pysam.AlignmentFile(source_bam, "rb", check_sq=False) as source:
+        source_header = source.header.to_dict()
+        expected_records = [
+            _record_snapshot(record)
+            for record in source.fetch(until_eof=True)
+            if record.query_name == "viral"
+        ]
+    with pysam.AlignmentFile(output_bam, "rb", check_sq=False) as output:
+        output_header = output.header.to_dict()
+        output_records = [
+            _record_snapshot(record)
+            for record in output.fetch(until_eof=True)
+        ]
+
+    assert emitted_count == len(output_records) == 5
+    assert emitted_count > 3
+    assert output_header == source_header
+    assert output_header["PG"] == header["PG"]
+    assert output_records == expected_records
+    assert not (tmp_path / "viral-output.bam.bai").exists()
+    assert not (tmp_path / "viral-output.bai").exists()
+
+
+def test_viral_bam_empty_call_set_preserves_header_and_returns_zero(tmp_path):
+    header = {
+        "HD": {"VN": "1.6"},
+        "SQ": [{"SN": "ref", "LN": 1000}],
+        "PG": [{"ID": "existing", "PN": "source"}],
+    }
+    source_bam = _write_bam(
+        tmp_path,
+        [_rich_segment("nonviral")],
+        name="empty-viral-source.bam",
+        header=header,
+    )
+    score_path = _write_score_table(
+        tmp_path,
+        [("nonviral", "0.1", "1")],
+        name="empty-viral.tsv",
+    )
+    output_bam = tmp_path / "empty-viral-output.bam"
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        source_bam,
+        "sample",
+        "0.8",
+        work_dir=tmp_path,
+    ) as store:
+        assert lyra._write_viral_bam(
+            store,
+            source_bam,
+            output_bam,
+            work_dir=tmp_path,
+        ) == 0
+
+    with pysam.AlignmentFile(source_bam, "rb", check_sq=False) as source:
+        source_header = source.header.to_dict()
+    with pysam.AlignmentFile(output_bam, "rb", check_sq=False) as output:
+        assert output.header.to_dict() == source_header
+        assert list(output.fetch(until_eof=True)) == []
+
+
+def test_viral_bam_rejects_a_mismatched_exact_id_cursor(tmp_path, monkeypatch):
+    with _artifact_store(
+        tmp_path,
+        [("viral", "0.9", "1")],
+        [_segment("viral")],
+        name="viral-id-mismatch",
+    ) as (store, source_bam):
+        monkeypatch.setattr(store, "iter_viral_read_ids", lambda: iter(()))
+        with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+            lyra._write_viral_bam(
+                store,
+                source_bam,
+                tmp_path / "mismatched-ids.bam",
+                work_dir=tmp_path,
+            )
+
+    assert exc_info.value.category == "viral_read_id_count"
+    assert exc_info.value.expected == 1
+    assert exc_info.value.actual == 0

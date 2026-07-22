@@ -17,6 +17,7 @@ import pysam
 import zstandard as zstd
 
 import viral_ngs.core.file as util_file
+import viral_ngs.core.misc as util_misc
 
 
 RENDERED_VALUE_CAP = 160
@@ -452,6 +453,40 @@ def _write_normalized(store, normalized_output):
             )
             row_count += 1
     return row_count
+
+
+def _write_viral_bam(
+    store,
+    source_bam,
+    viral_bam_output,
+    work_dir=None,
+):
+    """Stream exact Viral QNAMEs into a faithful source-order BAM."""
+    expected_id_count = store.counts.viral_fragment_calls
+    source_path = os.fspath(source_bam)
+    output_path = os.fspath(viral_bam_output)
+    with tempfile.TemporaryDirectory(
+        prefix="lyra_viral_bam_",
+        dir=work_dir,
+    ) as temporary_directory:
+        database_path = os.path.join(
+            temporary_directory,
+            "viral_read_ids.sqlite3",
+        )
+        with util_misc.ReadIdStore(database_path) as read_ids:
+            actual_id_count = read_ids.extend(store.iter_viral_read_ids())
+            if actual_id_count != expected_id_count:
+                raise LyraArtifactConsistencyError(
+                    category="viral_read_id_count",
+                    field="LYRA_VIRAL_FRAGMENT_CALLS",
+                    expected=expected_id_count,
+                    actual=actual_id_count,
+                )
+            return read_ids.filter_bam_by_ids(
+                source_path,
+                output_path,
+                include=True,
+            )
 
 
 def _validate_artifact_output_suffixes(

@@ -992,7 +992,7 @@ class ReadIdStore:
         samtools_tool = samtools_module.SamtoolsTool()
         if samtools_tool.isEmpty(inBam):
             shutil.copyfile(inBam, outBam)
-            return
+            return 0
 
         # Handle empty read ID store
         if len(self) == 0:
@@ -1004,7 +1004,8 @@ class ReadIdStore:
             else:
                 # Exclude mode with empty list = keep all reads
                 shutil.copyfile(inBam, outBam)
-            return
+                return samtools_tool.count(inBam)
+            return 0
 
         # Hybrid approach: samtools subprocess pipes + batched SQLite queries
         start = time.time()
@@ -1017,13 +1018,28 @@ class ReadIdStore:
 
         # Read: samtools view -h --no-PG input.bam -> SAM text (with header, no PG added)
         # Write: samtools view -b --no-PG -o output.bam - (converts SAM to BAM, no PG added)
-        read_proc = subprocess.Popen(
-            [samtools_path, 'view', '-h', '--no-PG', inBam],
-            stdout=subprocess.PIPE)
-        write_proc = subprocess.Popen(
-            [samtools_path, 'view', '-b', '-@', '2', '--no-PG', '-o', outBam, '-'],
-            stdin=subprocess.PIPE)
+        read_argv = [samtools_path, 'view', '-h', '--no-PG', inBam]
+        write_argv = [
+            samtools_path,
+            'view',
+            '-b',
+            '-@',
+            '2',
+            '--no-PG',
+            '-o',
+            outBam,
+            '-',
+        ]
+        read_proc = subprocess.Popen(read_argv, stdout=subprocess.PIPE)
+        try:
+            write_proc = subprocess.Popen(write_argv, stdin=subprocess.PIPE)
+        except BaseException:
+            read_proc.stdout.close()
+            read_proc.wait()
+            raise
 
+        processing_error = None
+        processing_traceback = None
         try:
             batch = []  # [(line, qname), ...]
             for line in read_proc.stdout:
@@ -1036,7 +1052,7 @@ class ReadIdStore:
 
                 # Parse only QNAME (first field before tab)
                 tab_pos = line.find(b'\t')
-                qname = line[:tab_pos].decode()
+                qname = line[:tab_pos].decode('utf-8', errors='strict')
                 batch.append((line, qname))
 
                 if len(batch) >= batch_size:
@@ -1060,14 +1076,47 @@ class ReadIdStore:
                     if (include and q in found) or (not include and q not in found):
                         write_proc.stdin.write(ln)
                         write_count += 1
+        except BaseException as exc:
+            processing_error = exc
+            processing_traceback = exc.__traceback__
         finally:
-            write_proc.stdin.close()
-            write_proc.wait()
-            read_proc.wait()
+            cleanup_error = None
+            cleanup_traceback = None
+            for stream in (write_proc.stdin, read_proc.stdout):
+                try:
+                    stream.close()
+                except BaseException as exc:
+                    if cleanup_error is None:
+                        cleanup_error = exc
+                        cleanup_traceback = exc.__traceback__
+            try:
+                write_status = write_proc.wait()
+            except BaseException as exc:
+                write_status = None
+                if cleanup_error is None:
+                    cleanup_error = exc
+                    cleanup_traceback = exc.__traceback__
+            try:
+                read_status = read_proc.wait()
+            except BaseException as exc:
+                read_status = None
+                if cleanup_error is None:
+                    cleanup_error = exc
+                    cleanup_traceback = exc.__traceback__
+
+        if processing_error is not None:
+            raise processing_error.with_traceback(processing_traceback)
+        if cleanup_error is not None:
+            raise cleanup_error.with_traceback(cleanup_traceback)
+        if read_status:
+            raise subprocess.CalledProcessError(read_status, read_argv)
+        if write_status:
+            raise subprocess.CalledProcessError(write_status, write_argv)
 
         elapsed = time.time() - start
         log.debug(f"PERF: filter_time={elapsed:.2f}s lookup_time={lookup_time:.2f}s "
                   f"reads={read_count} written={write_count} batch_size={batch_size}")
+        return write_count
 
     def close(self):
         """Close the database connection."""
