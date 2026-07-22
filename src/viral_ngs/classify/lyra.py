@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from decimal import InvalidOperation
 
+import pysam
 import zstandard as zstd
 
 import viral_ngs.core.file as util_file
@@ -31,6 +32,84 @@ _COMPRESSION_EXCEPTIONS = (
     zlib.error,
     zstd.ZstdError,
 )
+_SCORE_EVIDENCE_UPSERT = """
+    INSERT INTO evidence (
+        read_id_key,
+        score_count,
+        score_1_text,
+        score_1_line
+    ) VALUES (?, ?, ?, ?)
+    ON CONFLICT(read_id_key) DO UPDATE SET
+        score_1_text = CASE
+            WHEN evidence.score_count = 0 THEN excluded.score_1_text
+            ELSE evidence.score_1_text
+        END,
+        score_1_line = CASE
+            WHEN evidence.score_count = 0 THEN excluded.score_1_line
+            ELSE evidence.score_1_line
+        END,
+        score_2_text = CASE
+            WHEN evidence.score_count = 1 THEN excluded.score_1_text
+            ELSE evidence.score_2_text
+        END,
+        score_2_line = CASE
+            WHEN evidence.score_count = 1 THEN excluded.score_1_line
+            ELSE evidence.score_2_line
+        END,
+        score_count = evidence.score_count + excluded.score_count
+"""
+_BAM_EVIDENCE_UPSERT = """
+    INSERT INTO evidence (
+        read_id_key,
+        eligible_bam_count,
+        unpaired_none_count,
+        unpaired_r1_count,
+        unpaired_r2_count,
+        unpaired_both_count,
+        paired_none_count,
+        paired_r1_count,
+        paired_r2_count,
+        paired_both_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(read_id_key) DO UPDATE SET
+        eligible_bam_count = (
+            evidence.eligible_bam_count + excluded.eligible_bam_count
+        ),
+        unpaired_none_count = (
+            evidence.unpaired_none_count + excluded.unpaired_none_count
+        ),
+        unpaired_r1_count = (
+            evidence.unpaired_r1_count + excluded.unpaired_r1_count
+        ),
+        unpaired_r2_count = (
+            evidence.unpaired_r2_count + excluded.unpaired_r2_count
+        ),
+        unpaired_both_count = (
+            evidence.unpaired_both_count + excluded.unpaired_both_count
+        ),
+        paired_none_count = (
+            evidence.paired_none_count + excluded.paired_none_count
+        ),
+        paired_r1_count = (
+            evidence.paired_r1_count + excluded.paired_r1_count
+        ),
+        paired_r2_count = (
+            evidence.paired_r2_count + excluded.paired_r2_count
+        ),
+        paired_both_count = (
+            evidence.paired_both_count + excluded.paired_both_count
+        )
+"""
+_BAM_ROLE_INDEX = {
+    (False, False, False): 0,
+    (False, True, False): 1,
+    (False, False, True): 2,
+    (False, True, True): 3,
+    (True, False, False): 4,
+    (True, True, False): 5,
+    (True, False, True): 6,
+    (True, True, True): 7,
+}
 
 
 def _bounded_repr(value):
@@ -161,6 +240,9 @@ class LyraFragmentStore:
 
     def __init__(self, sample_id, work_dir=None):
         self._sample_id = validate_sample_id(sample_id)
+        self._score_records = 0
+        self._input_bam_records = 0
+        self._eligible_bam_records = 0
         self._closed = False
         self._temporary_directory = tempfile.TemporaryDirectory(
             prefix="lyra_reconciliation_",
@@ -187,6 +269,18 @@ class LyraFragmentStore:
     @property
     def database_path(self):
         return self._database_path
+
+    @property
+    def score_records(self):
+        return self._score_records
+
+    @property
+    def input_bam_records(self):
+        return self._input_bam_records
+
+    @property
+    def eligible_bam_records(self):
+        return self._eligible_bam_records
 
     def _configure_database(self):
         self._connection.execute("PRAGMA journal_mode = OFF")
@@ -254,6 +348,60 @@ class LyraFragmentStore:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
         return False
+
+
+def _collect_score_evidence(store, score_path, sample_id):
+    """Stream validated native score evidence into ``store``."""
+    for record in iter_lyra_score_records(score_path, sample_id):
+        store._connection.execute(
+            _SCORE_EVIDENCE_UPSERT,
+            (
+                _read_id_key(record.read_id),
+                1,
+                record.score_text,
+                record.line_number,
+            ),
+        )
+        store._score_records += 1
+        if store._score_records % SQLITE_COMMIT_INTERVAL == 0:
+            store._connection.commit()
+    store._connection.commit()
+
+
+def _collect_bam_evidence(store, bam_path):
+    """Stream exactly Lyra-eligible BAM role evidence into ``store``."""
+    path = os.fspath(bam_path)
+    with pysam.AlignmentFile(path, "rb", check_sq=False) as bam:
+        for read in bam.fetch(until_eof=True):
+            store._input_bam_records += 1
+            if read.is_secondary or read.is_supplementary:
+                continue
+            sequence = read.query_sequence
+            if sequence is None or len(sequence) < 50:
+                continue
+            if read.query_name is None:
+                raise LyraInputError(
+                    category="bam_read_id",
+                    path=bam_path,
+                    field="read_id",
+                    reason="eligible BAM record must have a query name",
+                )
+
+            role_index = _BAM_ROLE_INDEX[
+                (read.is_paired, read.is_read1, read.is_read2)
+            ]
+            role_counts = tuple(
+                1 if index == role_index else 0
+                for index in range(len(_BAM_ROLE_INDEX))
+            )
+            store._connection.execute(
+                _BAM_EVIDENCE_UPSERT,
+                (_read_id_key(read.query_name), 1, *role_counts),
+            )
+            store._eligible_bam_records += 1
+            if store._eligible_bam_records % SQLITE_COMMIT_INTERVAL == 0:
+                store._connection.commit()
+    store._connection.commit()
 
 
 def validate_sample_id(sample_id):

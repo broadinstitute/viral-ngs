@@ -484,8 +484,29 @@ def test_header_only_scores_and_no_eligible_bam_leave_evidence_empty(tmp_path):
         assert list(store._ordered_evidence_cursor()) == []
 
 
-def test_eligible_bam_record_without_qname_raises_structured_error(tmp_path):
-    bam_path = _write_bam(tmp_path, [_segment(None, flag=0x4)])
+def test_eligible_bam_record_without_qname_raises_structured_error(
+    tmp_path,
+    monkeypatch,
+):
+    bam_path = tmp_path / "missing-qname.bam"
+    record = _segment(None, flag=0x4)
+
+    class _AlignmentFileWithoutQname:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def fetch(self, until_eof=False):
+            assert until_eof
+            return iter([record])
+
+    monkeypatch.setattr(
+        lyra.pysam,
+        "AlignmentFile",
+        lambda path, mode, check_sq: _AlignmentFileWithoutQname(),
+    )
 
     with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
         with pytest.raises(lyra.LyraInputError) as exc_info:
