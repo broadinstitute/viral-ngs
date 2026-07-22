@@ -5,6 +5,7 @@ from pathlib import Path
 import sqlite3
 
 import pytest
+import pysam
 
 from viral_ngs.classify import lyra
 
@@ -43,6 +44,62 @@ def _insert_empty_evidence(store, read_id):
         "INSERT INTO evidence (read_id_key) VALUES (?)",
         (lyra._read_id_key(read_id),),
     )
+
+
+def _write_score_table(tmp_path, rows, name="scores.tsv"):
+    path = tmp_path / name
+    path.write_text(
+        "read_id\tscore\tcall\n"
+        + "".join("{}\t{}\t{}\n".format(*row) for row in rows)
+    )
+    return path
+
+
+def _segment(
+    query_name,
+    *,
+    query_length=50,
+    flag=0x4,
+    sequence_present=True,
+    reference_start=0,
+):
+    record = pysam.AlignedSegment()
+    record.query_name = query_name
+    record.flag = flag
+    if sequence_present:
+        record.query_sequence = "A" * query_length
+        record.query_qualities = pysam.qualitystring_to_array("I" * query_length)
+
+    if flag & 0x4:
+        record.reference_id = -1
+        record.reference_start = -1
+        record.mapping_quality = 0
+    else:
+        record.reference_id = 0
+        record.reference_start = reference_start
+        record.mapping_quality = 60
+        if sequence_present:
+            record.cigartuples = [(pysam.CMATCH, query_length)]
+    return record
+
+
+def _write_bam(tmp_path, records, name="reads.bam"):
+    path = tmp_path / name
+    header = {
+        "HD": {"VN": "1.6"},
+        "SQ": [{"SN": "ref", "LN": 10000}],
+    }
+    with pysam.AlignmentFile(str(path), "wb", header=header) as outf:
+        for record in records:
+            outf.write(record)
+    return path
+
+
+def _evidence_by_read_id(store):
+    return {
+        row["read_id_key"].decode("utf-8"): row
+        for row in store._ordered_evidence_cursor()
+    }
 
 
 def test_contract_dataclasses_are_frozen_with_exact_fields():
@@ -269,3 +326,174 @@ def test_store_preserves_one_immutable_sample_scalar_for_unique_fragment_keys(tm
 
     assert len(fragment_keys) == len(set(fragment_keys)) == len(read_ids)
     assert "sample_id" not in evidence_columns
+
+
+def test_score_evidence_counts_all_rows_and_retains_only_two_exact_slots(tmp_path):
+    score_path = _write_score_table(
+        tmp_path,
+        [
+            ("duplicate", "0.100000", "0"),
+            ("duplicate", "0.800000", "1"),
+            ("duplicate", "0.900000", "0"),
+            ("single", "1.0", "0"),
+        ],
+    )
+
+    with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
+        lyra._collect_score_evidence(store, score_path, "sample")
+        evidence = _evidence_by_read_id(store)
+        columns = {
+            row["name"]
+            for row in store._connection.execute("PRAGMA table_info(evidence)")
+        }
+
+        assert store.score_records == 4
+        assert evidence["duplicate"]["score_count"] == 3
+        assert evidence["duplicate"]["score_1_text"] == "0.100000"
+        assert evidence["duplicate"]["score_1_line"] == 2
+        assert evidence["duplicate"]["score_2_text"] == "0.800000"
+        assert evidence["duplicate"]["score_2_line"] == 3
+        assert evidence["single"]["score_count"] == 1
+        assert evidence["single"]["score_1_text"] == "1.0"
+        assert "native_call" not in columns
+
+
+def test_bam_eligibility_matches_native_sequence_predicate(tmp_path):
+    bam_path = _write_bam(
+        tmp_path,
+        [
+            _segment("exactly-50", query_length=50),
+            _segment("too-short", query_length=49),
+            _segment("no-sequence", sequence_present=False),
+            _segment("secondary", query_length=60, flag=0x4 | 0x100),
+            _segment("supplementary", query_length=60, flag=0x4 | 0x800),
+        ],
+    )
+
+    with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
+        lyra._collect_bam_evidence(store, bam_path)
+        evidence = _evidence_by_read_id(store)
+
+        assert store.input_bam_records == 5
+        assert store.eligible_bam_records == 1
+        assert list(evidence) == ["exactly-50"]
+        assert evidence["exactly-50"]["eligible_bam_count"] == 1
+
+
+def test_bam_scan_does_not_filter_mapping_or_non_pairing_flags(tmp_path):
+    records = [
+        _segment("mapped", flag=0, reference_start=90),
+        _segment("unmapped", flag=0x4),
+        _segment("duplicate", flag=0x4 | 0x400),
+        _segment("qc-fail", flag=0x4 | 0x200),
+        _segment("proper-pair", flag=0x1 | 0x2 | 0x40, reference_start=500),
+        _segment("reverse", flag=0x10, reference_start=700),
+        _segment("mate-unmapped", flag=0x1 | 0x4 | 0x8 | 0x80),
+    ]
+    bam_path = _write_bam(tmp_path, records)
+
+    with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
+        lyra._collect_bam_evidence(store, bam_path)
+        evidence = _evidence_by_read_id(store)
+
+        assert store.input_bam_records == len(records)
+        assert store.eligible_bam_records == len(records)
+        assert set(evidence) == {record.query_name for record in records}
+
+
+def test_bam_role_evidence_uses_exactly_one_bin_per_eligible_record(tmp_path):
+    role_flags = {
+        "unpaired_none_count": 0x4,
+        "unpaired_r1_count": 0x4 | 0x40,
+        "unpaired_r2_count": 0x4 | 0x80,
+        "unpaired_both_count": 0x4 | 0x40 | 0x80,
+        "paired_none_count": 0x4 | 0x1,
+        "paired_r1_count": 0x4 | 0x1 | 0x40,
+        "paired_r2_count": 0x4 | 0x1 | 0x80,
+        "paired_both_count": 0x4 | 0x1 | 0x40 | 0x80,
+    }
+    records = [
+        _segment("all-roles", flag=flag)
+        for flag in role_flags.values()
+    ]
+    records.extend(
+        [
+            _segment(
+                "all-roles",
+                query_length=49,
+                flag=0x4 | 0x1 | 0x40,
+            ),
+            _segment(
+                "all-roles",
+                query_length=60,
+                flag=0x4 | 0x100 | 0x1 | 0x80,
+            ),
+        ]
+    )
+    bam_path = _write_bam(tmp_path, records)
+
+    with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
+        lyra._collect_bam_evidence(store, bam_path)
+        evidence = _evidence_by_read_id(store)["all-roles"]
+
+        assert store.input_bam_records == 10
+        assert store.eligible_bam_records == 8
+        assert evidence["eligible_bam_count"] == 8
+        assert {column: evidence[column] for column in role_flags} == {
+            column: 1 for column in role_flags
+        }
+
+
+def test_bam_scan_accepts_unsorted_index_free_input_until_eof(tmp_path):
+    records = [
+        _segment("read-z", flag=0x4),
+        _segment("read-a", flag=0x4),
+        _segment("read-m", flag=0x4),
+    ]
+    bam_path = _write_bam(tmp_path, records)
+    assert not Path(str(bam_path) + ".bai").exists()
+
+    with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
+        lyra._collect_bam_evidence(store, bam_path)
+        ordered_ids = list(_evidence_by_read_id(store))
+
+        assert store.input_bam_records == 3
+        assert store.eligible_bam_records == 3
+        assert ordered_ids == ["read-a", "read-m", "read-z"]
+
+
+def test_header_only_scores_and_no_eligible_bam_leave_evidence_empty(tmp_path):
+    score_path = _write_score_table(tmp_path, [])
+    bam_path = _write_bam(
+        tmp_path,
+        [
+            _segment("short", query_length=49),
+            _segment("secondary", flag=0x4 | 0x100),
+            _segment("supplementary", flag=0x4 | 0x800),
+            _segment("sequence-less", sequence_present=False),
+        ],
+    )
+
+    with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
+        lyra._collect_score_evidence(store, score_path, "sample")
+        lyra._collect_bam_evidence(store, bam_path)
+
+        assert store.score_records == 0
+        assert store.input_bam_records == 4
+        assert store.eligible_bam_records == 0
+        assert list(store._ordered_evidence_cursor()) == []
+
+
+def test_eligible_bam_record_without_qname_raises_structured_error(tmp_path):
+    bam_path = _write_bam(tmp_path, [_segment(None, flag=0x4)])
+
+    with lyra.LyraFragmentStore("sample", work_dir=tmp_path) as store:
+        with pytest.raises(lyra.LyraInputError) as exc_info:
+            lyra._collect_bam_evidence(store, bam_path)
+
+    error = exc_info.value
+    assert error.category == "bam_read_id"
+    assert error.path == bam_path
+    assert error.line_number is None
+    assert error.field == "read_id"
+    assert error.reason
