@@ -5,9 +5,12 @@ import gzip
 import io
 import os
 import re
+import sqlite3
+import tempfile
 import zlib
 from dataclasses import dataclass
 from decimal import Decimal
+from decimal import InvalidOperation
 
 import zstandard as zstd
 
@@ -16,6 +19,7 @@ import viral_ngs.core.file as util_file
 
 RENDERED_VALUE_CAP = 160
 EXPECTED_SCORE_HEADER = ("read_id", "score", "call")
+SQLITE_COMMIT_INTERVAL = 10000
 
 _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
@@ -90,6 +94,166 @@ class LyraScoreRecord:
     score: Decimal
     native_call: str
     line_number: int
+
+
+@dataclass(frozen=True)
+class LyraFragment:
+    """One finalized Lyra fragment classification."""
+
+    read_id: str
+    n_scores: int
+    pairing: str
+    min_score: Decimal
+    max_score: Decimal
+    threshold: Decimal
+    call: str
+
+
+@dataclass(frozen=True)
+class LyraReconciliationCounts:
+    """Fixed aggregate counters for one Lyra reconciliation run."""
+
+    input_bam_records: int
+    eligible_bam_records: int
+    score_records: int
+    fragments: int
+    single_end_fragments: int
+    complete_pair_fragments: int
+    incomplete_pair_fragments: int
+    viral_fragment_calls: int
+    nonviral_fragment_calls: int
+
+
+def validate_lyra_threshold(threshold):
+    """Return a finite inclusive ``[0, 1]`` threshold as a Decimal."""
+    if type(threshold) is bool:
+        raise LyraInputError(
+            category="threshold",
+            field="threshold",
+            reason="threshold must not be a boolean",
+            offending_value=threshold,
+        )
+    try:
+        value = threshold if isinstance(threshold, Decimal) else Decimal(str(threshold))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise LyraInputError(
+            category="threshold",
+            field="threshold",
+            reason="threshold must be a decimal value",
+            offending_value=threshold,
+        ) from exc
+    if not value.is_finite() or not _MIN_SCORE <= value <= _MAX_SCORE:
+        raise LyraInputError(
+            category="threshold",
+            field="threshold",
+            reason="threshold must be finite and between zero and one inclusive",
+            offending_value=threshold,
+        )
+    return value
+
+
+def _read_id_key(read_id):
+    return read_id.encode("utf-8", errors="strict")
+
+
+class LyraFragmentStore:
+    """Context-bound SQLite state for bounded Lyra reconciliation."""
+
+    def __init__(self, sample_id, work_dir=None):
+        self._sample_id = validate_sample_id(sample_id)
+        self._closed = False
+        self._temporary_directory = tempfile.TemporaryDirectory(
+            prefix="lyra_reconciliation_",
+            dir=work_dir,
+        )
+        self._database_path = os.path.join(
+            self._temporary_directory.name,
+            "reconciliation.sqlite3",
+        )
+        self._connection = None
+        try:
+            self._connection = sqlite3.connect(self._database_path)
+            self._connection.row_factory = sqlite3.Row
+            self._configure_database()
+            self._create_schema()
+        except BaseException:
+            self.close()
+            raise
+
+    @property
+    def sample_id(self):
+        return self._sample_id
+
+    @property
+    def database_path(self):
+        return self._database_path
+
+    def _configure_database(self):
+        self._connection.execute("PRAGMA journal_mode = OFF")
+        self._connection.execute("PRAGMA synchronous = OFF")
+        self._connection.execute("PRAGMA temp_store = FILE")
+        self._connection.execute("PRAGMA cache_size = -64000")
+
+    def _create_schema(self):
+        self._connection.executescript(
+            """
+            CREATE TABLE evidence (
+                read_id_key BLOB PRIMARY KEY,
+                score_count INTEGER NOT NULL DEFAULT 0,
+                score_1_text TEXT,
+                score_1_line INTEGER,
+                score_2_text TEXT,
+                score_2_line INTEGER,
+                eligible_bam_count INTEGER NOT NULL DEFAULT 0,
+                unpaired_none_count INTEGER NOT NULL DEFAULT 0,
+                unpaired_r1_count INTEGER NOT NULL DEFAULT 0,
+                unpaired_r2_count INTEGER NOT NULL DEFAULT 0,
+                unpaired_both_count INTEGER NOT NULL DEFAULT 0,
+                paired_none_count INTEGER NOT NULL DEFAULT 0,
+                paired_r1_count INTEGER NOT NULL DEFAULT 0,
+                paired_r2_count INTEGER NOT NULL DEFAULT 0,
+                paired_both_count INTEGER NOT NULL DEFAULT 0
+            ) WITHOUT ROWID;
+
+            CREATE TABLE fragments (
+                read_id_key BLOB PRIMARY KEY,
+                n_scores INTEGER NOT NULL,
+                pairing TEXT NOT NULL,
+                min_score_text TEXT NOT NULL,
+                max_score_text TEXT NOT NULL,
+                threshold_text TEXT NOT NULL,
+                call TEXT NOT NULL
+            ) WITHOUT ROWID;
+            """
+        )
+        self._connection.commit()
+
+    def _ordered_evidence_cursor(self):
+        if self._closed:
+            raise RuntimeError("Lyra fragment store is closed")
+        return self._connection.execute(
+            "SELECT * FROM evidence ORDER BY read_id_key ASC"
+        )
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            if self._connection is not None:
+                self._connection.close()
+                self._connection = None
+        finally:
+            self._temporary_directory.cleanup()
+
+    def __enter__(self):
+        if self._closed:
+            raise RuntimeError("Lyra fragment store is closed")
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+        return False
 
 
 def validate_sample_id(sample_id):
