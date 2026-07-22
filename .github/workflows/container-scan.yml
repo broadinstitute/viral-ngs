@@ -208,9 +208,14 @@ jobs:
 
       - name: Claude analysis on Vertex AI
         if: steps.triage.outputs.cve_ids != ''
-        # Pinned to commit SHA (== v1 as of 2026-04-27) for supply-chain safety;
-        # bump this SHA when picking up new claude-code-action releases.
-        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
+        # Pinned to commit SHA (== v1.0.179 as of 2026-07-21) for supply-chain
+        # safety; bump this SHA when picking up new claude-code-action releases.
+        # Bumped from 567fe954 (v1, 2026-04-27 / agent-SDK ^0.2.119) because that
+        # pin predates Claude Sonnet 5 support: its SDK still emitted the legacy
+        # `thinking.type.enabled` request shape, which Vertex rejects with HTTP 400
+        # for Sonnet 5 ("Use thinking.type.adaptive and output_config.effort").
+        # v1.0.179 ships agent-SDK ^0.3.216, which speaks the adaptive-thinking API.
+        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
@@ -549,7 +554,7 @@ jobs:
         if: steps.context.outputs.issue_count != '0'
         # Pinned to the same commit SHA as the scan job's Claude step. When
         # bumping, bump both call sites together so they stay aligned.
-        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
+        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
