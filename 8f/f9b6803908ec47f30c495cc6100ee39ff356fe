@@ -1,0 +1,19 @@
+src/viral_ngs/classify/lyra.py
+  s_08845d98fd9dcd::t_0a6f26698df477 451-512
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8ff9b6803908ec47f30c495cc6100ee39ff356fe",
+  "prompts": {},
+  "sessions": {
+    "s_08845d98fd9dcd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_075ce3f3affe19w3imd5dkHKYb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
