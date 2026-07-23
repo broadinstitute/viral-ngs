@@ -1,0 +1,20 @@
+tests/unit/classify/test_lyra_publication.py
+  s_ff22506fc27e89::t_0f33b9e45e97ca 1381-1384,1386-1387
+  s_ff22506fc27e89::t_caa2215aeb077c 1354-1380,1385,1388-1624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "54c3e0c9e64440ac95071b1b7652a42603af0757",
+  "prompts": {},
+  "sessions": {
+    "s_ff22506fc27e89": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0703c7070ffeauerSpaH9JZz0m",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
