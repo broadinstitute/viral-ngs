@@ -1481,6 +1481,37 @@ def test_publish_order_flushes_every_stage_and_syncs_summary_parent_last(
     assert not list(tmp_path.rglob(".lyra-*"))
 
 
+def test_same_parent_publication_keeps_every_directory_transition_barrier(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "same-parent") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        outputs = _artifact_paths(tmp_path, "same-parent")
+        path_plan = lyra._build_artifact_path_plan(
+            score_path,
+            bam_path,
+            *outputs,
+        )
+        synced_directories = []
+        original_fsync_directory = lyra._fsync_directory
+
+        def record_directory_sync(path):
+            synced_directories.append(path)
+            return original_fsync_directory(path)
+
+        monkeypatch.setattr(lyra, "_fsync_directory", record_directory_sync)
+
+        lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    assert synced_directories == [os.path.realpath(tmp_path, strict=True)] * 8
+    assert all(path.exists() for path in outputs)
+
+
 @pytest.mark.parametrize("failure_kind", ["file", "directory"])
 def test_fsync_failure_prevents_summary_and_cleans_all_stages(
     tmp_path,
@@ -1502,6 +1533,40 @@ def test_fsync_failure_prevents_summary_and_cleans_all_stages(
         monkeypatch.setattr(lyra, helper_name, fail)
 
         with pytest.raises(OSError, match="injected .* fsync failure"):
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    assert not any(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_final_summary_parent_fsync_failure_rolls_back_every_final(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "summary-fsync-failure") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        original_fsync_directory = lyra._fsync_directory
+
+        def fail_final_summary_sync(path):
+            if (
+                path == path_plan.summary.parent_path
+                and os.path.lexists(path_plan.summary.final_path)
+            ):
+                raise OSError(5, "injected final summary fsync failure")
+            return original_fsync_directory(path)
+
+        monkeypatch.setattr(
+            lyra,
+            "_fsync_directory",
+            fail_final_summary_sync,
+        )
+
+        with pytest.raises(OSError, match="final summary fsync failure"):
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
     assert not any(path.exists() for path in outputs)

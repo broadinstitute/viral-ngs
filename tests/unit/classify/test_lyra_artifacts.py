@@ -353,12 +353,17 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
         "_validate_staged_artifacts",
         lambda *args: calls.append(("readback", *args)),
     )
+
+    original_link = lyra._link_no_clobber
+
+    def record_link(stage_path, final_path):
+        calls.append(("link", stage_path, final_path))
+        return original_link(stage_path, final_path)
+
     monkeypatch.setattr(
         lyra,
         "_link_no_clobber",
-        lambda stage_path, final_path: calls.append(
-            ("link", stage_path, final_path)
-        ),
+        record_link,
     )
 
     lyra.write_lyra_artifacts(
@@ -439,7 +444,6 @@ def test_coordinator_routes_only_immutable_path_plan_destinations(
     monkeypatch.setattr(lyra, "_validate_artifact_counts", lambda *args: None)
     monkeypatch.setattr(lyra, "_write_summary", write_summary)
     monkeypatch.setattr(lyra, "_validate_staged_artifacts", lambda *args: None)
-    monkeypatch.setattr(lyra, "_link_no_clobber", lambda *args: None)
 
     lyra.write_lyra_artifacts(
         SimpleNamespace(counts=_consistent_counts()),

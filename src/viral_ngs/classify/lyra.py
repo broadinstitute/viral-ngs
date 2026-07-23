@@ -375,6 +375,29 @@ class ArtifactStage:
 
 
 @dataclass(frozen=True)
+class PublishedArtifact:
+    """One final directory entry verified as owned by this transaction."""
+
+    role: str
+    final_path: str
+    identity: FileIdentity
+
+
+@dataclass(frozen=True)
+class CleanupOutcome:
+    """One bounded rollback or stage-cleanup result."""
+
+    operation: str
+    role: str
+    path: str
+    status: str
+    expected: FileIdentity = None
+    actual: FileIdentity = None
+    error_type: str = None
+    errno: int = None
+
+
+@dataclass(frozen=True)
 class LyraArtifactPathPlan:
     """Converted inputs and resolved destinations for one artifact set."""
 
@@ -1411,47 +1434,111 @@ def _link_no_clobber(stage_path, final_path):
     os.link(stage_path, final_path, follow_symlinks=False)
 
 
-def write_lyra_artifacts(
-    store,
-    path_plan,
-    work_dir=None,
-):
-    """Generate, read back, and publish one coordinated artifact set."""
-    if not isinstance(path_plan, LyraArtifactPathPlan):
-        raise TypeError("path_plan must be a LyraArtifactPathPlan")
-    _assert_path_plan_available(path_plan, "pre_generation")
-    _assert_source_bam_identity(store, "pre_generation")
-    stages = []
-    try:
-        for destination in (
-            path_plan.normalized,
-            path_plan.summary,
-            path_plan.viral_bam,
-        ):
-            stages.append(_create_artifact_stage(destination))
-        normalized_stage, summary_stage, bam_stage = stages
+def _unlink_path(path):
+    os.unlink(path)
 
+
+def _fsync_file(path):
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _cleanup_failure(operation, role, path, status, error):
+    return CleanupOutcome(
+        operation=operation,
+        role=role,
+        path=path,
+        status=status,
+        error_type=type(error).__name__,
+        errno=getattr(error, "errno", None),
+    )
+
+
+class LyraArtifactTransaction:
+    """Own staged generation, durable publication, and bounded rollback."""
+
+    def __init__(self, store, path_plan, work_dir=None):
+        if not isinstance(path_plan, LyraArtifactPathPlan):
+            raise TypeError("path_plan must be a LyraArtifactPathPlan")
+        self.store = store
+        self.path_plan = path_plan
+        self.work_dir = work_dir
+        self.stage = "initialized"
+        self._stages = []
+        self._published = []
+        self._pending_publication = None
+        self._cleanup_outcomes = ()
+
+    @property
+    def stages(self):
+        return tuple(self._stages)
+
+    @property
+    def published(self):
+        return tuple(self._published)
+
+    @property
+    def cleanup_outcomes(self):
+        return self._cleanup_outcomes
+
+    def _create_stages(self):
+        self.stage = "create_stages"
+        for destination in (
+            self.path_plan.normalized,
+            self.path_plan.summary,
+            self.path_plan.viral_bam,
+        ):
+            self._stages.append(_create_artifact_stage(destination))
+
+    def _stages_in_publication_order(self):
+        by_role = {stage.role: stage for stage in self._stages}
+        return (
+            by_role["normalized"],
+            by_role["viral_bam"],
+            by_role["summary"],
+        )
+
+    def _generate_and_validate(self):
+        normalized_stage, bam_stage, summary_stage = (
+            self._stages_in_publication_order()
+        )
+        self.stage = "generate_normalized"
         normalized_rows = _write_normalized(
-            store,
+            self.store,
             normalized_stage.stage_path,
         )
+        self.stage = "generate_viral_bam"
         output_bam_records = _write_viral_bam(
-            store,
+            self.store,
             bam_stage.stage_path,
-            work_dir=work_dir,
+            work_dir=self.work_dir,
         )
+        self.stage = "validate_generation_counts"
         _validate_artifact_counts(
-            store.counts,
+            self.store.counts,
             normalized_rows,
             output_bam_records,
         )
+        self.stage = "generate_summary"
         _write_summary(
-            store,
+            self.store,
             summary_stage.stage_path,
             output_bam_records,
         )
+        self.stage = "validate_staged_artifacts"
         _validate_staged_artifacts(
-            store,
+            self.store,
             normalized_stage,
             summary_stage,
             bam_stage,
@@ -1459,15 +1546,215 @@ def write_lyra_artifacts(
             output_bam_records,
         )
 
-        for stage in (normalized_stage, bam_stage, summary_stage):
-            _link_no_clobber(
-                stage.stage_path,
-                stage.destination.final_path,
+    def _sync_stages(self):
+        publication_stages = self._stages_in_publication_order()
+        for stage in publication_stages:
+            self.stage = "fsync_{}_stage".format(stage.role)
+            _fsync_file(stage.stage_path)
+        for stage in publication_stages:
+            self.stage = "fsync_{}_stage_parent".format(stage.role)
+            _fsync_directory(stage.destination.parent_path)
+
+    def _publish_stage(self, artifact_stage):
+        stage_identity = _file_identity(os.lstat(artifact_stage.stage_path))
+        _link_no_clobber(
+            artifact_stage.stage_path,
+            artifact_stage.destination.final_path,
+        )
+        pending = PublishedArtifact(
+            role=artifact_stage.role,
+            final_path=artifact_stage.destination.final_path,
+            identity=stage_identity,
+        )
+        self._pending_publication = pending
+        final_identity = _file_identity(os.lstat(pending.final_path))
+        if final_identity != stage_identity:
+            raise LyraArtifactConsistencyError(
+                category="publication_identity",
+                field=artifact_stage.role,
+                expected=stage_identity,
+                actual=final_identity,
             )
-    finally:
-        for stage in stages:
-            if os.path.lexists(stage.stage_path):
-                os.unlink(stage.stage_path)
+        self._published.append(pending)
+        self._pending_publication = None
+
+    def _remove_stage_and_sync(self, artifact_stage):
+        _unlink_path(artifact_stage.stage_path)
+        _fsync_directory(artifact_stage.destination.parent_path)
+
+    def _publish(self):
+        normalized_stage, bam_stage, summary_stage = (
+            self._stages_in_publication_order()
+        )
+
+        self.stage = "publish_normalized"
+        self._publish_stage(normalized_stage)
+        self.stage = "sync_normalized_final"
+        _fsync_directory(normalized_stage.destination.parent_path)
+
+        self.stage = "publish_viral_bam"
+        self._publish_stage(bam_stage)
+        self.stage = "sync_viral_bam_final"
+        _fsync_directory(bam_stage.destination.parent_path)
+
+        self.stage = "remove_normalized_stage"
+        self._remove_stage_and_sync(normalized_stage)
+        self.stage = "remove_viral_bam_stage"
+        self._remove_stage_and_sync(bam_stage)
+
+        self.stage = "publish_summary"
+        self._publish_stage(summary_stage)
+        self.stage = "remove_summary_stage"
+        _unlink_path(summary_stage.stage_path)
+        self.stage = "sync_summary_final"
+        _fsync_directory(summary_stage.destination.parent_path)
+        self.stage = "complete"
+
+    def _rollback_published(self, artifact):
+        try:
+            observed = _file_identity(os.lstat(artifact.final_path))
+        except FileNotFoundError:
+            return CleanupOutcome(
+                operation="rollback",
+                role=artifact.role,
+                path=artifact.final_path,
+                status="absent",
+                expected=artifact.identity,
+            )
+        except BaseException as error:
+            return _cleanup_failure(
+                "rollback",
+                artifact.role,
+                artifact.final_path,
+                "lstat_failed",
+                error,
+            )
+
+        if observed != artifact.identity:
+            return CleanupOutcome(
+                operation="rollback",
+                role=artifact.role,
+                path=artifact.final_path,
+                status="identity_mismatch",
+                expected=artifact.identity,
+                actual=observed,
+            )
+
+        try:
+            _unlink_path(artifact.final_path)
+        except FileNotFoundError:
+            return CleanupOutcome(
+                operation="rollback",
+                role=artifact.role,
+                path=artifact.final_path,
+                status="absent",
+                expected=artifact.identity,
+                actual=observed,
+            )
+        except BaseException as error:
+            return _cleanup_failure(
+                "rollback",
+                artifact.role,
+                artifact.final_path,
+                "unlink_failed",
+                error,
+            )
+
+        try:
+            _fsync_directory(os.path.dirname(artifact.final_path))
+        except BaseException as error:
+            return _cleanup_failure(
+                "rollback",
+                artifact.role,
+                artifact.final_path,
+                "removed_sync_failed",
+                error,
+            )
+        return CleanupOutcome(
+            operation="rollback",
+            role=artifact.role,
+            path=artifact.final_path,
+            status="removed",
+            expected=artifact.identity,
+            actual=observed,
+        )
+
+    def _cleanup_stage(self, artifact_stage):
+        try:
+            _unlink_path(artifact_stage.stage_path)
+        except FileNotFoundError:
+            return CleanupOutcome(
+                operation="cleanup",
+                role=artifact_stage.role,
+                path=artifact_stage.stage_path,
+                status="absent",
+            )
+        except BaseException as error:
+            return _cleanup_failure(
+                "cleanup",
+                artifact_stage.role,
+                artifact_stage.stage_path,
+                "unlink_failed",
+                error,
+            )
+
+        try:
+            _fsync_directory(artifact_stage.destination.parent_path)
+        except BaseException as error:
+            return _cleanup_failure(
+                "cleanup",
+                artifact_stage.role,
+                artifact_stage.stage_path,
+                "removed_sync_failed",
+                error,
+            )
+        return CleanupOutcome(
+            operation="cleanup",
+            role=artifact_stage.role,
+            path=artifact_stage.stage_path,
+            status="removed",
+        )
+
+    def rollback_and_cleanup(self):
+        """Rollback owned finals and remove all known stages without raising."""
+        outcomes = []
+        rollback_artifacts = []
+        if self._pending_publication is not None:
+            rollback_artifacts.append(self._pending_publication)
+        rollback_artifacts.extend(reversed(self._published))
+        for artifact in rollback_artifacts:
+            outcomes.append(self._rollback_published(artifact))
+        for artifact_stage in self._stages:
+            outcomes.append(self._cleanup_stage(artifact_stage))
+        self._cleanup_outcomes = tuple(outcomes)
+        return self._cleanup_outcomes
+
+    def generate_validate_and_publish(self):
+        try:
+            self.stage = "pre_generation"
+            _assert_path_plan_available(self.path_plan, self.stage)
+            _assert_source_bam_identity(self.store, self.stage)
+            self._create_stages()
+            self._generate_and_validate()
+            self._sync_stages()
+            self._publish()
+        except BaseException:
+            self.rollback_and_cleanup()
+            raise
+
+
+def write_lyra_artifacts(
+    store,
+    path_plan,
+    work_dir=None,
+):
+    """Generate, read back, and publish one coordinated artifact set."""
+    transaction = LyraArtifactTransaction(
+        store,
+        path_plan,
+        work_dir=work_dir,
+    )
+    transaction.generate_validate_and_publish()
 
 
 class LyraFragmentStore:
