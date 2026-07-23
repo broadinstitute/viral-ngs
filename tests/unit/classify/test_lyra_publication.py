@@ -1483,6 +1483,176 @@ def test_parent_replacement_is_rejected_while_descriptor_anchors_original(
         transaction.rollback_and_cleanup()
 
 
+@pytest.mark.parametrize(
+    ("replacement_point", "published_count"),
+    [
+        ("before_normalized", 0),
+        ("before_viral_bam", 1),
+        ("before_summary", 2),
+        ("before_cleanup", 3),
+    ],
+)
+def test_parent_replacement_cleanup_stays_in_renamed_original_directory(
+    tmp_path,
+    replacement_point,
+    published_count,
+):
+    with _publication_store(tmp_path, "parent-cleanup-" + replacement_point) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        output_parent = tmp_path / ("outputs-" + replacement_point)
+        output_parent.mkdir()
+        outputs = (
+            output_parent / "normalized.tsv",
+            output_parent / "summary.tsv",
+            output_parent / "viral.bam",
+        )
+        path_plan = lyra._build_artifact_path_plan(
+            score_path,
+            bam_path,
+            *outputs,
+        )
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        transaction._create_stages()
+        transaction._generate_and_validate()
+        transaction._sync_stages()
+        publication_stages = transaction._stages_in_publication_order()
+        for stage in publication_stages[:published_count]:
+            transaction._publish_stage(stage)
+
+        moved_parent = tmp_path / ("original-" + replacement_point)
+        os.rename(output_parent, moved_parent)
+        output_parent.mkdir()
+        replacement_names = [stage.basename for stage in transaction.stages]
+        replacement_names.extend(
+            os.path.basename(stage.destination.final_path)
+            for stage in publication_stages[:published_count]
+        )
+        for name in replacement_names:
+            (output_parent / name).write_bytes(("replacement:" + name).encode())
+        replacement_snapshots = {
+            name: _entry_snapshot(output_parent / name)
+            for name in replacement_names
+        }
+
+        outcomes = transaction.rollback_and_cleanup()
+
+    assert {
+        name: _entry_snapshot(output_parent / name)
+        for name in replacement_names
+    } == replacement_snapshots
+    assert not any((moved_parent / name).exists() for name in replacement_names)
+    assert [
+        (outcome.operation, outcome.role, outcome.status)
+        for outcome in outcomes[:published_count]
+    ] == [
+        ("rollback", stage.role, "removed")
+        for stage in reversed(publication_stages[:published_count])
+    ]
+    for stage in transaction.stages:
+        with pytest.raises(OSError):
+            os.fstat(stage.descriptor)
+    for parent in {stage.parent for stage in transaction.stages}:
+        with pytest.raises(OSError):
+            os.fstat(parent.descriptor)
+
+
+@pytest.mark.parametrize("replacement_kind", ["file", "symlink"])
+def test_stage_cleanup_preserves_replacement_entry_with_bounded_mismatch(
+    tmp_path,
+    replacement_kind,
+):
+    score_path = _write_scores(tmp_path, "stage-replacement-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "stage-replacement-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    stage = transaction.stages[0]
+    os.unlink(stage.basename, dir_fd=stage.parent.descriptor)
+    victim = tmp_path / "stage-replacement-victim"
+    victim.write_bytes(b"caller victim")
+    if replacement_kind == "file":
+        replacement_descriptor = os.open(
+            stage.basename,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+            dir_fd=stage.parent.descriptor,
+        )
+        try:
+            os.write(replacement_descriptor, b"caller replacement")
+        finally:
+            os.close(replacement_descriptor)
+    else:
+        os.symlink(victim, stage.basename, dir_fd=stage.parent.descriptor)
+    replacement_snapshot = _entry_snapshot(stage.display_path)
+
+    try:
+        outcome = transaction._cleanup_stage(stage)
+
+        assert outcome.operation == "cleanup"
+        assert outcome.role == stage.role
+        assert outcome.status == "stage_identity_mismatch"
+        assert outcome.expected == lyra._file_identity(os.fstat(stage.descriptor))
+        assert outcome.actual is not None
+        assert _entry_snapshot(stage.display_path) == replacement_snapshot
+        assert victim.read_bytes() == b"caller victim"
+    finally:
+        os.unlink(stage.basename, dir_fd=stage.parent.descriptor)
+        transaction.rollback_and_cleanup()
+
+
+def test_descriptor_close_failure_does_not_stop_remaining_owned_closes(
+    tmp_path,
+    monkeypatch,
+):
+    score_path = _write_scores(tmp_path, "close-cascade-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "close-cascade-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    expected_close_order = [
+        stage.descriptor for stage in reversed(transaction.stages)
+    ] + [anchor.descriptor for anchor in reversed(transaction._parent_anchors)]
+    failed_descriptor = transaction.stages[-1].descriptor
+    real_close = os.close
+    close_calls = []
+
+    def fail_one_close(descriptor):
+        if descriptor in expected_close_order:
+            close_calls.append(descriptor)
+        if descriptor == failed_descriptor:
+            raise OSError(5, "injected descriptor close failure")
+        return real_close(descriptor)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(lyra.os, "close", fail_one_close)
+        outcomes = transaction.rollback_and_cleanup()
+        transaction.rollback_and_cleanup()
+
+    assert close_calls == expected_close_order
+    close_failure = [
+        outcome for outcome in outcomes if outcome.status == "close_failed"
+    ]
+    assert [
+        (outcome.operation, outcome.role, outcome.errno)
+        for outcome in close_failure
+    ] == [("close_stage_descriptor", transaction.stages[-1].role, 5)]
+    for descriptor in expected_close_order:
+        if descriptor == failed_descriptor:
+            os.fstat(descriptor)
+            real_close(descriptor)
+        else:
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+
+
 def test_stage_symlink_substitution_never_follows_or_changes_target(tmp_path):
     score_path = _write_scores(tmp_path, "stage-symlink-scores.tsv")
     bam_path, _ = _write_bam(tmp_path, "stage-symlink-source.bam")
