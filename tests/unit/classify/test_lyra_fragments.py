@@ -612,6 +612,9 @@ def test_large_reconciliation_stays_file_backed_and_cleans_up(tmp_path):
         for name in dir(store):
             if name.startswith("_"):
                 continue
+            if name == "source_bam_header":
+                assert store.source_bam_header == {"HD": {"VN": "1.6"}, "SQ": []}
+                continue
             assert not isinstance(getattr(store, name), (list, set, dict))
 
     assert not database_path.exists()

@@ -660,13 +660,11 @@ def _write_summary(store, summary_output, output_bam_records):
 
 def _write_viral_bam(
     store,
-    source_bam,
     viral_bam_output,
     work_dir=None,
 ):
     """Stream exact Viral QNAMEs into a faithful source-order BAM."""
     expected_id_count = store.counts.viral_fragment_calls
-    source_path = os.fspath(source_bam)
     output_path = os.fspath(viral_bam_output)
     with tempfile.TemporaryDirectory(
         prefix="lyra_viral_bam_",
@@ -685,11 +683,13 @@ def _write_viral_bam(
                     expected=expected_id_count,
                     actual=actual_id_count,
                 )
-            return read_ids.filter_bam_by_ids(
-                source_path,
+            output_bam_records = read_ids.filter_bam_by_ids(
+                store.source_bam_path,
                 output_path,
                 include=True,
             )
+            _assert_source_bam_identity(store, "after_bam_filter")
+            return output_bam_records
 
 
 def _validate_artifact_output_suffixes(
@@ -738,7 +738,6 @@ def _validate_artifact_output_suffixes(
 
 def write_lyra_artifacts(
     store,
-    source_bam,
     normalized_output,
     summary_output,
     viral_bam_output,
@@ -752,10 +751,10 @@ def write_lyra_artifacts(
             viral_bam_output,
         )
     )
+    _assert_source_bam_identity(store, "pre_generation")
     normalized_rows = _write_normalized(store, normalized_path)
     output_bam_records = _write_viral_bam(
         store,
-        source_bam,
         viral_bam_path,
         work_dir=work_dir,
     )
@@ -1030,40 +1029,71 @@ def _collect_score_evidence(store, score_path, sample_id):
     store._connection.commit()
 
 
-def _collect_bam_evidence(store, bam_path):
+def _collect_bam_evidence(store, bam, display_path=None):
     """Stream exactly Lyra-eligible BAM role evidence into ``store``."""
-    path = os.fspath(bam_path)
-    with pysam.AlignmentFile(path, "rb", check_sq=False) as bam:
-        for read in bam.fetch(until_eof=True):
-            store._input_bam_records += 1
-            if read.is_secondary or read.is_supplementary:
-                continue
-            sequence = read.query_sequence
-            if sequence is None or len(sequence) < 50:
-                continue
-            if read.query_name is None:
-                raise LyraInputError(
-                    category="bam_read_id",
-                    path=bam_path,
-                    field="read_id",
-                    reason="eligible BAM record must have a query name",
-                )
+    if display_path is None:
+        display_path = bam
+        path = os.fspath(bam)
+        with pysam.AlignmentFile(path, "rb", check_sq=False) as opened_bam:
+            return _collect_bam_evidence(store, opened_bam, display_path)
 
-            role_index = _BAM_ROLE_INDEX[
-                (read.is_paired, read.is_read1, read.is_read2)
-            ]
-            role_counts = tuple(
-                1 if index == role_index else 0
-                for index in range(len(_BAM_ROLE_INDEX))
+    for read in bam.fetch(until_eof=True):
+        store._input_bam_records += 1
+        if read.is_secondary or read.is_supplementary:
+            continue
+        sequence = read.query_sequence
+        if sequence is None or len(sequence) < 50:
+            continue
+        if read.query_name is None:
+            raise LyraInputError(
+                category="bam_read_id",
+                path=display_path,
+                field="read_id",
+                reason="eligible BAM record must have a query name",
             )
-            store._connection.execute(
-                _BAM_EVIDENCE_UPSERT,
-                (_read_id_key(read.query_name), 1, *role_counts),
-            )
-            store._eligible_bam_records += 1
-            if store._eligible_bam_records % SQLITE_COMMIT_INTERVAL == 0:
-                store._connection.commit()
+
+        role_index = _BAM_ROLE_INDEX[
+            (read.is_paired, read.is_read1, read.is_read2)
+        ]
+        role_counts = tuple(
+            1 if index == role_index else 0
+            for index in range(len(_BAM_ROLE_INDEX))
+        )
+        store._connection.execute(
+            _BAM_EVIDENCE_UPSERT,
+            (_read_id_key(read.query_name), 1, *role_counts),
+        )
+        store._eligible_bam_records += 1
+        if store._eligible_bam_records % SQLITE_COMMIT_INTERVAL == 0:
+            store._connection.commit()
     store._connection.commit()
+
+
+def _source_identity_status(error):
+    if isinstance(error, FileNotFoundError):
+        return "missing"
+    return "unreadable"
+
+
+def _assert_source_bam_identity(store, stage):
+    """Require the retained source path to still name the reconciled file."""
+    try:
+        actual = _file_identity(os.stat(store.source_bam_path))
+    except OSError as exc:
+        raise LyraSourceIdentityError(
+            stage=stage,
+            path=store.source_bam_display_path,
+            expected=store.source_bam_identity,
+            actual_status=_source_identity_status(exc),
+        ) from exc
+
+    if actual != store.source_bam_identity:
+        raise LyraSourceIdentityError(
+            stage=stage,
+            path=store.source_bam_display_path,
+            expected=store.source_bam_identity,
+            actual=actual,
+        )
 
 
 def _validate_reconciliation(store, score_path, bam_path):
@@ -1207,11 +1237,58 @@ def reconcile_lyra_fragments(
     """Yield one fully validated and finalized file-backed fragment store."""
     iter_lyra_score_records(score_path, sample_id)
     validated_threshold = validate_lyra_threshold(threshold)
+    source_bam_display_path = os.fspath(bam_path)
+    source_bam_path = os.path.abspath(source_bam_display_path)
     with LyraFragmentStore(sample_id=sample_id, work_dir=work_dir) as store:
         _collect_score_evidence(store, score_path, sample_id)
-        _collect_bam_evidence(store, bam_path)
-        _validate_reconciliation(store, score_path, bam_path)
+        with open(source_bam_path, "rb") as source_stream:
+            source_identity = _file_identity(os.fstat(source_stream.fileno()))
+            with pysam.AlignmentFile(
+                source_stream,
+                "rb",
+                check_sq=False,
+            ) as bam:
+                source_header = bam.header.to_dict()
+                _collect_bam_evidence(
+                    store,
+                    bam,
+                    source_bam_display_path,
+                )
+            descriptor_identity = _file_identity(
+                os.fstat(source_stream.fileno())
+            )
+
+        try:
+            path_identity = _file_identity(os.stat(source_bam_path))
+        except OSError as exc:
+            raise LyraSourceIdentityError(
+                stage="reconciliation",
+                path=source_bam_display_path,
+                expected=source_identity,
+                actual_status=_source_identity_status(exc),
+            ) from exc
+
+        actual_identity = None
+        if descriptor_identity != source_identity:
+            actual_identity = descriptor_identity
+        elif path_identity != source_identity:
+            actual_identity = path_identity
+        if actual_identity is not None:
+            raise LyraSourceIdentityError(
+                stage="reconciliation",
+                path=source_bam_display_path,
+                expected=source_identity,
+                actual=actual_identity,
+            )
+
+        _validate_reconciliation(store, score_path, source_bam_display_path)
         _finalize_fragments(store, validated_threshold)
+        store._install_source_metadata(
+            source_bam_path=source_bam_path,
+            source_bam_display_path=source_bam_display_path,
+            source_bam_identity=source_identity,
+            source_bam_header=source_header,
+        )
         yield store
 
 

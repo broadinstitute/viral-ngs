@@ -26,6 +26,7 @@ def _write_bam(tmp_path, name, query_name="read"):
     header = {
         "HD": {"VN": "1.6", "SO": "unsorted"},
         "PG": [{"ID": "source", "PN": "fixture"}],
+        "SQ": [],
     }
     with pysam.AlignmentFile(str(path), "wb", header=header) as bam:
         bam.write(_segment(query_name))
@@ -211,7 +212,7 @@ def test_source_direct_symlink_and_hardlink_aliases_produce_artifacts(
     tmp_path,
     alias_kind,
 ):
-    source_path, header = _write_bam(tmp_path, "source-{}.bam".format(alias_kind))
+    source_path, header = _write_bam(tmp_path, "target-{}.bam".format(alias_kind))
     access_path = source_path
     if alias_kind == "symlink":
         access_path = tmp_path / "source-symlink.bam"
