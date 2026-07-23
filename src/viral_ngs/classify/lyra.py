@@ -1,6 +1,7 @@
 """Strict validation helpers for native Lyra score tables."""
 
 import codecs
+import copy
 import gzip
 import io
 import os
@@ -299,6 +300,70 @@ class LyraArtifactConsistencyError(RuntimeError):
                     "{}={}".format(name, _bounded_repr(str(value)))
                 )
         super().__init__("Lyra artifact consistency error: " + "; ".join(details))
+
+
+@dataclass(frozen=True)
+class FileIdentity:
+    """Stable scalar identity facts for one opened file."""
+
+    device: int
+    inode: int
+    size: int
+    mtime_ns: int
+
+
+def _file_identity(stat_result):
+    return FileIdentity(
+        device=stat_result.st_dev,
+        inode=stat_result.st_ino,
+        size=stat_result.st_size,
+        mtime_ns=stat_result.st_mtime_ns,
+    )
+
+
+def _render_file_identity(identity):
+    if identity is None:
+        return "none"
+    return "device={},inode={},size={},mtime_ns={}".format(
+        identity.device,
+        identity.inode,
+        identity.size,
+        identity.mtime_ns,
+    )
+
+
+class LyraSourceIdentityError(RuntimeError):
+    """A source BAM replacement or mutation with bounded identity facts."""
+
+    category = "source_bam_identity"
+
+    def __init__(
+        self,
+        stage,
+        path,
+        expected,
+        actual=None,
+        actual_status=None,
+    ):
+        self.stage = stage
+        self.path = path
+        self.expected = expected
+        self.actual = actual
+        self.actual_status = actual_status
+
+        details = [
+            "category={}".format(_bounded_repr(self.category)),
+            "stage={}".format(_bounded_repr(stage)),
+            "path={}".format(_bounded_repr(path)),
+            "expected={}".format(_render_file_identity(expected)),
+        ]
+        if actual is not None:
+            details.append("actual={}".format(_render_file_identity(actual)))
+        if actual_status is not None:
+            details.append(
+                "actual_status={}".format(_bounded_repr(actual_status))
+            )
+        super().__init__("Lyra source identity error: " + "; ".join(details))
 
 
 def _pairing_state(eligible_bam_count, bam_role_counts):
@@ -712,6 +777,10 @@ class LyraFragmentStore:
         self._eligible_bam_records = 0
         self._counts = None
         self._threshold = None
+        self._source_bam_path = None
+        self._source_bam_display_path = None
+        self._source_bam_identity = None
+        self._source_bam_header = None
         self._closed = False
         self._temporary_directory = tempfile.TemporaryDirectory(
             prefix="lyra_reconciliation_",
@@ -766,6 +835,52 @@ class LyraFragmentStore:
         if self._threshold is None:
             raise RuntimeError("Lyra fragment store is not finalized")
         return self._threshold
+
+    def _require_source_metadata(self):
+        if self._closed:
+            raise RuntimeError("Lyra fragment store is closed")
+        if self._source_bam_identity is None:
+            raise RuntimeError("Lyra fragment store is not finalized")
+
+    @property
+    def source_bam_path(self):
+        self._require_source_metadata()
+        return self._source_bam_path
+
+    @property
+    def source_bam_display_path(self):
+        self._require_source_metadata()
+        return self._source_bam_display_path
+
+    @property
+    def source_bam_identity(self):
+        self._require_source_metadata()
+        return self._source_bam_identity
+
+    @property
+    def source_bam_header(self):
+        self._require_source_metadata()
+        return copy.deepcopy(self._source_bam_header)
+
+    def _install_source_metadata(
+        self,
+        source_bam_path,
+        source_bam_display_path,
+        source_bam_identity,
+        source_bam_header,
+    ):
+        if self._closed:
+            raise RuntimeError("Lyra fragment store is closed")
+        if self._counts is None or self._threshold is None:
+            raise RuntimeError("Lyra fragment store is not finalized")
+        if self._source_bam_identity is not None:
+            raise RuntimeError("Lyra source metadata is already installed")
+
+        retained_header = copy.deepcopy(source_bam_header)
+        self._source_bam_path = source_bam_path
+        self._source_bam_display_path = source_bam_display_path
+        self._source_bam_identity = source_bam_identity
+        self._source_bam_header = retained_header
 
     def _configure_database(self):
         self._connection.execute("PRAGMA journal_mode = OFF")
