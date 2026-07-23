@@ -678,6 +678,7 @@ def test_source_file_identity_is_frozen_with_exact_descriptor_fields(tmp_path):
 
 def test_source_properties_require_finalized_live_store_and_copy_header(tmp_path):
     source_path = tmp_path / "reads.bam"
+    source_path.write_bytes(b"bam metadata fixture")
     identity = lyra.FileIdentity(1, 2, 3, 4)
     retained_header = {
         "HD": {"VN": "1.6"},

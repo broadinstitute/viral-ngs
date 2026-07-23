@@ -957,9 +957,10 @@ def _write_viral_bam(
                     actual=actual_id_count,
                 )
             output_bam_records = read_ids.filter_bam_by_ids(
-                store.source_bam_path,
+                store.source_bam_display_path,
                 output_path,
                 include=True,
+                in_bam_fd=store.source_bam_fd,
             )
             _assert_source_bam_identity(store, "after_bam_filter")
             return output_bam_records
@@ -2020,6 +2021,7 @@ class LyraFragmentStore:
         self._eligible_bam_records = 0
         self._counts = None
         self._threshold = None
+        self._source_bam_fd = None
         self._source_bam_path = None
         self._source_bam_display_path = None
         self._source_bam_identity = None
@@ -2082,8 +2084,13 @@ class LyraFragmentStore:
     def _require_source_metadata(self):
         if self._closed:
             raise RuntimeError("Lyra fragment store is closed")
-        if self._source_bam_identity is None:
+        if self._source_bam_fd is None or self._source_bam_identity is None:
             raise RuntimeError("Lyra fragment store is not finalized")
+
+    @property
+    def source_bam_fd(self):
+        self._require_source_metadata()
+        return self._source_bam_fd
 
     @property
     def source_bam_path(self):
@@ -2107,6 +2114,7 @@ class LyraFragmentStore:
 
     def _install_source_metadata(
         self,
+        source_bam_fd,
         source_bam_path,
         source_bam_display_path,
         source_bam_identity,
@@ -2116,14 +2124,26 @@ class LyraFragmentStore:
             raise RuntimeError("Lyra fragment store is closed")
         if self._counts is None or self._threshold is None:
             raise RuntimeError("Lyra fragment store is not finalized")
-        if self._source_bam_identity is not None:
+        if self._source_bam_fd is not None or self._source_bam_identity is not None:
             raise RuntimeError("Lyra source metadata is already installed")
+        if type(source_bam_fd) is not int or source_bam_fd < 0:
+            raise ValueError("source_bam_fd must be a non-negative built-in int")
+        os.fstat(source_bam_fd)
 
         retained_header = copy.deepcopy(source_bam_header)
-        self._source_bam_path = source_bam_path
-        self._source_bam_display_path = source_bam_display_path
-        self._source_bam_identity = source_bam_identity
-        self._source_bam_header = retained_header
+        (
+            self._source_bam_fd,
+            self._source_bam_path,
+            self._source_bam_display_path,
+            self._source_bam_identity,
+            self._source_bam_header,
+        ) = (
+            source_bam_fd,
+            source_bam_path,
+            source_bam_display_path,
+            source_bam_identity,
+            retained_header,
+        )
 
     def _configure_database(self):
         self._connection.execute("PRAGMA journal_mode = OFF")
@@ -2238,12 +2258,30 @@ class LyraFragmentStore:
         if self._closed:
             return
         self._closed = True
-        try:
-            if self._connection is not None:
-                self._connection.close()
-                self._connection = None
-        finally:
-            self._temporary_directory.cleanup()
+        cleanup_error = None
+        cleanup_traceback = None
+
+        source_bam_fd = self._source_bam_fd
+        self._source_bam_fd = None
+        connection = self._connection
+        self._connection = None
+        cleanup_operations = []
+        if source_bam_fd is not None:
+            cleanup_operations.append(lambda: os.close(source_bam_fd))
+        if connection is not None:
+            cleanup_operations.append(connection.close)
+        cleanup_operations.append(self._temporary_directory.cleanup)
+
+        for cleanup in cleanup_operations:
+            try:
+                cleanup()
+            except BaseException as exc:
+                if cleanup_error is None:
+                    cleanup_error = exc
+                    cleanup_traceback = exc.__traceback__
+
+        if cleanup_error is not None:
+            raise cleanup_error.with_traceback(cleanup_traceback)
 
     def __enter__(self):
         if self._closed:
@@ -2320,23 +2358,43 @@ def _source_identity_status(error):
 
 
 def _assert_source_bam_identity(store, stage):
-    """Require the retained source path to still name the reconciled file."""
+    """Require the retained descriptor and path to match reconciled identity."""
+    expected = store.source_bam_identity
+    display_path = store.source_bam_display_path
     try:
-        actual = _file_identity(os.stat(store.source_bam_path))
+        descriptor_actual = _file_identity(os.fstat(store.source_bam_fd))
     except OSError as exc:
         raise LyraSourceIdentityError(
             stage=stage,
-            path=store.source_bam_display_path,
-            expected=store.source_bam_identity,
+            path=display_path,
+            expected=expected,
             actual_status=_source_identity_status(exc),
         ) from exc
 
-    if actual != store.source_bam_identity:
+    if descriptor_actual != expected:
         raise LyraSourceIdentityError(
             stage=stage,
-            path=store.source_bam_display_path,
-            expected=store.source_bam_identity,
-            actual=actual,
+            path=display_path,
+            expected=expected,
+            actual=descriptor_actual,
+        )
+
+    try:
+        path_actual = _file_identity(os.stat(store.source_bam_path))
+    except OSError as exc:
+        raise LyraSourceIdentityError(
+            stage=stage,
+            path=display_path,
+            expected=expected,
+            actual_status=_source_identity_status(exc),
+        ) from exc
+
+    if path_actual != expected:
+        raise LyraSourceIdentityError(
+            stage=stage,
+            path=display_path,
+            expected=expected,
+            actual=path_actual,
         )
 
 
@@ -2485,54 +2543,69 @@ def reconcile_lyra_fragments(
     source_bam_path = os.path.abspath(source_bam_display_path)
     with LyraFragmentStore(sample_id=sample_id, work_dir=work_dir) as store:
         _collect_score_evidence(store, score_path, sample_id)
-        with open(source_bam_path, "rb") as source_stream:
-            source_identity = _file_identity(os.fstat(source_stream.fileno()))
-            with pysam.AlignmentFile(
-                source_stream,
-                "rb",
-                check_sq=False,
-            ) as bam:
-                source_header = bam.header.to_dict()
-                _collect_bam_evidence(
-                    store,
-                    bam,
-                    source_bam_display_path,
-                )
-            descriptor_identity = _file_identity(
-                os.fstat(source_stream.fileno())
-            )
-
+        retained_source_fd = None
         try:
-            path_identity = _file_identity(os.stat(source_bam_path))
-        except OSError as exc:
-            raise LyraSourceIdentityError(
-                stage="reconciliation",
-                path=source_bam_display_path,
-                expected=source_identity,
-                actual_status=_source_identity_status(exc),
-            ) from exc
+            with open(source_bam_path, "rb") as source_stream:
+                source_identity = _file_identity(os.fstat(source_stream.fileno()))
+                with pysam.AlignmentFile(
+                    source_stream,
+                    "rb",
+                    check_sq=False,
+                ) as bam:
+                    source_header = bam.header.to_dict()
+                    _collect_bam_evidence(
+                        store,
+                        bam,
+                        source_bam_display_path,
+                    )
+                descriptor_identity = _file_identity(
+                    os.fstat(source_stream.fileno())
+                )
+                retained_source_fd = os.dup(source_stream.fileno())
+                retained_descriptor_identity = _file_identity(
+                    os.fstat(retained_source_fd)
+                )
 
-        actual_identity = None
-        if descriptor_identity != source_identity:
-            actual_identity = descriptor_identity
-        elif path_identity != source_identity:
-            actual_identity = path_identity
-        if actual_identity is not None:
-            raise LyraSourceIdentityError(
-                stage="reconciliation",
-                path=source_bam_display_path,
-                expected=source_identity,
-                actual=actual_identity,
+            try:
+                path_identity = _file_identity(os.stat(source_bam_path))
+            except OSError as exc:
+                raise LyraSourceIdentityError(
+                    stage="reconciliation",
+                    path=source_bam_display_path,
+                    expected=source_identity,
+                    actual_status=_source_identity_status(exc),
+                ) from exc
+
+            actual_identity = None
+            for candidate_identity in (
+                descriptor_identity,
+                retained_descriptor_identity,
+                path_identity,
+            ):
+                if candidate_identity != source_identity:
+                    actual_identity = candidate_identity
+                    break
+            if actual_identity is not None:
+                raise LyraSourceIdentityError(
+                    stage="reconciliation",
+                    path=source_bam_display_path,
+                    expected=source_identity,
+                    actual=actual_identity,
+                )
+
+            _validate_reconciliation(store, score_path, source_bam_display_path)
+            _finalize_fragments(store, validated_threshold)
+            store._install_source_metadata(
+                source_bam_fd=retained_source_fd,
+                source_bam_path=source_bam_path,
+                source_bam_display_path=source_bam_display_path,
+                source_bam_identity=source_identity,
+                source_bam_header=source_header,
             )
-
-        _validate_reconciliation(store, score_path, source_bam_display_path)
-        _finalize_fragments(store, validated_threshold)
-        store._install_source_metadata(
-            source_bam_path=source_bam_path,
-            source_bam_display_path=source_bam_display_path,
-            source_bam_identity=source_identity,
-            source_bam_header=source_header,
-        )
+            retained_source_fd = None
+        finally:
+            if retained_source_fd is not None:
+                os.close(retained_source_fd)
         yield store
 
 
