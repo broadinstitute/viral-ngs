@@ -1273,6 +1273,248 @@ def test_staged_paths_are_hidden_same_parent_and_preserve_exact_suffix(
         _remove_stages(stages)
 
 
+def test_parent_anchor_and_stage_descriptors_match_exact_contract(
+    tmp_path,
+    monkeypatch,
+):
+    score_path = _write_scores(tmp_path, "descriptor-stage-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "descriptor-stage-source.bam")
+    outputs = _artifact_paths(tmp_path, "descriptor-stage")
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        bam_path,
+        *outputs,
+    )
+    opened = []
+    real_open = os.open
+
+    def record_open(path, flags, mode=0o777, *, dir_fd=None):
+        descriptor = real_open(path, flags, mode, dir_fd=dir_fd)
+        opened.append((path, flags, mode, dir_fd, descriptor))
+        return descriptor
+
+    monkeypatch.setattr(lyra.os, "open", record_open)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    stages = transaction.stages
+
+    try:
+        assert [field.name for field in fields(lyra.ParentDirectoryAnchor)] == [
+            "parent_path",
+            "identity",
+            "descriptor",
+        ]
+        assert [field.name for field in fields(lyra.ArtifactStage)] == [
+            "role",
+            "basename",
+            "display_path",
+            "descriptor",
+            "object_identity",
+            "destination",
+            "parent",
+        ]
+        assert len(stages) == 3
+        assert all(stage.parent is stages[0].parent for stage in stages)
+
+        parent = stages[0].parent
+        parent_stat = os.stat(path_plan.normalized.parent_path)
+        assert parent.parent_path == path_plan.normalized.parent_path
+        assert parent.identity == (parent_stat.st_dev, parent_stat.st_ino)
+        retained_parent_stat = os.fstat(parent.descriptor)
+        assert parent.identity == (
+            retained_parent_stat.st_dev,
+            retained_parent_stat.st_ino,
+        )
+
+        parent_opens = [
+            item
+            for item in opened
+            if item[0] == parent.parent_path and item[3] is None
+        ]
+        assert len(parent_opens) == 1
+        parent_flags = parent_opens[0][1]
+        assert parent_flags & os.O_DIRECTORY
+        assert parent_flags & os.O_NOFOLLOW
+        assert parent_flags & os.O_CLOEXEC
+
+        stage_opens = [item for item in opened if item[3] == parent.descriptor]
+        assert len(stage_opens) == 3
+        for stage, opened_stage in zip(stages, stage_opens):
+            path, flags, mode, dir_fd, descriptor = opened_stage
+            stage_stat = os.fstat(stage.descriptor)
+            entry_stat = os.stat(
+                stage.basename,
+                dir_fd=parent.descriptor,
+                follow_symlinks=False,
+            )
+            assert path == stage.basename
+            assert flags & os.O_CREAT
+            assert flags & os.O_EXCL
+            assert flags & os.O_NOFOLLOW
+            assert flags & os.O_CLOEXEC
+            assert mode == 0o600
+            assert dir_fd == parent.descriptor
+            assert descriptor == stage.descriptor
+            assert stage.object_identity == (stage_stat.st_dev, stage_stat.st_ino)
+            assert stage.object_identity == (entry_stat.st_dev, entry_stat.st_ino)
+            assert stat.S_IMODE(stage_stat.st_mode) == 0o600
+            assert stage.basename.startswith(".lyra-{}-".format(stage.role))
+            assert stage.basename.endswith(stage.destination.suffix)
+            assert stage.display_path == os.path.join(
+                parent.parent_path,
+                stage.basename,
+            )
+    finally:
+        transaction.rollback_and_cleanup()
+
+    for _, _, _, _, descriptor in opened:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_distinct_parent_anchors_match_each_planned_parent(tmp_path):
+    score_path = _write_scores(tmp_path, "distinct-parent-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "distinct-parent-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+
+    try:
+        anchors = [stage.parent for stage in transaction.stages]
+        assert len({anchor.descriptor for anchor in anchors}) == 3
+        assert len({anchor.identity for anchor in anchors}) == 3
+        for stage in transaction.stages:
+            expected = stage.destination.destination_key[:2]
+            retained = os.fstat(stage.parent.descriptor)
+            assert stage.parent.identity == expected
+            assert expected == (retained.st_dev, retained.st_ino)
+    finally:
+        transaction.rollback_and_cleanup()
+
+
+def test_parent_replacement_is_rejected_while_descriptor_anchors_original(
+    tmp_path,
+):
+    score_path = _write_scores(tmp_path, "replaced-parent-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "replaced-parent-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    normalized_stage = next(
+        stage for stage in transaction.stages if stage.role == "normalized"
+    )
+    parent = normalized_stage.parent
+    moved_parent = tmp_path / "moved-normalized-parent"
+    os.rename(parent.parent_path, moved_parent)
+    os.mkdir(parent.parent_path)
+
+    try:
+        with pytest.raises(lyra.LyraPathError) as exc_info:
+            lyra._assert_parent_anchor(parent, "parent_recheck")
+
+        error = exc_info.value
+        assert error.category == "output_parent_identity"
+        assert error.stage == "parent_recheck"
+        assert error.path == parent.parent_path
+        assert normalized_stage.basename in os.listdir(parent.descriptor)
+        assert not os.path.exists(
+            os.path.join(parent.parent_path, normalized_stage.basename)
+        )
+        assert len(str(error)) < 700
+    finally:
+        transaction.rollback_and_cleanup()
+
+
+def test_stage_symlink_substitution_never_follows_or_changes_target(tmp_path):
+    score_path = _write_scores(tmp_path, "stage-symlink-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "stage-symlink-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    stage = transaction.stages[0]
+    victim = tmp_path / "stage-symlink-victim"
+    victim.write_bytes(b"caller bytes")
+    victim_identity = lyra._file_identity(os.stat(victim))
+    os.unlink(stage.basename, dir_fd=stage.parent.descriptor)
+    os.symlink(
+        victim,
+        stage.basename,
+        dir_fd=stage.parent.descriptor,
+    )
+
+    try:
+        with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+            lyra._assert_stage_handle(stage)
+
+        error = exc_info.value
+        assert error.category == "stage_identity"
+        assert error.field == stage.role
+        assert error.expected == stage.object_identity
+        assert victim.read_bytes() == b"caller bytes"
+        assert lyra._file_identity(os.stat(victim)) == victim_identity
+        assert stat.S_ISLNK(
+            os.stat(
+                stage.basename,
+                dir_fd=stage.parent.descriptor,
+                follow_symlinks=False,
+            ).st_mode
+        )
+    finally:
+        os.unlink(stage.basename, dir_fd=stage.parent.descriptor)
+        transaction.rollback_and_cleanup()
+
+
+def test_partial_stage_acquisition_closes_every_owned_descriptor_once(
+    tmp_path,
+    monkeypatch,
+):
+    score_path = _write_scores(tmp_path, "partial-stage-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "partial-stage-source.bam")
+    outputs = _artifact_paths(tmp_path, "partial-stage")
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        bam_path,
+        *outputs,
+    )
+    real_open = os.open
+    real_close = os.close
+    owned_descriptors = []
+    close_calls = []
+    stage_open_count = 0
+
+    def fail_second_stage_open(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal stage_open_count
+        if dir_fd is not None and flags & os.O_CREAT:
+            stage_open_count += 1
+            if stage_open_count == 2:
+                raise OSError(5, "injected stage acquisition failure")
+        descriptor = real_open(path, flags, mode, dir_fd=dir_fd)
+        if flags & os.O_DIRECTORY or dir_fd is not None:
+            owned_descriptors.append(descriptor)
+        return descriptor
+
+    def record_close(descriptor):
+        if descriptor in owned_descriptors:
+            close_calls.append(descriptor)
+        return real_close(descriptor)
+
+    monkeypatch.setattr(lyra.os, "open", fail_second_stage_open)
+    monkeypatch.setattr(lyra.os, "close", record_close)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+
+    with pytest.raises(OSError, match="stage acquisition failure"):
+        transaction._create_stages()
+
+    assert stage_open_count == 2
+    assert close_calls == list(reversed(owned_descriptors))
+    assert len(close_calls) == len(set(close_calls))
+    for descriptor in owned_descriptors:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
 @pytest.mark.parametrize(
     (
         "case",
