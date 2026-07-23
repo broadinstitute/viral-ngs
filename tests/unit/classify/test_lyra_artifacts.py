@@ -501,6 +501,83 @@ def test_normalized_no_hit_store_retains_every_nonviral_row(tmp_path):
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
+        (Decimal("8e-1"), "0.8"),
+        (Decimal("1e-7"), "0.0000001"),
+        (Decimal("0e-100000"), "0"),
+        (Decimal("-0e+100000"), "0"),
+        (Decimal("1e-158"), "0." + "0" * 157 + "1"),
+    ],
+)
+def test_threshold_validation_accepts_bounded_canonical_output(value, expected):
+    validated = lyra.validate_lyra_threshold(value)
+
+    assert validated is value
+    assert lyra._canonical_output_decimal(validated) == expected
+    assert len(expected) <= 160
+
+
+@pytest.mark.parametrize("value", ["1e-159", "1e-100000"])
+def test_threshold_validation_rejects_excessive_canonical_output_with_bounded_context(
+    value,
+):
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        lyra.validate_lyra_threshold(value)
+
+    error = exc_info.value
+    assert error.category == "threshold"
+    assert error.field == "threshold"
+    assert error.reason == "canonical threshold text exceeds 160 characters"
+    assert error.offending_value == repr(value)
+    assert len(str(error)) <= 320
+
+
+def test_normalized_writer_canonicalizes_finalized_threshold_once(
+    tmp_path,
+    monkeypatch,
+):
+    threshold = Decimal("0.8000")
+    fragments = [
+        lyra.LyraFragment(
+            read_id="one",
+            n_scores=1,
+            pairing=lyra.PAIRING_SINGLE_END,
+            min_score=Decimal("0.1"),
+            max_score=Decimal("0.1"),
+            threshold=threshold,
+            call=lyra.CALL_NONVIRAL,
+        ),
+        lyra.LyraFragment(
+            read_id="two",
+            n_scores=1,
+            pairing=lyra.PAIRING_SINGLE_END,
+            min_score=Decimal("0.9"),
+            max_score=Decimal("0.9"),
+            threshold=threshold,
+            call=lyra.CALL_VIRAL,
+        ),
+    ]
+    store = SimpleNamespace(
+        sample_id="sample",
+        threshold=threshold,
+        iter_fragments=lambda: iter(fragments),
+    )
+    canonicalized = []
+    original_canonicalizer = lyra._canonical_output_decimal
+
+    def record_canonicalization(value):
+        canonicalized.append(value)
+        return original_canonicalizer(value)
+
+    monkeypatch.setattr(lyra, "_canonical_output_decimal", record_canonicalization)
+
+    assert lyra._write_normalized(store, tmp_path / "normalized.tsv") == 2
+
+    assert canonicalized.count(threshold) == 1
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
         (Decimal("0"), "0"),
         (Decimal("-0"), "0"),
         (Decimal("0.8000"), "0.8"),
