@@ -680,16 +680,18 @@ def write_lyra_artifacts(
     work_dir=None,
 ):
     """Generate normalized and BAM artifacts, validate counts, then summarize."""
-    _validate_artifact_output_suffixes(
-        normalized_output,
-        summary_output,
-        viral_bam_output,
+    normalized_path, summary_path, viral_bam_path = (
+        _validate_artifact_output_suffixes(
+            normalized_output,
+            summary_output,
+            viral_bam_output,
+        )
     )
-    normalized_rows = _write_normalized(store, normalized_output)
+    normalized_rows = _write_normalized(store, normalized_path)
     output_bam_records = _write_viral_bam(
         store,
         source_bam,
-        viral_bam_output,
+        viral_bam_path,
         work_dir=work_dir,
     )
     _validate_artifact_counts(
@@ -697,7 +699,7 @@ def write_lyra_artifacts(
         normalized_rows,
         output_bam_records,
     )
-    _write_summary(store, summary_output, output_bam_records)
+    _write_summary(store, summary_path, output_bam_records)
 
 
 class LyraFragmentStore:
