@@ -293,9 +293,16 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
     monkeypatch.setattr(
         lyra,
         "_write_viral_bam",
-        lambda current_store, source, path, work_dir=None: calls.append(
-            ("bam", current_store, source, path, work_dir)
+        lambda current_store, path, work_dir=None: calls.append(
+            ("bam", current_store, path, work_dir)
         ) or 5,
+    )
+    monkeypatch.setattr(
+        lyra,
+        "_assert_source_bam_identity",
+        lambda current_store, stage: calls.append(
+            ("source_identity", current_store, stage)
+        ),
     )
     monkeypatch.setattr(
         lyra,
@@ -314,28 +321,28 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
 
     lyra.write_lyra_artifacts(
         store,
-        tmp_path / "source.bam",
         *paths,
         work_dir=tmp_path / "work",
     )
 
     assert [call[0] for call in calls] == [
         "suffixes",
+        "source_identity",
         "normalized",
         "bam",
         "invariants",
         "summary",
     ]
     assert calls[0][1] == paths
-    assert calls[1][1:] == (store, validated_paths[0])
-    assert calls[2][1:] == (
+    assert calls[1][1:] == (store, "pre_generation")
+    assert calls[2][1:] == (store, validated_paths[0])
+    assert calls[3][1:] == (
         store,
-        tmp_path / "source.bam",
         validated_paths[2],
         tmp_path / "work",
     )
-    assert calls[3][1:] == (counts, 3, 5)
-    assert calls[4][1:] == (store, validated_paths[1], 5)
+    assert calls[4][1:] == (counts, 3, 5)
+    assert calls[5][1:] == (store, validated_paths[1], 5)
 
 
 def test_coordinator_converts_each_stateful_output_pathlike_once(
@@ -379,7 +386,7 @@ def test_coordinator_converts_each_stateful_output_pathlike_once(
         producer_paths["normalized"] = (path, os.fspath(path))
         return 3
 
-    def write_viral_bam(current_store, source, path, work_dir=None):
+    def write_viral_bam(current_store, path, work_dir=None):
         producer_paths["viral_bam"] = (path, os.fspath(path))
         return 5
 
@@ -387,6 +394,7 @@ def test_coordinator_converts_each_stateful_output_pathlike_once(
         producer_paths["summary"] = (path, os.fspath(path))
 
     monkeypatch.setattr(lyra, "_validate_artifact_output_suffixes", count_validator)
+    monkeypatch.setattr(lyra, "_assert_source_bam_identity", lambda *args: None)
     monkeypatch.setattr(lyra, "_write_normalized", write_normalized)
     monkeypatch.setattr(lyra, "_write_viral_bam", write_viral_bam)
     monkeypatch.setattr(lyra, "_validate_artifact_counts", lambda *args: None)
@@ -394,7 +402,6 @@ def test_coordinator_converts_each_stateful_output_pathlike_once(
 
     lyra.write_lyra_artifacts(
         SimpleNamespace(counts=_consistent_counts()),
-        tmp_path / "source.bam",
         *outputs,
         work_dir=tmp_path,
     )
@@ -416,6 +423,7 @@ def test_coordinator_producer_failure_leaves_summary_unopened(
 ):
     summary = tmp_path / "summary.tsv"
     store = SimpleNamespace(counts=_consistent_counts())
+    monkeypatch.setattr(lyra, "_assert_source_bam_identity", lambda *args: None)
 
     if producer == "normalized":
         monkeypatch.setattr(
@@ -434,7 +442,6 @@ def test_coordinator_producer_failure_leaves_summary_unopened(
     with pytest.raises(RuntimeError, match=producer):
         lyra.write_lyra_artifacts(
             store,
-            tmp_path / "source.bam",
             tmp_path / "normalized.tsv",
             summary,
             tmp_path / "viral.bam",
@@ -460,6 +467,7 @@ def test_coordinator_count_mismatch_leaves_summary_unopened(
 ):
     summary = tmp_path / "summary.tsv"
     store = SimpleNamespace(counts=_consistent_counts())
+    monkeypatch.setattr(lyra, "_assert_source_bam_identity", lambda *args: None)
     monkeypatch.setattr(
         lyra,
         "_write_normalized",
@@ -474,7 +482,6 @@ def test_coordinator_count_mismatch_leaves_summary_unopened(
     with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
         lyra.write_lyra_artifacts(
             store,
-            tmp_path / "source.bam",
             tmp_path / "normalized.tsv",
             summary,
             tmp_path / "viral.bam",
@@ -495,7 +502,6 @@ def test_coordinator_invalid_suffix_opens_no_output(tmp_path):
     with pytest.raises(lyra.LyraInputError) as exc_info:
         lyra.write_lyra_artifacts(
             SimpleNamespace(),
-            tmp_path / "source.bam",
             *paths,
             work_dir=tmp_path,
         )
@@ -841,7 +847,6 @@ def test_viral_bam_fidelity_preserves_all_exact_qname_records(tmp_path):
         assert store.counts.score_records == 3
         emitted_count = lyra._write_viral_bam(
             store,
-            source_bam,
             output_bam,
             work_dir=tmp_path,
         )
@@ -897,7 +902,6 @@ def test_viral_bam_empty_call_set_preserves_header_and_returns_zero(tmp_path):
     ) as store:
         assert lyra._write_viral_bam(
             store,
-            source_bam,
             output_bam,
             work_dir=tmp_path,
         ) == 0
@@ -920,7 +924,6 @@ def test_viral_bam_rejects_a_mismatched_exact_id_cursor(tmp_path, monkeypatch):
         with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
             lyra._write_viral_bam(
                 store,
-                source_bam,
                 tmp_path / "mismatched-ids.bam",
                 work_dir=tmp_path,
             )
@@ -971,7 +974,6 @@ def test_coordinated_empty_and_all_ineligible_artifacts(
     ) as store:
         lyra.write_lyra_artifacts(
             store,
-            source_bam,
             normalized,
             summary,
             viral_bam,
@@ -1044,7 +1046,6 @@ def test_coordinated_no_hit_compressed_normalized_retains_every_fragment(tmp_pat
     ) as store:
         lyra.write_lyra_artifacts(
             store,
-            source_bam,
             normalized,
             summary,
             viral_bam,
@@ -1128,7 +1129,6 @@ def test_coordinated_bam_fidelity_counts_every_same_qname_companion(tmp_path):
     ) as store:
         lyra.write_lyra_artifacts(
             store,
-            source_bam,
             normalized,
             summary,
             viral_bam,
