@@ -1608,6 +1608,227 @@ def test_stage_cleanup_preserves_replacement_entry_with_bounded_mismatch(
         transaction.rollback_and_cleanup()
 
 
+def _run_post_publication_stage_descriptor_close_failure(
+    tmp_path,
+    monkeypatch,
+    fail_summary_rollback=False,
+):
+    with _publication_store(tmp_path, "post-publication-stage-close") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        primary = OSError(5, "injected post-publication stage close failure")
+        rollback_failure = OSError(5, "injected summary rollback unlink failure")
+        real_close = lyra.os.close
+        real_unlink = lyra.os.unlink
+        close_calls = []
+        published_snapshots = {}
+        summary_snapshot = []
+        failed_descriptor = []
+
+        def fail_stage_descriptor_close(descriptor):
+            stage_descriptors = {
+                stage.descriptor for stage in transaction.stages
+            }
+            parent_descriptors = {
+                anchor.descriptor for anchor in transaction._parent_anchors
+            }
+            if descriptor in stage_descriptors | parent_descriptors:
+                close_calls.append(descriptor)
+            target_descriptor = (
+                transaction.stages[-1].descriptor
+                if transaction.stages
+                else None
+            )
+            if descriptor == target_descriptor and not failed_descriptor:
+                published_snapshots.update(
+                    {
+                        os.fspath(path): _entry_snapshot(path)
+                        for path in outputs
+                    }
+                )
+                assert all(
+                    snapshot[0] == "file"
+                    for snapshot in published_snapshots.values()
+                )
+                summary_path = path_plan.summary.final_path
+                summary_snapshot.append(
+                    (
+                        lyra._file_identity(
+                            os.stat(summary_path, follow_symlinks=False)
+                        ),
+                        open(summary_path, "rb").read(),
+                    )
+                )
+                failed_descriptor.append(descriptor)
+                raise primary
+            return real_close(descriptor)
+
+        def fail_summary_rollback_unlink(path, *, dir_fd=None):
+            summary_parent = next(
+                stage.parent
+                for stage in transaction.stages
+                if stage.role == "summary"
+            )
+            if (
+                fail_summary_rollback
+                and failed_descriptor
+                and path == os.path.basename(path_plan.summary.final_path)
+                and dir_fd == summary_parent.descriptor
+            ):
+                raise rollback_failure
+            return real_unlink(path, dir_fd=dir_fd)
+
+        try:
+            with monkeypatch.context() as patch:
+                patch.setattr(lyra.os, "close", fail_stage_descriptor_close)
+                patch.setattr(lyra.os, "unlink", fail_summary_rollback_unlink)
+                with pytest.raises(lyra.LyraPublicationError) as exc_info:
+                    transaction.generate_validate_and_publish()
+            error = exc_info.value
+        finally:
+            for descriptor in failed_descriptor:
+                try:
+                    os.fstat(descriptor)
+                except OSError:
+                    continue
+                real_close(descriptor)
+
+    return (
+        transaction,
+        error,
+        primary,
+        path_plan,
+        outputs,
+        published_snapshots,
+        summary_snapshot[0],
+        close_calls,
+    )
+
+
+def test_post_publication_stage_descriptor_close_rolls_back_with_live_parent_anchors(
+    tmp_path,
+    monkeypatch,
+):
+    (
+        transaction,
+        error,
+        primary,
+        _,
+        outputs,
+        published_snapshots,
+        _,
+        close_calls,
+    ) = _run_post_publication_stage_descriptor_close_failure(
+        tmp_path,
+        monkeypatch,
+    )
+
+    assert error.stage == "close_transaction_descriptors"
+    assert error.__cause__ is primary
+    assert set(published_snapshots) == {os.fspath(path) for path in outputs}
+    assert [
+        (outcome.role, outcome.status)
+        for outcome in transaction.cleanup_outcomes
+        if outcome.operation == "rollback"
+    ] == [
+        ("summary", "removed"),
+        ("viral_bam", "removed"),
+        ("normalized", "removed"),
+    ]
+    assert [
+        (
+            failure.category,
+            failure.operation,
+            failure.role,
+            failure.error_type,
+            failure.errno,
+        )
+        for failure in error.cleanup_failures
+    ] == [
+        (
+            "transaction_descriptor_close_failed",
+            "close_stage_descriptor",
+            transaction.stages[-1].role,
+            "OSError",
+            5,
+        )
+    ]
+    assert not any(
+        failure.category in {
+            "rollback_lstat_failed",
+            "rollback_entry_stat_failed",
+        }
+        for failure in error.cleanup_failures
+    )
+    assert close_calls == [
+        stage.descriptor for stage in reversed(transaction.stages)
+    ] + [
+        anchor.descriptor for anchor in reversed(transaction._parent_anchors)
+    ]
+    assert not any(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_post_publication_stage_descriptor_close_with_failed_rollback_unlink_preserves_reported_residual(
+    tmp_path,
+    monkeypatch,
+):
+    (
+        _,
+        error,
+        primary,
+        path_plan,
+        outputs,
+        _,
+        summary_snapshot,
+        _,
+    ) = _run_post_publication_stage_descriptor_close_failure(
+        tmp_path,
+        monkeypatch,
+        fail_summary_rollback=True,
+    )
+
+    assert error.stage == "close_transaction_descriptors"
+    assert error.__cause__ is primary
+    expected_identity, expected_bytes = summary_snapshot
+    assert lyra._file_identity(
+        os.stat(path_plan.summary.final_path, follow_symlinks=False)
+    ) == expected_identity
+    assert open(path_plan.summary.final_path, "rb").read() == expected_bytes
+    assert not outputs[0].exists()
+    assert not outputs[2].exists()
+    rollback_failures = [
+        failure
+        for failure in error.cleanup_failures
+        if failure.category == "rollback_unlink_failed"
+    ]
+    assert rollback_failures == [
+        lyra.CleanupFailure(
+            operation="rollback",
+            role="summary",
+            path=path_plan.summary.final_path,
+            error_type="OSError",
+            errno=5,
+            category="rollback_unlink_failed",
+        )
+    ]
+    assert error.cleanup_failures[0].category == (
+        "transaction_descriptor_close_failed"
+    )
+    assert error.cleanup_failures_truncated is False
+    assert not list(tmp_path.rglob(".lyra-*"))
+    os.unlink(path_plan.summary.final_path)
+
+
 def test_descriptor_close_failure_does_not_stop_remaining_owned_closes(
     tmp_path,
     monkeypatch,
