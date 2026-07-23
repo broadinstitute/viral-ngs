@@ -12,10 +12,10 @@ import pysam
 from viral_ngs.classify import lyra
 
 
-def _segment(query_name):
+def _segment(query_name, flag=0x4):
     record = pysam.AlignedSegment()
     record.query_name = query_name
-    record.flag = 0x4
+    record.flag = flag
     record.query_sequence = "A" * 50
     record.query_qualities = pysam.qualitystring_to_array("I" * 50)
     record.reference_id = -1
@@ -42,6 +42,93 @@ def _write_scores(tmp_path, name="scores.tsv", query_name="read"):
         encoding="utf-8",
     )
     return path
+
+
+def _write_score_rows(tmp_path, name, rows):
+    path = tmp_path / name
+    path.write_text(
+        "read_id\tscore\tcall\n"
+        + "".join("{}\t{}\t{}\n".format(*row) for row in rows),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_bam_records(tmp_path, name, records, header=None):
+    path = tmp_path / name
+    header = header or {
+        "HD": {"VN": "1.6", "SO": "unsorted"},
+        "PG": [{"ID": "source", "PN": "fixture"}],
+        "SQ": [],
+    }
+    with pysam.AlignmentFile(str(path), "wb", header=header) as bam:
+        for record in records:
+            bam.write(record)
+    return path, header
+
+
+@contextmanager
+def _publication_store(tmp_path, name="publication", rows=None, records=None):
+    rows = rows if rows is not None else [
+        ("alpha", "0.9", "0"),
+        ("zeta", "0.1", "1"),
+    ]
+    records = records if records is not None else [
+        _segment("zeta"),
+        _segment("alpha"),
+    ]
+    score_path = _write_score_rows(tmp_path, name + "-scores.tsv", rows)
+    bam_path, header = _write_bam_records(
+        tmp_path,
+        name + "-source.bam",
+        records,
+    )
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        bam_path,
+        "sample exact",
+        Decimal("0.8000"),
+        work_dir=tmp_path,
+    ) as store:
+        yield store, score_path, bam_path, header
+
+
+def _staged_plan(tmp_path, score_path, bam_path, normalized_suffix=".tsv"):
+    parents = [tmp_path / role for role in ("normalized", "summary", "bam")]
+    for parent in parents:
+        parent.mkdir(exist_ok=True)
+    outputs = (
+        parents[0] / ("result" + normalized_suffix),
+        parents[1] / "result.tsv",
+        parents[2] / "result.bam",
+    )
+    return lyra._build_artifact_path_plan(score_path, bam_path, *outputs), outputs
+
+
+def _generate_staged_artifacts(store, path_plan, work_dir):
+    stages = tuple(
+        lyra._create_artifact_stage(destination)
+        for destination in (
+            path_plan.normalized,
+            path_plan.summary,
+            path_plan.viral_bam,
+        )
+    )
+    normalized_rows = lyra._write_normalized(store, stages[0].stage_path)
+    bam_records = lyra._write_viral_bam(
+        store,
+        stages[2].stage_path,
+        work_dir=work_dir,
+    )
+    lyra._validate_artifact_counts(store.counts, normalized_rows, bam_records)
+    lyra._write_summary(store, stages[1].stage_path, bam_records)
+    return stages, normalized_rows, bam_records
+
+
+def _remove_stages(stages):
+    for stage in stages:
+        if os.path.lexists(stage.stage_path):
+            os.unlink(stage.stage_path)
 
 
 def _artifact_paths(tmp_path, prefix):
@@ -903,3 +990,352 @@ def test_source_mutation_after_bam_filter_prevents_counts_and_summary(
     assert exc_info.value.stage == "after_bam_filter"
     assert accepted_calls == []
     assert not outputs[1].exists()
+
+
+@pytest.mark.parametrize(
+    "normalized_suffix",
+    [".tsv", ".tsv.gz", ".tsv.zst"],
+)
+def test_staged_paths_are_hidden_same_parent_and_preserve_exact_suffix(
+    tmp_path,
+    normalized_suffix,
+):
+    score_path = _write_scores(tmp_path, "stage-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "stage-source.bam")
+    path_plan, _ = _staged_plan(
+        tmp_path,
+        score_path,
+        bam_path,
+        normalized_suffix,
+    )
+    destinations = (
+        path_plan.normalized,
+        path_plan.summary,
+        path_plan.viral_bam,
+    )
+    stages = tuple(lyra._create_artifact_stage(item) for item in destinations)
+    try:
+        assert [field.name for field in fields(lyra.ArtifactStage)] == [
+            "role",
+            "stage_path",
+            "destination",
+        ]
+        for stage, destination in zip(stages, destinations):
+            stage_parent = os.stat(os.path.dirname(stage.stage_path))
+            final_parent = os.stat(destination.parent_path)
+            assert (stage_parent.st_dev, stage_parent.st_ino) == (
+                final_parent.st_dev,
+                final_parent.st_ino,
+            )
+            assert os.path.basename(stage.stage_path).startswith(
+                ".lyra-{}-".format(destination.role)
+            )
+            assert stage.stage_path.endswith(destination.suffix)
+            assert stage.destination is destination
+    finally:
+        _remove_stages(stages)
+
+
+@pytest.mark.parametrize(
+    (
+        "case",
+        "normalized_suffix",
+        "rows",
+        "records",
+        "expected_rows",
+        "expected_bam",
+    ),
+    [
+        ("empty", ".tsv", [], [], 0, 0),
+        (
+            "no-hit",
+            ".tsv.gz",
+            [("alpha", "0.1", "1")],
+            [_segment("alpha")],
+            1,
+            0,
+        ),
+        ("rich-zstd", ".tsv.zst", None, None, 2, 1),
+    ],
+)
+def test_staged_readback_accepts_empty_no_hit_and_compressed_outputs(
+    tmp_path,
+    case,
+    normalized_suffix,
+    rows,
+    records,
+    expected_rows,
+    expected_bam,
+):
+    with _publication_store(tmp_path, case, rows=rows, records=records) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(
+            tmp_path,
+            score_path,
+            bam_path,
+            normalized_suffix,
+        )
+        stages, producer_rows, producer_bam = _generate_staged_artifacts(
+            store,
+            path_plan,
+            tmp_path,
+        )
+        try:
+            assert producer_rows == expected_rows
+            assert producer_bam == expected_bam
+            assert lyra._validate_staged_normalized(
+                store,
+                stages[0].stage_path,
+            ) == expected_rows
+            assert lyra._validate_staged_bam(
+                store,
+                stages[2].stage_path,
+            ) == expected_bam
+            lyra._validate_staged_summary(
+                store,
+                stages[1].stage_path,
+                expected_rows,
+                expected_bam,
+            )
+            assert not any(path.exists() for path in outputs)
+        finally:
+            _remove_stages(stages)
+
+
+@pytest.mark.parametrize(
+    ("corruption", "mutate"),
+    [
+        ("header", lambda value: value.replace(b"SAMPLE_ID", b"sample_id", 1)),
+        ("width", lambda value: value.replace(b"\tViral\n", b"\n", 1)),
+        ("sample", lambda value: value.replace(b"sample exact", b"other", 1)),
+        ("read-id", lambda value: value.replace(b"\talpha\t", b"\tbeta\t", 1)),
+        (
+            "order",
+            lambda value: b"\n".join(
+                value.split(b"\n")[:1]
+                + list(reversed(value.split(b"\n")[1:-1]))
+            )
+            + b"\n",
+        ),
+        ("pairing", lambda value: value.replace(b"Single-end", b"single-end", 1)),
+        ("call", lambda value: value.replace(b"Viral\n", b"viral\n", 1)),
+        ("decimal", lambda value: value.replace(b"\t0.9\t0.9\t", b"\t0.90\t0.9\t", 1)),
+        ("row-count", lambda value: b"\n".join(value.split(b"\n")[:-2]) + b"\n"),
+        ("missing-lf", lambda value: value.rstrip(b"\n")),
+    ],
+)
+def test_staged_normalized_readback_rejects_exact_contract_corruption(
+    tmp_path,
+    corruption,
+    mutate,
+):
+    with _publication_store(tmp_path, "normalized-corrupt-" + corruption) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+        stages, _, _ = _generate_staged_artifacts(store, path_plan, tmp_path)
+        try:
+            normalized_stage = stages[0].stage_path
+            with open(normalized_stage, "rb") as stream:
+                contents = stream.read()
+            with open(normalized_stage, "wb") as stream:
+                stream.write(mutate(contents))
+
+            with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+                lyra._validate_staged_normalized(store, normalized_stage)
+
+            assert exc_info.value.category == "normalized_readback"
+        finally:
+            _remove_stages(stages)
+
+
+@pytest.mark.parametrize("normalized_suffix", [".tsv.gz", ".tsv.zst"])
+def test_staged_normalized_readback_rejects_truncated_compression(
+    tmp_path,
+    normalized_suffix,
+):
+    with _publication_store(tmp_path, "truncated" + normalized_suffix) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, _ = _staged_plan(
+            tmp_path,
+            score_path,
+            bam_path,
+            normalized_suffix,
+        )
+        stages, _, _ = _generate_staged_artifacts(store, path_plan, tmp_path)
+        try:
+            normalized_stage = stages[0].stage_path
+            with open(normalized_stage, "r+b") as stream:
+                stream.truncate(os.path.getsize(normalized_stage) - 2)
+
+            with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+                lyra._validate_staged_normalized(store, normalized_stage)
+
+            assert exc_info.value.category == "normalized_readback"
+            assert isinstance(exc_info.value.__cause__, lyra._COMPRESSION_EXCEPTIONS)
+        finally:
+            _remove_stages(stages)
+
+
+@pytest.mark.parametrize(
+    ("corruption", "mutate"),
+    [
+        ("header", lambda value: value.replace(b"SAMPLE_ID", b"sample_id", 1)),
+        ("width", lambda value: value.replace(b"\t1\n", b"\n", 1)),
+        ("value", lambda value: value.replace(b"sample exact", b"other", 1)),
+        ("equation", lambda value: value.rsplit(b"\t1\n", 1)[0] + b"\t0\n"),
+        ("extra-row", lambda value: value + b"extra\n"),
+        ("trailing-bytes", lambda value: value + b"trailing"),
+    ],
+)
+def test_staged_summary_readback_rejects_corruption(
+    tmp_path,
+    corruption,
+    mutate,
+):
+    with _publication_store(tmp_path, "summary-corrupt-" + corruption) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+        stages, normalized_rows, bam_records = _generate_staged_artifacts(
+            store,
+            path_plan,
+            tmp_path,
+        )
+        try:
+            summary_stage = stages[1].stage_path
+            with open(summary_stage, "rb") as stream:
+                contents = stream.read()
+            with open(summary_stage, "wb") as stream:
+                stream.write(mutate(contents))
+
+            with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+                lyra._validate_staged_summary(
+                    store,
+                    summary_stage,
+                    normalized_rows,
+                    bam_records,
+                )
+
+            assert exc_info.value.category == "summary_readback"
+        finally:
+            _remove_stages(stages)
+
+
+@pytest.mark.parametrize("corruption", ["header", "record-count", "truncated"])
+def test_staged_bam_readback_rejects_header_count_and_truncation(
+    tmp_path,
+    corruption,
+):
+    with _publication_store(tmp_path, "bam-corrupt-" + corruption) as (
+        store,
+        score_path,
+        bam_path,
+        header,
+    ):
+        path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+        stages, _, expected_bam_records = _generate_staged_artifacts(
+            store,
+            path_plan,
+            tmp_path,
+        )
+        try:
+            bam_stage = stages[2].stage_path
+            if corruption == "header":
+                wrong_header = dict(header)
+                wrong_header["CO"] = ["changed"]
+                _write_bam_records(
+                    tmp_path / "bam",
+                    os.path.basename(bam_stage),
+                    [_segment("alpha")],
+                    header=wrong_header,
+                )
+            elif corruption == "record-count":
+                _write_bam_records(
+                    tmp_path / "bam",
+                    os.path.basename(bam_stage),
+                    [],
+                    header=header,
+                )
+            else:
+                with open(bam_stage, "r+b") as stream:
+                    stream.truncate(max(1, os.path.getsize(bam_stage) - 16))
+
+            if corruption == "record-count":
+                assert lyra._validate_staged_bam(store, bam_stage) == 0
+                assert expected_bam_records == 1
+            else:
+                with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+                    lyra._validate_staged_bam(store, bam_stage)
+                assert exc_info.value.category == "bam_readback"
+        finally:
+            _remove_stages(stages)
+
+
+def test_all_staged_readback_finishes_before_first_final_link(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "readback-before-link") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(
+            tmp_path,
+            score_path,
+            bam_path,
+            ".tsv.zst",
+        )
+        readbacks = []
+        original_normalized = lyra._validate_staged_normalized
+        original_bam = lyra._validate_staged_bam
+        original_summary = lyra._validate_staged_summary
+        original_link = lyra._link_no_clobber
+
+        def validate_normalized(*args):
+            assert not any(path.exists() for path in outputs)
+            result = original_normalized(*args)
+            readbacks.append("normalized")
+            return result
+
+        def validate_bam(*args):
+            assert not any(path.exists() for path in outputs)
+            result = original_bam(*args)
+            readbacks.append("bam")
+            return result
+
+        def validate_summary(*args):
+            assert not any(path.exists() for path in outputs)
+            result = original_summary(*args)
+            readbacks.append("summary")
+            return result
+
+        def link(stage_path, final_path):
+            assert readbacks == ["normalized", "bam", "summary"]
+            return original_link(stage_path, final_path)
+
+        monkeypatch.setattr(lyra, "_validate_staged_normalized", validate_normalized)
+        monkeypatch.setattr(lyra, "_validate_staged_bam", validate_bam)
+        monkeypatch.setattr(lyra, "_validate_staged_summary", validate_summary)
+        monkeypatch.setattr(lyra, "_link_no_clobber", link)
+
+        lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    assert all(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
