@@ -1351,3 +1351,274 @@ def test_all_staged_readback_finishes_before_first_final_link(
 
     assert all(path.exists() for path in outputs)
     assert not list(tmp_path.rglob(".lyra-*"))
+
+
+@pytest.mark.parametrize(
+    ("helper_name", "expected_flags"),
+    [
+        ("_fsync_file", os.O_RDONLY),
+        ("_fsync_directory", os.O_RDONLY | os.O_DIRECTORY),
+    ],
+)
+def test_fsync_helpers_open_read_only_close_and_propagate(
+    monkeypatch,
+    helper_name,
+    expected_flags,
+):
+    operations = []
+
+    def open_path(path, flags):
+        operations.append(("open", path, flags))
+        return 17
+
+    def fail_fsync(descriptor):
+        operations.append(("fsync", descriptor))
+        raise OSError(5, "injected fsync failure")
+
+    def close_descriptor(descriptor):
+        operations.append(("close", descriptor))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(lyra.os, "open", open_path)
+        patch.setattr(lyra.os, "fsync", fail_fsync)
+        patch.setattr(lyra.os, "close", close_descriptor)
+
+        with pytest.raises(OSError, match="injected fsync failure"):
+            getattr(lyra, helper_name)("/artifact/path")
+
+    assert operations == [
+        ("open", "/artifact/path", expected_flags),
+        ("fsync", 17),
+        ("close", 17),
+    ]
+
+
+def _operation_role(path, path_plan):
+    for destination in (
+        path_plan.normalized,
+        path_plan.viral_bam,
+        path_plan.summary,
+    ):
+        if path == destination.final_path:
+            return destination.role + "_final"
+        if os.path.basename(path).startswith(
+            ".lyra-{}-".format(destination.role)
+        ):
+            return destination.role + "_stage"
+        if path == destination.parent_path:
+            return destination.role + "_parent"
+    raise AssertionError("unknown transaction path: {}".format(path))
+
+
+def test_publish_order_flushes_every_stage_and_syncs_summary_parent_last(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "publish-order") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        operations = []
+        original_validate = lyra._validate_staged_artifacts
+        original_fsync_file = lyra._fsync_file
+        original_fsync_directory = lyra._fsync_directory
+        original_link = lyra._link_no_clobber
+        original_unlink = lyra._unlink_path
+
+        def validate(*args):
+            result = original_validate(*args)
+            operations.append(("validated", "all"))
+            return result
+
+        def fsync_file(path):
+            operations.append(("fsync_file", _operation_role(path, path_plan)))
+            return original_fsync_file(path)
+
+        def fsync_directory(path):
+            operations.append(("fsync_dir", _operation_role(path, path_plan)))
+            return original_fsync_directory(path)
+
+        def link(stage_path, final_path):
+            operations.append(("link", _operation_role(final_path, path_plan)))
+            return original_link(stage_path, final_path)
+
+        def unlink(path):
+            operations.append(("unlink", _operation_role(path, path_plan)))
+            return original_unlink(path)
+
+        monkeypatch.setattr(lyra, "_validate_staged_artifacts", validate)
+        monkeypatch.setattr(lyra, "_fsync_file", fsync_file)
+        monkeypatch.setattr(lyra, "_fsync_directory", fsync_directory)
+        monkeypatch.setattr(lyra, "_link_no_clobber", link)
+        monkeypatch.setattr(lyra, "_unlink_path", unlink)
+
+        lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    assert operations == [
+        ("validated", "all"),
+        ("fsync_file", "normalized_stage"),
+        ("fsync_file", "viral_bam_stage"),
+        ("fsync_file", "summary_stage"),
+        ("fsync_dir", "normalized_parent"),
+        ("fsync_dir", "viral_bam_parent"),
+        ("fsync_dir", "summary_parent"),
+        ("link", "normalized_final"),
+        ("fsync_dir", "normalized_parent"),
+        ("link", "viral_bam_final"),
+        ("fsync_dir", "viral_bam_parent"),
+        ("unlink", "normalized_stage"),
+        ("fsync_dir", "normalized_parent"),
+        ("unlink", "viral_bam_stage"),
+        ("fsync_dir", "viral_bam_parent"),
+        ("link", "summary_final"),
+        ("unlink", "summary_stage"),
+        ("fsync_dir", "summary_parent"),
+    ]
+    assert all(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+@pytest.mark.parametrize("failure_kind", ["file", "directory"])
+def test_fsync_failure_prevents_summary_and_cleans_all_stages(
+    tmp_path,
+    monkeypatch,
+    failure_kind,
+):
+    with _publication_store(tmp_path, "fsync-failure-" + failure_kind) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        helper_name = "_fsync_file" if failure_kind == "file" else "_fsync_directory"
+
+        def fail(_path):
+            raise OSError(5, "injected {} fsync failure".format(failure_kind))
+
+        monkeypatch.setattr(lyra, helper_name, fail)
+
+        with pytest.raises(OSError, match="injected .* fsync failure"):
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    assert not any(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_bam_link_failure_rolls_back_normalized_and_leaves_no_summary(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "bam-link-failure") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        original_link = lyra._link_no_clobber
+
+        def fail_bam_link(stage_path, final_path):
+            if final_path == path_plan.viral_bam.final_path:
+                raise OSError(5, "injected BAM link failure")
+            return original_link(stage_path, final_path)
+
+        monkeypatch.setattr(lyra, "_link_no_clobber", fail_bam_link)
+
+        with pytest.raises(OSError, match="injected BAM link failure"):
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    assert not any(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_stage_cleanup_ignores_tmpkeep_after_validation_failure(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("VIRAL_NGS_TMP_DIRKEEP", "1")
+    with _publication_store(tmp_path, "tmpkeep-failure") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+
+        def fail_validation(*args):
+            raise RuntimeError("injected validation failure")
+
+        monkeypatch.setattr(lyra, "_validate_staged_artifacts", fail_validation)
+
+        with pytest.raises(RuntimeError, match="injected validation failure"):
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    assert not any(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_rollback_preserves_observed_replacement_and_reports_identity_mismatch(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "rollback-replacement") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        original_link = lyra._link_no_clobber
+
+        def replace_before_failure(stage_path, final_path):
+            if final_path == path_plan.viral_bam.final_path:
+                os.unlink(path_plan.normalized.final_path)
+                with open(path_plan.normalized.final_path, "wb") as stream:
+                    stream.write(b"caller replacement")
+                raise OSError(5, "injected BAM link failure")
+            return original_link(stage_path, final_path)
+
+        monkeypatch.setattr(lyra, "_link_no_clobber", replace_before_failure)
+
+        with pytest.raises(OSError, match="injected BAM link failure"):
+            transaction.generate_validate_and_publish()
+
+        outcomes = transaction.cleanup_outcomes
+
+    assert outputs[0].read_bytes() == b"caller replacement"
+    assert not outputs[1].exists()
+    assert not outputs[2].exists()
+    assert any(
+        outcome.operation == "rollback"
+        and outcome.role == "normalized"
+        and outcome.status == "identity_mismatch"
+        for outcome in outcomes
+    )
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_publication_records_are_frozen_and_transaction_state_is_observable(
+    tmp_path,
+):
+    score_path = _write_scores(tmp_path, "transaction-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "transaction-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+
+    assert [field.name for field in fields(lyra.PublishedArtifact)] == [
+        "role",
+        "final_path",
+        "identity",
+    ]
+    assert transaction.stage == "initialized"
+    assert transaction.stages == ()
+    assert transaction.published == ()
+    assert transaction.cleanup_outcomes == ()
