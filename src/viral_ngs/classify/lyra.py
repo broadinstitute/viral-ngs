@@ -366,6 +366,15 @@ class ArtifactDestination:
 
 
 @dataclass(frozen=True)
+class ArtifactStage:
+    """One hidden same-parent artifact under transaction ownership."""
+
+    role: str
+    stage_path: str
+    destination: ArtifactDestination
+
+
+@dataclass(frozen=True)
 class LyraArtifactPathPlan:
     """Converted inputs and resolved destinations for one artifact set."""
 
@@ -756,6 +765,348 @@ def _write_viral_bam(
             return output_bam_records
 
 
+def _create_artifact_stage(destination):
+    """Create one hidden stage in its resolved final parent directory."""
+    descriptor, stage_path = tempfile.mkstemp(
+        dir=destination.parent_path,
+        prefix=".lyra-{}-".format(destination.role),
+        suffix=destination.suffix,
+    )
+    try:
+        os.close(descriptor)
+    except BaseException:
+        try:
+            os.unlink(stage_path)
+        finally:
+            raise
+    return ArtifactStage(
+        role=destination.role,
+        stage_path=stage_path,
+        destination=destination,
+    )
+
+
+def _readback_error(category, field=None, expected=None, actual=None, read_id=None):
+    return LyraArtifactConsistencyError(
+        category=category,
+        field=field,
+        expected=expected,
+        actual=actual,
+        read_id=read_id,
+    )
+
+
+def _iter_strict_staged_rows(stage_path, category):
+    """Stream strict UTF-8, LF-terminated physical rows from one stage."""
+    try:
+        with util_file.open_or_gzopen(stage_path, "rb") as raw_stream:
+            if isinstance(raw_stream, io.BufferedIOBase):
+                buffered_stream = raw_stream
+            else:
+                buffered_stream = io.BufferedReader(raw_stream)
+            try:
+                for line_number, raw_line in enumerate(buffered_stream, start=1):
+                    if not raw_line.endswith(b"\n"):
+                        raise _readback_error(
+                            category,
+                            field="line_ending",
+                            expected="LF-terminated row",
+                            actual="missing final LF at line {}".format(line_number),
+                        )
+                    content = raw_line[:-1]
+                    if b"\r" in content:
+                        raise _readback_error(
+                            category,
+                            field="line_ending",
+                            expected="LF only",
+                            actual="carriage return at line {}".format(line_number),
+                        )
+                    try:
+                        text = content.decode("utf-8", errors="strict")
+                    except UnicodeDecodeError as exc:
+                        raise _readback_error(
+                            category,
+                            field="utf8",
+                            expected="strict UTF-8",
+                            actual="invalid UTF-8 at line {}".format(line_number),
+                        ) from exc
+                    yield line_number, tuple(text.split("\t"))
+            finally:
+                if buffered_stream is not raw_stream:
+                    buffered_stream.close()
+        if stage_path.endswith(".tsv.zst"):
+            _validate_complete_zstd_frames(stage_path)
+    except LyraArtifactConsistencyError:
+        raise
+    except _COMPRESSION_EXCEPTIONS as exc:
+        raise _readback_error(
+            category,
+            field="compression",
+            expected="complete compressed stream",
+            actual="decoder rejected staged output",
+        ) from exc
+
+
+def _validate_staged_normalized(store, stage_path):
+    """Stream-compare a closed normalized stage with finalized fragments."""
+    rows = _iter_strict_staged_rows(stage_path, "normalized_readback")
+    try:
+        _, header = next(rows)
+    except StopIteration as exc:
+        raise _readback_error(
+            "normalized_readback",
+            field="header",
+            expected=NORMALIZED_HEADER,
+            actual="missing",
+        ) from exc
+    if header != NORMALIZED_HEADER:
+        raise _readback_error(
+            "normalized_readback",
+            field="header",
+            expected=NORMALIZED_HEADER,
+            actual=header,
+        )
+
+    pairing_values = {
+        PAIRING_SINGLE_END,
+        PAIRING_COMPLETE,
+        PAIRING_INCOMPLETE,
+    }
+    call_values = {CALL_VIRAL, CALL_NONVIRAL}
+    threshold_text = _canonical_output_decimal(store.threshold)
+    fragments = store.iter_fragments()
+    row_count = 0
+    try:
+        for line_number, fields in rows:
+            if len(fields) != len(NORMALIZED_HEADER):
+                raise _readback_error(
+                    "normalized_readback",
+                    field="row_width",
+                    expected=len(NORMALIZED_HEADER),
+                    actual=len(fields),
+                )
+            try:
+                fragment = next(fragments)
+            except StopIteration as exc:
+                raise _readback_error(
+                    "normalized_readback",
+                    field="row_count",
+                    expected=store.counts.fragments,
+                    actual="extra row at line {}".format(line_number),
+                ) from exc
+            if fields[3] not in pairing_values:
+                raise _readback_error(
+                    "normalized_readback",
+                    field="LYRA_PAIRING",
+                    expected="locked pairing vocabulary",
+                    actual=fields[3],
+                    read_id=fragment.read_id,
+                )
+            if fields[7] not in call_values:
+                raise _readback_error(
+                    "normalized_readback",
+                    field="LYRA_CALL",
+                    expected="locked call vocabulary",
+                    actual=fields[7],
+                    read_id=fragment.read_id,
+                )
+            expected_fields = (
+                store.sample_id,
+                fragment.read_id,
+                str(fragment.n_scores),
+                fragment.pairing,
+                _canonical_output_decimal(fragment.min_score),
+                _canonical_output_decimal(fragment.max_score),
+                threshold_text,
+                fragment.call,
+            )
+            for field_name, expected, actual in zip(
+                NORMALIZED_HEADER,
+                expected_fields,
+                fields,
+            ):
+                if actual != expected:
+                    raise _readback_error(
+                        "normalized_readback",
+                        field=field_name,
+                        expected=expected,
+                        actual=actual,
+                        read_id=fragment.read_id,
+                    )
+            row_count += 1
+
+        try:
+            missing_fragment = next(fragments)
+        except StopIteration:
+            missing_fragment = None
+        if missing_fragment is not None:
+            raise _readback_error(
+                "normalized_readback",
+                field="row_count",
+                expected=store.counts.fragments,
+                actual=row_count,
+                read_id=missing_fragment.read_id,
+            )
+    finally:
+        close = getattr(fragments, "close", None)
+        if close is not None:
+            close()
+
+    if row_count != store.counts.fragments:
+        raise _readback_error(
+            "normalized_readback",
+            field="row_count",
+            expected=store.counts.fragments,
+            actual=row_count,
+        )
+    return row_count
+
+
+def _validate_staged_bam(store, stage_path):
+    """Validate the staged BAM header and stream its actual record count."""
+    try:
+        with pysam.AlignmentFile(stage_path, "rb", check_sq=False) as bam:
+            actual_header = bam.header.to_dict()
+            if actual_header != store.source_bam_header:
+                raise _readback_error(
+                    "bam_readback",
+                    field="header",
+                    expected=store.source_bam_header,
+                    actual=actual_header,
+                )
+            record_count = 0
+            for _ in bam.fetch(until_eof=True):
+                record_count += 1
+    except LyraArtifactConsistencyError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise _readback_error(
+            "bam_readback",
+            field="bam",
+            expected="readable complete BAM",
+            actual=type(exc).__name__,
+        ) from exc
+    return record_count
+
+
+def _validate_staged_summary(
+    store,
+    stage_path,
+    normalized_rows,
+    bam_records,
+):
+    """Validate the exact one-row summary and rerun all count equations."""
+    rows = _iter_strict_staged_rows(stage_path, "summary_readback")
+    try:
+        _, header = next(rows)
+        _, fields = next(rows)
+    except StopIteration as exc:
+        raise _readback_error(
+            "summary_readback",
+            field="rows",
+            expected="header and one data row",
+            actual="missing row",
+        ) from exc
+    if header != SUMMARY_HEADER:
+        raise _readback_error(
+            "summary_readback",
+            field="header",
+            expected=SUMMARY_HEADER,
+            actual=header,
+        )
+    if len(fields) != len(SUMMARY_HEADER):
+        raise _readback_error(
+            "summary_readback",
+            field="row_width",
+            expected=len(SUMMARY_HEADER),
+            actual=len(fields),
+        )
+    try:
+        _, extra = next(rows)
+    except StopIteration:
+        extra = None
+    if extra is not None:
+        raise _readback_error(
+            "summary_readback",
+            field="rows",
+            expected="exactly one data row",
+            actual="extra row",
+        )
+
+    counts = store.counts
+    expected_fields = (
+        store.sample_id,
+        _canonical_output_decimal(store.threshold),
+        str(counts.input_bam_records),
+        str(counts.eligible_bam_records),
+        str(counts.score_records),
+        str(counts.fragments),
+        str(counts.single_end_fragments),
+        str(counts.complete_pair_fragments),
+        str(counts.incomplete_pair_fragments),
+        str(counts.viral_fragment_calls),
+        str(counts.nonviral_fragment_calls),
+        str(bam_records),
+    )
+    for field_name, expected, actual in zip(
+        SUMMARY_HEADER,
+        expected_fields,
+        fields,
+    ):
+        if actual != expected:
+            raise _readback_error(
+                "summary_readback",
+                field=field_name,
+                expected=expected,
+                actual=actual,
+            )
+    try:
+        _validate_artifact_counts(counts, normalized_rows, bam_records)
+    except LyraArtifactConsistencyError as exc:
+        raise _readback_error(
+            "summary_readback",
+            field="equations",
+            expected="all artifact count equations",
+            actual=exc.category,
+        ) from exc
+
+
+def _validate_staged_artifacts(
+    store,
+    normalized_stage,
+    summary_stage,
+    bam_stage,
+    producer_normalized_rows,
+    producer_bam_records,
+):
+    normalized_rows = _validate_staged_normalized(
+        store,
+        normalized_stage.stage_path,
+    )
+    bam_records = _validate_staged_bam(store, bam_stage.stage_path)
+    if normalized_rows != producer_normalized_rows:
+        raise _readback_error(
+            "normalized_readback",
+            field="producer_row_count",
+            expected=producer_normalized_rows,
+            actual=normalized_rows,
+        )
+    if bam_records != producer_bam_records:
+        raise _readback_error(
+            "bam_readback",
+            field="producer_record_count",
+            expected=producer_bam_records,
+            actual=bam_records,
+        )
+    _validate_staged_summary(
+        store,
+        summary_stage.stage_path,
+        normalized_rows,
+        bam_records,
+    )
+    return normalized_rows, bam_records
+
+
 def _validate_artifact_output_suffixes(
     normalized_output,
     summary_output,
@@ -1065,23 +1416,58 @@ def write_lyra_artifacts(
     path_plan,
     work_dir=None,
 ):
-    """Generate normalized and BAM artifacts, validate counts, then summarize."""
+    """Generate, read back, and publish one coordinated artifact set."""
     if not isinstance(path_plan, LyraArtifactPathPlan):
         raise TypeError("path_plan must be a LyraArtifactPathPlan")
     _assert_path_plan_available(path_plan, "pre_generation")
     _assert_source_bam_identity(store, "pre_generation")
-    normalized_rows = _write_normalized(store, path_plan.normalized.final_path)
-    output_bam_records = _write_viral_bam(
-        store,
-        path_plan.viral_bam.final_path,
-        work_dir=work_dir,
-    )
-    _validate_artifact_counts(
-        store.counts,
-        normalized_rows,
-        output_bam_records,
-    )
-    _write_summary(store, path_plan.summary.final_path, output_bam_records)
+    stages = []
+    try:
+        for destination in (
+            path_plan.normalized,
+            path_plan.summary,
+            path_plan.viral_bam,
+        ):
+            stages.append(_create_artifact_stage(destination))
+        normalized_stage, summary_stage, bam_stage = stages
+
+        normalized_rows = _write_normalized(
+            store,
+            normalized_stage.stage_path,
+        )
+        output_bam_records = _write_viral_bam(
+            store,
+            bam_stage.stage_path,
+            work_dir=work_dir,
+        )
+        _validate_artifact_counts(
+            store.counts,
+            normalized_rows,
+            output_bam_records,
+        )
+        _write_summary(
+            store,
+            summary_stage.stage_path,
+            output_bam_records,
+        )
+        _validate_staged_artifacts(
+            store,
+            normalized_stage,
+            summary_stage,
+            bam_stage,
+            normalized_rows,
+            output_bam_records,
+        )
+
+        for stage in (normalized_stage, bam_stage, summary_stage):
+            _link_no_clobber(
+                stage.stage_path,
+                stage.destination.final_path,
+            )
+    finally:
+        for stage in stages:
+            if os.path.lexists(stage.stage_path):
+                os.unlink(stage.stage_path)
 
 
 class LyraFragmentStore:

@@ -1121,6 +1121,10 @@ def test_staged_readback_accepts_empty_no_hit_and_compressed_outputs(
             )
             + b"\n",
         ),
+        (
+            "score-count",
+            lambda value: value.replace(b"\talpha\t1\t", b"\talpha\t2\t", 1),
+        ),
         ("pairing", lambda value: value.replace(b"Single-end", b"single-end", 1)),
         ("call", lambda value: value.replace(b"Viral\n", b"viral\n", 1)),
         ("decimal", lambda value: value.replace(b"\t0.9\t0.9\t", b"\t0.90\t0.9\t", 1)),
@@ -1248,7 +1252,7 @@ def test_staged_bam_readback_rejects_header_count_and_truncation(
         header,
     ):
         path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
-        stages, _, expected_bam_records = _generate_staged_artifacts(
+        stages, normalized_rows, expected_bam_records = _generate_staged_artifacts(
             store,
             path_plan,
             tmp_path,
@@ -1276,8 +1280,16 @@ def test_staged_bam_readback_rejects_header_count_and_truncation(
                     stream.truncate(max(1, os.path.getsize(bam_stage) - 16))
 
             if corruption == "record-count":
-                assert lyra._validate_staged_bam(store, bam_stage) == 0
-                assert expected_bam_records == 1
+                with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+                    lyra._validate_staged_artifacts(
+                        store,
+                        stages[0],
+                        stages[1],
+                        stages[2],
+                        normalized_rows,
+                        expected_bam_records,
+                    )
+                assert exc_info.value.category == "bam_readback"
             else:
                 with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
                     lyra._validate_staged_bam(store, bam_stage)

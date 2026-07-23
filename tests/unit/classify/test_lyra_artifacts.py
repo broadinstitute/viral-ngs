@@ -348,6 +348,18 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
             ("summary", current_store, path, output_bam_records)
         ),
     )
+    monkeypatch.setattr(
+        lyra,
+        "_validate_staged_artifacts",
+        lambda *args: calls.append(("readback", *args)),
+    )
+    monkeypatch.setattr(
+        lyra,
+        "_link_no_clobber",
+        lambda stage_path, final_path: calls.append(
+            ("link", stage_path, final_path)
+        ),
+    )
 
     lyra.write_lyra_artifacts(
         store,
@@ -362,17 +374,44 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
         "bam",
         "invariants",
         "summary",
+        "readback",
+        "link",
+        "link",
+        "link",
     ]
     assert calls[0][1:] == (path_plan, "pre_generation")
     assert calls[1][1:] == (store, "pre_generation")
-    assert calls[2][1:] == (store, path_plan.normalized.final_path)
+    assert calls[2][1] is store
+    assert calls[2][2].startswith(
+        os.path.join(path_plan.normalized.parent_path, ".lyra-normalized-")
+    )
+    assert calls[2][2].endswith(path_plan.normalized.suffix)
     assert calls[3][1:] == (
         store,
-        path_plan.viral_bam.final_path,
+        calls[3][2],
         tmp_path / "work",
     )
+    assert calls[3][2].startswith(
+        os.path.join(path_plan.viral_bam.parent_path, ".lyra-viral_bam-")
+    )
+    assert calls[3][2].endswith(path_plan.viral_bam.suffix)
     assert calls[4][1:] == (counts, 3, 5)
-    assert calls[5][1:] == (store, path_plan.summary.final_path, 5)
+    assert calls[5][1] is store
+    assert calls[5][2].startswith(
+        os.path.join(path_plan.summary.parent_path, ".lyra-summary-")
+    )
+    assert calls[5][2].endswith(path_plan.summary.suffix)
+    assert calls[5][3] == 5
+    assert calls[6][1] is store
+    assert calls[6][2].stage_path == calls[2][2]
+    assert calls[6][3].stage_path == calls[5][2]
+    assert calls[6][4].stage_path == calls[3][2]
+    assert calls[6][5:] == (3, 5)
+    assert [call[2] for call in calls[7:]] == [
+        path_plan.normalized.final_path,
+        path_plan.viral_bam.final_path,
+        path_plan.summary.final_path,
+    ]
 
 
 def test_coordinator_routes_only_immutable_path_plan_destinations(
@@ -399,6 +438,8 @@ def test_coordinator_routes_only_immutable_path_plan_destinations(
     monkeypatch.setattr(lyra, "_write_viral_bam", write_viral_bam)
     monkeypatch.setattr(lyra, "_validate_artifact_counts", lambda *args: None)
     monkeypatch.setattr(lyra, "_write_summary", write_summary)
+    monkeypatch.setattr(lyra, "_validate_staged_artifacts", lambda *args: None)
+    monkeypatch.setattr(lyra, "_link_no_clobber", lambda *args: None)
 
     lyra.write_lyra_artifacts(
         SimpleNamespace(counts=_consistent_counts()),
@@ -406,11 +447,16 @@ def test_coordinator_routes_only_immutable_path_plan_destinations(
         work_dir=tmp_path,
     )
 
-    assert producer_paths == {
-        "normalized": path_plan.normalized.final_path,
-        "summary": path_plan.summary.final_path,
-        "viral_bam": path_plan.viral_bam.final_path,
-    }
+    for role, destination in (
+        ("normalized", path_plan.normalized),
+        ("summary", path_plan.summary),
+        ("viral_bam", path_plan.viral_bam),
+    ):
+        assert producer_paths[role].startswith(
+            os.path.join(destination.parent_path, ".lyra-{}-".format(role))
+        )
+        assert producer_paths[role].endswith(destination.suffix)
+        assert producer_paths[role] != destination.final_path
 
 
 @pytest.mark.parametrize("producer", ["normalized", "bam"])
