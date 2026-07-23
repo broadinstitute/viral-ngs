@@ -1895,6 +1895,7 @@ def postprocess_lyra(
             store,
             path_plan,
             work_dir=work_dir,
+            post_publication_cleanup=store.close,
         )
 
 
@@ -2536,7 +2537,7 @@ class LyraArtifactTransaction:
                 return primary_stage
         return self.stage
 
-    def generate_validate_and_publish(self):
+    def generate_validate_and_publish(self, post_publication_cleanup=None):
         try:
             self.stage = "pre_generation"
             _assert_path_plan_available(self.path_plan, self.stage)
@@ -2545,6 +2546,9 @@ class LyraArtifactTransaction:
             self._generate_and_validate()
             self._sync_stages()
             self._publish()
+            if post_publication_cleanup is not None:
+                self.stage = "close_fragment_store"
+                post_publication_cleanup()
         except BaseException as primary:
             failure_stage = self._failure_stage(primary)
             self.rollback_and_cleanup()
@@ -2591,6 +2595,7 @@ def write_lyra_artifacts(
     store,
     path_plan,
     work_dir=None,
+    post_publication_cleanup=None,
 ):
     """Generate, read back, and publish one coordinated artifact set."""
     transaction = LyraArtifactTransaction(
@@ -2598,7 +2603,9 @@ def write_lyra_artifacts(
         path_plan,
         work_dir=work_dir,
     )
-    transaction.generate_validate_and_publish()
+    transaction.generate_validate_and_publish(
+        post_publication_cleanup=post_publication_cleanup,
+    )
 
 
 class LyraFragmentStore:
