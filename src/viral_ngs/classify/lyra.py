@@ -240,6 +240,7 @@ class LyraPathError(LyraInputError):
         reason,
         conflicting_role=None,
         conflicting_path=None,
+        stage=None,
     ):
         self.category = category
         self.role = role
@@ -247,6 +248,7 @@ class LyraPathError(LyraInputError):
         self.reason = reason
         self.conflicting_role = conflicting_role
         self.conflicting_path = conflicting_path
+        self.stage = stage
 
         details = [
             "category={}".format(_bounded_repr(category)),
@@ -262,6 +264,8 @@ class LyraPathError(LyraInputError):
             details.append(
                 "conflicting_path={}".format(_bounded_repr(conflicting_path))
             )
+        if stage is not None:
+            details.append("stage={}".format(_bounded_repr(stage)))
         ValueError.__init__(self, "Lyra path error: " + "; ".join(details))
 
 
@@ -1017,33 +1021,59 @@ def postprocess_lyra(
     ) as store:
         write_lyra_artifacts(
             store,
-            path_plan.normalized.final_path,
-            path_plan.summary.final_path,
-            path_plan.viral_bam.final_path,
+            path_plan,
             work_dir=work_dir,
         )
 
 
+def _assert_path_plan_available(path_plan, stage):
+    """Recheck resolved final names without rebuilding their immutable plan."""
+    if not isinstance(path_plan, LyraArtifactPathPlan):
+        raise TypeError("path_plan must be a LyraArtifactPathPlan")
+    for destination in (
+        path_plan.normalized,
+        path_plan.summary,
+        path_plan.viral_bam,
+    ):
+        try:
+            os.lstat(destination.final_path)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise LyraPathError(
+                category="output_exists",
+                role=destination.role,
+                path=destination.caller_path,
+                reason="artifact output directory entry is not safely absent",
+                stage=stage,
+            ) from exc
+        raise LyraPathError(
+            category="output_exists",
+            role=destination.role,
+            path=destination.caller_path,
+            reason="artifact output directory entry already exists",
+            stage=stage,
+        )
+
+
+def _link_no_clobber(stage_path, final_path):
+    os.link(stage_path, final_path, follow_symlinks=False)
+
+
 def write_lyra_artifacts(
     store,
-    normalized_output,
-    summary_output,
-    viral_bam_output,
+    path_plan,
     work_dir=None,
 ):
     """Generate normalized and BAM artifacts, validate counts, then summarize."""
-    normalized_path, summary_path, viral_bam_path = (
-        _validate_artifact_output_suffixes(
-            normalized_output,
-            summary_output,
-            viral_bam_output,
-        )
-    )
+    if not isinstance(path_plan, LyraArtifactPathPlan):
+        raise TypeError("path_plan must be a LyraArtifactPathPlan")
+    _assert_path_plan_available(path_plan, "pre_generation")
     _assert_source_bam_identity(store, "pre_generation")
-    normalized_rows = _write_normalized(store, normalized_path)
+    normalized_rows = _write_normalized(store, path_plan.normalized.final_path)
     output_bam_records = _write_viral_bam(
         store,
-        viral_bam_path,
+        path_plan.viral_bam.final_path,
         work_dir=work_dir,
     )
     _validate_artifact_counts(
@@ -1051,7 +1081,7 @@ def write_lyra_artifacts(
         normalized_rows,
         output_bam_records,
     )
-    _write_summary(store, summary_path, output_bam_records)
+    _write_summary(store, path_plan.summary.final_path, output_bam_records)
 
 
 class LyraFragmentStore:
