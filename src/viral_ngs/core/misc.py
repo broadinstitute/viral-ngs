@@ -997,7 +997,14 @@ class ReadIdStore:
         ''', (n,))
         self.conn.commit()
 
-    def filter_bam_by_ids(self, inBam, outBam, include=True):
+    def filter_bam_by_ids(
+        self,
+        inBam,
+        outBam,
+        include=True,
+        in_bam_fd=None,
+        out_bam_fd=None,
+    ):
         """
         Filter a BAM file to reads matching (or not matching) IDs in this store.
 
@@ -1009,22 +1016,46 @@ class ReadIdStore:
             outBam: Output BAM file path
             include: If True, keep only reads with IDs in the store (inclusion list).
                      If False, keep only reads with IDs NOT in the store (exclusion list).
+            in_bam_fd: Optional caller-owned input BAM descriptor. When supplied,
+                       inBam is diagnostic only and is not opened.
+            out_bam_fd: Optional caller-owned output BAM descriptor. When supplied,
+                        outBam is diagnostic only and is not opened.
 
         Note:
             For paired-end reads, both mates share the same QNAME so both will be
             kept or excluded together based on whether the QNAME is in the store.
         """
+        for descriptor_name, descriptor in (
+            ("in_bam_fd", in_bam_fd),
+            ("out_bam_fd", out_bam_fd),
+        ):
+            if descriptor is None:
+                continue
+            if type(descriptor) is not int:
+                raise TypeError(
+                    "{} must be an exact built-in int or None".format(
+                        descriptor_name
+                    )
+                )
+            if descriptor < 0:
+                raise ValueError(
+                    "{} must be non-negative".format(descriptor_name)
+                )
+            os.fstat(descriptor)
+
         # Lazy import to avoid circular dependency
         from . import samtools as samtools_module
 
-        # Handle empty input BAM
+        descriptor_mode = in_bam_fd is not None or out_bam_fd is not None
+
+        # Retain path-only fast paths for existing callers. Descriptor mode must
+        # never reopen either caller-owned handle through its diagnostic path.
         samtools_tool = samtools_module.SamtoolsTool()
-        if samtools_tool.isEmpty(inBam):
+        if not descriptor_mode and samtools_tool.isEmpty(inBam):
             shutil.copyfile(inBam, outBam)
             return 0
 
-        # Handle empty read ID store
-        if len(self) == 0:
+        if not descriptor_mode and len(self) == 0:
             if include:
                 # Include mode with empty list = empty output (keep header only)
                 with pysam.AlignmentFile(inBam, 'rb', check_sq=False) as inb:
@@ -1047,7 +1078,17 @@ class ReadIdStore:
 
         # Read: samtools view -h --no-PG input.bam -> SAM text (with header, no PG added)
         # Write: samtools view -b --no-PG -o output.bam - (converts SAM to BAM, no PG added)
-        read_argv = [samtools_path, 'view', '-h', '--no-PG', inBam]
+        read_input = (
+            inBam
+            if in_bam_fd is None
+            else "/proc/self/fd/{}".format(in_bam_fd)
+        )
+        write_output = (
+            outBam
+            if out_bam_fd is None
+            else "/proc/self/fd/{}".format(out_bam_fd)
+        )
+        read_argv = [samtools_path, 'view', '-h', '--no-PG', read_input]
         write_argv = [
             samtools_path,
             'view',
@@ -1056,12 +1097,18 @@ class ReadIdStore:
             '2',
             '--no-PG',
             '-o',
-            outBam,
+            write_output,
             '-',
         ]
-        read_proc = subprocess.Popen(read_argv, stdout=subprocess.PIPE)
+        read_popen_kwargs = {"stdout": subprocess.PIPE}
+        if in_bam_fd is not None:
+            read_popen_kwargs["pass_fds"] = (in_bam_fd,)
+        read_proc = subprocess.Popen(read_argv, **read_popen_kwargs)
         try:
-            write_proc = subprocess.Popen(write_argv, stdin=subprocess.PIPE)
+            write_popen_kwargs = {"stdin": subprocess.PIPE}
+            if out_bam_fd is not None:
+                write_popen_kwargs["pass_fds"] = (out_bam_fd,)
+            write_proc = subprocess.Popen(write_argv, **write_popen_kwargs)
         except BaseException as exc:
             primary_traceback = exc.__traceback__
             startup_cleanup_outcomes = []

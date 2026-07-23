@@ -1021,12 +1021,12 @@ class TestReadIdStore(TestCaseWithTmp):
         input_bam = viral_ngs.core.file.mkstempfname('.bam')
         output_bam = viral_ngs.core.file.mkstempfname('.bam')
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        closed_fd = os.open(input_bam, os.O_RDONLY)
-        os.close(closed_fd)
 
         with viral_ngs.read_utils.ReadIdStore(db_path) as store, mock.patch(
             "viral_ngs.core.misc.subprocess.Popen"
         ) as popen:
+            closed_fd = os.open(input_bam, os.O_RDONLY)
+            os.close(closed_fd)
             for invalid_fd in (True, "3", 1.5):
                 with self.subTest(invalid_fd=invalid_fd):
                     with self.assertRaises(TypeError):
