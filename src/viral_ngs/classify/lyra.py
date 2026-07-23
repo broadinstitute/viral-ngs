@@ -1944,10 +1944,6 @@ def _link_stage_no_clobber(stage, final_basename):
         raise OSError(error_number, os.strerror(error_number))
 
 
-def _unlink_path(path):
-    os.unlink(path)
-
-
 def _cleanup_failure(operation, role, path, status, error):
     return CleanupOutcome(
         operation=operation,
@@ -2232,7 +2228,13 @@ class LyraArtifactTransaction:
 
     def _rollback_published(self, artifact):
         try:
-            observed = _file_identity(os.lstat(artifact.final_path))
+            observed = _file_identity(
+                os.stat(
+                    artifact.final_basename,
+                    dir_fd=artifact.parent.descriptor,
+                    follow_symlinks=False,
+                )
+            )
         except FileNotFoundError:
             return CleanupOutcome(
                 operation="rollback",
@@ -2261,7 +2263,10 @@ class LyraArtifactTransaction:
             )
 
         try:
-            _unlink_path(artifact.final_path)
+            os.unlink(
+                artifact.final_basename,
+                dir_fd=artifact.parent.descriptor,
+            )
         except FileNotFoundError:
             return CleanupOutcome(
                 operation="rollback",
@@ -2301,19 +2306,73 @@ class LyraArtifactTransaction:
 
     def _cleanup_stage(self, artifact_stage):
         try:
-            _unlink_path(artifact_stage.stage_path)
+            owner_identity = _file_identity(os.fstat(artifact_stage.descriptor))
+        except BaseException as error:
+            return _cleanup_failure(
+                "cleanup",
+                artifact_stage.role,
+                artifact_stage.display_path,
+                "descriptor_stat_failed",
+                error,
+            )
+
+        try:
+            observed = _file_identity(
+                os.stat(
+                    artifact_stage.basename,
+                    dir_fd=artifact_stage.parent.descriptor,
+                    follow_symlinks=False,
+                )
+            )
         except FileNotFoundError:
             return CleanupOutcome(
                 operation="cleanup",
                 role=artifact_stage.role,
-                path=artifact_stage.stage_path,
+                path=artifact_stage.display_path,
                 status="absent",
+                expected=owner_identity,
             )
         except BaseException as error:
             return _cleanup_failure(
                 "cleanup",
                 artifact_stage.role,
-                artifact_stage.stage_path,
+                artifact_stage.display_path,
+                "entry_stat_failed",
+                error,
+            )
+
+        if (observed.device, observed.inode) != (
+            owner_identity.device,
+            owner_identity.inode,
+        ):
+            return CleanupOutcome(
+                operation="cleanup",
+                role=artifact_stage.role,
+                path=artifact_stage.display_path,
+                status="stage_identity_mismatch",
+                expected=owner_identity,
+                actual=observed,
+            )
+
+        try:
+            os.unlink(
+                artifact_stage.basename,
+                dir_fd=artifact_stage.parent.descriptor,
+            )
+        except FileNotFoundError:
+            return CleanupOutcome(
+                operation="cleanup",
+                role=artifact_stage.role,
+                path=artifact_stage.display_path,
+                status="absent",
+                expected=owner_identity,
+                actual=observed,
+            )
+        except BaseException as error:
+            return _cleanup_failure(
+                "cleanup",
+                artifact_stage.role,
+                artifact_stage.display_path,
                 "unlink_failed",
                 error,
             )
@@ -2324,15 +2383,17 @@ class LyraArtifactTransaction:
             return _cleanup_failure(
                 "cleanup",
                 artifact_stage.role,
-                artifact_stage.stage_path,
+                artifact_stage.display_path,
                 "removed_sync_failed",
                 error,
             )
         return CleanupOutcome(
             operation="cleanup",
             role=artifact_stage.role,
-            path=artifact_stage.stage_path,
+            path=artifact_stage.display_path,
             status="removed",
+            expected=owner_identity,
+            actual=observed,
         )
 
     def rollback_and_cleanup(self):
@@ -2363,6 +2424,17 @@ class LyraArtifactTransaction:
                         path=outcome.path,
                         error_type="FileIdentityMismatch",
                         category="rollback_identity_mismatch",
+                    )
+                )
+                continue
+            if outcome.status == "stage_identity_mismatch":
+                failures.append(
+                    CleanupFailure(
+                        operation=outcome.operation,
+                        role=outcome.role,
+                        path=outcome.path,
+                        error_type="FileIdentityMismatch",
+                        category="stage_identity_mismatch",
                     )
                 )
                 continue

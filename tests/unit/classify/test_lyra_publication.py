@@ -2577,8 +2577,9 @@ def test_replacement_before_rollback_identity_observation_survives_and_is_report
             work_dir=tmp_path,
         )
         target = getattr(path_plan, role).final_path
+        target_basename = os.path.basename(target)
         replacement_bytes = ("replacement-" + role).encode("ascii")
-        real_lstat = os.lstat
+        real_stat = os.stat
         real_unlink = os.unlink
         replacement_identity = []
         publication_failed = []
@@ -2597,26 +2598,46 @@ def test_replacement_before_rollback_identity_observation_survives_and_is_report
 
         def replace_at_rollback_observation(path, *args, **kwargs):
             if (
-                not args
-                and not kwargs
-                and publication_failed
+                publication_failed
                 and not replacement_identity
-                and os.fspath(path) == target
+                and os.fspath(path) == target_basename
+                and kwargs.get("follow_symlinks") is False
             ):
-                real_unlink(target)
-                with open(target, "wb") as stream:
-                    stream.write(replacement_bytes)
-                replacement_identity.append(
-                    lyra._file_identity(real_lstat(target))
+                target_parent = next(
+                    stage.parent
+                    for stage in transaction.stages
+                    if stage.role == role
                 )
-            return real_lstat(path, *args, **kwargs)
+                if kwargs.get("dir_fd") != target_parent.descriptor:
+                    return real_stat(path, *args, **kwargs)
+                real_unlink(target_basename, dir_fd=target_parent.descriptor)
+                replacement_descriptor = os.open(
+                    target_basename,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                    dir_fd=target_parent.descriptor,
+                )
+                try:
+                    os.write(replacement_descriptor, replacement_bytes)
+                finally:
+                    os.close(replacement_descriptor)
+                replacement_identity.append(
+                    lyra._file_identity(
+                        real_stat(
+                            target_basename,
+                            dir_fd=target_parent.descriptor,
+                            follow_symlinks=False,
+                        )
+                    )
+                )
+            return real_stat(path, *args, **kwargs)
 
         monkeypatch.setattr(
             lyra.os,
             "fsync",
             fail_final_success_barrier,
         )
-        monkeypatch.setattr(lyra.os, "lstat", replace_at_rollback_observation)
+        monkeypatch.setattr(lyra.os, "stat", replace_at_rollback_observation)
 
         with pytest.raises(lyra.LyraPublicationError) as exc_info:
             transaction.generate_validate_and_publish()
@@ -2624,7 +2645,7 @@ def test_replacement_before_rollback_identity_observation_survives_and_is_report
         error = exc_info.value
 
     assert open(target, "rb").read() == replacement_bytes
-    assert lyra._file_identity(real_lstat(target)) == replacement_identity[0]
+    assert lyra._file_identity(real_stat(target)) == replacement_identity[0]
     mismatch = [
         failure
         for failure in error.cleanup_failures
@@ -2654,7 +2675,7 @@ def test_cleanup_continues_after_failure_and_ignores_tmpkeep(
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
         primary = RuntimeError("primary validation failure")
-        original_unlink = lyra._unlink_path
+        original_unlink = lyra.os.unlink
         attempts = []
 
         monkeypatch.setattr(
@@ -2663,13 +2684,13 @@ def test_cleanup_continues_after_failure_and_ignores_tmpkeep(
             lambda *args, **kwargs: _raise(primary),
         )
 
-        def fail_one_stage_unlink(path):
+        def fail_one_stage_unlink(path, *, dir_fd=None):
             attempts.append(path)
             if os.path.basename(path).startswith(".lyra-normalized-"):
                 raise OSError(5, "injected cleanup unlink failure")
-            return original_unlink(path)
+            return original_unlink(path, dir_fd=dir_fd)
 
-        monkeypatch.setattr(lyra, "_unlink_path", fail_one_stage_unlink)
+        monkeypatch.setattr(lyra.os, "unlink", fail_one_stage_unlink)
 
         with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
@@ -2693,7 +2714,7 @@ def test_cleanup_continues_after_failure_and_ignores_tmpkeep(
     assert len(remaining_stages) == 1
     assert remaining_stages[0].name.startswith(".lyra-normalized-")
     assert not any(path.exists() for path in outputs)
-    remaining_stages[0].unlink()
+    original_unlink(os.fspath(remaining_stages[0]))
 
 
 def test_bam_filter_and_transaction_cleanup_diagnostics_are_combined(
@@ -2713,22 +2734,22 @@ def test_bam_filter_and_transaction_cleanup_diagnostics_are_combined(
             errno=5,
         ),
     )
-    original_unlink = lyra._unlink_path
+    original_unlink = lyra.os.unlink
 
     def fail_bam_filter(*args, **kwargs):
         raise core_primary
 
-    def fail_one_stage_unlink(path):
+    def fail_one_stage_unlink(path, *, dir_fd=None):
         if os.path.basename(path).startswith(".lyra-normalized-"):
             raise OSError(6, "injected stage cleanup failure")
-        return original_unlink(path)
+        return original_unlink(path, dir_fd=dir_fd)
 
     monkeypatch.setattr(
         viral_ngs.core.misc.ReadIdStore,
         "filter_bam_by_ids",
         fail_bam_filter,
     )
-    monkeypatch.setattr(lyra, "_unlink_path", fail_one_stage_unlink)
+    monkeypatch.setattr(lyra.os, "unlink", fail_one_stage_unlink)
 
     with _publication_store(tmp_path, "bam-diagnostic") as (
         store,
@@ -2769,7 +2790,7 @@ def test_bam_filter_and_transaction_cleanup_diagnostics_are_combined(
     assert not any(path.exists() for path in outputs)
     remaining_stages = list(tmp_path.rglob(".lyra-*"))
     assert len(remaining_stages) == 1
-    remaining_stages[0].unlink()
+    original_unlink(os.fspath(remaining_stages[0]))
 
 
 def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
@@ -2790,7 +2811,7 @@ def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
         )
         primary = OSError(5, "injected completion-barrier failure")
         original_fsync = lyra.os.fsync
-        original_unlink = lyra._unlink_path
+        original_unlink = lyra.os.unlink
         failed_roles = {"summary", "viral_bam"}
 
         def fail_completion_barrier(descriptor):
@@ -2803,18 +2824,26 @@ def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
                 raise primary
             return original_fsync(descriptor)
 
-        def fail_selected_rollbacks(path):
+        def fail_selected_rollbacks(path, *, dir_fd=None):
             for role in failed_roles:
-                if path == getattr(path_plan, role).final_path:
+                role_parent = next(
+                    stage.parent
+                    for stage in transaction.stages
+                    if stage.role == role
+                )
+                if (
+                    path == os.path.basename(getattr(path_plan, role).final_path)
+                    and dir_fd == role_parent.descriptor
+                ):
                     raise OSError(5, "injected rollback unlink failure")
-            return original_unlink(path)
+            return original_unlink(path, dir_fd=dir_fd)
 
         monkeypatch.setattr(
             lyra.os,
             "fsync",
             fail_completion_barrier,
         )
-        monkeypatch.setattr(lyra, "_unlink_path", fail_selected_rollbacks)
+        monkeypatch.setattr(lyra.os, "unlink", fail_selected_rollbacks)
 
         with pytest.raises(lyra.LyraPublicationError) as exc_info:
             transaction.generate_validate_and_publish()
@@ -2832,7 +2861,7 @@ def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
     for role in failed_roles:
         path = getattr(path_plan, role).final_path
         assert os.path.exists(path)
-        os.unlink(path)
+        original_unlink(path)
     assert not os.path.exists(path_plan.normalized.final_path)
     assert not list(tmp_path.rglob(".lyra-*"))
 
