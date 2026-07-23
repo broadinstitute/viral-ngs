@@ -81,6 +81,43 @@ def _write_score_table(tmp_path, rows, name="scores.tsv"):
     return path
 
 
+def _test_path_plan(tmp_path, prefix="coordinator"):
+    paths = (
+        tmp_path / (prefix + "-normalized.tsv"),
+        tmp_path / (prefix + "-summary.tsv"),
+        tmp_path / (prefix + "-viral.bam"),
+    )
+    destinations = []
+    for role, path, suffix in zip(
+        ("normalized", "summary", "viral_bam"),
+        paths,
+        (".tsv", ".tsv", ".bam"),
+    ):
+        parent = os.path.realpath(tmp_path, strict=True)
+        parent_stat = os.stat(parent)
+        destinations.append(
+            lyra.ArtifactDestination(
+                role=role,
+                caller_path=os.fspath(path),
+                final_path=os.path.join(parent, path.name),
+                parent_path=parent,
+                destination_key=(
+                    parent_stat.st_dev,
+                    parent_stat.st_ino,
+                    path.name,
+                ),
+                suffix=suffix,
+            )
+        )
+    return lyra.LyraArtifactPathPlan(
+        score_path="scores.tsv",
+        bam_path="source.bam",
+        normalized=destinations[0],
+        summary=destinations[1],
+        viral_bam=destinations[2],
+    )
+
+
 @contextmanager
 def _artifact_store(
     tmp_path,
@@ -267,21 +304,14 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
     calls = []
     counts = _consistent_counts()
     store = SimpleNamespace(counts=counts)
-    paths = (
-        tmp_path / "normalized.tsv",
-        tmp_path / "summary.tsv",
-        tmp_path / "viral.bam",
-    )
-    validated_paths = (
-        str(tmp_path / "validated-normalized.tsv"),
-        str(tmp_path / "validated-summary.tsv"),
-        str(tmp_path / "validated-viral.bam"),
-    )
+    path_plan = _test_path_plan(tmp_path)
 
     monkeypatch.setattr(
         lyra,
-        "_validate_artifact_output_suffixes",
-        lambda *args: calls.append(("suffixes", args)) or validated_paths,
+        "_assert_path_plan_available",
+        lambda current_plan, stage: calls.append(
+            ("availability", current_plan, stage)
+        ),
     )
     monkeypatch.setattr(
         lyra,
@@ -321,79 +351,49 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
 
     lyra.write_lyra_artifacts(
         store,
-        *paths,
+        path_plan,
         work_dir=tmp_path / "work",
     )
 
     assert [call[0] for call in calls] == [
-        "suffixes",
+        "availability",
         "source_identity",
         "normalized",
         "bam",
         "invariants",
         "summary",
     ]
-    assert calls[0][1] == paths
+    assert calls[0][1:] == (path_plan, "pre_generation")
     assert calls[1][1:] == (store, "pre_generation")
-    assert calls[2][1:] == (store, validated_paths[0])
+    assert calls[2][1:] == (store, path_plan.normalized.final_path)
     assert calls[3][1:] == (
         store,
-        validated_paths[2],
+        path_plan.viral_bam.final_path,
         tmp_path / "work",
     )
     assert calls[4][1:] == (counts, 3, 5)
-    assert calls[5][1:] == (store, validated_paths[1], 5)
+    assert calls[5][1:] == (store, path_plan.summary.final_path, 5)
 
 
-def test_coordinator_converts_each_stateful_output_pathlike_once(
+def test_coordinator_routes_only_immutable_path_plan_destinations(
     tmp_path,
     monkeypatch,
 ):
-    class StatefulPath(os.PathLike):
-        def __init__(self, validated_path, bypass_path):
-            self.validated_path = str(validated_path)
-            self.bypass_path = str(bypass_path)
-            self.fspath_calls = 0
-
-        def __fspath__(self):
-            self.fspath_calls += 1
-            if self.fspath_calls == 1:
-                return self.validated_path
-            return self.bypass_path
-
-    normalized = StatefulPath(
-        tmp_path / "normalized.tsv",
-        tmp_path / "normalized-bypass.txt",
-    )
-    summary = StatefulPath(
-        tmp_path / "summary.tsv",
-        tmp_path / "summary-bypass.txt",
-    )
-    viral_bam = StatefulPath(
-        tmp_path / "viral.bam",
-        tmp_path / "viral-bypass.sam",
-    )
-    outputs = (normalized, summary, viral_bam)
-    validator_calls = []
+    path_plan = _test_path_plan(tmp_path, "immutable")
     producer_paths = {}
-    original_validator = lyra._validate_artifact_output_suffixes
-
-    def count_validator(*paths):
-        validator_calls.append(paths)
-        return original_validator(*paths)
 
     def write_normalized(current_store, path):
-        producer_paths["normalized"] = (path, os.fspath(path))
+        producer_paths["normalized"] = path
         return 3
 
     def write_viral_bam(current_store, path, work_dir=None):
-        producer_paths["viral_bam"] = (path, os.fspath(path))
+        producer_paths["viral_bam"] = path
         return 5
 
     def write_summary(current_store, path, output_bam_records):
-        producer_paths["summary"] = (path, os.fspath(path))
+        producer_paths["summary"] = path
 
-    monkeypatch.setattr(lyra, "_validate_artifact_output_suffixes", count_validator)
+    monkeypatch.setattr(lyra, "_assert_path_plan_available", lambda *args: None)
     monkeypatch.setattr(lyra, "_assert_source_bam_identity", lambda *args: None)
     monkeypatch.setattr(lyra, "_write_normalized", write_normalized)
     monkeypatch.setattr(lyra, "_write_viral_bam", write_viral_bam)
@@ -402,17 +402,15 @@ def test_coordinator_converts_each_stateful_output_pathlike_once(
 
     lyra.write_lyra_artifacts(
         SimpleNamespace(counts=_consistent_counts()),
-        *outputs,
+        path_plan,
         work_dir=tmp_path,
     )
 
-    assert validator_calls == [outputs]
-    for name, output in zip(("normalized", "summary", "viral_bam"), outputs):
-        received_path, opened_path = producer_paths[name]
-        assert received_path == output.validated_path
-        assert opened_path == output.validated_path
-        assert output.fspath_calls == 1
-        assert not os.path.exists(output.bypass_path)
+    assert producer_paths == {
+        "normalized": path_plan.normalized.final_path,
+        "summary": path_plan.summary.final_path,
+        "viral_bam": path_plan.viral_bam.final_path,
+    }
 
 
 @pytest.mark.parametrize("producer", ["normalized", "bam"])
@@ -421,8 +419,10 @@ def test_coordinator_producer_failure_leaves_summary_unopened(
     monkeypatch,
     producer,
 ):
-    summary = tmp_path / "summary.tsv"
     store = SimpleNamespace(counts=_consistent_counts())
+    path_plan = _test_path_plan(tmp_path, "producer-failure")
+    summary = path_plan.summary.final_path
+    monkeypatch.setattr(lyra, "_assert_path_plan_available", lambda *args: None)
     monkeypatch.setattr(lyra, "_assert_source_bam_identity", lambda *args: None)
 
     if producer == "normalized":
@@ -442,13 +442,11 @@ def test_coordinator_producer_failure_leaves_summary_unopened(
     with pytest.raises(RuntimeError, match=producer):
         lyra.write_lyra_artifacts(
             store,
-            tmp_path / "normalized.tsv",
-            summary,
-            tmp_path / "viral.bam",
+            path_plan,
             work_dir=tmp_path,
         )
 
-    assert not summary.exists()
+    assert not os.path.exists(summary)
 
 
 @pytest.mark.parametrize(
@@ -465,8 +463,10 @@ def test_coordinator_count_mismatch_leaves_summary_unopened(
     output_bam_records,
     category,
 ):
-    summary = tmp_path / "summary.tsv"
     store = SimpleNamespace(counts=_consistent_counts())
+    path_plan = _test_path_plan(tmp_path, "count-mismatch")
+    summary = path_plan.summary.final_path
+    monkeypatch.setattr(lyra, "_assert_path_plan_available", lambda *args: None)
     monkeypatch.setattr(lyra, "_assert_source_bam_identity", lambda *args: None)
     monkeypatch.setattr(
         lyra,
@@ -482,32 +482,21 @@ def test_coordinator_count_mismatch_leaves_summary_unopened(
     with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
         lyra.write_lyra_artifacts(
             store,
-            tmp_path / "normalized.tsv",
-            summary,
-            tmp_path / "viral.bam",
+            path_plan,
             work_dir=tmp_path,
         )
 
     assert exc_info.value.category == category
-    assert not summary.exists()
+    assert not os.path.exists(summary)
 
 
-def test_coordinator_invalid_suffix_opens_no_output(tmp_path):
-    paths = (
-        tmp_path / "normalized.tsv",
-        tmp_path / "summary.txt",
-        tmp_path / "viral.bam",
-    )
-
-    with pytest.raises(lyra.LyraInputError) as exc_info:
+def test_coordinator_rejects_non_path_plan_before_any_output(tmp_path):
+    with pytest.raises(TypeError, match="LyraArtifactPathPlan"):
         lyra.write_lyra_artifacts(
             SimpleNamespace(),
-            *paths,
+            object(),
             work_dir=tmp_path,
         )
-
-    assert exc_info.value.category == "output_extension"
-    assert not any(path.exists() for path in paths)
 
 
 def test_normalized_output_has_exact_utf8_lf_schema_order_and_values(tmp_path):
@@ -964,6 +953,13 @@ def test_coordinated_empty_and_all_ineligible_artifacts(
     normalized = tmp_path / (case + "-normalized.tsv")
     summary = tmp_path / (case + "-summary.tsv")
     viral_bam = tmp_path / (case + "-viral.bam")
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        source_bam,
+        normalized,
+        summary,
+        viral_bam,
+    )
 
     with lyra.reconcile_lyra_fragments(
         score_path,
@@ -974,9 +970,7 @@ def test_coordinated_empty_and_all_ineligible_artifacts(
     ) as store:
         lyra.write_lyra_artifacts(
             store,
-            normalized,
-            summary,
-            viral_bam,
+            path_plan,
             work_dir=tmp_path,
         )
 
@@ -1036,6 +1030,13 @@ def test_coordinated_no_hit_compressed_normalized_retains_every_fragment(tmp_pat
     normalized = tmp_path / "no-hit-normalized.tsv.zst"
     summary = tmp_path / "no-hit-summary.tsv"
     viral_bam = tmp_path / "no-hit-viral.bam"
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        source_bam,
+        normalized,
+        summary,
+        viral_bam,
+    )
 
     with lyra.reconcile_lyra_fragments(
         score_path,
@@ -1046,9 +1047,7 @@ def test_coordinated_no_hit_compressed_normalized_retains_every_fragment(tmp_pat
     ) as store:
         lyra.write_lyra_artifacts(
             store,
-            normalized,
-            summary,
-            viral_bam,
+            path_plan,
             work_dir=tmp_path,
         )
 
@@ -1119,6 +1118,13 @@ def test_coordinated_bam_fidelity_counts_every_same_qname_companion(tmp_path):
     normalized = tmp_path / "coordinated-fidelity-normalized.tsv"
     summary = tmp_path / "coordinated-fidelity-summary.tsv"
     viral_bam = tmp_path / "coordinated-fidelity-viral.bam"
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        source_bam,
+        normalized,
+        summary,
+        viral_bam,
+    )
 
     with lyra.reconcile_lyra_fragments(
         score_path,
@@ -1129,9 +1135,7 @@ def test_coordinated_bam_fidelity_counts_every_same_qname_companion(tmp_path):
     ) as store:
         lyra.write_lyra_artifacts(
             store,
-            normalized,
-            summary,
-            viral_bam,
+            path_plan,
             work_dir=tmp_path,
         )
 

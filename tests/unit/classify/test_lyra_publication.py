@@ -371,6 +371,155 @@ def test_preflight_valid_distinct_parents_produce_immutable_resolved_plan(
         path_plan.score_path = "redirected"
 
 
+def test_coordinator_converts_each_pathlike_once_and_routes_one_plan(
+    tmp_path,
+    monkeypatch,
+):
+    class StatefulPath(os.PathLike):
+        def __init__(self, valid_path, bypass_path):
+            self.valid_path = os.fspath(valid_path)
+            self.bypass_path = os.fspath(bypass_path)
+            self.fspath_calls = 0
+
+        def __fspath__(self):
+            self.fspath_calls += 1
+            if self.fspath_calls == 1:
+                return self.valid_path
+            return self.bypass_path
+
+    score_file = _write_scores(tmp_path, "coordinator-scores.tsv")
+    bam_file, _ = _write_bam(tmp_path, "coordinator-source.bam")
+    pathlikes = (
+        StatefulPath(score_file, tmp_path / "bypass-scores.tsv"),
+        StatefulPath(bam_file, tmp_path / "bypass-source.bam"),
+        StatefulPath(tmp_path / "normalized.tsv", tmp_path / "bypass-normalized.txt"),
+        StatefulPath(tmp_path / "summary.tsv", tmp_path / "bypass-summary.txt"),
+        StatefulPath(tmp_path / "viral.bam", tmp_path / "bypass-viral.sam"),
+    )
+    calls = []
+    store = object()
+    received = {}
+    original_sample_validator = lyra.validate_sample_id
+    original_threshold_validator = lyra.validate_lyra_threshold
+    original_path_builder = lyra._build_artifact_path_plan
+
+    def validate_sample(value):
+        calls.append("sample")
+        return original_sample_validator(value)
+
+    def validate_threshold(value):
+        calls.append("threshold")
+        return original_threshold_validator(value)
+
+    def build_path_plan(*args):
+        calls.append("preflight")
+        plan = original_path_builder(*args)
+        received["built_plan"] = plan
+        return plan
+
+    @contextmanager
+    def reconcile(*args, **kwargs):
+        calls.append("reconcile")
+        received["reconcile"] = (args, kwargs)
+        yield store
+
+    def write(current_store, path_plan, work_dir=None):
+        calls.append("writer")
+        received["writer"] = (current_store, path_plan, work_dir)
+
+    monkeypatch.setattr(lyra, "validate_sample_id", validate_sample)
+    monkeypatch.setattr(lyra, "validate_lyra_threshold", validate_threshold)
+    monkeypatch.setattr(lyra, "_build_artifact_path_plan", build_path_plan)
+    monkeypatch.setattr(lyra, "reconcile_lyra_fragments", reconcile)
+    monkeypatch.setattr(lyra, "write_lyra_artifacts", write)
+
+    lyra.postprocess_lyra(
+        pathlikes[0],
+        pathlikes[1],
+        "sample",
+        "0.8",
+        pathlikes[2],
+        pathlikes[3],
+        pathlikes[4],
+        work_dir=tmp_path,
+    )
+
+    path_plan = received["built_plan"]
+    assert calls == ["sample", "threshold", "preflight", "reconcile", "writer"]
+    assert received["reconcile"] == (
+        (
+            path_plan.score_path,
+            path_plan.bam_path,
+            "sample",
+            Decimal("0.8"),
+        ),
+        {"work_dir": tmp_path},
+    )
+    assert received["writer"] == (store, path_plan, tmp_path)
+    assert all(path.fspath_calls == 1 for path in pathlikes)
+    assert not any(os.path.lexists(path.bypass_path) for path in pathlikes)
+
+
+def test_writer_boundary_race_rejects_final_before_any_producer(
+    tmp_path,
+    monkeypatch,
+):
+    score_path = _write_scores(tmp_path, "writer-race-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "writer-race-source.bam")
+    outputs = _artifact_paths(tmp_path, "writer-race")
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        bam_path,
+        *outputs,
+    )
+    outputs[0].write_bytes(b"raced caller artifact")
+    collaborator_calls = []
+    monkeypatch.setattr(
+        lyra,
+        "_assert_source_bam_identity",
+        lambda *args: collaborator_calls.append("source"),
+    )
+    monkeypatch.setattr(
+        lyra,
+        "_write_normalized",
+        lambda *args: collaborator_calls.append("normalized"),
+    )
+
+    with pytest.raises(lyra.LyraPathError) as exc_info:
+        lyra.write_lyra_artifacts(object(), path_plan, work_dir=tmp_path)
+
+    assert exc_info.value.category == "output_exists"
+    assert exc_info.value.role == "normalized"
+    assert collaborator_calls == []
+    assert outputs[0].read_bytes() == b"raced caller artifact"
+    assert not outputs[1].exists()
+    assert not outputs[2].exists()
+
+
+def test_link_no_clobber_links_absent_final_and_preserves_raced_final(tmp_path):
+    stage = tmp_path / ".lyra-stage.tsv"
+    stage.write_bytes(b"staged artifact")
+    final = tmp_path / "final.tsv"
+
+    lyra._link_no_clobber(stage, final)
+
+    assert final.read_bytes() == b"staged artifact"
+    assert os.stat(stage).st_dev == os.stat(final).st_dev
+    assert os.stat(stage).st_ino == os.stat(final).st_ino
+
+    second_stage = tmp_path / ".lyra-second-stage.tsv"
+    second_stage.write_bytes(b"second staged artifact")
+    raced_final = tmp_path / "raced-final.tsv"
+    raced_final.write_bytes(b"racer bytes")
+    raced_identity = (os.stat(raced_final).st_dev, os.stat(raced_final).st_ino)
+
+    with pytest.raises(FileExistsError):
+        lyra._link_no_clobber(second_stage, raced_final)
+
+    assert raced_final.read_bytes() == b"racer bytes"
+    assert (os.stat(raced_final).st_dev, os.stat(raced_final).st_ino) == raced_identity
+
+
 def _replace_with_valid_bam(tmp_path, source_path):
     replacement, _ = _write_bam(tmp_path, "replacement.bam")
     os.replace(replacement, source_path)
@@ -521,9 +670,7 @@ def test_source_owned_artifact_apis_accept_no_second_bam_argument():
     ]
     assert list(inspect.signature(lyra.write_lyra_artifacts).parameters) == [
         "store",
-        "normalized_output",
-        "summary_output",
-        "viral_bam_output",
+        "path_plan",
         "work_dir",
     ]
 
@@ -543,6 +690,11 @@ def test_source_direct_symlink_and_hardlink_aliases_produce_artifacts(
         os.link(source_path, access_path)
     score_path = _write_scores(tmp_path, "scores-{}.tsv".format(alias_kind))
     outputs = _artifact_paths(tmp_path, alias_kind)
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        access_path,
+        *outputs,
+    )
 
     with lyra.reconcile_lyra_fragments(
         score_path,
@@ -555,7 +707,7 @@ def test_source_direct_symlink_and_hardlink_aliases_produce_artifacts(
         assert store.source_bam_display_path == os.fspath(access_path)
         assert store.source_bam_identity == lyra._file_identity(os.stat(access_path))
         assert store.source_bam_header == header
-        lyra.write_lyra_artifacts(store, *outputs, work_dir=tmp_path)
+        lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
     assert all(path.exists() for path in outputs)
 
@@ -640,6 +792,11 @@ def test_source_mutation_before_generation_opens_no_output_or_producer(
     source_path, _ = _write_bam(tmp_path, "pregeneration-source.bam")
     score_path = _write_scores(tmp_path, "pregeneration-scores.tsv")
     outputs = _artifact_paths(tmp_path, "pregeneration")
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        source_path,
+        *outputs,
+    )
     producer_calls = []
 
     with lyra.reconcile_lyra_fragments(
@@ -662,7 +819,7 @@ def test_source_mutation_before_generation_opens_no_output_or_producer(
         )
 
         with pytest.raises(lyra.LyraSourceIdentityError) as exc_info:
-            lyra.write_lyra_artifacts(store, *outputs, work_dir=tmp_path)
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
     assert exc_info.value.stage == "pre_generation"
     assert producer_calls == []
@@ -673,6 +830,11 @@ def test_source_missing_before_generation_preserves_filesystem_cause(tmp_path):
     source_path, _ = _write_bam(tmp_path, "missing-source.bam")
     score_path = _write_scores(tmp_path, "missing-scores.tsv")
     outputs = _artifact_paths(tmp_path, "missing")
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        source_path,
+        *outputs,
+    )
 
     with lyra.reconcile_lyra_fragments(
         score_path,
@@ -683,7 +845,7 @@ def test_source_missing_before_generation_preserves_filesystem_cause(tmp_path):
     ) as store:
         source_path.unlink()
         with pytest.raises(lyra.LyraSourceIdentityError) as exc_info:
-            lyra.write_lyra_artifacts(store, *outputs, work_dir=tmp_path)
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
     assert exc_info.value.stage == "pre_generation"
     assert exc_info.value.actual is None
@@ -699,6 +861,11 @@ def test_source_mutation_after_bam_filter_prevents_counts_and_summary(
     source_path, _ = _write_bam(tmp_path, "postfilter-source.bam")
     score_path = _write_scores(tmp_path, "postfilter-scores.tsv")
     outputs = _artifact_paths(tmp_path, "postfilter")
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        source_path,
+        *outputs,
+    )
     original_filter = lyra.util_misc.ReadIdStore.filter_bam_by_ids
     accepted_calls = []
 
@@ -731,7 +898,7 @@ def test_source_mutation_after_bam_filter_prevents_counts_and_summary(
         work_dir=tmp_path,
     ) as store:
         with pytest.raises(lyra.LyraSourceIdentityError) as exc_info:
-            lyra.write_lyra_artifacts(store, *outputs, work_dir=tmp_path)
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
     assert exc_info.value.stage == "after_bam_filter"
     assert accepted_calls == []
