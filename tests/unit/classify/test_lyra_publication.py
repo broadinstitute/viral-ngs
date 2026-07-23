@@ -602,10 +602,16 @@ def test_linkat_links_retained_stage_descriptor_when_stage_name_is_replaced(tmp_
     transaction._create_stages()
     stage = transaction.stages[0]
     final_basename = os.path.basename(stage.destination.final_path)
+    displaced_basename = "displaced-linkat-stage.tsv"
 
     os.write(stage.descriptor, b"retained stage bytes")
     retained_identity = lyra._file_identity(os.fstat(stage.descriptor))
-    os.unlink(stage.basename, dir_fd=stage.parent.descriptor)
+    os.rename(
+        stage.basename,
+        displaced_basename,
+        src_dir_fd=stage.parent.descriptor,
+        dst_dir_fd=stage.parent.descriptor,
+    )
     with open(stage.display_path, "wb") as replacement:
         replacement.write(b"replacement stage bytes")
 
@@ -623,7 +629,7 @@ def test_linkat_links_retained_stage_descriptor_when_stage_name_is_replaced(tmp_
         with open(stage.display_path, "rb") as replacement:
             assert replacement.read() == b"replacement stage bytes"
     finally:
-        for basename in (final_basename, stage.basename):
+        for basename in (final_basename, stage.basename, displaced_basename):
             try:
                 os.unlink(basename, dir_fd=stage.parent.descriptor)
             except FileNotFoundError:
@@ -2005,7 +2011,7 @@ def test_all_staged_readback_finishes_before_first_final_link(
         original_normalized = lyra._validate_staged_normalized
         original_bam = lyra._validate_staged_bam
         original_summary = lyra._validate_staged_summary
-        original_link = lyra._link_no_clobber
+        original_link = lyra._link_stage_no_clobber
 
         def validate_normalized(*args):
             assert not any(path.exists() for path in outputs)
@@ -2025,14 +2031,14 @@ def test_all_staged_readback_finishes_before_first_final_link(
             readbacks.append("summary")
             return result
 
-        def link(stage_path, final_path):
+        def link(stage, final_basename):
             assert readbacks == ["normalized", "bam", "summary"]
-            return original_link(stage_path, final_path)
+            return original_link(stage, final_basename)
 
         monkeypatch.setattr(lyra, "_validate_staged_normalized", validate_normalized)
         monkeypatch.setattr(lyra, "_validate_staged_bam", validate_bam)
         monkeypatch.setattr(lyra, "_validate_staged_summary", validate_summary)
-        monkeypatch.setattr(lyra, "_link_no_clobber", link)
+        monkeypatch.setattr(lyra, "_link_stage_no_clobber", link)
 
         lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
@@ -2040,44 +2046,46 @@ def test_all_staged_readback_finishes_before_first_final_link(
     assert not list(tmp_path.rglob(".lyra-*"))
 
 
-@pytest.mark.parametrize(
-    ("helper_name", "expected_flags"),
-    [
-        ("_fsync_file", os.O_RDONLY),
-        ("_fsync_directory", os.O_RDONLY | os.O_DIRECTORY),
-    ],
-)
-def test_fsync_helpers_open_read_only_close_and_propagate(
+def test_fsync_uses_retained_stage_descriptor_without_reopening(
+    tmp_path,
     monkeypatch,
-    helper_name,
-    expected_flags,
 ):
-    operations = []
-
-    def open_path(path, flags):
-        operations.append(("open", path, flags))
-        return 17
+    score_path = _write_scores(tmp_path, "fsync-descriptor-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "fsync-descriptor-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    transaction._validated_stage_identities.update(
+        {
+            stage.role: lyra._file_identity(os.fstat(stage.descriptor))
+            for stage in transaction.stages
+        }
+    )
+    normalized_stage = next(
+        stage for stage in transaction.stages if stage.role == "normalized"
+    )
+    synced = []
 
     def fail_fsync(descriptor):
-        operations.append(("fsync", descriptor))
+        synced.append(descriptor)
         raise OSError(5, "injected fsync failure")
 
-    def close_descriptor(descriptor):
-        operations.append(("close", descriptor))
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                lyra.os,
+                "open",
+                lambda *args, **kwargs: pytest.fail("fsync must not reopen a path"),
+            )
+            patch.setattr(lyra.os, "fsync", fail_fsync)
 
-    with monkeypatch.context() as patch:
-        patch.setattr(lyra.os, "open", open_path)
-        patch.setattr(lyra.os, "fsync", fail_fsync)
-        patch.setattr(lyra.os, "close", close_descriptor)
+            with pytest.raises(OSError, match="injected fsync failure"):
+                transaction._sync_stages()
 
-        with pytest.raises(OSError, match="injected fsync failure"):
-            getattr(lyra, helper_name)("/artifact/path")
-
-    assert operations == [
-        ("open", "/artifact/path", expected_flags),
-        ("fsync", 17),
-        ("close", 17),
-    ]
+        assert synced == [normalized_stage.descriptor]
+        os.fstat(normalized_stage.descriptor)
+    finally:
+        transaction.rollback_and_cleanup()
 
 
 def _operation_role(path, path_plan):
@@ -2191,75 +2199,87 @@ def test_publication_failure_reports_exact_stage_and_original_cause(
             "fsync_final_parent",
         }:
             role = boundary[len("fsync_"):]
-            original = lyra._fsync_file
+            original = lyra.os.fsync
 
-            def fail_selected_stage(path):
-                if os.path.basename(path).startswith(".lyra-{}-".format(role)):
+            def fail_selected_stage(descriptor):
+                descriptor_path = os.readlink("/proc/self/fd/{}".format(descriptor))
+                if os.path.basename(descriptor_path).startswith(
+                    ".lyra-{}-".format(role)
+                ):
                     raise primary
-                return original(path)
+                return original(descriptor)
 
-            monkeypatch.setattr(lyra, "_fsync_file", fail_selected_stage)
+            monkeypatch.setattr(lyra.os, "fsync", fail_selected_stage)
         elif boundary in {"fsync_stage_parent", "fsync_final_parent"}:
-            original = lyra._fsync_directory
+            original = lyra.os.fsync
             calls = []
 
-            def fail_selected_directory_sync(path):
-                if path == path_plan.normalized.parent_path:
-                    calls.append(path)
+            def fail_selected_directory_sync(descriptor):
+                descriptor_stat = os.fstat(descriptor)
+                if (descriptor_stat.st_dev, descriptor_stat.st_ino) == (
+                    path_plan.normalized.destination_key[:2]
+                ):
+                    calls.append(descriptor)
                     target_call = 1 if boundary == "fsync_stage_parent" else 2
                     if len(calls) == target_call:
                         raise primary
-                return original(path)
+                return original(descriptor)
 
             monkeypatch.setattr(
-                lyra,
-                "_fsync_directory",
+                lyra.os,
+                "fsync",
                 fail_selected_directory_sync,
             )
         elif boundary.startswith("link_"):
             role = boundary[len("link_"):]
-            destination = getattr(path_plan, role).final_path
-            original = lyra._link_no_clobber
+            original = lyra._link_stage_no_clobber
 
-            def fail_selected_link(stage_path, final_path):
-                if final_path == destination:
+            def fail_selected_link(stage, final_basename):
+                if stage.role == role:
                     raise primary
-                return original(stage_path, final_path)
+                return original(stage, final_basename)
 
-            monkeypatch.setattr(lyra, "_link_no_clobber", fail_selected_link)
+            monkeypatch.setattr(
+                lyra,
+                "_link_stage_no_clobber",
+                fail_selected_link,
+            )
         elif boundary == "stage_cleanup":
-            original = lyra._unlink_path
+            original = lyra.os.unlink
             failed = []
 
-            def fail_first_normalized_stage_unlink(path):
+            def fail_first_normalized_stage_unlink(path, *, dir_fd=None):
                 if (
                     not failed
                     and os.path.basename(path).startswith(".lyra-normalized-")
                 ):
                     failed.append(path)
                     raise primary
-                return original(path)
+                return original(path, dir_fd=dir_fd)
 
             monkeypatch.setattr(
-                lyra,
-                "_unlink_path",
+                lyra.os,
+                "unlink",
                 fail_first_normalized_stage_unlink,
             )
         else:
             assert boundary == "final_summary_sync"
-            original = lyra._fsync_directory
+            original = lyra.os.fsync
+            summary_syncs = []
 
-            def fail_final_summary_sync(path):
-                if (
-                    path == path_plan.summary.parent_path
-                    and os.path.lexists(path_plan.summary.final_path)
+            def fail_final_summary_sync(descriptor):
+                descriptor_stat = os.fstat(descriptor)
+                if (descriptor_stat.st_dev, descriptor_stat.st_ino) == (
+                    path_plan.summary.destination_key[:2]
                 ):
-                    raise primary
-                return original(path)
+                    summary_syncs.append(descriptor)
+                    if len(summary_syncs) == 2:
+                        raise primary
+                return original(descriptor)
 
             monkeypatch.setattr(
-                lyra,
-                "_fsync_directory",
+                lyra.os,
+                "fsync",
                 fail_final_summary_sync,
             )
 
@@ -2298,18 +2318,22 @@ def test_raced_final_survives_real_no_clobber_link_and_owned_finals_roll_back(
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
         destination = getattr(path_plan, role).final_path
-        original_link = lyra._link_no_clobber
+        original_link = lyra._link_stage_no_clobber
         racer_bytes = ("racer-" + role).encode("ascii")
         raced_identity = []
 
-        def race_selected_link(stage_path, final_path):
-            if final_path == destination:
-                with open(final_path, "wb") as stream:
+        def race_selected_link(stage, final_basename):
+            if stage.role == role:
+                with open(destination, "wb") as stream:
                     stream.write(racer_bytes)
-                raced_identity.append(lyra._file_identity(os.lstat(final_path)))
-            return original_link(stage_path, final_path)
+                raced_identity.append(lyra._file_identity(os.lstat(destination)))
+            return original_link(stage, final_basename)
 
-        monkeypatch.setattr(lyra, "_link_no_clobber", race_selected_link)
+        monkeypatch.setattr(
+            lyra,
+            "_link_stage_no_clobber",
+            race_selected_link,
+        )
 
         with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
@@ -2340,16 +2364,16 @@ def test_ambiguous_link_error_claims_exact_stage_identity_for_rollback(
         _,
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
-        original_link = lyra._link_no_clobber
+        original_link = lyra._link_stage_no_clobber
         primary = OSError(5, "ambiguous remote link status")
 
-        def ambiguous_normalized_link(stage_path, final_path):
-            original_link(stage_path, final_path)
+        def ambiguous_normalized_link(stage, final_basename):
+            original_link(stage, final_basename)
             raise primary
 
         monkeypatch.setattr(
             lyra,
-            "_link_no_clobber",
+            "_link_stage_no_clobber",
             ambiguous_normalized_link,
         )
 
@@ -2388,16 +2412,18 @@ def test_replacement_before_rollback_identity_observation_survives_and_is_report
         real_unlink = os.unlink
         replacement_identity = []
         publication_failed = []
-        original_fsync_directory = lyra._fsync_directory
+        original_fsync = lyra.os.fsync
 
-        def fail_final_success_barrier(path):
+        def fail_final_success_barrier(descriptor):
+            descriptor_stat = os.fstat(descriptor)
             if (
                 transaction.stage == "sync_summary_final"
-                and path == path_plan.summary.parent_path
+                and (descriptor_stat.st_dev, descriptor_stat.st_ino)
+                == path_plan.summary.destination_key[:2]
             ):
                 publication_failed.append(True)
                 raise OSError(5, "injected final success barrier failure")
-            return original_fsync_directory(path)
+            return original_fsync(descriptor)
 
         def replace_at_rollback_observation(path, *args, **kwargs):
             if (
@@ -2416,8 +2442,8 @@ def test_replacement_before_rollback_identity_observation_survives_and_is_report
             return real_lstat(path, *args, **kwargs)
 
         monkeypatch.setattr(
-            lyra,
-            "_fsync_directory",
+            lyra.os,
+            "fsync",
             fail_final_success_barrier,
         )
         monkeypatch.setattr(lyra.os, "lstat", replace_at_rollback_observation)
@@ -2593,17 +2619,19 @@ def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
             work_dir=tmp_path,
         )
         primary = OSError(5, "injected completion-barrier failure")
-        original_fsync_directory = lyra._fsync_directory
+        original_fsync = lyra.os.fsync
         original_unlink = lyra._unlink_path
         failed_roles = {"summary", "viral_bam"}
 
-        def fail_completion_barrier(path):
+        def fail_completion_barrier(descriptor):
+            descriptor_stat = os.fstat(descriptor)
             if (
                 transaction.stage == "sync_summary_final"
-                and path == path_plan.summary.parent_path
+                and (descriptor_stat.st_dev, descriptor_stat.st_ino)
+                == path_plan.summary.destination_key[:2]
             ):
                 raise primary
-            return original_fsync_directory(path)
+            return original_fsync(descriptor)
 
         def fail_selected_rollbacks(path):
             for role in failed_roles:
@@ -2612,8 +2640,8 @@ def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
             return original_unlink(path)
 
         monkeypatch.setattr(
-            lyra,
-            "_fsync_directory",
+            lyra.os,
+            "fsync",
             fail_completion_barrier,
         )
         monkeypatch.setattr(lyra, "_unlink_path", fail_selected_rollbacks)
@@ -2736,41 +2764,55 @@ def test_publish_order_flushes_every_stage_and_syncs_summary_parent_last(
         _,
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
-        operations = []
-        original_validate = lyra._validate_staged_artifacts
-        original_fsync_file = lyra._fsync_file
-        original_fsync_directory = lyra._fsync_directory
-        original_link = lyra._link_no_clobber
-        original_unlink = lyra._unlink_path
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        transaction._create_stages()
+        transaction._generate_and_validate()
+        operations = [("validated", "all")]
+        stage_roles = {
+            stage.descriptor: stage.role + "_stage"
+            for stage in transaction.stages
+        }
+        parent_roles = {
+            stage.parent.descriptor: stage.role + "_parent"
+            for stage in transaction.stages
+        }
+        stages_by_basename = {
+            stage.basename: stage.role + "_stage"
+            for stage in transaction.stages
+        }
+        original_fsync = lyra.os.fsync
+        original_link = lyra._link_stage_no_clobber
+        original_unlink = lyra.os.unlink
 
-        def validate(*args, **kwargs):
-            result = original_validate(*args, **kwargs)
-            operations.append(("validated", "all"))
-            return result
+        def fsync(descriptor):
+            if descriptor in stage_roles:
+                operations.append(("fsync_file", stage_roles[descriptor]))
+            else:
+                operations.append(("fsync_dir", parent_roles[descriptor]))
+            return original_fsync(descriptor)
 
-        def fsync_file(path):
-            operations.append(("fsync_file", _operation_role(path, path_plan)))
-            return original_fsync_file(path)
+        def link(stage, final_basename):
+            operations.append(("link", stage.role + "_final"))
+            return original_link(stage, final_basename)
 
-        def fsync_directory(path):
-            operations.append(("fsync_dir", _operation_role(path, path_plan)))
-            return original_fsync_directory(path)
+        def unlink(path, *, dir_fd=None):
+            if path in stages_by_basename:
+                operations.append(("unlink", stages_by_basename[path]))
+            return original_unlink(path, dir_fd=dir_fd)
 
-        def link(stage_path, final_path):
-            operations.append(("link", _operation_role(final_path, path_plan)))
-            return original_link(stage_path, final_path)
-
-        def unlink(path):
-            operations.append(("unlink", _operation_role(path, path_plan)))
-            return original_unlink(path)
-
-        monkeypatch.setattr(lyra, "_validate_staged_artifacts", validate)
-        monkeypatch.setattr(lyra, "_fsync_file", fsync_file)
-        monkeypatch.setattr(lyra, "_fsync_directory", fsync_directory)
-        monkeypatch.setattr(lyra, "_link_no_clobber", link)
-        monkeypatch.setattr(lyra, "_unlink_path", unlink)
-
-        lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+        try:
+            with monkeypatch.context() as patch:
+                patch.setattr(lyra.os, "fsync", fsync)
+                patch.setattr(lyra, "_link_stage_no_clobber", link)
+                patch.setattr(lyra.os, "unlink", unlink)
+                transaction._sync_stages()
+                transaction._publish()
+        finally:
+            transaction._close_owned_descriptors()
 
     assert operations == [
         ("validated", "all"),
@@ -2813,13 +2855,14 @@ def test_same_parent_publication_keeps_every_directory_transition_barrier(
             *outputs,
         )
         synced_directories = []
-        original_fsync_directory = lyra._fsync_directory
+        original_fsync = lyra.os.fsync
 
-        def record_directory_sync(path):
-            synced_directories.append(path)
-            return original_fsync_directory(path)
+        def record_directory_sync(descriptor):
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                synced_directories.append(path_plan.normalized.parent_path)
+            return original_fsync(descriptor)
 
-        monkeypatch.setattr(lyra, "_fsync_directory", record_directory_sync)
+        monkeypatch.setattr(lyra.os, "fsync", record_directory_sync)
 
         lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
@@ -2840,12 +2883,20 @@ def test_fsync_failure_prevents_summary_and_cleans_all_stages(
         _,
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
-        helper_name = "_fsync_file" if failure_kind == "file" else "_fsync_directory"
+        original_fsync = lyra.os.fsync
 
-        def fail(_path):
-            raise OSError(5, "injected {} fsync failure".format(failure_kind))
+        def fail(descriptor):
+            descriptor_mode = os.fstat(descriptor).st_mode
+            if (
+                failure_kind == "file"
+                and stat.S_ISREG(descriptor_mode)
+                or failure_kind == "directory"
+                and stat.S_ISDIR(descriptor_mode)
+            ):
+                raise OSError(5, "injected {} fsync failure".format(failure_kind))
+            return original_fsync(descriptor)
 
-        monkeypatch.setattr(lyra, helper_name, fail)
+        monkeypatch.setattr(lyra.os, "fsync", fail)
 
         with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
@@ -2866,19 +2917,22 @@ def test_final_summary_parent_fsync_failure_rolls_back_every_final(
         _,
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
-        original_fsync_directory = lyra._fsync_directory
+        original_fsync = lyra.os.fsync
+        summary_syncs = []
 
-        def fail_final_summary_sync(path):
-            if (
-                path == path_plan.summary.parent_path
-                and os.path.lexists(path_plan.summary.final_path)
+        def fail_final_summary_sync(descriptor):
+            descriptor_stat = os.fstat(descriptor)
+            if (descriptor_stat.st_dev, descriptor_stat.st_ino) == (
+                path_plan.summary.destination_key[:2]
             ):
-                raise OSError(5, "injected final summary fsync failure")
-            return original_fsync_directory(path)
+                summary_syncs.append(descriptor)
+                if len(summary_syncs) == 2:
+                    raise OSError(5, "injected final summary fsync failure")
+            return original_fsync(descriptor)
 
         monkeypatch.setattr(
-            lyra,
-            "_fsync_directory",
+            lyra.os,
+            "fsync",
             fail_final_summary_sync,
         )
 
@@ -2902,14 +2956,18 @@ def test_bam_link_failure_rolls_back_normalized_and_leaves_no_summary(
         _,
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
-        original_link = lyra._link_no_clobber
+        original_link = lyra._link_stage_no_clobber
 
-        def fail_bam_link(stage_path, final_path):
-            if final_path == path_plan.viral_bam.final_path:
+        def fail_bam_link(stage, final_basename):
+            if stage.role == "viral_bam":
                 raise OSError(5, "injected BAM link failure")
-            return original_link(stage_path, final_path)
+            return original_link(stage, final_basename)
 
-        monkeypatch.setattr(lyra, "_link_no_clobber", fail_bam_link)
+        monkeypatch.setattr(
+            lyra,
+            "_link_stage_no_clobber",
+            fail_bam_link,
+        )
 
         with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
@@ -2962,17 +3020,21 @@ def test_rollback_preserves_observed_replacement_and_reports_identity_mismatch(
             path_plan,
             work_dir=tmp_path,
         )
-        original_link = lyra._link_no_clobber
+        original_link = lyra._link_stage_no_clobber
 
-        def replace_before_failure(stage_path, final_path):
-            if final_path == path_plan.viral_bam.final_path:
+        def replace_before_failure(stage, final_basename):
+            if stage.role == "viral_bam":
                 os.unlink(path_plan.normalized.final_path)
                 with open(path_plan.normalized.final_path, "wb") as stream:
                     stream.write(b"caller replacement")
                 raise OSError(5, "injected BAM link failure")
-            return original_link(stage_path, final_path)
+            return original_link(stage, final_basename)
 
-        monkeypatch.setattr(lyra, "_link_no_clobber", replace_before_failure)
+        monkeypatch.setattr(
+            lyra,
+            "_link_stage_no_clobber",
+            replace_before_failure,
+        )
 
         with pytest.raises(lyra.LyraPublicationError) as exc_info:
             transaction.generate_validate_and_publish()
@@ -3004,6 +3066,8 @@ def test_publication_records_are_frozen_and_transaction_state_is_observable(
     assert [field.name for field in fields(lyra.PublishedArtifact)] == [
         "role",
         "final_path",
+        "final_basename",
+        "parent",
         "identity",
     ]
     assert transaction.stage == "initialized"

@@ -348,10 +348,19 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
             ("summary", current_store, path, output_bam_records)
         ),
     )
+    def validate_staged_artifacts(*args, **kwargs):
+        calls.append(("readback", *args))
+        kwargs["validated_stage_identities"].update(
+            {
+                stage.role: lyra._file_identity(os.fstat(stage.descriptor))
+                for stage in args[1:4]
+            }
+        )
+
     monkeypatch.setattr(
         lyra,
         "_validate_staged_artifacts",
-        lambda *args, **kwargs: calls.append(("readback", *args)),
+        validate_staged_artifacts,
     )
 
     original_link = lyra._link_stage_no_clobber
@@ -440,10 +449,18 @@ def test_coordinator_routes_only_immutable_path_plan_destinations(
     monkeypatch.setattr(lyra, "_write_viral_bam", write_viral_bam)
     monkeypatch.setattr(lyra, "_validate_artifact_counts", lambda *args: None)
     monkeypatch.setattr(lyra, "_write_summary", write_summary)
+    def validate_staged_artifacts(*args, **kwargs):
+        kwargs["validated_stage_identities"].update(
+            {
+                stage.role: lyra._file_identity(os.fstat(stage.descriptor))
+                for stage in args[1:4]
+            }
+        )
+
     monkeypatch.setattr(
         lyra,
         "_validate_staged_artifacts",
-        lambda *args, **kwargs: None,
+        validate_staged_artifacts,
     )
 
     lyra.write_lyra_artifacts(

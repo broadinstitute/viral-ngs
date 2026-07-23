@@ -2,6 +2,7 @@
 
 import codecs
 import copy
+import ctypes
 import gzip
 import io
 import os
@@ -61,6 +62,8 @@ _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _MAX_CANONICAL_THRESHOLD_LENGTH = 160
 _MAX_PUBLICATION_CLEANUP_FAILURES = 16
 _MAX_PUBLICATION_COMMAND_FIELDS = 8
+_AT_FDCWD = -100
+_AT_SYMLINK_FOLLOW = 0x400
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
 _MIN_SCORE = Decimal("0")
 _MAX_SCORE = Decimal("1")
@@ -402,6 +405,8 @@ class PublishedArtifact:
 
     role: str
     final_path: str
+    final_basename: str
+    parent: ParentDirectoryAnchor
     identity: FileIdentity
 
 
@@ -1914,28 +1919,33 @@ def _assert_path_plan_available(path_plan, stage):
         )
 
 
-def _link_no_clobber(stage_path, final_path):
-    os.link(stage_path, final_path, follow_symlinks=False)
+def _link_stage_no_clobber(stage, final_basename):
+    """Link a retained stage inode into its anchored parent without clobbering."""
+    linkat = ctypes.CDLL(None, use_errno=True).linkat
+    linkat.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+    )
+    linkat.restype = ctypes.c_int
+    source = os.fsencode("/proc/self/fd/{}".format(stage.descriptor))
+    destination = os.fsencode(final_basename)
+    result = linkat(
+        _AT_FDCWD,
+        source,
+        stage.parent.descriptor,
+        destination,
+        _AT_SYMLINK_FOLLOW,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number))
 
 
 def _unlink_path(path):
     os.unlink(path)
-
-
-def _fsync_file(path):
-    descriptor = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _fsync_directory(path):
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
 
 
 def _cleanup_failure(operation, role, path, status, error):
@@ -2108,28 +2118,53 @@ class LyraArtifactTransaction:
 
     def _sync_stages(self):
         publication_stages = self._stages_in_publication_order()
-        for stage in publication_stages:
-            self.stage = "fsync_{}_stage".format(stage.role)
-            _fsync_file(stage.stage_path)
-        for stage in publication_stages:
-            self.stage = "fsync_{}_stage_parent".format(stage.role)
-            _fsync_directory(stage.destination.parent_path)
+        for artifact_stage in publication_stages:
+            self.stage = "fsync_{}_stage".format(artifact_stage.role)
+            self._assert_validated_stage(artifact_stage)
+            os.fsync(artifact_stage.descriptor)
+        for artifact_stage in publication_stages:
+            self.stage = "fsync_{}_stage_parent".format(artifact_stage.role)
+            self._sync_parent(artifact_stage)
+
+    def _assert_validated_stage(self, artifact_stage):
+        _assert_parent_anchor(artifact_stage.parent, self.stage)
+        _assert_stage_handle(artifact_stage)
+        expected = self._validated_stage_identities.get(artifact_stage.role)
+        actual = _file_identity(os.fstat(artifact_stage.descriptor))
+        if expected is None or actual != expected:
+            raise LyraArtifactConsistencyError(
+                category="publication_identity",
+                field=artifact_stage.role,
+                expected=expected,
+                actual=actual,
+            )
+        return expected
+
+    def _sync_parent(self, artifact_stage):
+        _assert_parent_anchor(artifact_stage.parent, self.stage)
+        os.fsync(artifact_stage.parent.descriptor)
 
     def _publish_stage(self, artifact_stage):
-        stage_identity = _file_identity(os.lstat(artifact_stage.stage_path))
+        stage_identity = self._assert_validated_stage(artifact_stage)
+        final_basename = os.path.basename(artifact_stage.destination.final_path)
         pending = PublishedArtifact(
             role=artifact_stage.role,
             final_path=artifact_stage.destination.final_path,
+            final_basename=final_basename,
+            parent=artifact_stage.parent,
             identity=stage_identity,
         )
         try:
-            _link_no_clobber(
-                artifact_stage.stage_path,
-                artifact_stage.destination.final_path,
-            )
+            _link_stage_no_clobber(artifact_stage, final_basename)
         except BaseException:
             try:
-                final_identity = _file_identity(os.lstat(pending.final_path))
+                final_identity = _file_identity(
+                    os.stat(
+                        final_basename,
+                        dir_fd=artifact_stage.parent.descriptor,
+                        follow_symlinks=False,
+                    )
+                )
             except BaseException:
                 pass
             else:
@@ -2138,7 +2173,13 @@ class LyraArtifactTransaction:
             raise
 
         self._pending_publication = pending
-        final_identity = _file_identity(os.lstat(pending.final_path))
+        final_identity = _file_identity(
+            os.stat(
+                final_basename,
+                dir_fd=artifact_stage.parent.descriptor,
+                follow_symlinks=False,
+            )
+        )
         if final_identity != stage_identity:
             raise LyraArtifactConsistencyError(
                 category="publication_identity",
@@ -2150,8 +2191,12 @@ class LyraArtifactTransaction:
         self._pending_publication = None
 
     def _remove_stage_and_sync(self, artifact_stage):
-        _unlink_path(artifact_stage.stage_path)
-        _fsync_directory(artifact_stage.destination.parent_path)
+        _assert_stage_handle(artifact_stage)
+        os.unlink(
+            artifact_stage.basename,
+            dir_fd=artifact_stage.parent.descriptor,
+        )
+        self._sync_parent(artifact_stage)
 
     def _publish(self):
         normalized_stage, bam_stage, summary_stage = (
@@ -2161,12 +2206,12 @@ class LyraArtifactTransaction:
         self.stage = "publish_normalized"
         self._publish_stage(normalized_stage)
         self.stage = "sync_normalized_final"
-        _fsync_directory(normalized_stage.destination.parent_path)
+        self._sync_parent(normalized_stage)
 
         self.stage = "publish_viral_bam"
         self._publish_stage(bam_stage)
         self.stage = "sync_viral_bam_final"
-        _fsync_directory(bam_stage.destination.parent_path)
+        self._sync_parent(bam_stage)
 
         self.stage = "remove_normalized_stage"
         self._remove_stage_and_sync(normalized_stage)
@@ -2176,9 +2221,13 @@ class LyraArtifactTransaction:
         self.stage = "publish_summary"
         self._publish_stage(summary_stage)
         self.stage = "remove_summary_stage"
-        _unlink_path(summary_stage.stage_path)
+        _assert_stage_handle(summary_stage)
+        os.unlink(
+            summary_stage.basename,
+            dir_fd=summary_stage.parent.descriptor,
+        )
         self.stage = "sync_summary_final"
-        _fsync_directory(summary_stage.destination.parent_path)
+        self._sync_parent(summary_stage)
         self.stage = "complete"
 
     def _rollback_published(self, artifact):
@@ -2232,7 +2281,7 @@ class LyraArtifactTransaction:
             )
 
         try:
-            _fsync_directory(os.path.dirname(artifact.final_path))
+            os.fsync(artifact.parent.descriptor)
         except BaseException as error:
             return _cleanup_failure(
                 "rollback",
@@ -2270,7 +2319,7 @@ class LyraArtifactTransaction:
             )
 
         try:
-            _fsync_directory(artifact_stage.destination.parent_path)
+            os.fsync(artifact_stage.parent.descriptor)
         except BaseException as error:
             return _cleanup_failure(
                 "cleanup",
