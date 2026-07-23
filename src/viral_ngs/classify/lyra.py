@@ -54,6 +54,7 @@ SUMMARY_HEADER = (
 )
 
 _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
+_MAX_CANONICAL_THRESHOLD_LENGTH = 160
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
 _MIN_SCORE = Decimal("0")
 _MAX_SCORE = Decimal("1")
@@ -358,6 +359,27 @@ class LyraReconciliationCounts:
     nonviral_fragment_calls: int
 
 
+def _canonical_output_decimal_length(value):
+    """Predict canonical ordinary-decimal length without rendering it."""
+    if value.is_zero():
+        return 1
+
+    value_tuple = value.as_tuple()
+    digit_count = len(value_tuple.digits)
+    exponent = value_tuple.exponent
+    for digit in reversed(value_tuple.digits):
+        if digit != 0:
+            break
+        digit_count -= 1
+        exponent += 1
+
+    if exponent >= 0:
+        return digit_count + exponent
+    if digit_count + exponent > 0:
+        return digit_count + 1
+    return 2 - exponent
+
+
 def validate_lyra_threshold(threshold):
     """Return a finite inclusive ``[0, 1]`` threshold as a Decimal."""
     if type(threshold) is bool:
@@ -381,6 +403,13 @@ def validate_lyra_threshold(threshold):
             category="threshold",
             field="threshold",
             reason="threshold must be finite and between zero and one inclusive",
+            offending_value=threshold,
+        )
+    if _canonical_output_decimal_length(value) > _MAX_CANONICAL_THRESHOLD_LENGTH:
+        raise LyraInputError(
+            category="threshold",
+            field="threshold",
+            reason="canonical threshold text exceeds 160 characters",
             offending_value=threshold,
         )
     return value
@@ -417,6 +446,7 @@ def _write_tsv_row(binary_stream, values):
 def _write_normalized(store, normalized_output):
     """Stream one exact normalized row per finalized fragment."""
     threshold = store.threshold
+    threshold_text = _canonical_output_decimal(threshold)
     pairing_values = {
         PAIRING_SINGLE_END,
         PAIRING_COMPLETE,
@@ -461,7 +491,7 @@ def _write_normalized(store, normalized_output):
                     fragment.pairing,
                     _canonical_output_decimal(fragment.min_score),
                     _canonical_output_decimal(fragment.max_score),
-                    _canonical_output_decimal(threshold),
+                    threshold_text,
                     fragment.call,
                 ),
             )
