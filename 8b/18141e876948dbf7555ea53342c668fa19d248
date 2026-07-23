@@ -1,0 +1,20 @@
+src/viral_ngs/classify/lyra.py
+  s_795f6bd07b8102::t_ac30480a12ec1a 683-688
+  s_795f6bd07b8102::t_08543e869cad04 690,694,702
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8b18141e876948dbf7555ea53342c668fa19d248",
+  "prompts": {},
+  "sessions": {
+    "s_795f6bd07b8102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0739567fdffe1r9rfyKUgkMBza",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
