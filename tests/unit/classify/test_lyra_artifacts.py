@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import replace
 from decimal import Decimal
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -271,11 +272,16 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
         tmp_path / "summary.tsv",
         tmp_path / "viral.bam",
     )
+    validated_paths = (
+        str(tmp_path / "validated-normalized.tsv"),
+        str(tmp_path / "validated-summary.tsv"),
+        str(tmp_path / "validated-viral.bam"),
+    )
 
     monkeypatch.setattr(
         lyra,
         "_validate_artifact_output_suffixes",
-        lambda *args: calls.append(("suffixes", args)),
+        lambda *args: calls.append(("suffixes", args)) or validated_paths,
     )
     monkeypatch.setattr(
         lyra,
@@ -320,8 +326,86 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
         "invariants",
         "summary",
     ]
+    assert calls[0][1] == paths
+    assert calls[1][1:] == (store, validated_paths[0])
+    assert calls[2][1:] == (
+        store,
+        tmp_path / "source.bam",
+        validated_paths[2],
+        tmp_path / "work",
+    )
     assert calls[3][1:] == (counts, 3, 5)
-    assert calls[4][2:] == (paths[1], 5)
+    assert calls[4][1:] == (store, validated_paths[1], 5)
+
+
+def test_coordinator_converts_each_stateful_output_pathlike_once(
+    tmp_path,
+    monkeypatch,
+):
+    class StatefulPath(os.PathLike):
+        def __init__(self, validated_path, bypass_path):
+            self.validated_path = str(validated_path)
+            self.bypass_path = str(bypass_path)
+            self.fspath_calls = 0
+
+        def __fspath__(self):
+            self.fspath_calls += 1
+            if self.fspath_calls == 1:
+                return self.validated_path
+            return self.bypass_path
+
+    normalized = StatefulPath(
+        tmp_path / "normalized.tsv",
+        tmp_path / "normalized-bypass.txt",
+    )
+    summary = StatefulPath(
+        tmp_path / "summary.tsv",
+        tmp_path / "summary-bypass.txt",
+    )
+    viral_bam = StatefulPath(
+        tmp_path / "viral.bam",
+        tmp_path / "viral-bypass.sam",
+    )
+    outputs = (normalized, summary, viral_bam)
+    validator_calls = []
+    producer_paths = {}
+    original_validator = lyra._validate_artifact_output_suffixes
+
+    def count_validator(*paths):
+        validator_calls.append(paths)
+        return original_validator(*paths)
+
+    def write_normalized(current_store, path):
+        producer_paths["normalized"] = (path, os.fspath(path))
+        return 3
+
+    def write_viral_bam(current_store, source, path, work_dir=None):
+        producer_paths["viral_bam"] = (path, os.fspath(path))
+        return 5
+
+    def write_summary(current_store, path, output_bam_records):
+        producer_paths["summary"] = (path, os.fspath(path))
+
+    monkeypatch.setattr(lyra, "_validate_artifact_output_suffixes", count_validator)
+    monkeypatch.setattr(lyra, "_write_normalized", write_normalized)
+    monkeypatch.setattr(lyra, "_write_viral_bam", write_viral_bam)
+    monkeypatch.setattr(lyra, "_validate_artifact_counts", lambda *args: None)
+    monkeypatch.setattr(lyra, "_write_summary", write_summary)
+
+    lyra.write_lyra_artifacts(
+        SimpleNamespace(counts=_consistent_counts()),
+        tmp_path / "source.bam",
+        *outputs,
+        work_dir=tmp_path,
+    )
+
+    assert validator_calls == [outputs]
+    for name, output in zip(("normalized", "summary", "viral_bam"), outputs):
+        received_path, opened_path = producer_paths[name]
+        assert received_path == output.validated_path
+        assert opened_path == output.validated_path
+        assert output.fspath_calls == 1
+        assert not os.path.exists(output.bypass_path)
 
 
 @pytest.mark.parametrize("producer", ["normalized", "bam"])
