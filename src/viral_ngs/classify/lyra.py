@@ -1983,7 +1983,12 @@ class LyraArtifactTransaction:
         self._published = []
         self._pending_publication = None
         self._cleanup_outcomes = ()
-        self._owned_descriptors_closed = False
+        self._stage_descriptors_close_attempted = False
+        self._parent_descriptors_close_attempted = False
+        self._stage_descriptor_close_error = None
+        self._stage_descriptor_close_traceback = None
+        self._parent_descriptor_close_error = None
+        self._parent_descriptor_close_traceback = None
         self._validated_stage_identities = {}
 
     @property
@@ -2046,15 +2051,18 @@ class LyraArtifactTransaction:
                 pass
         self._close_owned_descriptors()
 
-    def _close_owned_descriptors(self):
-        if self._owned_descriptors_closed:
+    def _close_stage_descriptors(self):
+        if self._stage_descriptors_close_attempted:
             return ()
-        self._owned_descriptors_closed = True
+        self._stage_descriptors_close_attempted = True
         failures = []
         for artifact_stage in reversed(self._stages):
             try:
                 os.close(artifact_stage.descriptor)
             except BaseException as error:
+                if self._stage_descriptor_close_error is None:
+                    self._stage_descriptor_close_error = error
+                    self._stage_descriptor_close_traceback = error.__traceback__
                 failures.append(
                     _cleanup_failure(
                         "close_stage_descriptor",
@@ -2064,10 +2072,20 @@ class LyraArtifactTransaction:
                         error,
                     )
                 )
+        return tuple(failures)
+
+    def _close_parent_descriptors(self):
+        if self._parent_descriptors_close_attempted:
+            return ()
+        self._parent_descriptors_close_attempted = True
+        failures = []
         for anchor in reversed(self._parent_anchors):
             try:
                 os.close(anchor.descriptor)
             except BaseException as error:
+                if self._parent_descriptor_close_error is None:
+                    self._parent_descriptor_close_error = error
+                    self._parent_descriptor_close_traceback = error.__traceback__
                 failures.append(
                     _cleanup_failure(
                         "close_parent_descriptor",
@@ -2078,6 +2096,12 @@ class LyraArtifactTransaction:
                     )
                 )
         return tuple(failures)
+
+    def _close_owned_descriptors(self):
+        return (
+            self._close_stage_descriptors()
+            + self._close_parent_descriptors()
+        )
 
     def _stages_in_publication_order(self):
         by_role = {stage.role: stage for stage in self._stages}
@@ -2320,17 +2344,6 @@ class LyraArtifactTransaction:
 
     def _cleanup_stage(self, artifact_stage):
         try:
-            owner_identity = _file_identity(os.fstat(artifact_stage.descriptor))
-        except BaseException as error:
-            return _cleanup_failure(
-                "cleanup",
-                artifact_stage.role,
-                artifact_stage.display_path,
-                "descriptor_stat_failed",
-                error,
-            )
-
-        try:
             observed = _file_identity(
                 os.stat(
                     artifact_stage.basename,
@@ -2344,7 +2357,9 @@ class LyraArtifactTransaction:
                 role=artifact_stage.role,
                 path=artifact_stage.display_path,
                 status="absent",
-                expected=owner_identity,
+                expected=self._validated_stage_identities.get(
+                    artifact_stage.role
+                ),
             )
         except BaseException as error:
             return _cleanup_failure(
@@ -2352,6 +2367,17 @@ class LyraArtifactTransaction:
                 artifact_stage.role,
                 artifact_stage.display_path,
                 "entry_stat_failed",
+                error,
+            )
+
+        try:
+            owner_identity = _file_identity(os.fstat(artifact_stage.descriptor))
+        except BaseException as error:
+            return _cleanup_failure(
+                "cleanup",
+                artifact_stage.role,
+                artifact_stage.display_path,
+                "descriptor_stat_failed",
                 error,
             )
 
@@ -2410,7 +2436,7 @@ class LyraArtifactTransaction:
             actual=observed,
         )
 
-    def rollback_and_cleanup(self):
+    def _rollback_and_cleanup(self, initial_outcomes=()):
         """Rollback exact owned finals and remove known stages without raising.
 
         When identity checks and cleanup syscalls succeed, every exact
@@ -2418,7 +2444,7 @@ class LyraArtifactTransaction:
         entry untouched and returns ``status="unlink_failed"`` so the caller
         can preserve the primary cause while reporting the residual.
         """
-        outcomes = []
+        outcomes = list(initial_outcomes)
         rollback_artifacts = []
         if self._pending_publication is not None:
             rollback_artifacts.append(self._pending_publication)
@@ -2430,6 +2456,9 @@ class LyraArtifactTransaction:
         outcomes.extend(self._close_owned_descriptors())
         self._cleanup_outcomes = tuple(outcomes)
         return self._cleanup_outcomes
+
+    def rollback_and_cleanup(self):
+        return self._rollback_and_cleanup()
 
     def _cleanup_failures(self):
         failures = []
@@ -2455,6 +2484,26 @@ class LyraArtifactTransaction:
                         path=outcome.path,
                         error_type="FileIdentityMismatch",
                         category="stage_identity_mismatch",
+                    )
+                )
+                continue
+
+            if outcome.operation in {
+                "close_stage_descriptor",
+                "close_parent_descriptor",
+            }:
+                failures.append(
+                    CleanupFailure(
+                        operation=outcome.operation,
+                        role=outcome.role,
+                        path=outcome.path,
+                        error_type=outcome.error_type,
+                        errno=(
+                            outcome.errno
+                            if type(outcome.errno) is int
+                            else None
+                        ),
+                        category="transaction_descriptor_close_failed",
                     )
                 )
                 continue
@@ -2510,17 +2559,32 @@ class LyraArtifactTransaction:
                 ),
             ) from primary
         else:
-            close_outcomes = self._close_owned_descriptors()
-            if close_outcomes:
-                self._cleanup_outcomes = close_outcomes
-                primary = OSError("failed to close artifact transaction descriptors")
-                failure_stage = "close_transaction_descriptors"
-                self.rollback_and_cleanup()
+            self.stage = "close_transaction_descriptors"
+            stage_close_outcomes = self._close_stage_descriptors()
+            if stage_close_outcomes:
+                primary = self._stage_descriptor_close_error
+                primary_traceback = self._stage_descriptor_close_traceback
+                self._rollback_and_cleanup(stage_close_outcomes)
+                if not isinstance(primary, Exception):
+                    raise primary.with_traceback(primary_traceback)
                 raise LyraPublicationError(
-                    stage=failure_stage,
+                    stage="close_transaction_descriptors",
                     primary=primary,
                     cleanup_failures=self._cleanup_failures(),
-                ) from primary
+                ) from primary.with_traceback(primary_traceback)
+
+            parent_close_outcomes = self._close_parent_descriptors()
+            if parent_close_outcomes:
+                primary = self._parent_descriptor_close_error
+                primary_traceback = self._parent_descriptor_close_traceback
+                self._cleanup_outcomes = parent_close_outcomes
+                if not isinstance(primary, Exception):
+                    raise primary.with_traceback(primary_traceback)
+                raise LyraPublicationError(
+                    stage="close_transaction_descriptors",
+                    primary=primary,
+                    cleanup_failures=self._cleanup_failures(),
+                ) from primary.with_traceback(primary_traceback)
 
 
 def write_lyra_artifacts(
