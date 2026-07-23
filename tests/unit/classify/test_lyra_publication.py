@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from dataclasses import fields
 from dataclasses import FrozenInstanceError
 from decimal import Decimal
+import errno
 import inspect
 import os
 import stat
@@ -593,28 +594,67 @@ def test_writer_boundary_race_rejects_final_before_any_producer(
     assert not outputs[2].exists()
 
 
-def test_link_no_clobber_links_absent_final_and_preserves_raced_final(tmp_path):
-    stage = tmp_path / ".lyra-stage.tsv"
-    stage.write_bytes(b"staged artifact")
-    final = tmp_path / "final.tsv"
+def test_linkat_links_retained_stage_descriptor_when_stage_name_is_replaced(tmp_path):
+    score_path = _write_scores(tmp_path, "linkat-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "linkat-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    stage = transaction.stages[0]
+    final_basename = os.path.basename(stage.destination.final_path)
 
-    lyra._link_no_clobber(stage, final)
+    os.write(stage.descriptor, b"retained stage bytes")
+    retained_identity = lyra._file_identity(os.fstat(stage.descriptor))
+    os.unlink(stage.basename, dir_fd=stage.parent.descriptor)
+    with open(stage.display_path, "wb") as replacement:
+        replacement.write(b"replacement stage bytes")
 
-    assert final.read_bytes() == b"staged artifact"
-    assert os.stat(stage).st_dev == os.stat(final).st_dev
-    assert os.stat(stage).st_ino == os.stat(final).st_ino
+    try:
+        lyra._link_stage_no_clobber(stage, final_basename)
 
-    second_stage = tmp_path / ".lyra-second-stage.tsv"
-    second_stage.write_bytes(b"second staged artifact")
-    raced_final = tmp_path / "raced-final.tsv"
-    raced_final.write_bytes(b"racer bytes")
-    raced_identity = (os.stat(raced_final).st_dev, os.stat(raced_final).st_ino)
+        final_stat = os.stat(
+            final_basename,
+            dir_fd=stage.parent.descriptor,
+            follow_symlinks=False,
+        )
+        assert lyra._file_identity(final_stat) == retained_identity
+        with open(stage.destination.final_path, "rb") as final:
+            assert final.read() == b"retained stage bytes"
+        with open(stage.display_path, "rb") as replacement:
+            assert replacement.read() == b"replacement stage bytes"
+    finally:
+        for basename in (final_basename, stage.basename):
+            try:
+                os.unlink(basename, dir_fd=stage.parent.descriptor)
+            except FileNotFoundError:
+                pass
+        transaction.rollback_and_cleanup()
 
-    with pytest.raises(FileExistsError):
-        lyra._link_no_clobber(second_stage, raced_final)
 
-    assert raced_final.read_bytes() == b"racer bytes"
-    assert (os.stat(raced_final).st_dev, os.stat(raced_final).st_ino) == raced_identity
+def test_linkat_no_clobber_preserves_existing_final_and_errno(tmp_path):
+    score_path = _write_scores(tmp_path, "linkat-eexist-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "linkat-eexist-source.bam")
+    path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    stage = transaction.stages[0]
+    final_basename = os.path.basename(stage.destination.final_path)
+    with open(stage.destination.final_path, "wb") as final:
+        final.write(b"racer bytes")
+    raced_identity = lyra._file_identity(os.stat(stage.destination.final_path))
+
+    try:
+        with pytest.raises(FileExistsError) as exc_info:
+            lyra._link_stage_no_clobber(stage, final_basename)
+
+        assert exc_info.value.errno == errno.EEXIST
+        assert open(stage.destination.final_path, "rb").read() == b"racer bytes"
+        assert lyra._file_identity(os.stat(stage.destination.final_path)) == (
+            raced_identity
+        )
+    finally:
+        os.unlink(final_basename, dir_fd=stage.parent.descriptor)
+        transaction.rollback_and_cleanup()
 
 
 def _replace_with_valid_bam(tmp_path, source_path):
@@ -1711,6 +1751,44 @@ def test_transaction_records_full_stage_identities_after_handle_readback(tmp_pat
                 "summary",
                 "viral_bam",
             }
+        finally:
+            transaction.rollback_and_cleanup()
+
+
+def test_publication_identity_rejects_same_inode_mutation_after_readback(tmp_path):
+    with _publication_store(tmp_path, "publication-identity") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        transaction._create_stages()
+        transaction._generate_and_validate()
+        normalized_stage = next(
+            stage for stage in transaction.stages if stage.role == "normalized"
+        )
+        validated_identity = transaction._validated_stage_identities["normalized"]
+        os.lseek(normalized_stage.descriptor, 0, os.SEEK_END)
+        os.write(normalized_stage.descriptor, b"post-readback mutation")
+
+        try:
+            with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+                transaction._publish_stage(normalized_stage)
+
+            error = exc_info.value
+            assert error.category == "publication_identity"
+            assert error.field == "normalized"
+            assert error.expected == validated_identity
+            assert error.actual == lyra._file_identity(
+                os.fstat(normalized_stage.descriptor)
+            )
+            assert not os.path.lexists(normalized_stage.destination.final_path)
         finally:
             transaction.rollback_and_cleanup()
 

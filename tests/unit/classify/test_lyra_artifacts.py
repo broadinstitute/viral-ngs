@@ -354,15 +354,15 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
         lambda *args, **kwargs: calls.append(("readback", *args)),
     )
 
-    original_link = lyra._link_no_clobber
+    original_link = lyra._link_stage_no_clobber
 
-    def record_link(stage_path, final_path):
-        calls.append(("link", stage_path, final_path))
-        return original_link(stage_path, final_path)
+    def record_link(stage, final_basename):
+        calls.append(("link", stage, final_basename))
+        return original_link(stage, final_basename)
 
     monkeypatch.setattr(
         lyra,
-        "_link_no_clobber",
+        "_link_stage_no_clobber",
         record_link,
     )
 
@@ -406,7 +406,10 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
     assert calls[6][3] is calls[5][2]
     assert calls[6][4] is calls[3][2]
     assert calls[6][5:] == (3, 5)
-    assert [call[2] for call in calls[7:]] == [
+    assert [
+        os.path.join(call[1].parent.parent_path, call[2])
+        for call in calls[7:]
+    ] == [
         path_plan.normalized.final_path,
         path_plan.viral_bam.final_path,
         path_plan.summary.final_path,
