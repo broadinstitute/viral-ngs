@@ -2793,7 +2793,7 @@ def test_bam_filter_and_transaction_cleanup_diagnostics_are_combined(
     original_unlink(os.fspath(remaining_stages[0]))
 
 
-def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
+def test_failed_rollback_unlinks_preserve_exact_residuals_and_primary_diagnostics(
     tmp_path,
     monkeypatch,
 ):
@@ -2812,7 +2812,8 @@ def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
         primary = OSError(5, "injected completion-barrier failure")
         original_fsync = lyra.os.fsync
         original_unlink = lyra.os.unlink
-        failed_roles = {"summary", "viral_bam"}
+        failed_roles = ("summary", "viral_bam")
+        residual_snapshots = {}
 
         def fail_completion_barrier(descriptor):
             descriptor_stat = os.fstat(descriptor)
@@ -2821,6 +2822,14 @@ def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
                 and (descriptor_stat.st_dev, descriptor_stat.st_ino)
                 == path_plan.summary.destination_key[:2]
             ):
+                for role in failed_roles:
+                    final_path = getattr(path_plan, role).final_path
+                    residual_snapshots[role] = (
+                        lyra._file_identity(
+                            os.stat(final_path, follow_symlinks=False)
+                        ),
+                        open(final_path, "rb").read(),
+                    )
                 raise primary
             return original_fsync(descriptor)
 
@@ -2849,18 +2858,38 @@ def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
             transaction.generate_validate_and_publish()
 
         error = exc_info.value
+        cleanup_outcomes = transaction.cleanup_outcomes
 
     assert error.__cause__ is primary
+    assert residual_snapshots.keys() == {"summary", "viral_bam"}
+    assert error.cleanup_failures == tuple(
+        lyra.CleanupFailure(
+            operation="rollback",
+            role=role,
+            path=getattr(path_plan, role).final_path,
+            error_type="OSError",
+            errno=5,
+            category="rollback_unlink_failed",
+        )
+        for role in failed_roles
+    )
+    assert error.cleanup_failures_truncated is False
     assert [
-        (failure.category, failure.role)
-        for failure in error.cleanup_failures
+        (outcome.operation, outcome.role, outcome.status)
+        for outcome in cleanup_outcomes
+        if outcome.operation == "rollback"
     ] == [
-        ("rollback_unlink_failed", "summary"),
-        ("rollback_unlink_failed", "viral_bam"),
+        ("rollback", "summary", "unlink_failed"),
+        ("rollback", "viral_bam", "unlink_failed"),
+        ("rollback", "normalized", "removed"),
     ]
     for role in failed_roles:
         path = getattr(path_plan, role).final_path
-        assert os.path.exists(path)
+        expected_identity, expected_bytes = residual_snapshots[role]
+        assert lyra._file_identity(
+            os.stat(path, follow_symlinks=False)
+        ) == expected_identity
+        assert open(path, "rb").read() == expected_bytes
         original_unlink(path)
     assert not os.path.exists(path_plan.normalized.final_path)
     assert not list(tmp_path.rglob(".lyra-*"))
@@ -3105,7 +3134,7 @@ def test_fsync_failure_prevents_summary_and_cleans_all_stages(
     assert not list(tmp_path.rglob(".lyra-*"))
 
 
-def test_final_summary_parent_fsync_failure_rolls_back_every_final(
+def test_primary_after_multiple_finals_publish_successful_rollback_removes_every_owned_entry(
     tmp_path,
     monkeypatch,
 ):
@@ -3116,8 +3145,15 @@ def test_final_summary_parent_fsync_failure_rolls_back_every_final(
         _,
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        primary = OSError(5, "injected final summary fsync failure")
         original_fsync = lyra.os.fsync
         summary_syncs = []
+        published_snapshots = {}
 
         def fail_final_summary_sync(descriptor):
             descriptor_stat = os.fstat(descriptor)
@@ -3126,7 +3162,13 @@ def test_final_summary_parent_fsync_failure_rolls_back_every_final(
             ):
                 summary_syncs.append(descriptor)
                 if len(summary_syncs) == 2:
-                    raise OSError(5, "injected final summary fsync failure")
+                    published_snapshots.update(
+                        {
+                            os.fspath(path): _entry_snapshot(path)
+                            for path in outputs
+                        }
+                    )
+                    raise primary
             return original_fsync(descriptor)
 
         monkeypatch.setattr(
@@ -3136,10 +3178,31 @@ def test_final_summary_parent_fsync_failure_rolls_back_every_final(
         )
 
         with pytest.raises(lyra.LyraPublicationError) as exc_info:
-            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+            transaction.generate_validate_and_publish()
 
-    assert exc_info.value.stage == "sync_summary_final"
-    assert isinstance(exc_info.value.__cause__, OSError)
+        error = exc_info.value
+        rollback_outcomes = tuple(
+            outcome
+            for outcome in transaction.cleanup_outcomes
+            if outcome.operation == "rollback"
+        )
+
+    assert error.stage == "sync_summary_final"
+    assert error.__cause__ is primary
+    assert set(published_snapshots) == {os.fspath(path) for path in outputs}
+    assert all(
+        snapshot[0] == "file"
+        for snapshot in published_snapshots.values()
+    )
+    assert [
+        (outcome.role, outcome.status)
+        for outcome in rollback_outcomes
+    ] == [
+        ("summary", "removed"),
+        ("viral_bam", "removed"),
+        ("normalized", "removed"),
+    ]
+    assert error.cleanup_failures == ()
     assert not any(path.exists() for path in outputs)
     assert not list(tmp_path.rglob(".lyra-*"))
 

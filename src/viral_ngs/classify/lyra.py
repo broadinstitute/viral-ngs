@@ -424,7 +424,11 @@ class CleanupFailure:
 
 @dataclass(frozen=True)
 class CleanupOutcome:
-    """One bounded rollback or stage-cleanup result."""
+    """One bounded rollback or stage-cleanup result.
+
+    ``unlink_failed`` records that the observed entry was left in place; it is
+    never represented as removed merely because cleanup was attempted.
+    """
 
     operation: str
     role: str
@@ -584,7 +588,12 @@ def _bam_filter_cleanup_failures(primary):
 
 
 class LyraPublicationError(RuntimeError):
-    """One structured publication failure retaining its original cause."""
+    """One bounded publication failure chained from its authoritative cause.
+
+    Cleanup facts retain deterministic operation order and are capped at 16.
+    In particular, ``rollback_unlink_failed`` reports an observed residual
+    without replacing the primary processing or publication exception.
+    """
 
     category = "publication"
 
@@ -1956,7 +1965,11 @@ def _cleanup_failure(operation, role, path, status, error):
 
 
 class LyraArtifactTransaction:
-    """Own staged generation, durable publication, and bounded rollback."""
+    """Own staged generation, durable publication, and bounded rollback.
+
+    Artifacts keep their caller-selected final paths; this transaction does
+    not add a generation-directory or manifest recovery publication model.
+    """
 
     def __init__(self, store, path_plan, work_dir=None):
         if not isinstance(path_plan, LyraArtifactPathPlan):
@@ -2227,6 +2240,7 @@ class LyraArtifactTransaction:
         self.stage = "complete"
 
     def _rollback_published(self, artifact):
+        """Remove one exact owned final or report why its entry remains."""
         try:
             observed = _file_identity(
                 os.stat(
@@ -2397,7 +2411,13 @@ class LyraArtifactTransaction:
         )
 
     def rollback_and_cleanup(self):
-        """Rollback owned finals and remove all known stages without raising."""
+        """Rollback exact owned finals and remove known stages without raising.
+
+        When identity checks and cleanup syscalls succeed, every exact
+        run-owned final is absent. An unlink exception leaves the observed
+        entry untouched and returns ``status="unlink_failed"`` so the caller
+        can preserve the primary cause while reporting the residual.
+        """
         outcomes = []
         rollback_artifacts = []
         if self._pending_publication is not None:
