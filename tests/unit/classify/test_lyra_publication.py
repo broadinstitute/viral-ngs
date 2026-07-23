@@ -492,11 +492,16 @@ def test_coordinator_converts_each_pathlike_once_and_routes_one_plan(
         StatefulPath(tmp_path / "viral.bam", tmp_path / "bypass-viral.sam"),
     )
     calls = []
-    store = object()
     received = {}
     original_sample_validator = lyra.validate_sample_id
     original_threshold_validator = lyra.validate_lyra_threshold
     original_path_builder = lyra._build_artifact_path_plan
+
+    class Store:
+        def close(self):
+            calls.append("store_close")
+
+    store = Store()
 
     def validate_sample(value):
         calls.append("sample")
@@ -518,9 +523,20 @@ def test_coordinator_converts_each_pathlike_once_and_routes_one_plan(
         received["reconcile"] = (args, kwargs)
         yield store
 
-    def write(current_store, path_plan, work_dir=None):
+    def write(
+        current_store,
+        path_plan,
+        work_dir=None,
+        post_publication_cleanup=None,
+    ):
         calls.append("writer")
-        received["writer"] = (current_store, path_plan, work_dir)
+        received["writer"] = (
+            current_store,
+            path_plan,
+            work_dir,
+            post_publication_cleanup,
+        )
+        post_publication_cleanup()
 
     monkeypatch.setattr(lyra, "validate_sample_id", validate_sample)
     monkeypatch.setattr(lyra, "validate_lyra_threshold", validate_threshold)
@@ -540,7 +556,14 @@ def test_coordinator_converts_each_pathlike_once_and_routes_one_plan(
     )
 
     path_plan = received["built_plan"]
-    assert calls == ["sample", "threshold", "preflight", "reconcile", "writer"]
+    assert calls == [
+        "sample",
+        "threshold",
+        "preflight",
+        "reconcile",
+        "writer",
+        "store_close",
+    ]
     assert received["reconcile"] == (
         (
             path_plan.score_path,
@@ -550,7 +573,14 @@ def test_coordinator_converts_each_pathlike_once_and_routes_one_plan(
         ),
         {"work_dir": tmp_path},
     )
-    assert received["writer"] == (store, path_plan, tmp_path)
+    writer_store, writer_plan, writer_work_dir, cleanup = received["writer"]
+    assert (writer_store, writer_plan, writer_work_dir) == (
+        store,
+        path_plan,
+        tmp_path,
+    )
+    assert cleanup.__self__ is store
+    assert cleanup.__func__ is Store.close
     assert all(path.fspath_calls == 1 for path in pathlikes)
     assert not any(os.path.lexists(path.bypass_path) for path in pathlikes)
 
@@ -893,6 +923,161 @@ def test_source_descriptor_close_failure_still_cleans_store_once(
     real_descriptor_close(source_bam_fd)
 
 
+def _run_postprocess_source_descriptor_close_failure(
+    tmp_path,
+    monkeypatch,
+    fail_summary_rollback=False,
+):
+    score_path = _write_scores(tmp_path, "postprocess-close-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "postprocess-close-source.bam")
+    outputs = _artifact_paths(tmp_path, "postprocess-close")
+    source_identity = lyra._file_identity(os.stat(bam_path))
+    primary = OSError(5, "injected retained source descriptor close failure")
+    rollback_failure = OSError(5, "injected summary rollback unlink failure")
+    real_close = lyra.os.close
+    real_unlink = lyra.os.unlink
+    source_descriptors = []
+    published_snapshots = {}
+    summary_snapshot = []
+
+    def fail_source_descriptor_close(descriptor):
+        try:
+            descriptor_identity = lyra._file_identity(os.fstat(descriptor))
+        except OSError:
+            return real_close(descriptor)
+        if descriptor_identity == source_identity and not source_descriptors:
+            published_snapshots.update(
+                {
+                    os.fspath(path): _entry_snapshot(path)
+                    for path in outputs
+                }
+            )
+            assert all(
+                snapshot[0] == "file"
+                for snapshot in published_snapshots.values()
+            )
+            summary_snapshot.append(
+                (
+                    lyra._file_identity(
+                        os.stat(outputs[1], follow_symlinks=False)
+                    ),
+                    open(outputs[1], "rb").read(),
+                )
+            )
+            source_descriptors.append(descriptor)
+            raise primary
+        return real_close(descriptor)
+
+    def fail_summary_rollback_unlink(path, *, dir_fd=None):
+        if (
+            fail_summary_rollback
+            and source_descriptors
+            and path == outputs[1].name
+            and dir_fd is not None
+        ):
+            raise rollback_failure
+        return real_unlink(path, dir_fd=dir_fd)
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(lyra.os, "close", fail_source_descriptor_close)
+            patch.setattr(lyra.os, "unlink", fail_summary_rollback_unlink)
+            with pytest.raises(lyra.LyraPublicationError) as exc_info:
+                lyra.postprocess_lyra(
+                    score_path,
+                    bam_path,
+                    "sample",
+                    "0.8",
+                    *outputs,
+                    work_dir=tmp_path,
+                )
+        error = exc_info.value
+    finally:
+        for descriptor in source_descriptors:
+            try:
+                os.fstat(descriptor)
+            except OSError:
+                continue
+            real_close(descriptor)
+
+    return (
+        error,
+        primary,
+        outputs,
+        published_snapshots,
+        summary_snapshot[0],
+    )
+
+
+def test_postprocess_source_descriptor_close_failure_rolls_back_published_generation(
+    tmp_path,
+    monkeypatch,
+):
+    (
+        error,
+        primary,
+        outputs,
+        published_snapshots,
+        _,
+    ) = _run_postprocess_source_descriptor_close_failure(
+        tmp_path,
+        monkeypatch,
+    )
+
+    assert error.stage == "close_fragment_store"
+    assert error.primary_type == "OSError"
+    assert error.__cause__ is primary
+    assert set(published_snapshots) == {os.fspath(path) for path in outputs}
+    assert error.cleanup_failures == ()
+    assert not any(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_postprocess_source_descriptor_close_with_failed_rollback_unlink_preserves_reported_residual(
+    tmp_path,
+    monkeypatch,
+):
+    (
+        error,
+        primary,
+        outputs,
+        _,
+        summary_snapshot,
+    ) = _run_postprocess_source_descriptor_close_failure(
+        tmp_path,
+        monkeypatch,
+        fail_summary_rollback=True,
+    )
+
+    assert error.stage == "close_fragment_store"
+    assert error.primary_type == "OSError"
+    assert error.__cause__ is primary
+    expected_identity, expected_bytes = summary_snapshot
+    assert lyra._file_identity(
+        os.stat(outputs[1], follow_symlinks=False)
+    ) == expected_identity
+    assert open(outputs[1], "rb").read() == expected_bytes
+    assert not outputs[0].exists()
+    assert not outputs[2].exists()
+    assert [
+        failure
+        for failure in error.cleanup_failures
+        if failure.category == "rollback_unlink_failed"
+    ] == [
+        lyra.CleanupFailure(
+            operation="rollback",
+            role="summary",
+            path=os.path.realpath(outputs[1], strict=False),
+            error_type="OSError",
+            errno=5,
+            category="rollback_unlink_failed",
+        )
+    ]
+    assert error.cleanup_failures_truncated is False
+    assert not list(tmp_path.rglob(".lyra-*"))
+    os.unlink(outputs[1])
+
+
 def test_source_identity_rejects_retargeted_retained_descriptor(tmp_path):
     source_path, _ = _write_bam(tmp_path, "descriptor-identity-source.bam")
     replacement_path, _ = _write_bam(
@@ -1043,6 +1228,7 @@ def test_source_owned_artifact_apis_accept_no_second_bam_argument():
         "store",
         "path_plan",
         "work_dir",
+        "post_publication_cleanup",
     ]
 
 
@@ -1079,6 +1265,7 @@ def test_source_direct_symlink_and_hardlink_aliases_produce_artifacts(
         assert store.source_bam_identity == lyra._file_identity(os.stat(access_path))
         assert store.source_bam_header == header
         lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+        os.fstat(store.source_bam_fd)
 
     assert all(path.exists() for path in outputs)
 
