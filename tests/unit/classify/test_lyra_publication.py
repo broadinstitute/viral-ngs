@@ -111,14 +111,14 @@ def _generate_staged_artifacts(store, path_plan, work_dir):
     transaction = lyra.LyraArtifactTransaction(store, path_plan, work_dir=work_dir)
     transaction._create_stages()
     stages = transaction.stages
-    normalized_rows = lyra._write_normalized(store, stages[0].stage_path)
+    normalized_rows = lyra._write_normalized(store, stages[0])
     bam_records = lyra._write_viral_bam(
         store,
-        stages[2].stage_path,
+        stages[2],
         work_dir=work_dir,
     )
     lyra._validate_artifact_counts(store.counts, normalized_rows, bam_records)
-    lyra._write_summary(store, stages[1].stage_path, bam_records)
+    lyra._write_summary(store, stages[1], bam_records)
     return stages, normalized_rows, bam_records
 
 
@@ -1576,21 +1576,140 @@ def test_staged_readback_accepts_empty_no_hit_and_compressed_outputs(
             assert producer_bam == expected_bam
             assert lyra._validate_staged_normalized(
                 store,
-                stages[0].stage_path,
+                stages[0],
             ) == expected_rows
+            os.fstat(stages[0].descriptor)
             assert lyra._validate_staged_bam(
                 store,
-                stages[2].stage_path,
+                stages[2],
             ) == expected_bam
+            os.fstat(stages[2].descriptor)
             lyra._validate_staged_summary(
                 store,
-                stages[1].stage_path,
+                stages[1],
                 expected_rows,
                 expected_bam,
             )
+            os.fstat(stages[1].descriptor)
             assert not any(path.exists() for path in outputs)
         finally:
             _remove_stages(stages)
+
+
+@pytest.mark.parametrize(
+    ("role", "normalized_suffix"),
+    [
+        ("normalized", ".tsv"),
+        ("normalized", ".tsv.gz"),
+        ("normalized", ".tsv.zst"),
+        ("summary", ".tsv"),
+        ("viral_bam", ".tsv"),
+    ],
+)
+def test_stage_symlink_before_producer_cannot_change_victim(
+    tmp_path,
+    monkeypatch,
+    role,
+    normalized_suffix,
+):
+    with _publication_store(tmp_path, "producer-symlink-" + role) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, _ = _staged_plan(
+            tmp_path,
+            score_path,
+            bam_path,
+            normalized_suffix,
+        )
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        transaction._create_stages()
+        stage = next(item for item in transaction.stages if item.role == role)
+        victim = tmp_path / ("producer-victim-" + role)
+        victim.write_bytes(b"caller bytes")
+        victim_identity = lyra._file_identity(os.stat(victim))
+        os.unlink(stage.basename, dir_fd=stage.parent.descriptor)
+        os.symlink(victim, stage.basename, dir_fd=stage.parent.descriptor)
+        filter_descriptors = []
+        original_filter = lyra.util_misc.ReadIdStore.filter_bam_by_ids
+
+        def record_filter(read_ids, in_bam, out_bam, *args, **kwargs):
+            filter_descriptors.append(
+                (kwargs.get("in_bam_fd"), kwargs.get("out_bam_fd"))
+            )
+            return original_filter(read_ids, in_bam, out_bam, *args, **kwargs)
+
+        monkeypatch.setattr(
+            lyra.util_misc.ReadIdStore,
+            "filter_bam_by_ids",
+            record_filter,
+        )
+
+        try:
+            if role == "normalized":
+                assert lyra._write_normalized(store, stage) == 2
+            elif role == "summary":
+                lyra._write_summary(store, stage, 1)
+            else:
+                assert lyra._write_viral_bam(
+                    store,
+                    stage,
+                    work_dir=tmp_path,
+                ) == 1
+                assert filter_descriptors == [
+                    (store.source_bam_fd, stage.descriptor)
+                ]
+
+            os.fstat(stage.descriptor)
+            assert victim.read_bytes() == b"caller bytes"
+            assert lyra._file_identity(os.stat(victim)) == victim_identity
+            with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+                lyra._assert_stage_handle(stage)
+            assert exc_info.value.category == "stage_identity"
+        finally:
+            os.unlink(stage.basename, dir_fd=stage.parent.descriptor)
+            transaction.rollback_and_cleanup()
+
+
+def test_transaction_records_full_stage_identities_after_handle_readback(tmp_path):
+    with _publication_store(tmp_path, "validated-identities") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, _ = _staged_plan(
+            tmp_path,
+            score_path,
+            bam_path,
+            ".tsv.zst",
+        )
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        transaction._create_stages()
+        try:
+            transaction._generate_and_validate()
+
+            assert transaction._validated_stage_identities == {
+                stage.role: lyra._file_identity(os.fstat(stage.descriptor))
+                for stage in transaction.stages
+            }
+            assert set(transaction._validated_stage_identities) == {
+                "normalized",
+                "summary",
+                "viral_bam",
+            }
+        finally:
+            transaction.rollback_and_cleanup()
 
 
 @pytest.mark.parametrize(

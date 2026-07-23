@@ -387,30 +387,24 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
     assert calls[0][1:] == (path_plan, "pre_generation")
     assert calls[1][1:] == (store, "pre_generation")
     assert calls[2][1] is store
-    assert calls[2][2].startswith(
-        os.path.join(path_plan.normalized.parent_path, ".lyra-normalized-")
-    )
-    assert calls[2][2].endswith(path_plan.normalized.suffix)
+    assert isinstance(calls[2][2], lyra.ArtifactStage)
+    assert calls[2][2].destination is path_plan.normalized
     assert calls[3][1:] == (
         store,
         calls[3][2],
         tmp_path / "work",
     )
-    assert calls[3][2].startswith(
-        os.path.join(path_plan.viral_bam.parent_path, ".lyra-viral_bam-")
-    )
-    assert calls[3][2].endswith(path_plan.viral_bam.suffix)
+    assert isinstance(calls[3][2], lyra.ArtifactStage)
+    assert calls[3][2].destination is path_plan.viral_bam
     assert calls[4][1:] == (counts, 3, 5)
     assert calls[5][1] is store
-    assert calls[5][2].startswith(
-        os.path.join(path_plan.summary.parent_path, ".lyra-summary-")
-    )
-    assert calls[5][2].endswith(path_plan.summary.suffix)
+    assert isinstance(calls[5][2], lyra.ArtifactStage)
+    assert calls[5][2].destination is path_plan.summary
     assert calls[5][3] == 5
     assert calls[6][1] is store
-    assert calls[6][2].stage_path == calls[2][2]
-    assert calls[6][3].stage_path == calls[5][2]
-    assert calls[6][4].stage_path == calls[3][2]
+    assert calls[6][2] is calls[2][2]
+    assert calls[6][3] is calls[5][2]
+    assert calls[6][4] is calls[3][2]
     assert calls[6][5:] == (3, 5)
     assert [call[2] for call in calls[7:]] == [
         path_plan.normalized.final_path,
@@ -424,18 +418,18 @@ def test_coordinator_routes_only_immutable_path_plan_destinations(
     monkeypatch,
 ):
     path_plan = _test_path_plan(tmp_path, "immutable")
-    producer_paths = {}
+    producer_stages = {}
 
-    def write_normalized(current_store, path):
-        producer_paths["normalized"] = path
+    def write_normalized(current_store, stage):
+        producer_stages["normalized"] = stage
         return 3
 
-    def write_viral_bam(current_store, path, work_dir=None):
-        producer_paths["viral_bam"] = path
+    def write_viral_bam(current_store, stage, work_dir=None):
+        producer_stages["viral_bam"] = stage
         return 5
 
-    def write_summary(current_store, path, output_bam_records):
-        producer_paths["summary"] = path
+    def write_summary(current_store, stage, output_bam_records):
+        producer_stages["summary"] = stage
 
     monkeypatch.setattr(lyra, "_assert_path_plan_available", lambda *args: None)
     monkeypatch.setattr(lyra, "_assert_source_bam_identity", lambda *args: None)
@@ -460,11 +454,9 @@ def test_coordinator_routes_only_immutable_path_plan_destinations(
         ("summary", path_plan.summary),
         ("viral_bam", path_plan.viral_bam),
     ):
-        assert producer_paths[role].startswith(
-            os.path.join(destination.parent_path, ".lyra-{}-".format(role))
-        )
-        assert producer_paths[role].endswith(destination.suffix)
-        assert producer_paths[role] != destination.final_path
+        assert isinstance(producer_stages[role], lyra.ArtifactStage)
+        assert producer_stages[role].destination is destination
+        assert producer_stages[role].display_path != destination.final_path
 
 
 @pytest.mark.parametrize("producer", ["normalized", "bam"])
