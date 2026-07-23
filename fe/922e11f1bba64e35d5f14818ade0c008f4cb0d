@@ -1,0 +1,28 @@
+src/viral_ngs/classify/lyra.py
+  s_ff22506fc27e89::t_24c817bbbad777 369-376,768-774,782-1107
+  s_ff22506fc27e89::t_3ab029824071b3 775-781
+  s_ff22506fc27e89::t_dc94d6a9e37c1f 1419,1424-1470
+  s_ff22506fc27e89::t_b54ce04f008083 368
+  s_ff22506fc27e89::t_3d425bb832bc11 1108-1109
+tests/unit/classify/test_lyra_publication.py
+  s_ff22506fc27e89::t_3ab029824071b3 1255,1283-1292
+  s_ff22506fc27e89::t_05e6306cfac3b2 1124-1127
+tests/unit/classify/test_lyra_artifacts.py
+  s_ff22506fc27e89::t_182df294b58b0a 351-362,377-380,384-388,391,394-397,399-414,441-442,450-459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "fe922e11f1bba64e35d5f14818ade0c008f4cb0d",
+  "prompts": {},
+  "sessions": {
+    "s_ff22506fc27e89": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0703c7070ffeauerSpaH9JZz0m",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
