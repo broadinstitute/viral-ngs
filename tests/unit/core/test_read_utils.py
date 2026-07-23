@@ -377,6 +377,45 @@ class TestRmdupUnaligned(TestCaseWithTmp):
 class TestReadIdStore(TestCaseWithTmp):
     """Tests for ReadIdStore SQLite-backed read ID storage."""
 
+    def _write_descriptor_test_bam(self, path, records):
+        header = {
+            "HD": {"VN": "1.6", "SO": "queryname"},
+            "SQ": [{"SN": "ref", "LN": 1000}],
+            "RG": [{"ID": "rg1", "SM": "descriptor-sample"}],
+        }
+        with pysam.AlignmentFile(path, "wb", header=header) as bam:
+            for query_name, flag, nm, label in records:
+                read = pysam.AlignedSegment(bam.header)
+                read.query_name = query_name
+                read.query_sequence = "ACGT"
+                read.query_qualities = pysam.qualitystring_to_array("IIII")
+                read.flag = flag
+                read.reference_id = -1
+                read.reference_start = -1
+                read.mapping_quality = 0
+                read.cigar = None
+                read.next_reference_id = -1
+                read.next_reference_start = -1
+                read.template_length = 0
+                read.set_tag("NM", nm)
+                read.set_tag("ZZ", label)
+                bam.write(read)
+        return header
+
+    def _descriptor_bam_records(self, path):
+        with pysam.AlignmentFile(path, "rb", check_sq=False) as bam:
+            header = bam.header.to_dict()
+            records = [
+                (
+                    read.query_name,
+                    read.flag,
+                    read.get_tag("NM"),
+                    read.get_tag("ZZ"),
+                )
+                for read in bam.fetch(until_eof=True)
+            ]
+        return header, records
+
     def _filter_with_fake_processes(
         self,
         store,
@@ -841,6 +880,277 @@ class TestReadIdStore(TestCaseWithTmp):
         # Output should have all input reads
         self.assertEqual(samtools.count(output_bam), input_count)
         self.assertEqual(emitted_count, input_count)
+
+    def test_filter_bam_by_ids_descriptor_input_ignores_transient_path_swap(self):
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        replacement_bam = viral_ngs.core.file.mkstempfname('.bam')
+        displaced_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        expected_header = self._write_descriptor_test_bam(
+            input_bam,
+            [
+                ("keep", 77, 1, "reconciled-r1"),
+                ("keep", 141, 2, "reconciled-r2"),
+                ("drop", 4, 3, "reconciled-drop"),
+            ],
+        )
+        self._write_descriptor_test_bam(
+            replacement_bam,
+            [
+                ("keep", 77, 99, "replacement-r1"),
+                ("keep", 141, 99, "replacement-r2"),
+                ("drop", 4, 99, "replacement-drop"),
+            ],
+        )
+        input_fd = os.open(input_bam, os.O_RDONLY)
+        descriptor_identity = os.fstat(input_fd)
+        try:
+            os.replace(input_bam, displaced_bam)
+            os.replace(replacement_bam, input_bam)
+            db_path = viral_ngs.core.file.mkstempfname('.db')
+            with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+                store.add("keep")
+                emitted_count = store.filter_bam_by_ids(
+                    input_bam,
+                    output_bam,
+                    include=True,
+                    in_bam_fd=input_fd,
+                )
+        finally:
+            os.replace(input_bam, replacement_bam)
+            os.replace(displaced_bam, input_bam)
+
+        try:
+            self.assertEqual(os.fstat(input_fd), descriptor_identity)
+        finally:
+            os.close(input_fd)
+        actual_header, actual_records = self._descriptor_bam_records(output_bam)
+        self.assertEqual(actual_header, expected_header)
+        self.assertEqual(
+            actual_records,
+            [
+                ("keep", 77, 1, "reconciled-r1"),
+                ("keep", 141, 2, "reconciled-r2"),
+            ],
+        )
+        self.assertEqual(emitted_count, 2)
+
+    def test_filter_bam_by_ids_descriptor_output_ignores_diagnostic_path(self):
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        diagnostic_output = output_bam + '.diagnostic.bam'
+        self._write_descriptor_test_bam(
+            input_bam,
+            [("keep", 4, 7, "descriptor-output")],
+        )
+        output_fd = os.open(output_bam, os.O_RDWR)
+        descriptor_identity = os.fstat(output_fd)
+        try:
+            db_path = viral_ngs.core.file.mkstempfname('.db')
+            with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+                store.add("keep")
+                emitted_count = store.filter_bam_by_ids(
+                    input_bam,
+                    diagnostic_output,
+                    include=True,
+                    out_bam_fd=output_fd,
+                )
+            self.assertEqual(os.fstat(output_fd).st_ino, descriptor_identity.st_ino)
+        finally:
+            os.close(output_fd)
+
+        self.assertFalse(os.path.lexists(diagnostic_output))
+        _, actual_records = self._descriptor_bam_records(output_bam)
+        self.assertEqual(
+            actual_records,
+            [("keep", 4, 7, "descriptor-output")],
+        )
+        self.assertEqual(emitted_count, 1)
+
+    def test_filter_bam_by_ids_descriptor_mode_handles_empty_cases(self):
+        header_only_bam = viral_ngs.core.file.mkstempfname('.bam')
+        populated_bam = viral_ngs.core.file.mkstempfname('.bam')
+        expected_header = self._write_descriptor_test_bam(header_only_bam, [])
+        self._write_descriptor_test_bam(
+            populated_bam,
+            [
+                ("read-1", 4, 1, "first"),
+                ("read-2", 4, 2, "second"),
+            ],
+        )
+        cases = (
+            (header_only_bam, ["read-1"], True, 0, []),
+            (populated_bam, [], True, 0, []),
+            (
+                populated_bam,
+                [],
+                False,
+                2,
+                [
+                    ("read-1", 4, 1, "first"),
+                    ("read-2", 4, 2, "second"),
+                ],
+            ),
+        )
+        for input_bam, read_ids, include, expected_count, expected_records in cases:
+            with self.subTest(input_bam=input_bam, include=include):
+                output_bam = viral_ngs.core.file.mkstempfname('.bam')
+                input_fd = os.open(input_bam, os.O_RDONLY)
+                try:
+                    db_path = viral_ngs.core.file.mkstempfname('.db')
+                    with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+                        store.extend(read_ids)
+                        emitted_count = store.filter_bam_by_ids(
+                            input_bam,
+                            output_bam,
+                            include=include,
+                            in_bam_fd=input_fd,
+                        )
+                    os.fstat(input_fd)
+                finally:
+                    os.close(input_fd)
+                actual_header, actual_records = self._descriptor_bam_records(
+                    output_bam
+                )
+                self.assertEqual(emitted_count, expected_count)
+                self.assertEqual(actual_records, expected_records)
+                if input_bam == header_only_bam:
+                    self.assertEqual(actual_header, expected_header)
+
+    def test_filter_bam_by_ids_descriptor_validation_starts_no_child(self):
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        closed_fd = os.open(input_bam, os.O_RDONLY)
+        os.close(closed_fd)
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store, mock.patch(
+            "viral_ngs.core.misc.subprocess.Popen"
+        ) as popen:
+            for invalid_fd in (True, "3", 1.5):
+                with self.subTest(invalid_fd=invalid_fd):
+                    with self.assertRaises(TypeError):
+                        store.filter_bam_by_ids(
+                            input_bam,
+                            output_bam,
+                            in_bam_fd=invalid_fd,
+                        )
+            with self.assertRaises(ValueError):
+                store.filter_bam_by_ids(
+                    input_bam,
+                    output_bam,
+                    in_bam_fd=-1,
+                )
+            with self.assertRaises(OSError):
+                store.filter_bam_by_ids(
+                    input_bam,
+                    output_bam,
+                    out_bam_fd=closed_fd,
+                )
+
+        popen.assert_not_called()
+
+    def test_filter_bam_by_ids_descriptor_children_inherit_only_matching_fd(self):
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        input_fd = os.open(input_bam, os.O_RDONLY)
+        output_fd = os.open(output_bam, os.O_RDWR)
+        reader = _FakeSamtoolsProcess(
+            0,
+            stdout=_FakeReaderStream([
+                b"@HD\tVN:1.6\n",
+                b"read\t4\t*\t0\t0\t*\t*\t0\t0\tA\tI\n",
+            ]),
+        )
+        writer = _FakeSamtoolsProcess(0, stdin=_RecordingWriterStream())
+        try:
+            with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+                store.add("read")
+                with mock.patch.object(
+                    viral_ngs.core.samtools.SamtoolsTool,
+                    "isEmpty",
+                ) as is_empty, mock.patch.object(
+                    viral_ngs.core.samtools.SamtoolsTool,
+                    "install_and_get_path",
+                    return_value="samtools",
+                ), mock.patch(
+                    "viral_ngs.core.misc.subprocess.Popen",
+                    side_effect=[reader, writer],
+                ) as popen:
+                    emitted_count = store.filter_bam_by_ids(
+                        input_bam,
+                        output_bam,
+                        include=True,
+                        in_bam_fd=input_fd,
+                        out_bam_fd=output_fd,
+                    )
+        finally:
+            os.close(input_fd)
+            os.close(output_fd)
+
+        self.assertEqual(emitted_count, 1)
+        is_empty.assert_not_called()
+        self.assertEqual(
+            popen.call_args_list,
+            [
+                mock.call(
+                    [
+                        "samtools",
+                        "view",
+                        "-h",
+                        "--no-PG",
+                        "/proc/self/fd/{}".format(input_fd),
+                    ],
+                    stdout=subprocess.PIPE,
+                    pass_fds=(input_fd,),
+                ),
+                mock.call(
+                    [
+                        "samtools",
+                        "view",
+                        "-b",
+                        "-@",
+                        "2",
+                        "--no-PG",
+                        "-o",
+                        "/proc/self/fd/{}".format(output_fd),
+                        "-",
+                    ],
+                    stdin=subprocess.PIPE,
+                    pass_fds=(output_fd,),
+                ),
+            ],
+        )
+
+    def test_filter_bam_by_ids_path_only_omits_descriptor_kwargs(self):
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        reader = _FakeSamtoolsProcess(
+            0,
+            stdout=_FakeReaderStream([b"@HD\tVN:1.6\n"]),
+        )
+        writer = _FakeSamtoolsProcess(0, stdin=_RecordingWriterStream())
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.add("read")
+            with mock.patch.object(
+                viral_ngs.core.samtools.SamtoolsTool,
+                "isEmpty",
+                return_value=False,
+            ), mock.patch.object(
+                viral_ngs.core.samtools.SamtoolsTool,
+                "install_and_get_path",
+                return_value="samtools",
+            ), mock.patch(
+                "viral_ngs.core.misc.subprocess.Popen",
+                side_effect=[reader, writer],
+            ) as popen:
+                store.filter_bam_by_ids(input_bam, output_bam, include=True)
+
+        self.assertNotIn("pass_fds", popen.call_args_list[0].kwargs)
+        self.assertNotIn("pass_fds", popen.call_args_list[1].kwargs)
 
     def test_filter_bam_by_ids_child_statuses_are_checked(self):
         """A failed samtools child must prevent returning an emitted count."""
