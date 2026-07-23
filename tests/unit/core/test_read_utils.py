@@ -26,6 +26,53 @@ IS_ARM = platform.machine() in ('arm64', 'aarch64')
 SKIP_X86_ONLY_REASON = "Requires x86-only bioconda package (not available on ARM)"
 
 
+class _FakeSamtoolsProcess:
+    def __init__(self, returncode, *, stdout=None, stdin=None):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stdin = stdin
+        self.wait_calls = 0
+
+    def wait(self):
+        self.wait_calls += 1
+        return self.returncode
+
+
+class _FakeReaderStream:
+    def __init__(self, lines):
+        self.lines = lines
+        self.close_calls = 0
+
+    def __iter__(self):
+        return iter(self.lines)
+
+    def close(self):
+        self.close_calls += 1
+
+
+class _RecordingWriterStream:
+    def __init__(self):
+        self.writes = []
+        self.close_calls = 0
+
+    def write(self, value):
+        self.writes.append(value)
+
+    def close(self):
+        self.close_calls += 1
+
+
+class _WriteBrokenPipeStream(_RecordingWriterStream):
+    def write(self, value):
+        raise BrokenPipeError("samtools writer closed its input")
+
+
+class _CloseBrokenPipeStream(_RecordingWriterStream):
+    def close(self):
+        self.close_calls += 1
+        raise BrokenPipeError("samtools writer closed during flush")
+
+
 class TestCommandHelp(unittest.TestCase):
 
     def test_help_parser_for_each_command(self):
@@ -297,6 +344,76 @@ class TestRmdupUnaligned(TestCaseWithTmp):
 
 class TestReadIdStore(TestCaseWithTmp):
     """Tests for ReadIdStore SQLite-backed read ID storage."""
+
+    def _filter_with_fake_processes(
+        self,
+        store,
+        input_bam,
+        output_bam,
+        reader_process,
+        writer_process,
+    ):
+        with mock.patch.object(
+            viral_ngs.core.samtools.SamtoolsTool,
+            "isEmpty",
+            return_value=False,
+        ), mock.patch.object(
+            viral_ngs.core.samtools.SamtoolsTool,
+            "install_and_get_path",
+            return_value="samtools",
+        ), mock.patch(
+            "viral_ngs.core.misc.subprocess.Popen",
+            side_effect=[reader_process, writer_process],
+        ):
+            return store.filter_bam_by_ids(
+                input_bam,
+                output_bam,
+                include=True,
+            )
+
+    def _assert_writer_child_failure_across_broken_pipe(
+        self,
+        writer_stream,
+        reader_status,
+    ):
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        reader = _FakeSamtoolsProcess(
+            reader_status,
+            stdout=_FakeReaderStream([
+                b"@HD\tVN:1.6\n",
+                b"read\t4\t*\t0\t0\t*\t*\t0\t0\tA\tI\n",
+            ]),
+        )
+        writer = _FakeSamtoolsProcess(23, stdin=writer_stream)
+        expected_writer_argv = [
+            "samtools",
+            "view",
+            "-b",
+            "-@",
+            "2",
+            "--no-PG",
+            "-o",
+            output_bam,
+            "-",
+        ]
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.extend(["read"])
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                self._filter_with_fake_processes(
+                    store,
+                    input_bam,
+                    output_bam,
+                    reader,
+                    writer,
+                )
+
+        self.assertEqual(raised.exception.returncode, 23)
+        self.assertEqual(raised.exception.cmd, expected_writer_argv)
+        self.assertEqual(reader.wait_calls, 1)
+        self.assertEqual(writer.wait_calls, 1)
 
     def test_add_from_fastq_paired(self):
         """Test adding read IDs from paired-end interleaved FASTQ."""
@@ -760,6 +877,76 @@ class TestReadIdStore(TestCaseWithTmp):
             self.assertEqual(raised.exception.returncode, returncode)
             self.assertEqual(raised.exception.cmd, expected_argv)
             self.assertEqual(popen.call_count, 2)
+
+    def test_filter_bam_by_ids_write_broken_pipe_uses_writer_child_status(self):
+        """Writer status remains authoritative when stdin.write breaks."""
+        self._assert_writer_child_failure_across_broken_pipe(
+            _WriteBrokenPipeStream(),
+            reader_status=17,
+        )
+
+    def test_filter_bam_by_ids_close_broken_pipe_uses_writer_child_status(self):
+        """Writer status remains authoritative when stdin.close breaks."""
+        self._assert_writer_child_failure_across_broken_pipe(
+            _CloseBrokenPipeStream(),
+            reader_status=0,
+        )
+
+    def test_filter_bam_by_ids_non_broken_pipe_processing_error_wins(self):
+        """A Python processing failure is not rewritten as a child failure."""
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        reader = _FakeSamtoolsProcess(
+            17,
+            stdout=_FakeReaderStream([
+                b"@HD\tVN:1.6\n",
+                b"\xff\t4\t*\t0\t0\t*\t*\t0\t0\tA\tI\n",
+            ]),
+        )
+        writer = _FakeSamtoolsProcess(23, stdin=_RecordingWriterStream())
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.extend(["read"])
+            with self.assertRaises(UnicodeDecodeError):
+                self._filter_with_fake_processes(
+                    store,
+                    input_bam,
+                    output_bam,
+                    reader,
+                    writer,
+                )
+
+        self.assertEqual(reader.wait_calls, 1)
+        self.assertEqual(writer.wait_calls, 1)
+
+    def test_filter_bam_by_ids_zero_child_status_preserves_broken_pipe(self):
+        """A standalone pipe failure remains visible when both children succeed."""
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        reader = _FakeSamtoolsProcess(
+            0,
+            stdout=_FakeReaderStream([
+                b"@HD\tVN:1.6\n",
+                b"read\t4\t*\t0\t0\t*\t*\t0\t0\tA\tI\n",
+            ]),
+        )
+        writer = _FakeSamtoolsProcess(0, stdin=_WriteBrokenPipeStream())
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.extend(["read"])
+            with self.assertRaises(BrokenPipeError):
+                self._filter_with_fake_processes(
+                    store,
+                    input_bam,
+                    output_bam,
+                    reader,
+                    writer,
+                )
+
+        self.assertEqual(reader.wait_calls, 1)
+        self.assertEqual(writer.wait_calls, 1)
 
 
 class TestRmdupBbnorm(TestCaseWithTmp):
