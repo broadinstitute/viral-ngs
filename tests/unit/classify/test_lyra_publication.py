@@ -573,11 +573,14 @@ def test_writer_boundary_race_rejects_final_before_any_producer(
         lambda *args: collaborator_calls.append("normalized"),
     )
 
-    with pytest.raises(lyra.LyraPathError) as exc_info:
+    with pytest.raises(lyra.LyraPublicationError) as exc_info:
         lyra.write_lyra_artifacts(object(), path_plan, work_dir=tmp_path)
 
-    assert exc_info.value.category == "output_exists"
-    assert exc_info.value.role == "normalized"
+    assert exc_info.value.category == "publication"
+    assert exc_info.value.stage == "pre_generation"
+    assert isinstance(exc_info.value.__cause__, lyra.LyraPathError)
+    assert exc_info.value.__cause__.category == "output_exists"
+    assert exc_info.value.__cause__.role == "normalized"
     assert collaborator_calls == []
     assert outputs[0].read_bytes() == b"raced caller artifact"
     assert not outputs[1].exists()
@@ -906,10 +909,11 @@ def test_source_mutation_before_generation_opens_no_output_or_producer(
             lambda *args, **kwargs: producer_calls.append("bam"),
         )
 
-        with pytest.raises(lyra.LyraSourceIdentityError) as exc_info:
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
     assert exc_info.value.stage == "pre_generation"
+    assert isinstance(exc_info.value.__cause__, lyra.LyraSourceIdentityError)
     assert producer_calls == []
     assert not any(path.exists() for path in outputs)
 
@@ -932,13 +936,15 @@ def test_source_missing_before_generation_preserves_filesystem_cause(tmp_path):
         work_dir=tmp_path,
     ) as store:
         source_path.unlink()
-        with pytest.raises(lyra.LyraSourceIdentityError) as exc_info:
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
     assert exc_info.value.stage == "pre_generation"
-    assert exc_info.value.actual is None
-    assert exc_info.value.actual_status == "missing"
-    assert isinstance(exc_info.value.__cause__, FileNotFoundError)
+    source_error = exc_info.value.__cause__
+    assert isinstance(source_error, lyra.LyraSourceIdentityError)
+    assert source_error.actual is None
+    assert source_error.actual_status == "missing"
+    assert isinstance(source_error.__cause__, FileNotFoundError)
     assert not any(path.exists() for path in outputs)
 
 
@@ -985,10 +991,11 @@ def test_source_mutation_after_bam_filter_prevents_counts_and_summary(
         "0.8",
         work_dir=tmp_path,
     ) as store:
-        with pytest.raises(lyra.LyraSourceIdentityError) as exc_info:
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
     assert exc_info.value.stage == "after_bam_filter"
+    assert isinstance(exc_info.value.__cause__, lyra.LyraSourceIdentityError)
     assert accepted_calls == []
     assert not outputs[1].exists()
 
@@ -1713,9 +1720,11 @@ def test_replacement_before_rollback_identity_observation_survives_and_is_report
                 raise OSError(5, "injected final success barrier failure")
             return original_fsync_directory(path)
 
-        def replace_at_rollback_observation(path):
+        def replace_at_rollback_observation(path, *args, **kwargs):
             if (
-                publication_failed
+                not args
+                and not kwargs
+                and publication_failed
                 and not replacement_identity
                 and os.fspath(path) == target
             ):
@@ -1725,7 +1734,7 @@ def test_replacement_before_rollback_identity_observation_survives_and_is_report
                 replacement_identity.append(
                     lyra._file_identity(real_lstat(target))
                 )
-            return real_lstat(path)
+            return real_lstat(path, *args, **kwargs)
 
         monkeypatch.setattr(
             lyra,
@@ -1812,6 +1821,95 @@ def test_cleanup_continues_after_failure_and_ignores_tmpkeep(
     remaining_stages[0].unlink()
 
 
+def test_primary_and_multiple_rollback_failures_share_one_ordered_error(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "multiple-rollback-failures") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, _ = _staged_plan(tmp_path, score_path, bam_path)
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        primary = OSError(5, "injected completion-barrier failure")
+        original_fsync_directory = lyra._fsync_directory
+        original_unlink = lyra._unlink_path
+        failed_roles = {"summary", "viral_bam"}
+
+        def fail_completion_barrier(path):
+            if (
+                transaction.stage == "sync_summary_final"
+                and path == path_plan.summary.parent_path
+            ):
+                raise primary
+            return original_fsync_directory(path)
+
+        def fail_selected_rollbacks(path):
+            for role in failed_roles:
+                if path == getattr(path_plan, role).final_path:
+                    raise OSError(5, "injected rollback unlink failure")
+            return original_unlink(path)
+
+        monkeypatch.setattr(
+            lyra,
+            "_fsync_directory",
+            fail_completion_barrier,
+        )
+        monkeypatch.setattr(lyra, "_unlink_path", fail_selected_rollbacks)
+
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
+            transaction.generate_validate_and_publish()
+
+        error = exc_info.value
+
+    assert error.__cause__ is primary
+    assert [
+        (failure.category, failure.role)
+        for failure in error.cleanup_failures
+    ] == [
+        ("rollback_unlink_failed", "summary"),
+        ("rollback_unlink_failed", "viral_bam"),
+    ]
+    for role in failed_roles:
+        path = getattr(path_plan, role).final_path
+        assert os.path.exists(path)
+        os.unlink(path)
+    assert not os.path.exists(path_plan.normalized.final_path)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_system_exiting_base_exception_is_preserved_after_cleanup(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "system-exit") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        primary = SystemExit(17)
+        monkeypatch.setattr(
+            lyra,
+            "_validate_staged_artifacts",
+            lambda *args, **kwargs: _raise(primary),
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    assert exc_info.value is primary
+    assert not any(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
 def test_publication_diagnostic_is_bounded_and_caps_ordered_cleanup_facts():
     long_value = "x" * 10000
     primary = subprocess.CalledProcessError(
@@ -1849,6 +1947,27 @@ def test_publication_diagnostic_is_bounded_and_caps_ordered_cleanup_facts():
     assert error.cleanup_failures_truncated is True
     assert long_value not in str(error)
     assert len(str(error)) < 6000
+    with pytest.raises(FrozenInstanceError):
+        error.cleanup_failures[0].role = "changed"
+
+
+def test_publication_diagnostic_never_stringifies_arbitrary_primary():
+    class HostileError(RuntimeError):
+        def __str__(self):
+            raise AssertionError("primary __str__ must not run")
+
+        def __repr__(self):
+            raise AssertionError("primary __repr__ must not run")
+
+    primary = HostileError()
+
+    error = lyra.LyraPublicationError(
+        stage="generate_normalized",
+        primary=primary,
+    )
+
+    assert error.primary_type == "HostileError"
+    assert "HostileError" in str(error)
 
 
 def test_publish_order_flushes_every_stage_and_syncs_summary_parent_last(
@@ -1869,8 +1988,8 @@ def test_publish_order_flushes_every_stage_and_syncs_summary_parent_last(
         original_link = lyra._link_no_clobber
         original_unlink = lyra._unlink_path
 
-        def validate(*args):
-            result = original_validate(*args)
+        def validate(*args, **kwargs):
+            result = original_validate(*args, **kwargs)
             operations.append(("validated", "all"))
             return result
 
@@ -1973,9 +2092,10 @@ def test_fsync_failure_prevents_summary_and_cleans_all_stages(
 
         monkeypatch.setattr(lyra, helper_name, fail)
 
-        with pytest.raises(OSError, match="injected .* fsync failure"):
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
+    assert isinstance(exc_info.value.__cause__, OSError)
     assert not any(path.exists() for path in outputs)
     assert not list(tmp_path.rglob(".lyra-*"))
 
@@ -2007,9 +2127,11 @@ def test_final_summary_parent_fsync_failure_rolls_back_every_final(
             fail_final_summary_sync,
         )
 
-        with pytest.raises(OSError, match="final summary fsync failure"):
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
+    assert exc_info.value.stage == "sync_summary_final"
+    assert isinstance(exc_info.value.__cause__, OSError)
     assert not any(path.exists() for path in outputs)
     assert not list(tmp_path.rglob(".lyra-*"))
 
@@ -2034,9 +2156,11 @@ def test_bam_link_failure_rolls_back_normalized_and_leaves_no_summary(
 
         monkeypatch.setattr(lyra, "_link_no_clobber", fail_bam_link)
 
-        with pytest.raises(OSError, match="injected BAM link failure"):
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
+    assert exc_info.value.stage == "publish_viral_bam"
+    assert isinstance(exc_info.value.__cause__, OSError)
     assert not any(path.exists() for path in outputs)
     assert not list(tmp_path.rglob(".lyra-*"))
 
@@ -2054,14 +2178,15 @@ def test_stage_cleanup_ignores_tmpkeep_after_validation_failure(
     ):
         path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
 
-        def fail_validation(*args):
+        def fail_validation(*args, **kwargs):
             raise RuntimeError("injected validation failure")
 
         monkeypatch.setattr(lyra, "_validate_staged_artifacts", fail_validation)
 
-        with pytest.raises(RuntimeError, match="injected validation failure"):
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
             lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
 
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
     assert not any(path.exists() for path in outputs)
     assert not list(tmp_path.rglob(".lyra-*"))
 
@@ -2094,11 +2219,13 @@ def test_rollback_preserves_observed_replacement_and_reports_identity_mismatch(
 
         monkeypatch.setattr(lyra, "_link_no_clobber", replace_before_failure)
 
-        with pytest.raises(OSError, match="injected BAM link failure"):
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
             transaction.generate_validate_and_publish()
 
         outcomes = transaction.cleanup_outcomes
 
+    assert exc_info.value.stage == "publish_viral_bam"
+    assert isinstance(exc_info.value.__cause__, OSError)
     assert outputs[0].read_bytes() == b"caller replacement"
     assert not outputs[1].exists()
     assert not outputs[2].exists()

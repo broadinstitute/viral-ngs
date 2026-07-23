@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 import stat
+import subprocess
 import tempfile
 import zlib
 from contextlib import contextmanager
@@ -57,6 +58,8 @@ SUMMARY_HEADER = (
 
 _SUPPORTED_SCORE_SUFFIXES = (".tsv", ".tsv.gz", ".tsv.zst")
 _MAX_CANONICAL_THRESHOLD_LENGTH = 160
+_MAX_PUBLICATION_CLEANUP_FAILURES = 16
+_MAX_PUBLICATION_COMMAND_FIELDS = 8
 _SCORE_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", re.ASCII)
 _MIN_SCORE = Decimal("0")
 _MAX_SCORE = Decimal("1")
@@ -384,6 +387,18 @@ class PublishedArtifact:
 
 
 @dataclass(frozen=True)
+class CleanupFailure:
+    """One immutable bounded publication-cleanup diagnostic fact."""
+
+    operation: str
+    role: str = None
+    path: str = None
+    error_type: str = None
+    errno: int = None
+    category: str = None
+
+
+@dataclass(frozen=True)
 class CleanupOutcome:
     """One bounded rollback or stage-cleanup result."""
 
@@ -460,6 +475,135 @@ class LyraSourceIdentityError(RuntimeError):
                 "actual_status={}".format(_bounded_repr(actual_status))
             )
         super().__init__("Lyra source identity error: " + "; ".join(details))
+
+
+def _known_primary_category(primary):
+    if isinstance(primary, LyraSourceIdentityError):
+        return LyraSourceIdentityError.category
+    if isinstance(
+        primary,
+        (
+            LyraInputError,
+            LyraArtifactConsistencyError,
+        ),
+    ):
+        category = vars(primary).get("category")
+        if type(category) is str:
+            return category
+    return None
+
+
+def _known_primary_path(primary):
+    path = None
+    if isinstance(
+        primary,
+        (
+            LyraInputError,
+            LyraArtifactConsistencyError,
+            LyraSourceIdentityError,
+        ),
+    ):
+        path = vars(primary).get("path")
+    elif isinstance(primary, OSError):
+        path = vars(primary).get("filename")
+    if type(path) in (str, bytes):
+        return _bounded_repr(path)
+    return None
+
+
+def _known_primary_command(primary):
+    if not isinstance(primary, subprocess.CalledProcessError):
+        return (), False
+    command = vars(primary).get("cmd")
+    if type(command) in (str, bytes):
+        return (_bounded_repr(command),), False
+    if type(command) not in (list, tuple):
+        return (), False
+    rendered = tuple(
+        _bounded_repr(value)
+        for value in command[:_MAX_PUBLICATION_COMMAND_FIELDS]
+    )
+    return rendered, len(command) > len(rendered)
+
+
+class LyraPublicationError(RuntimeError):
+    """One structured publication failure retaining its original cause."""
+
+    category = "publication"
+
+    def __init__(self, stage, primary, cleanup_failures=()):
+        self.stage = stage
+        self.primary_type = type(primary).__name__
+        self.primary_category = _known_primary_category(primary)
+
+        primary_errno = None
+        if isinstance(primary, OSError):
+            candidate = getattr(primary, "errno", None)
+            if type(candidate) is int:
+                primary_errno = candidate
+        self.primary_errno = primary_errno
+
+        primary_returncode = None
+        if isinstance(primary, subprocess.CalledProcessError):
+            candidate = vars(primary).get("returncode")
+            if type(candidate) is int:
+                primary_returncode = candidate
+        self.primary_returncode = primary_returncode
+        self.primary_path = _known_primary_path(primary)
+        (
+            self.primary_command,
+            self.primary_command_truncated,
+        ) = _known_primary_command(primary)
+
+        failures = tuple(cleanup_failures)
+        self.cleanup_failures = failures[:_MAX_PUBLICATION_CLEANUP_FAILURES]
+        self.cleanup_failures_truncated = len(failures) > len(
+            self.cleanup_failures
+        )
+
+        details = [
+            "category={}".format(_bounded_repr(self.category)),
+            "stage={}".format(_bounded_repr(stage)),
+            "primary_type={}".format(_bounded_repr(self.primary_type)),
+        ]
+        if self.primary_category is not None:
+            details.append(
+                "primary_category={}".format(
+                    _bounded_repr(self.primary_category)
+                )
+            )
+        if self.primary_errno is not None:
+            details.append("primary_errno={}".format(self.primary_errno))
+        if self.primary_returncode is not None:
+            details.append(
+                "primary_returncode={}".format(self.primary_returncode)
+            )
+        if self.primary_path is not None:
+            details.append("primary_path={}".format(self.primary_path))
+        if self.primary_command:
+            details.append("primary_command={}".format(self.primary_command))
+        details.append(
+            "cleanup_failures={}".format(len(self.cleanup_failures))
+        )
+        if self.cleanup_failures_truncated:
+            details.append("cleanup_failures_truncated=true")
+        for index, failure in enumerate(self.cleanup_failures):
+            failure_details = [
+                "operation={}".format(_bounded_repr(failure.operation)),
+                "role={}".format(_bounded_repr(failure.role)),
+                "path={}".format(_bounded_repr(failure.path)),
+                "error_type={}".format(_bounded_repr(failure.error_type)),
+                "category={}".format(_bounded_repr(failure.category)),
+            ]
+            if failure.errno is not None:
+                failure_details.append("errno={}".format(failure.errno))
+            details.append(
+                "cleanup[{}]=({})".format(
+                    index,
+                    ",".join(failure_details),
+                )
+            )
+        super().__init__("Lyra publication error: " + "; ".join(details))
 
 
 def _pairing_state(eligible_bam_count, bam_role_counts):
@@ -1101,11 +1245,16 @@ def _validate_staged_artifacts(
     bam_stage,
     producer_normalized_rows,
     producer_bam_records,
+    stage_callback=None,
 ):
+    if stage_callback is not None:
+        stage_callback("validate_normalized_readback")
     normalized_rows = _validate_staged_normalized(
         store,
         normalized_stage.stage_path,
     )
+    if stage_callback is not None:
+        stage_callback("validate_bam_readback")
     bam_records = _validate_staged_bam(store, bam_stage.stage_path)
     if normalized_rows != producer_normalized_rows:
         raise _readback_error(
@@ -1121,6 +1270,8 @@ def _validate_staged_artifacts(
             expected=producer_bam_records,
             actual=bam_records,
         )
+    if stage_callback is not None:
+        stage_callback("validate_summary_readback")
     _validate_staged_summary(
         store,
         summary_stage.stage_path,
@@ -1492,6 +1643,9 @@ class LyraArtifactTransaction:
     def cleanup_outcomes(self):
         return self._cleanup_outcomes
 
+    def _set_stage(self, stage):
+        self.stage = stage
+
     def _create_stages(self):
         self.stage = "create_stages"
         for destination in (
@@ -1536,7 +1690,6 @@ class LyraArtifactTransaction:
             summary_stage.stage_path,
             output_bam_records,
         )
-        self.stage = "validate_staged_artifacts"
         _validate_staged_artifacts(
             self.store,
             normalized_stage,
@@ -1544,6 +1697,7 @@ class LyraArtifactTransaction:
             bam_stage,
             normalized_rows,
             output_bam_records,
+            stage_callback=self._set_stage,
         )
 
     def _sync_stages(self):
@@ -1557,15 +1711,26 @@ class LyraArtifactTransaction:
 
     def _publish_stage(self, artifact_stage):
         stage_identity = _file_identity(os.lstat(artifact_stage.stage_path))
-        _link_no_clobber(
-            artifact_stage.stage_path,
-            artifact_stage.destination.final_path,
-        )
         pending = PublishedArtifact(
             role=artifact_stage.role,
             final_path=artifact_stage.destination.final_path,
             identity=stage_identity,
         )
+        try:
+            _link_no_clobber(
+                artifact_stage.stage_path,
+                artifact_stage.destination.final_path,
+            )
+        except BaseException:
+            try:
+                final_identity = _file_identity(os.lstat(pending.final_path))
+            except BaseException:
+                pass
+            else:
+                if final_identity == stage_identity:
+                    self._pending_publication = pending
+            raise
+
         self._pending_publication = pending
         final_identity = _file_identity(os.lstat(pending.final_path))
         if final_identity != stage_identity:
@@ -1729,6 +1894,51 @@ class LyraArtifactTransaction:
         self._cleanup_outcomes = tuple(outcomes)
         return self._cleanup_outcomes
 
+    def _cleanup_failures(self):
+        failures = []
+        for outcome in self._cleanup_outcomes:
+            if outcome.status in {"absent", "removed"}:
+                continue
+            if outcome.status == "identity_mismatch":
+                failures.append(
+                    CleanupFailure(
+                        operation=outcome.operation,
+                        role=outcome.role,
+                        path=outcome.path,
+                        error_type="FileIdentityMismatch",
+                        category="rollback_identity_mismatch",
+                    )
+                )
+                continue
+
+            prefix = (
+                "stage_cleanup"
+                if outcome.operation == "cleanup"
+                else "rollback"
+            )
+            failures.append(
+                CleanupFailure(
+                    operation=outcome.operation,
+                    role=outcome.role,
+                    path=outcome.path,
+                    error_type=outcome.error_type,
+                    errno=(
+                        outcome.errno
+                        if type(outcome.errno) is int
+                        else None
+                    ),
+                    category="{}_{}".format(prefix, outcome.status),
+                )
+            )
+        return tuple(failures)
+
+    def _failure_stage(self, primary):
+        if isinstance(primary, (LyraSourceIdentityError, LyraPathError)):
+            primary_stage = vars(primary).get("stage")
+            if type(primary_stage) is str:
+                return primary_stage
+        return self.stage
+
     def generate_validate_and_publish(self):
         try:
             self.stage = "pre_generation"
@@ -1738,9 +1948,16 @@ class LyraArtifactTransaction:
             self._generate_and_validate()
             self._sync_stages()
             self._publish()
-        except BaseException:
+        except BaseException as primary:
+            failure_stage = self._failure_stage(primary)
             self.rollback_and_cleanup()
-            raise
+            if not isinstance(primary, Exception):
+                raise
+            raise LyraPublicationError(
+                stage=failure_stage,
+                primary=primary,
+                cleanup_failures=self._cleanup_failures(),
+            ) from primary
 
 
 def write_lyra_artifacts(

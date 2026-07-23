@@ -351,7 +351,7 @@ def test_coordinator_calls_collaborators_in_summary_last_order(
     monkeypatch.setattr(
         lyra,
         "_validate_staged_artifacts",
-        lambda *args: calls.append(("readback", *args)),
+        lambda *args, **kwargs: calls.append(("readback", *args)),
     )
 
     original_link = lyra._link_no_clobber
@@ -443,7 +443,11 @@ def test_coordinator_routes_only_immutable_path_plan_destinations(
     monkeypatch.setattr(lyra, "_write_viral_bam", write_viral_bam)
     monkeypatch.setattr(lyra, "_validate_artifact_counts", lambda *args: None)
     monkeypatch.setattr(lyra, "_write_summary", write_summary)
-    monkeypatch.setattr(lyra, "_validate_staged_artifacts", lambda *args: None)
+    monkeypatch.setattr(
+        lyra,
+        "_validate_staged_artifacts",
+        lambda *args, **kwargs: None,
+    )
 
     lyra.write_lyra_artifacts(
         SimpleNamespace(counts=_consistent_counts()),
@@ -529,14 +533,16 @@ def test_coordinator_count_mismatch_leaves_summary_unopened(
         lambda *args, **kwargs: output_bam_records,
     )
 
-    with pytest.raises(lyra.LyraArtifactConsistencyError) as exc_info:
+    with pytest.raises(lyra.LyraPublicationError) as exc_info:
         lyra.write_lyra_artifacts(
             store,
             path_plan,
             work_dir=tmp_path,
         )
 
-    assert exc_info.value.category == category
+    assert exc_info.value.category == "publication"
+    assert isinstance(exc_info.value.__cause__, lyra.LyraArtifactConsistencyError)
+    assert exc_info.value.__cause__.category == category
     assert not os.path.exists(summary)
 
 
