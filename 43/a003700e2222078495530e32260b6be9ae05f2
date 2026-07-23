@@ -1,0 +1,19 @@
+src/viral_ngs/core/misc.py
+  s_6fbdc976a45f7f::t_ca7f7e430bdb31 1107-1110,1112-1115,1117-1128,1133-1134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "43a003700e2222078495530e32260b6be9ae05f2",
+  "prompts": {},
+  "sessions": {
+    "s_6fbdc976a45f7f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0738b81f3ffeVA2VQehOaMh2K1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
