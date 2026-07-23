@@ -7,6 +7,7 @@ import io
 import os
 import re
 import sqlite3
+import stat
 import tempfile
 import zlib
 from contextlib import contextmanager
@@ -228,6 +229,42 @@ class LyraInputError(ValueError):
         super().__init__("Lyra input error: " + "; ".join(details))
 
 
+class LyraPathError(LyraInputError):
+    """A pre-processing path conflict with stable bounded context."""
+
+    def __init__(
+        self,
+        category,
+        role,
+        path,
+        reason,
+        conflicting_role=None,
+        conflicting_path=None,
+    ):
+        self.category = category
+        self.role = role
+        self.path = path
+        self.reason = reason
+        self.conflicting_role = conflicting_role
+        self.conflicting_path = conflicting_path
+
+        details = [
+            "category={}".format(_bounded_repr(category)),
+            "role={}".format(_bounded_repr(role)),
+            "path={}".format(_bounded_repr(path)),
+            "reason={}".format(_bounded_repr(reason)),
+        ]
+        if conflicting_role is not None:
+            details.append(
+                "conflicting_role={}".format(_bounded_repr(conflicting_role))
+            )
+        if conflicting_path is not None:
+            details.append(
+                "conflicting_path={}".format(_bounded_repr(conflicting_path))
+            )
+        ValueError.__init__(self, "Lyra path error: " + "; ".join(details))
+
+
 class LyraReconciliationError(LyraInputError):
     """A whole-store reconciliation failure with bounded evidence context."""
 
@@ -310,6 +347,29 @@ class FileIdentity:
     inode: int
     size: int
     mtime_ns: int
+
+
+@dataclass(frozen=True)
+class ArtifactDestination:
+    """One resolved, immutable artifact destination."""
+
+    role: str
+    caller_path: str
+    final_path: str
+    parent_path: str
+    destination_key: tuple
+    suffix: str
+
+
+@dataclass(frozen=True)
+class LyraArtifactPathPlan:
+    """Converted inputs and resolved destinations for one artifact set."""
+
+    score_path: str
+    bam_path: str
+    normalized: ArtifactDestination
+    summary: ArtifactDestination
+    viral_bam: ArtifactDestination
 
 
 def _file_identity(stat_result):
@@ -734,6 +794,234 @@ def _validate_artifact_output_suffixes(
                 offending_value=path,
             )
     return converted_paths
+
+
+def _artifact_suffix(role, path, suffixes, reason):
+    for suffix in sorted(suffixes, key=len, reverse=True):
+        if isinstance(path, str) and path.endswith(suffix):
+            return suffix
+    raise LyraInputError(
+        category="output_extension",
+        path=path,
+        field=role + "_output",
+        reason=reason,
+        offending_value=path,
+    )
+
+
+def _resolved_artifact_destination(role, caller_path, suffixes, reason):
+    suffix = _artifact_suffix(role, caller_path, suffixes, reason)
+    absolute_path = caller_path
+    if not os.path.isabs(absolute_path):
+        absolute_path = os.path.join(os.getcwd(), absolute_path)
+    unresolved_parent, basename = os.path.split(absolute_path)
+    try:
+        parent_path = os.path.realpath(unresolved_parent, strict=True)
+        parent_stat = os.stat(parent_path)
+    except OSError as exc:
+        raise LyraPathError(
+            category="output_parent",
+            role=role,
+            path=caller_path,
+            reason="output parent must be an existing directory",
+        ) from exc
+    if not stat.S_ISDIR(parent_stat.st_mode):
+        raise LyraPathError(
+            category="output_parent",
+            role=role,
+            path=caller_path,
+            reason="output parent must be an existing directory",
+        )
+    final_path = os.path.join(parent_path, basename)
+    return ArtifactDestination(
+        role=role,
+        caller_path=caller_path,
+        final_path=final_path,
+        parent_path=parent_path,
+        destination_key=(parent_stat.st_dev, parent_stat.st_ino, basename),
+        suffix=suffix,
+    )
+
+
+def _path_identity(stat_result):
+    return (stat_result.st_dev, stat_result.st_ino)
+
+
+def _build_artifact_path_plan(
+    score_path,
+    bam_path,
+    normalized_output,
+    summary_output,
+    viral_bam_output,
+):
+    """Convert paths once and reject every deterministic destination hazard."""
+    converted_paths = tuple(
+        os.fspath(path)
+        for path in (
+            score_path,
+            bam_path,
+            normalized_output,
+            summary_output,
+            viral_bam_output,
+        )
+    )
+    converted_score, converted_bam = converted_paths[:2]
+    if not isinstance(converted_score, str) or not converted_score.endswith(
+        _SUPPORTED_SCORE_SUFFIXES
+    ):
+        raise LyraInputError(
+            category="extension",
+            path=converted_score,
+            field="file",
+            reason="score path must end with .tsv, .tsv.gz, or .tsv.zst",
+            offending_value=converted_score,
+        )
+
+    destinations = (
+        _resolved_artifact_destination(
+            "normalized",
+            converted_paths[2],
+            _SUPPORTED_SCORE_SUFFIXES,
+            "normalized output must end with .tsv, .tsv.gz, or .tsv.zst",
+        ),
+        _resolved_artifact_destination(
+            "summary",
+            converted_paths[3],
+            (".tsv",),
+            "summary output must end with .tsv",
+        ),
+        _resolved_artifact_destination(
+            "viral_bam",
+            converted_paths[4],
+            (".bam",),
+            "viral BAM output must end with .bam",
+        ),
+    )
+
+    destinations_by_key = {}
+    for destination in destinations:
+        conflict = destinations_by_key.get(destination.destination_key)
+        if conflict is not None:
+            raise LyraPathError(
+                category="output_output_alias",
+                role=destination.role,
+                path=destination.caller_path,
+                conflicting_role=conflict.role,
+                conflicting_path=conflict.caller_path,
+                reason="artifact outputs must name distinct directory entries",
+            )
+        destinations_by_key[destination.destination_key] = destination
+
+    input_paths = (
+        ("score", converted_score),
+        ("bam", converted_bam),
+    )
+    input_identities = tuple(
+        (role, path, _path_identity(os.stat(path)))
+        for role, path in input_paths
+    )
+
+    existing_entries = []
+    for destination in destinations:
+        try:
+            entry_stat = os.lstat(destination.final_path)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise LyraPathError(
+                category="output_exists",
+                role=destination.role,
+                path=destination.caller_path,
+                reason="artifact output directory entry is not safely absent",
+            ) from exc
+
+        identity = None
+        try:
+            identity = _path_identity(os.stat(destination.final_path))
+        except OSError:
+            pass
+        existing_entries.append((destination, entry_stat, identity))
+
+    for destination, _, identity in existing_entries:
+        if identity is None:
+            continue
+        for input_role, input_path, input_identity in input_identities:
+            if identity == input_identity:
+                raise LyraPathError(
+                    category="input_output_alias",
+                    role=destination.role,
+                    path=destination.caller_path,
+                    conflicting_role=input_role,
+                    conflicting_path=input_path,
+                    reason="artifact output must not identify an input file",
+                )
+
+    for index, (destination, _, identity) in enumerate(existing_entries):
+        if identity is None:
+            continue
+        for conflict, _, conflict_identity in existing_entries[:index]:
+            if conflict_identity is not None and identity == conflict_identity:
+                raise LyraPathError(
+                    category="output_output_alias",
+                    role=destination.role,
+                    path=destination.caller_path,
+                    conflicting_role=conflict.role,
+                    conflicting_path=conflict.caller_path,
+                    reason="artifact outputs must not identify the same entry",
+                )
+
+    if existing_entries:
+        destination = existing_entries[0][0]
+        raise LyraPathError(
+            category="output_exists",
+            role=destination.role,
+            path=destination.caller_path,
+            reason="artifact output directory entry already exists",
+        )
+
+    return LyraArtifactPathPlan(
+        score_path=converted_score,
+        bam_path=converted_bam,
+        normalized=destinations[0],
+        summary=destinations[1],
+        viral_bam=destinations[2],
+    )
+
+
+def postprocess_lyra(
+    score_path,
+    bam_path,
+    sample_id,
+    threshold,
+    normalized_output,
+    summary_output,
+    viral_bam_output,
+    work_dir=None,
+):
+    """Preflight paths before reconciling and generating Lyra artifacts."""
+    validated_sample_id = validate_sample_id(sample_id)
+    validated_threshold = validate_lyra_threshold(threshold)
+    path_plan = _build_artifact_path_plan(
+        score_path,
+        bam_path,
+        normalized_output,
+        summary_output,
+        viral_bam_output,
+    )
+    with reconcile_lyra_fragments(
+        path_plan.score_path,
+        path_plan.bam_path,
+        validated_sample_id,
+        validated_threshold,
+        work_dir=work_dir,
+    ) as store:
+        write_lyra_artifacts(
+            store,
+            path_plan.normalized.final_path,
+            path_plan.summary.final_path,
+            path_plan.viral_bam.final_path,
+            work_dir=work_dir,
+        )
 
 
 def write_lyra_artifacts(

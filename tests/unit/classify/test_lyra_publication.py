@@ -56,7 +56,7 @@ def _entry_snapshot(path):
     path = os.fspath(path)
     try:
         entry_stat = os.lstat(path)
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
         return ("absent",)
     if stat.S_ISLNK(entry_stat.st_mode):
         return ("symlink", os.readlink(path))
@@ -124,6 +124,8 @@ def test_preflight_rejects_invalid_output_parent_before_reconciliation(
     assert error.path == os.fspath(paths[2])
     assert error.conflicting_role is None
     assert error.conflicting_path is None
+    if parent_kind == "regular_file":
+        assert parent.read_bytes() == b"caller parent"
 
 
 @pytest.mark.parametrize(
@@ -179,27 +181,38 @@ def test_preflight_rejects_input_output_aliases_before_reconciliation(
     score_path = _write_scores(tmp_path, "input-alias-scores.tsv")
     bam_path, _ = _write_bam(tmp_path, "input-alias-source.bam")
     source = score_path if input_role == "score" else bam_path
+    suffix = ".tsv" if input_role == "score" else ".bam"
     if alias_kind == "exact":
-        normalized = source
+        alias_output = source
     elif alias_kind == "symlink":
-        normalized = tmp_path / "input-alias.tsv"
-        normalized.symlink_to(source.name)
+        alias_output = tmp_path / ("input-alias" + suffix)
+        alias_output.symlink_to(source.name)
     else:
-        normalized = tmp_path / "input-hardlink.tsv"
-        os.link(source, normalized)
+        alias_output = tmp_path / ("input-hardlink" + suffix)
+        os.link(source, alias_output)
+    normalized = (
+        alias_output
+        if input_role == "score"
+        else tmp_path / "input-alias-normalized.tsv"
+    )
+    viral_bam = (
+        alias_output
+        if input_role == "bam"
+        else tmp_path / "input-alias-viral.bam"
+    )
     paths = (
         score_path,
         bam_path,
         normalized,
         tmp_path / "summary.tsv",
-        tmp_path / "viral.bam",
+        viral_bam,
     )
 
     error = _invoke_invalid_postprocess(monkeypatch, paths, "input_output_alias")
 
-    assert error.role == "normalized"
+    assert error.role == ("normalized" if input_role == "score" else "viral_bam")
     assert error.conflicting_role == input_role
-    assert error.path == os.fspath(normalized)
+    assert error.path == os.fspath(alias_output)
     assert error.conflicting_path == os.fspath(source)
 
 
