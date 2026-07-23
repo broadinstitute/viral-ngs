@@ -1104,14 +1104,34 @@ class ReadIdStore:
                     cleanup_error = exc
                     cleanup_traceback = exc.__traceback__
 
-        if processing_error is not None:
+        if (
+            processing_error is not None
+            and not isinstance(processing_error, BrokenPipeError)
+        ):
             raise processing_error.with_traceback(processing_traceback)
-        if cleanup_error is not None:
+        if (
+            cleanup_error is not None
+            and not isinstance(cleanup_error, BrokenPipeError)
+        ):
             raise cleanup_error.with_traceback(cleanup_traceback)
+
+        pipe_error = None
+        pipe_traceback = None
+        if isinstance(processing_error, BrokenPipeError):
+            pipe_error = processing_error
+            pipe_traceback = processing_traceback
+        elif isinstance(cleanup_error, BrokenPipeError):
+            pipe_error = cleanup_error
+            pipe_traceback = cleanup_traceback
+
+        if pipe_error is not None and write_status:
+            raise subprocess.CalledProcessError(write_status, write_argv)
         if read_status:
             raise subprocess.CalledProcessError(read_status, read_argv)
         if write_status:
             raise subprocess.CalledProcessError(write_status, write_argv)
+        if pipe_error is not None:
+            raise pipe_error.with_traceback(pipe_traceback)
 
         elapsed = time.time() - start
         log.debug(f"PERF: filter_time={elapsed:.2f}s lookup_time={lookup_time:.2f}s "
