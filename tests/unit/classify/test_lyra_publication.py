@@ -638,12 +638,18 @@ def _touch_source(_tmp_path, source_path):
 def _finalize_source_store(store, source_path, identity, header):
     store._counts = lyra.LyraReconciliationCounts(0, 0, 0, 0, 0, 0, 0, 0, 0)
     store._threshold = Decimal("0.8")
-    store._install_source_metadata(
-        source_bam_path=str(source_path.absolute()),
-        source_bam_display_path=str(source_path),
-        source_bam_identity=identity,
-        source_bam_header=header,
-    )
+    source_bam_fd = os.open(source_path, os.O_RDONLY)
+    try:
+        store._install_source_metadata(
+            source_bam_fd=source_bam_fd,
+            source_bam_path=str(source_path.absolute()),
+            source_bam_display_path=str(source_path),
+            source_bam_identity=identity,
+            source_bam_header=header,
+        )
+    except BaseException:
+        os.close(source_bam_fd)
+        raise
 
 
 def test_source_file_identity_is_frozen_with_exact_descriptor_fields(tmp_path):
@@ -680,6 +686,7 @@ def test_source_properties_require_finalized_live_store_and_copy_header(tmp_path
     store = lyra.LyraFragmentStore("sample", work_dir=tmp_path)
 
     for property_name in (
+        "source_bam_fd",
         "source_bam_path",
         "source_bam_display_path",
         "source_bam_identity",
@@ -690,6 +697,8 @@ def test_source_properties_require_finalized_live_store_and_copy_header(tmp_path
 
     _finalize_source_store(store, source_path, identity, retained_header)
 
+    assert type(store.source_bam_fd) is int
+    os.fstat(store.source_bam_fd)
     assert store.source_bam_path == str(source_path.absolute())
     assert store.source_bam_display_path == str(source_path)
     assert store.source_bam_identity is identity
@@ -703,6 +712,7 @@ def test_source_properties_require_finalized_live_store_and_copy_header(tmp_path
 
     store.close()
     for property_name in (
+        "source_bam_fd",
         "source_bam_path",
         "source_bam_display_path",
         "source_bam_identity",
@@ -710,6 +720,223 @@ def test_source_properties_require_finalized_live_store_and_copy_header(tmp_path
     ):
         with pytest.raises(RuntimeError, match="closed"):
             getattr(store, property_name)
+
+
+def test_source_descriptor_matches_identity_and_closes_once_with_store(
+    tmp_path,
+    monkeypatch,
+):
+    source_path, _ = _write_bam(tmp_path, "descriptor-lifecycle.bam")
+    score_path = _write_scores(tmp_path, "descriptor-lifecycle.tsv")
+    close_calls = []
+    real_close = os.close
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        source_path,
+        "sample",
+        "0.8",
+        work_dir=tmp_path,
+    ) as store:
+        source_bam_fd = store.source_bam_fd
+        assert lyra._file_identity(os.fstat(source_bam_fd)) == (
+            store.source_bam_identity
+        )
+
+        def record_close(descriptor):
+            if descriptor == source_bam_fd:
+                close_calls.append(descriptor)
+            return real_close(descriptor)
+
+        monkeypatch.setattr(lyra.os, "close", record_close)
+
+    assert close_calls == [source_bam_fd]
+    with pytest.raises(OSError):
+        os.fstat(source_bam_fd)
+
+
+@pytest.mark.parametrize(
+    "failing_helper",
+    ["_validate_reconciliation", "_finalize_fragments"],
+)
+def test_source_descriptor_created_before_failure_is_closed(
+    tmp_path,
+    monkeypatch,
+    failing_helper,
+):
+    source_path, _ = _write_bam(
+        tmp_path,
+        "descriptor-failure-{}.bam".format(failing_helper),
+    )
+    score_path = _write_scores(
+        tmp_path,
+        "descriptor-failure-{}.tsv".format(failing_helper),
+    )
+    duplicated_descriptors = []
+    real_dup = os.dup
+
+    def record_duplicate(descriptor):
+        duplicate = real_dup(descriptor)
+        duplicated_descriptors.append(duplicate)
+        return duplicate
+
+    primary = RuntimeError("injected {} failure".format(failing_helper))
+    monkeypatch.setattr(lyra.os, "dup", record_duplicate)
+    monkeypatch.setattr(lyra, failing_helper, lambda *args: _raise(primary))
+
+    with pytest.raises(RuntimeError) as exc_info:
+        with lyra.reconcile_lyra_fragments(
+            score_path,
+            source_path,
+            "sample",
+            "0.8",
+            work_dir=tmp_path,
+        ):
+            pytest.fail("failed reconciliation must not expose a store")
+
+    assert exc_info.value is primary
+    assert len(duplicated_descriptors) == 1
+    with pytest.raises(OSError):
+        os.fstat(duplicated_descriptors[0])
+
+
+def test_source_descriptor_close_failure_still_cleans_store_once(
+    tmp_path,
+    monkeypatch,
+):
+    source_path, header = _write_bam(tmp_path, "descriptor-close-failure.bam")
+    identity = lyra._file_identity(os.stat(source_path))
+    store = lyra.LyraFragmentStore("sample", work_dir=tmp_path)
+    _finalize_source_store(store, source_path, identity, header)
+    source_bam_fd = store.source_bam_fd
+    real_descriptor_close = os.close
+    real_connection = store._connection
+    real_temporary_cleanup = store._temporary_directory.cleanup
+    operations = []
+
+    class RecordingConnection:
+        def close(self):
+            operations.append("database")
+            real_connection.close()
+
+    def fail_source_close(descriptor):
+        if descriptor == source_bam_fd:
+            operations.append("source")
+            raise OSError(5, "injected source descriptor close failure")
+        return real_descriptor_close(descriptor)
+
+    def cleanup_temporary_directory():
+        operations.append("temporary_directory")
+        real_temporary_cleanup()
+
+    store._connection = RecordingConnection()
+    store._temporary_directory.cleanup = cleanup_temporary_directory
+    with monkeypatch.context() as patch:
+        patch.setattr(lyra.os, "close", fail_source_close)
+        with pytest.raises(OSError, match="source descriptor close failure"):
+            store.close()
+        store.close()
+
+    assert operations == ["source", "database", "temporary_directory"]
+    real_descriptor_close(source_bam_fd)
+
+
+def test_source_identity_rejects_retargeted_retained_descriptor(tmp_path):
+    source_path, _ = _write_bam(tmp_path, "descriptor-identity-source.bam")
+    replacement_path, _ = _write_bam(
+        tmp_path,
+        "descriptor-identity-replacement.bam",
+        query_name="replacement",
+    )
+    score_path = _write_scores(tmp_path, "descriptor-identity.tsv")
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        source_path,
+        "sample",
+        "0.8",
+        work_dir=tmp_path,
+    ) as store:
+        replacement_fd = os.open(replacement_path, os.O_RDONLY)
+        try:
+            os.dup2(replacement_fd, store.source_bam_fd)
+        finally:
+            os.close(replacement_fd)
+
+        with pytest.raises(lyra.LyraSourceIdentityError) as exc_info:
+            lyra._assert_source_bam_identity(store, "descriptor_check")
+
+    assert exc_info.value.stage == "descriptor_check"
+    assert exc_info.value.path == os.fspath(source_path)
+    assert exc_info.value.expected == lyra._file_identity(os.stat(source_path))
+    assert exc_info.value.actual == lyra._file_identity(os.stat(replacement_path))
+
+
+def test_source_transient_path_swap_cannot_change_filtered_bam(tmp_path, monkeypatch):
+    header = {
+        "HD": {"VN": "1.6", "SO": "unsorted"},
+        "PG": [{"ID": "source", "PN": "fixture"}],
+        "SQ": [],
+    }
+    reconciled_record = _segment("read")
+    reconciled_record.set_tag("NM", 1)
+    replacement_record = _segment("read")
+    replacement_record.set_tag("NM", 99)
+    source_path, _ = _write_bam_records(
+        tmp_path,
+        "transient-source.bam",
+        [reconciled_record],
+        header,
+    )
+    replacement_path, _ = _write_bam_records(
+        tmp_path,
+        "transient-replacement.bam",
+        [replacement_record],
+        header,
+    )
+    displaced_path = tmp_path / "transient-displaced.bam"
+    score_path = _write_scores(tmp_path, "transient-scores.tsv")
+    output_path = tmp_path / "transient-output.bam"
+    original_filter = lyra.util_misc.ReadIdStore.filter_bam_by_ids
+    filter_calls = []
+
+    def swap_during_filter(read_ids, in_bam, out_bam, *args, **kwargs):
+        filter_calls.append((in_bam, kwargs.get("in_bam_fd")))
+        os.replace(source_path, displaced_path)
+        os.replace(replacement_path, source_path)
+        try:
+            return original_filter(read_ids, in_bam, out_bam, *args, **kwargs)
+        finally:
+            os.replace(source_path, replacement_path)
+            os.replace(displaced_path, source_path)
+
+    monkeypatch.setattr(
+        lyra.util_misc.ReadIdStore,
+        "filter_bam_by_ids",
+        swap_during_filter,
+    )
+
+    with lyra.reconcile_lyra_fragments(
+        score_path,
+        source_path,
+        "sample",
+        "0.8",
+        work_dir=tmp_path,
+    ) as store:
+        source_bam_fd = store.source_bam_fd
+        assert lyra._write_viral_bam(
+            store,
+            output_path,
+            work_dir=tmp_path,
+        ) == 1
+        assert filter_calls == [
+            (store.source_bam_display_path, source_bam_fd)
+        ]
+
+    with pysam.AlignmentFile(output_path, "rb", check_sq=False) as output:
+        output_records = list(output.fetch(until_eof=True))
+    assert len(output_records) == 1
+    assert output_records[0].get_tag("NM") == 1
 
 
 def test_source_identity_error_exposes_stable_bounded_mismatch_facts():
