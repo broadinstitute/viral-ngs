@@ -112,13 +112,16 @@ def _generate_staged_artifacts(store, path_plan, work_dir):
     transaction._create_stages()
     stages = transaction.stages
     normalized_rows = lyra._write_normalized(store, stages[0])
+    os.fstat(stages[0].descriptor)
     bam_records = lyra._write_viral_bam(
         store,
         stages[2],
         work_dir=work_dir,
     )
+    os.fstat(stages[2].descriptor)
     lyra._validate_artifact_counts(store.counts, normalized_rows, bam_records)
     lyra._write_summary(store, stages[1], bam_records)
+    os.fstat(stages[1].descriptor)
     return stages, normalized_rows, bam_records
 
 

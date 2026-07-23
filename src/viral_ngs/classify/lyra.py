@@ -800,6 +800,68 @@ def _write_tsv_row(binary_stream, values):
     binary_stream.write(row.encode("utf-8", errors="strict"))
 
 
+@contextmanager
+def _duplicate_stage_raw_stream(stage, mode, truncate=False):
+    """Yield a stream around a duplicate while retaining the owner handle."""
+    _assert_stage_handle(stage, require_named_entry=False)
+    if truncate:
+        os.ftruncate(stage.descriptor, 0)
+    os.lseek(stage.descriptor, 0, os.SEEK_SET)
+    duplicate = os.dup(stage.descriptor)
+    try:
+        with os.fdopen(duplicate, mode) as stream:
+            duplicate = None
+            yield stream
+    finally:
+        if duplicate is not None:
+            os.close(duplicate)
+    _assert_stage_handle(stage, require_named_entry=False)
+
+
+@contextmanager
+def _stage_output_stream(stage):
+    with _duplicate_stage_raw_stream(stage, "wb", truncate=True) as raw_stream:
+        suffix = stage.destination.suffix
+        if suffix == ".tsv.gz":
+            with gzip.GzipFile(fileobj=raw_stream, mode="wb") as output_stream:
+                yield output_stream
+        elif suffix == ".tsv.zst":
+            compressor = zstd.ZstdCompressor(
+                level=10,
+                threads=util_misc.sanitize_thread_count(None),
+            )
+            with compressor.stream_writer(raw_stream) as output_stream:
+                yield output_stream
+        else:
+            yield raw_stream
+
+
+@contextmanager
+def _stage_input_stream(stage):
+    with _duplicate_stage_raw_stream(stage, "rb") as raw_stream:
+        suffix = stage.destination.suffix
+        if suffix == ".tsv.gz":
+            with gzip.GzipFile(fileobj=raw_stream, mode="rb") as input_stream:
+                yield input_stream
+        elif suffix == ".tsv.zst":
+            decompressor = zstd.ZstdDecompressor()
+            with decompressor.stream_reader(raw_stream) as input_stream:
+                yield input_stream
+        else:
+            yield raw_stream
+
+
+@contextmanager
+def _normalized_output_stream(normalized_output):
+    if isinstance(normalized_output, ArtifactStage):
+        with _stage_output_stream(normalized_output) as output_stream:
+            yield output_stream
+        return
+    path = os.fspath(normalized_output)
+    with util_file.open_or_gzopen(path, "wb") as output_stream:
+        yield output_stream
+
+
 def _write_normalized(store, normalized_output):
     """Stream one exact normalized row per finalized fragment."""
     threshold = store.threshold
@@ -811,8 +873,7 @@ def _write_normalized(store, normalized_output):
     }
     call_values = {CALL_VIRAL, CALL_NONVIRAL}
     row_count = 0
-    path = os.fspath(normalized_output)
-    with util_file.open_or_gzopen(path, "wb") as output_stream:
+    with _normalized_output_stream(normalized_output) as output_stream:
         _write_tsv_row(output_stream, NORMALIZED_HEADER)
         for fragment in store.iter_fragments():
             if fragment.pairing not in pairing_values:
@@ -928,8 +989,11 @@ def _validate_artifact_counts(counts, normalized_rows, output_bam_records):
 def _write_summary(store, summary_output, output_bam_records):
     """Write one exact summary row from finalized and checked counts."""
     counts = store.counts
-    path = os.fspath(summary_output)
-    with open(path, "wb") as output_stream:
+    if isinstance(summary_output, ArtifactStage):
+        output_context = _stage_output_stream(summary_output)
+    else:
+        output_context = open(os.fspath(summary_output), "wb")
+    with output_context as output_stream:
         _write_tsv_row(output_stream, SUMMARY_HEADER)
         _write_tsv_row(
             output_stream,
@@ -957,7 +1021,20 @@ def _write_viral_bam(
 ):
     """Stream exact Viral QNAMEs into a faithful source-order BAM."""
     expected_id_count = store.counts.viral_fragment_calls
-    output_path = os.fspath(viral_bam_output)
+    output_stage = (
+        viral_bam_output
+        if isinstance(viral_bam_output, ArtifactStage)
+        else None
+    )
+    if output_stage is None:
+        output_path = os.fspath(viral_bam_output)
+        output_descriptor = None
+    else:
+        _assert_stage_handle(output_stage, require_named_entry=False)
+        os.ftruncate(output_stage.descriptor, 0)
+        os.lseek(output_stage.descriptor, 0, os.SEEK_SET)
+        output_path = output_stage.display_path
+        output_descriptor = output_stage.descriptor
     with tempfile.TemporaryDirectory(
         prefix="lyra_viral_bam_",
         dir=work_dir,
@@ -980,8 +1057,14 @@ def _write_viral_bam(
                 output_path,
                 include=True,
                 in_bam_fd=store.source_bam_fd,
+                out_bam_fd=output_descriptor,
             )
             _assert_source_bam_identity(store, "after_bam_filter")
+            if output_stage is not None:
+                _assert_stage_handle(
+                    output_stage,
+                    require_named_entry=False,
+                )
             return output_bam_records
 
 
@@ -1163,10 +1246,27 @@ def _readback_error(category, field=None, expected=None, actual=None, read_id=No
     )
 
 
-def _iter_strict_staged_rows(stage_path, category):
+def _stage_suffix(stage_or_path):
+    if isinstance(stage_or_path, ArtifactStage):
+        return stage_or_path.destination.suffix
+    return os.fspath(stage_or_path)
+
+
+@contextmanager
+def _staged_input_stream(stage_or_path):
+    if isinstance(stage_or_path, ArtifactStage):
+        with _stage_input_stream(stage_or_path) as input_stream:
+            yield input_stream
+        return
+    path = os.fspath(stage_or_path)
+    with util_file.open_or_gzopen(path, "rb") as input_stream:
+        yield input_stream
+
+
+def _iter_strict_staged_rows(stage_or_path, category):
     """Stream strict UTF-8, LF-terminated physical rows from one stage."""
     try:
-        with util_file.open_or_gzopen(stage_path, "rb") as raw_stream:
+        with _staged_input_stream(stage_or_path) as raw_stream:
             if isinstance(raw_stream, io.BufferedIOBase):
                 buffered_stream = raw_stream
             else:
@@ -1201,8 +1301,15 @@ def _iter_strict_staged_rows(stage_path, category):
             finally:
                 if buffered_stream is not raw_stream:
                     buffered_stream.close()
-        if stage_path.endswith(".tsv.zst"):
-            _validate_complete_zstd_frames(stage_path)
+        if _stage_suffix(stage_or_path).endswith(".tsv.zst"):
+            if isinstance(stage_or_path, ArtifactStage):
+                with _duplicate_stage_raw_stream(
+                    stage_or_path,
+                    "rb",
+                ) as compressed_stream:
+                    _validate_complete_zstd_frames_stream(compressed_stream)
+            else:
+                _validate_complete_zstd_frames(os.fspath(stage_or_path))
     except LyraArtifactConsistencyError:
         raise
     except _COMPRESSION_EXCEPTIONS as exc:
@@ -1214,9 +1321,9 @@ def _iter_strict_staged_rows(stage_path, category):
         ) from exc
 
 
-def _validate_staged_normalized(store, stage_path):
+def _validate_staged_normalized(store, stage_or_path):
     """Stream-compare a closed normalized stage with finalized fragments."""
-    rows = _iter_strict_staged_rows(stage_path, "normalized_readback")
+    rows = _iter_strict_staged_rows(stage_or_path, "normalized_readback")
     try:
         _, header = next(rows)
     except StopIteration as exc:
@@ -1329,21 +1436,30 @@ def _validate_staged_normalized(store, stage_path):
     return row_count
 
 
-def _validate_staged_bam(store, stage_path):
+def _validate_staged_bam(store, stage_or_path):
     """Validate the staged BAM header and stream its actual record count."""
     try:
-        with pysam.AlignmentFile(stage_path, "rb", check_sq=False) as bam:
-            actual_header = bam.header.to_dict()
-            if actual_header != store.source_bam_header:
-                raise _readback_error(
-                    "bam_readback",
-                    field="header",
-                    expected=store.source_bam_header,
-                    actual=actual_header,
-                )
-            record_count = 0
-            for _ in bam.fetch(until_eof=True):
-                record_count += 1
+        if isinstance(stage_or_path, ArtifactStage):
+            bam_context = _duplicate_stage_raw_stream(stage_or_path, "rb")
+        else:
+            bam_context = open(os.fspath(stage_or_path), "rb")
+        with bam_context as bam_stream:
+            with pysam.AlignmentFile(
+                bam_stream,
+                "rb",
+                check_sq=False,
+            ) as bam:
+                actual_header = bam.header.to_dict()
+                if actual_header != store.source_bam_header:
+                    raise _readback_error(
+                        "bam_readback",
+                        field="header",
+                        expected=store.source_bam_header,
+                        actual=actual_header,
+                    )
+                record_count = 0
+                for _ in bam.fetch(until_eof=True):
+                    record_count += 1
     except LyraArtifactConsistencyError:
         raise
     except (OSError, ValueError) as exc:
@@ -1358,12 +1474,12 @@ def _validate_staged_bam(store, stage_path):
 
 def _validate_staged_summary(
     store,
-    stage_path,
+    stage_or_path,
     normalized_rows,
     bam_records,
 ):
     """Validate the exact one-row summary and rerun all count equations."""
-    rows = _iter_strict_staged_rows(stage_path, "summary_readback")
+    rows = _iter_strict_staged_rows(stage_or_path, "summary_readback")
     try:
         _, header = next(rows)
         _, fields = next(rows)
@@ -1446,16 +1562,17 @@ def _validate_staged_artifacts(
     producer_normalized_rows,
     producer_bam_records,
     stage_callback=None,
+    validated_stage_identities=None,
 ):
     if stage_callback is not None:
         stage_callback("validate_normalized_readback")
     normalized_rows = _validate_staged_normalized(
         store,
-        normalized_stage.stage_path,
+        normalized_stage,
     )
     if stage_callback is not None:
         stage_callback("validate_bam_readback")
-    bam_records = _validate_staged_bam(store, bam_stage.stage_path)
+    bam_records = _validate_staged_bam(store, bam_stage)
     if normalized_rows != producer_normalized_rows:
         raise _readback_error(
             "normalized_readback",
@@ -1474,10 +1591,26 @@ def _validate_staged_artifacts(
         stage_callback("validate_summary_readback")
     _validate_staged_summary(
         store,
-        summary_stage.stage_path,
+        summary_stage,
         normalized_rows,
         bam_records,
     )
+    if stage_callback is not None:
+        stage_callback("validate_stage_identities")
+    identities = {}
+    for artifact_stage in (
+        normalized_stage,
+        summary_stage,
+        bam_stage,
+    ):
+        _assert_parent_anchor(artifact_stage.parent, "validate_stage_identities")
+        _assert_stage_handle(artifact_stage)
+        identities[artifact_stage.role] = _file_identity(
+            os.fstat(artifact_stage.descriptor)
+        )
+    if validated_stage_identities is not None:
+        validated_stage_identities.clear()
+        validated_stage_identities.update(identities)
     return normalized_rows, bam_records
 
 
@@ -1832,6 +1965,7 @@ class LyraArtifactTransaction:
         self._pending_publication = None
         self._cleanup_outcomes = ()
         self._owned_descriptors_closed = False
+        self._validated_stage_identities = {}
 
     @property
     def stages(self):
@@ -1941,12 +2075,12 @@ class LyraArtifactTransaction:
         self.stage = "generate_normalized"
         normalized_rows = _write_normalized(
             self.store,
-            normalized_stage.stage_path,
+            normalized_stage,
         )
         self.stage = "generate_viral_bam"
         output_bam_records = _write_viral_bam(
             self.store,
-            bam_stage.stage_path,
+            bam_stage,
             work_dir=self.work_dir,
         )
         self.stage = "validate_generation_counts"
@@ -1958,7 +2092,7 @@ class LyraArtifactTransaction:
         self.stage = "generate_summary"
         _write_summary(
             self.store,
-            summary_stage.stage_path,
+            summary_stage,
             output_bam_records,
         )
         _validate_staged_artifacts(
@@ -1969,6 +2103,7 @@ class LyraArtifactTransaction:
             normalized_rows,
             output_bam_records,
             stage_callback=self._set_stage,
+            validated_stage_identities=self._validated_stage_identities,
         )
 
     def _sync_stages(self):
@@ -2958,23 +3093,28 @@ def _iter_physical_rows(path, caller_path):
 
 
 def _validate_complete_zstd_frames(path):
+    with open(path, "rb") as compressed_stream:
+        _validate_complete_zstd_frames_stream(compressed_stream)
+
+
+def _validate_complete_zstd_frames_stream(compressed_stream):
+    """Require one or more complete Zstandard frames from a binary stream."""
     decompressor = None
     saw_complete_frame = False
-    with open(path, "rb") as compressed_stream:
-        for chunk in iter(lambda: compressed_stream.read(64 * 1024), b""):
-            pending = chunk
-            while pending:
-                if decompressor is None:
-                    decompressor = zstd.ZstdDecompressor().decompressobj()
-                decompressor.decompress(pending)
-                pending = decompressor.unused_data
-                if decompressor.eof:
-                    saw_complete_frame = True
-                    decompressor = None
-                elif pending:
-                    raise zstd.ZstdError("invalid trailing Zstandard frame data")
-                else:
-                    break
+    for chunk in iter(lambda: compressed_stream.read(64 * 1024), b""):
+        pending = chunk
+        while pending:
+            if decompressor is None:
+                decompressor = zstd.ZstdDecompressor().decompressobj()
+            decompressor.decompress(pending)
+            pending = decompressor.unused_data
+            if decompressor.eof:
+                saw_complete_frame = True
+                decompressor = None
+            elif pending:
+                raise zstd.ZstdError("invalid trailing Zstandard frame data")
+            else:
+                break
 
     if decompressor is not None or not saw_complete_frame:
         raise EOFError("truncated Zstandard frame")
