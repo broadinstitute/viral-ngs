@@ -5,6 +5,7 @@ from decimal import Decimal
 import inspect
 import os
 import stat
+import subprocess
 
 import pytest
 import pysam
@@ -1408,6 +1409,446 @@ def _operation_role(path, path_plan):
         if path == destination.parent_path:
             return destination.role + "_parent"
     raise AssertionError("unknown transaction path: {}".format(path))
+
+
+def _raise(error):
+    raise error
+
+
+@pytest.mark.parametrize(
+    ("boundary", "expected_stage", "normalized_suffix"),
+    [
+        ("normalized_producer", "generate_normalized", ".tsv"),
+        ("normalized_producer", "generate_normalized", ".tsv.gz"),
+        ("normalized_producer", "generate_normalized", ".tsv.zst"),
+        ("bam_filter", "generate_viral_bam", ".tsv"),
+        ("source_recheck", "after_bam_filter", ".tsv"),
+        ("generation_equations", "validate_generation_counts", ".tsv"),
+        ("normalized_readback", "validate_normalized_readback", ".tsv"),
+        ("bam_readback", "validate_bam_readback", ".tsv"),
+        ("summary_readback", "validate_summary_readback", ".tsv"),
+        ("fsync_normalized", "fsync_normalized_stage", ".tsv"),
+        ("fsync_viral_bam", "fsync_viral_bam_stage", ".tsv"),
+        ("fsync_summary", "fsync_summary_stage", ".tsv"),
+        ("fsync_stage_parent", "fsync_normalized_stage_parent", ".tsv"),
+        ("fsync_final_parent", "sync_normalized_final", ".tsv"),
+        ("link_normalized", "publish_normalized", ".tsv"),
+        ("link_viral_bam", "publish_viral_bam", ".tsv"),
+        ("link_summary", "publish_summary", ".tsv"),
+        ("stage_cleanup", "remove_normalized_stage", ".tsv"),
+        ("final_summary_sync", "sync_summary_final", ".tsv"),
+    ],
+)
+def test_publication_failure_reports_exact_stage_and_original_cause(
+    tmp_path,
+    monkeypatch,
+    boundary,
+    expected_stage,
+    normalized_suffix,
+):
+    with _publication_store(tmp_path, "failure-" + boundary) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(
+            tmp_path,
+            score_path,
+            bam_path,
+            normalized_suffix,
+        )
+        primary = OSError(5, "injected publication boundary failure")
+
+        if boundary == "normalized_producer":
+            monkeypatch.setattr(lyra, "_write_normalized", lambda *args: _raise(primary))
+        elif boundary == "bam_filter":
+            monkeypatch.setattr(
+                lyra.util_misc.ReadIdStore,
+                "filter_bam_by_ids",
+                lambda *args, **kwargs: _raise(primary),
+            )
+        elif boundary == "source_recheck":
+            original = lyra._assert_source_bam_identity
+            calls = []
+
+            def fail_second_source_check(current_store, stage):
+                calls.append(stage)
+                if len(calls) == 2:
+                    raise lyra.LyraSourceIdentityError(
+                        stage="after_bam_filter",
+                        path=current_store.source_bam_display_path,
+                        expected=current_store.source_bam_identity,
+                        actual_status="unreadable",
+                    ) from primary
+                return original(current_store, stage)
+
+            monkeypatch.setattr(
+                lyra,
+                "_assert_source_bam_identity",
+                fail_second_source_check,
+            )
+        elif boundary == "generation_equations":
+            monkeypatch.setattr(
+                lyra,
+                "_validate_artifact_counts",
+                lambda *args: _raise(primary),
+            )
+        elif boundary.endswith("_readback"):
+            monkeypatch.setattr(
+                lyra,
+                "_validate_staged_" + boundary.removesuffix("_readback"),
+                lambda *args: _raise(primary),
+            )
+        elif boundary.startswith("fsync_") and boundary not in {
+            "fsync_stage_parent",
+            "fsync_final_parent",
+        }:
+            role = boundary[len("fsync_"):]
+            original = lyra._fsync_file
+
+            def fail_selected_stage(path):
+                if os.path.basename(path).startswith(".lyra-{}-".format(role)):
+                    raise primary
+                return original(path)
+
+            monkeypatch.setattr(lyra, "_fsync_file", fail_selected_stage)
+        elif boundary in {"fsync_stage_parent", "fsync_final_parent"}:
+            original = lyra._fsync_directory
+            calls = []
+
+            def fail_selected_directory_sync(path):
+                if path == path_plan.normalized.parent_path:
+                    calls.append(path)
+                    target_call = 1 if boundary == "fsync_stage_parent" else 2
+                    if len(calls) == target_call:
+                        raise primary
+                return original(path)
+
+            monkeypatch.setattr(
+                lyra,
+                "_fsync_directory",
+                fail_selected_directory_sync,
+            )
+        elif boundary.startswith("link_"):
+            role = boundary[len("link_"):]
+            destination = getattr(path_plan, role).final_path
+            original = lyra._link_no_clobber
+
+            def fail_selected_link(stage_path, final_path):
+                if final_path == destination:
+                    raise primary
+                return original(stage_path, final_path)
+
+            monkeypatch.setattr(lyra, "_link_no_clobber", fail_selected_link)
+        elif boundary == "stage_cleanup":
+            original = lyra._unlink_path
+            failed = []
+
+            def fail_first_normalized_stage_unlink(path):
+                if (
+                    not failed
+                    and os.path.basename(path).startswith(".lyra-normalized-")
+                ):
+                    failed.append(path)
+                    raise primary
+                return original(path)
+
+            monkeypatch.setattr(
+                lyra,
+                "_unlink_path",
+                fail_first_normalized_stage_unlink,
+            )
+        else:
+            assert boundary == "final_summary_sync"
+            original = lyra._fsync_directory
+
+            def fail_final_summary_sync(path):
+                if (
+                    path == path_plan.summary.parent_path
+                    and os.path.lexists(path_plan.summary.final_path)
+                ):
+                    raise primary
+                return original(path)
+
+            monkeypatch.setattr(
+                lyra,
+                "_fsync_directory",
+                fail_final_summary_sync,
+            )
+
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+        error = exc_info.value
+        expected_primary = error.__cause__
+        if boundary == "source_recheck":
+            assert isinstance(expected_primary, lyra.LyraSourceIdentityError)
+            assert expected_primary.__cause__ is primary
+            assert error.primary_category == "source_bam_identity"
+        else:
+            assert expected_primary is primary
+            assert error.primary_category is None
+        assert error.category == "publication"
+        assert error.stage == expected_stage
+        assert error.primary_type == type(expected_primary).__name__
+        assert error.primary_errno == getattr(expected_primary, "errno", None)
+        assert error.primary_returncode is None
+        assert not any(path.exists() for path in outputs)
+        assert not list(tmp_path.rglob(".lyra-*"))
+
+
+@pytest.mark.parametrize("role", ["normalized", "viral_bam", "summary"])
+def test_raced_final_survives_real_no_clobber_link_and_owned_finals_roll_back(
+    tmp_path,
+    monkeypatch,
+    role,
+):
+    with _publication_store(tmp_path, "race-" + role) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        destination = getattr(path_plan, role).final_path
+        original_link = lyra._link_no_clobber
+        racer_bytes = ("racer-" + role).encode("ascii")
+        raced_identity = []
+
+        def race_selected_link(stage_path, final_path):
+            if final_path == destination:
+                with open(final_path, "wb") as stream:
+                    stream.write(racer_bytes)
+                raced_identity.append(lyra._file_identity(os.lstat(final_path)))
+            return original_link(stage_path, final_path)
+
+        monkeypatch.setattr(lyra, "_link_no_clobber", race_selected_link)
+
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+        error = exc_info.value
+
+    assert isinstance(error.__cause__, FileExistsError)
+    assert error.stage == "publish_{}".format(role)
+    assert os.path.exists(destination)
+    assert open(destination, "rb").read() == racer_bytes
+    assert lyra._file_identity(os.lstat(destination)) == raced_identity[0]
+    assert all(
+        not path.exists()
+        for path in outputs
+        if os.fspath(path) != destination
+    )
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_ambiguous_link_error_claims_exact_stage_identity_for_rollback(
+    tmp_path,
+    monkeypatch,
+):
+    with _publication_store(tmp_path, "ambiguous-link") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        original_link = lyra._link_no_clobber
+        primary = OSError(5, "ambiguous remote link status")
+
+        def ambiguous_normalized_link(stage_path, final_path):
+            original_link(stage_path, final_path)
+            raise primary
+
+        monkeypatch.setattr(
+            lyra,
+            "_link_no_clobber",
+            ambiguous_normalized_link,
+        )
+
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+        error = exc_info.value
+
+    assert error.__cause__ is primary
+    assert error.stage == "publish_normalized"
+    assert not any(path.exists() for path in outputs)
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+@pytest.mark.parametrize("role", ["normalized", "viral_bam", "summary"])
+def test_replacement_before_rollback_identity_observation_survives_and_is_reported(
+    tmp_path,
+    monkeypatch,
+    role,
+):
+    with _publication_store(tmp_path, "replacement-" + role) as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        transaction = lyra.LyraArtifactTransaction(
+            store,
+            path_plan,
+            work_dir=tmp_path,
+        )
+        target = getattr(path_plan, role).final_path
+        replacement_bytes = ("replacement-" + role).encode("ascii")
+        real_lstat = os.lstat
+        real_unlink = os.unlink
+        replacement_identity = []
+        publication_failed = []
+        original_fsync_directory = lyra._fsync_directory
+
+        def fail_final_success_barrier(path):
+            if (
+                transaction.stage == "sync_summary_final"
+                and path == path_plan.summary.parent_path
+            ):
+                publication_failed.append(True)
+                raise OSError(5, "injected final success barrier failure")
+            return original_fsync_directory(path)
+
+        def replace_at_rollback_observation(path):
+            if (
+                publication_failed
+                and not replacement_identity
+                and os.fspath(path) == target
+            ):
+                real_unlink(target)
+                with open(target, "wb") as stream:
+                    stream.write(replacement_bytes)
+                replacement_identity.append(
+                    lyra._file_identity(real_lstat(target))
+                )
+            return real_lstat(path)
+
+        monkeypatch.setattr(
+            lyra,
+            "_fsync_directory",
+            fail_final_success_barrier,
+        )
+        monkeypatch.setattr(lyra.os, "lstat", replace_at_rollback_observation)
+
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
+            transaction.generate_validate_and_publish()
+
+        error = exc_info.value
+
+    assert open(target, "rb").read() == replacement_bytes
+    assert lyra._file_identity(real_lstat(target)) == replacement_identity[0]
+    mismatch = [
+        failure
+        for failure in error.cleanup_failures
+        if failure.category == "rollback_identity_mismatch"
+    ]
+    assert [(failure.role, failure.path) for failure in mismatch] == [
+        (role, target)
+    ]
+    assert all(
+        not path.exists()
+        for path in outputs
+        if os.fspath(path) != target
+    )
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+def test_cleanup_continues_after_failure_and_ignores_tmpkeep(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("VIRAL_NGS_TMP_DIRKEEP", "1")
+    with _publication_store(tmp_path, "cleanup-continues") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        primary = RuntimeError("primary validation failure")
+        original_unlink = lyra._unlink_path
+        attempts = []
+
+        monkeypatch.setattr(
+            lyra,
+            "_validate_staged_artifacts",
+            lambda *args, **kwargs: _raise(primary),
+        )
+
+        def fail_one_stage_unlink(path):
+            attempts.append(path)
+            if os.path.basename(path).startswith(".lyra-normalized-"):
+                raise OSError(5, "injected cleanup unlink failure")
+            return original_unlink(path)
+
+        monkeypatch.setattr(lyra, "_unlink_path", fail_one_stage_unlink)
+
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+        error = exc_info.value
+
+    assert error.__cause__ is primary
+    attempted_roles = [
+        role
+        for role in ("normalized", "summary", "viral_bam")
+        if any(
+            os.path.basename(path).startswith(".lyra-{}-".format(role))
+            for path in attempts
+        )
+    ]
+    assert attempted_roles == ["normalized", "summary", "viral_bam"]
+    assert [failure.category for failure in error.cleanup_failures] == [
+        "stage_cleanup_unlink_failed"
+    ]
+    remaining_stages = list(tmp_path.rglob(".lyra-*"))
+    assert len(remaining_stages) == 1
+    assert remaining_stages[0].name.startswith(".lyra-normalized-")
+    assert not any(path.exists() for path in outputs)
+    remaining_stages[0].unlink()
+
+
+def test_publication_diagnostic_is_bounded_and_caps_ordered_cleanup_facts():
+    long_value = "x" * 10000
+    primary = subprocess.CalledProcessError(
+        23,
+        ["samtools", long_value],
+    )
+    cleanup_failures = tuple(
+        lyra.CleanupFailure(
+            operation="cleanup",
+            role="role-{}".format(index),
+            path="/output/{}".format(long_value),
+            error_type="OSError",
+            errno=5,
+            category="stage_cleanup_unlink_failed",
+        )
+        for index in range(20)
+    )
+
+    error = lyra.LyraPublicationError(
+        stage="publish_summary",
+        primary=primary,
+        cleanup_failures=cleanup_failures,
+    )
+
+    assert error.category == "publication"
+    assert error.stage == "publish_summary"
+    assert error.primary_type == "CalledProcessError"
+    assert error.primary_category is None
+    assert error.primary_errno is None
+    assert error.primary_returncode == 23
+    assert len(error.cleanup_failures) == 16
+    assert [failure.role for failure in error.cleanup_failures] == [
+        "role-{}".format(index) for index in range(16)
+    ]
+    assert error.cleanup_failures_truncated is True
+    assert long_value not in str(error)
+    assert len(str(error)) < 6000
 
 
 def test_publish_order_flushes_every_stage_and_syncs_summary_parent_last(
