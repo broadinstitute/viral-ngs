@@ -6,6 +6,7 @@ import gzip
 import io
 import os
 import re
+import secrets
 import sqlite3
 import stat
 import subprocess
@@ -369,12 +370,30 @@ class ArtifactDestination:
 
 
 @dataclass(frozen=True)
+class ParentDirectoryAnchor:
+    """One planned output parent retained by descriptor and identity."""
+
+    parent_path: str
+    identity: tuple
+    descriptor: int
+
+
+@dataclass(frozen=True)
 class ArtifactStage:
     """One hidden same-parent artifact under transaction ownership."""
 
     role: str
-    stage_path: str
+    basename: str
+    display_path: str
+    descriptor: int
+    object_identity: tuple
     destination: ArtifactDestination
+    parent: ParentDirectoryAnchor
+
+    @property
+    def stage_path(self):
+        """Retain the former diagnostic-path spelling for direct callers."""
+        return self.display_path
 
 
 @dataclass(frozen=True)
@@ -966,25 +985,172 @@ def _write_viral_bam(
             return output_bam_records
 
 
-def _create_artifact_stage(destination):
-    """Create one hidden stage in its resolved final parent directory."""
-    descriptor, stage_path = tempfile.mkstemp(
-        dir=destination.parent_path,
-        prefix=".lyra-{}-".format(destination.role),
-        suffix=destination.suffix,
+def _assert_parent_anchor(anchor, stage):
+    """Require a retained parent descriptor and current path to stay planned."""
+    expected = anchor.identity
+    try:
+        retained_stat = os.fstat(anchor.descriptor)
+    except OSError as exc:
+        raise LyraPathError(
+            category="output_parent_identity",
+            role="output_parent",
+            path=anchor.parent_path,
+            reason="retained output parent descriptor is unreadable",
+            stage=stage,
+        ) from exc
+    retained_identity = _path_identity(retained_stat)
+    if retained_identity != expected or not stat.S_ISDIR(retained_stat.st_mode):
+        raise LyraPathError(
+            category="output_parent_identity",
+            role="output_parent",
+            path=anchor.parent_path,
+            reason="retained output parent descriptor does not match planned identity",
+            stage=stage,
+        )
+
+    try:
+        current_stat = os.stat(anchor.parent_path)
+    except OSError as exc:
+        raise LyraPathError(
+            category="output_parent_identity",
+            role="output_parent",
+            path=anchor.parent_path,
+            reason="planned output parent path is missing or unreadable",
+            stage=stage,
+        ) from exc
+    if (
+        _path_identity(current_stat) != expected
+        or not stat.S_ISDIR(current_stat.st_mode)
+    ):
+        raise LyraPathError(
+            category="output_parent_identity",
+            role="output_parent",
+            path=anchor.parent_path,
+            reason="planned output parent path no longer matches retained identity",
+            stage=stage,
+        )
+
+
+def _assert_stage_handle(stage, require_named_entry=True):
+    """Require a stage descriptor and optional directory entry to stay owned."""
+    expected = stage.object_identity
+    try:
+        retained_stat = os.fstat(stage.descriptor)
+    except OSError as exc:
+        raise LyraArtifactConsistencyError(
+            category="stage_identity",
+            field=stage.role,
+            expected=expected,
+            actual="descriptor_unreadable",
+        ) from exc
+    retained_identity = _path_identity(retained_stat)
+    if retained_identity != expected or not stat.S_ISREG(retained_stat.st_mode):
+        raise LyraArtifactConsistencyError(
+            category="stage_identity",
+            field=stage.role,
+            expected=expected,
+            actual=retained_identity,
+        )
+    if not require_named_entry:
+        return
+
+    try:
+        entry_stat = os.stat(
+            stage.basename,
+            dir_fd=stage.parent.descriptor,
+            follow_symlinks=False,
+        )
+    except FileNotFoundError as exc:
+        raise LyraArtifactConsistencyError(
+            category="stage_identity",
+            field=stage.role,
+            expected=expected,
+            actual="missing",
+        ) from exc
+    except OSError as exc:
+        raise LyraArtifactConsistencyError(
+            category="stage_identity",
+            field=stage.role,
+            expected=expected,
+            actual="entry_unreadable",
+        ) from exc
+    entry_identity = _path_identity(entry_stat)
+    if entry_identity != expected or not stat.S_ISREG(entry_stat.st_mode):
+        raise LyraArtifactConsistencyError(
+            category="stage_identity",
+            field=stage.role,
+            expected=expected,
+            actual=entry_identity,
+        )
+
+
+def _open_parent_anchor(destination):
+    """Open and verify one immutable planned output parent."""
+    expected = destination.destination_key[:2]
+    descriptor = os.open(
+        destination.parent_path,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+    )
+    anchor = ParentDirectoryAnchor(
+        parent_path=destination.parent_path,
+        identity=expected,
+        descriptor=descriptor,
     )
     try:
-        os.close(descriptor)
+        _assert_parent_anchor(anchor, "create_stages")
     except BaseException:
-        try:
-            os.unlink(stage_path)
-        finally:
-            raise
-    return ArtifactStage(
-        role=destination.role,
-        stage_path=stage_path,
-        destination=destination,
+        os.close(descriptor)
+        raise
+    return anchor
+
+
+def _create_artifact_stage(destination, parent):
+    """Create and retain one exclusive stage relative to its parent handle."""
+    flags = (
+        os.O_RDWR
+        | os.O_CREAT
+        | os.O_EXCL
+        | os.O_NOFOLLOW
+        | os.O_CLOEXEC
     )
+    last_collision = None
+    for _ in range(100):
+        basename = ".lyra-{}-{}{}".format(
+            destination.role,
+            secrets.token_hex(16),
+            destination.suffix,
+        )
+        try:
+            descriptor = os.open(
+                basename,
+                flags,
+                0o600,
+                dir_fd=parent.descriptor,
+            )
+        except FileExistsError as exc:
+            last_collision = exc
+            continue
+
+        try:
+            stage_stat = os.fstat(descriptor)
+            artifact_stage = ArtifactStage(
+                role=destination.role,
+                basename=basename,
+                display_path=os.path.join(parent.parent_path, basename),
+                descriptor=descriptor,
+                object_identity=_path_identity(stage_stat),
+                destination=destination,
+                parent=parent,
+            )
+            _assert_stage_handle(artifact_stage)
+            return artifact_stage
+        except BaseException:
+            try:
+                os.unlink(basename, dir_fd=parent.descriptor)
+            finally:
+                os.close(descriptor)
+            raise
+    raise last_collision
 
 
 def _readback_error(category, field=None, expected=None, actual=None, read_id=None):
@@ -1660,10 +1826,12 @@ class LyraArtifactTransaction:
         self.path_plan = path_plan
         self.work_dir = work_dir
         self.stage = "initialized"
+        self._parent_anchors = []
         self._stages = []
         self._published = []
         self._pending_publication = None
         self._cleanup_outcomes = ()
+        self._owned_descriptors_closed = False
 
     @property
     def stages(self):
@@ -1682,12 +1850,81 @@ class LyraArtifactTransaction:
 
     def _create_stages(self):
         self.stage = "create_stages"
-        for destination in (
+        destinations = (
             self.path_plan.normalized,
             self.path_plan.summary,
             self.path_plan.viral_bam,
-        ):
-            self._stages.append(_create_artifact_stage(destination))
+        )
+        anchors_by_identity = {}
+        try:
+            for destination in destinations:
+                parent_identity = destination.destination_key[:2]
+                anchor = anchors_by_identity.get(parent_identity)
+                if anchor is None:
+                    anchor = _open_parent_anchor(destination)
+                    self._parent_anchors.append(anchor)
+                    anchors_by_identity[parent_identity] = anchor
+                else:
+                    _assert_parent_anchor(anchor, self.stage)
+
+            for destination in destinations:
+                parent = anchors_by_identity[destination.destination_key[:2]]
+                self._stages.append(
+                    _create_artifact_stage(destination, parent)
+                )
+        except BaseException:
+            self._cleanup_partial_acquisition()
+            raise
+
+    def _cleanup_partial_acquisition(self):
+        for artifact_stage in reversed(self._stages):
+            try:
+                entry_stat = os.stat(
+                    artifact_stage.basename,
+                    dir_fd=artifact_stage.parent.descriptor,
+                    follow_symlinks=False,
+                )
+                if _path_identity(entry_stat) == artifact_stage.object_identity:
+                    os.unlink(
+                        artifact_stage.basename,
+                        dir_fd=artifact_stage.parent.descriptor,
+                    )
+            except BaseException:
+                pass
+        self._close_owned_descriptors()
+
+    def _close_owned_descriptors(self):
+        if self._owned_descriptors_closed:
+            return ()
+        self._owned_descriptors_closed = True
+        failures = []
+        for artifact_stage in reversed(self._stages):
+            try:
+                os.close(artifact_stage.descriptor)
+            except BaseException as error:
+                failures.append(
+                    _cleanup_failure(
+                        "close_stage_descriptor",
+                        artifact_stage.role,
+                        artifact_stage.display_path,
+                        "close_failed",
+                        error,
+                    )
+                )
+        for anchor in reversed(self._parent_anchors):
+            try:
+                os.close(anchor.descriptor)
+            except BaseException as error:
+                failures.append(
+                    _cleanup_failure(
+                        "close_parent_descriptor",
+                        "output_parent",
+                        anchor.parent_path,
+                        "close_failed",
+                        error,
+                    )
+                )
+        return tuple(failures)
 
     def _stages_in_publication_order(self):
         by_role = {stage.role: stage for stage in self._stages}
@@ -1925,6 +2162,7 @@ class LyraArtifactTransaction:
             outcomes.append(self._rollback_published(artifact))
         for artifact_stage in self._stages:
             outcomes.append(self._cleanup_stage(artifact_stage))
+        outcomes.extend(self._close_owned_descriptors())
         self._cleanup_outcomes = tuple(outcomes)
         return self._cleanup_outcomes
 
@@ -1995,6 +2233,18 @@ class LyraArtifactTransaction:
                     + _bam_filter_cleanup_failures(primary)
                 ),
             ) from primary
+        else:
+            close_outcomes = self._close_owned_descriptors()
+            if close_outcomes:
+                self._cleanup_outcomes = close_outcomes
+                primary = OSError("failed to close artifact transaction descriptors")
+                failure_stage = "close_transaction_descriptors"
+                self.rollback_and_cleanup()
+                raise LyraPublicationError(
+                    stage=failure_stage,
+                    primary=primary,
+                    cleanup_failures=self._cleanup_failures(),
+                ) from primary
 
 
 def write_lyra_artifacts(

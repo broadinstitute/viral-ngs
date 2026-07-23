@@ -108,14 +108,9 @@ def _staged_plan(tmp_path, score_path, bam_path, normalized_suffix=".tsv"):
 
 
 def _generate_staged_artifacts(store, path_plan, work_dir):
-    stages = tuple(
-        lyra._create_artifact_stage(destination)
-        for destination in (
-            path_plan.normalized,
-            path_plan.summary,
-            path_plan.viral_bam,
-        )
-    )
+    transaction = lyra.LyraArtifactTransaction(store, path_plan, work_dir=work_dir)
+    transaction._create_stages()
+    stages = transaction.stages
     normalized_rows = lyra._write_normalized(store, stages[0].stage_path)
     bam_records = lyra._write_viral_bam(
         store,
@@ -131,6 +126,13 @@ def _remove_stages(stages):
     for stage in stages:
         if os.path.lexists(stage.stage_path):
             os.unlink(stage.stage_path)
+    for stage in reversed(stages):
+        os.close(stage.descriptor)
+    closed_parents = set()
+    for stage in reversed(stages):
+        if stage.parent.descriptor not in closed_parents:
+            os.close(stage.parent.descriptor)
+            closed_parents.add(stage.parent.descriptor)
 
 
 def _artifact_paths(tmp_path, prefix):
@@ -1250,12 +1252,18 @@ def test_staged_paths_are_hidden_same_parent_and_preserve_exact_suffix(
         path_plan.summary,
         path_plan.viral_bam,
     )
-    stages = tuple(lyra._create_artifact_stage(item) for item in destinations)
+    transaction = lyra.LyraArtifactTransaction(object(), path_plan)
+    transaction._create_stages()
+    stages = transaction.stages
     try:
         assert [field.name for field in fields(lyra.ArtifactStage)] == [
             "role",
-            "stage_path",
+            "basename",
+            "display_path",
+            "descriptor",
+            "object_identity",
             "destination",
+            "parent",
         ]
         for stage, destination in zip(stages, destinations):
             stage_parent = os.stat(os.path.dirname(stage.stage_path))
