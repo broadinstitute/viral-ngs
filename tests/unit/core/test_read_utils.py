@@ -10,6 +10,7 @@ import glob
 import io
 import platform
 import subprocess
+from dataclasses import FrozenInstanceError
 from unittest import mock
 
 import pysam
@@ -18,6 +19,7 @@ import shutil
 import tempfile
 import viral_ngs.core
 import viral_ngs.core.bwa
+import viral_ngs.core.misc
 import viral_ngs.core.samtools
 from tests import TestCaseWithTmp, assert_equal_bam_reads
 
@@ -27,14 +29,24 @@ SKIP_X86_ONLY_REASON = "Requires x86-only bioconda package (not available on ARM
 
 
 class _FakeSamtoolsProcess:
-    def __init__(self, returncode, *, stdout=None, stdin=None):
+    def __init__(
+        self,
+        returncode,
+        *,
+        stdout=None,
+        stdin=None,
+        wait_error=None,
+    ):
         self.returncode = returncode
         self.stdout = stdout
         self.stdin = stdin
+        self.wait_error = wait_error
         self.wait_calls = 0
 
     def wait(self):
         self.wait_calls += 1
+        if self.wait_error is not None:
+            raise self.wait_error
         return self.returncode
 
 
@@ -71,6 +83,26 @@ class _CloseBrokenPipeStream(_RecordingWriterStream):
     def close(self):
         self.close_calls += 1
         raise BrokenPipeError("samtools writer closed during flush")
+
+
+class _CloseErrorWriterStream(_RecordingWriterStream):
+    def __init__(self, error):
+        super().__init__()
+        self.error = error
+
+    def close(self):
+        self.close_calls += 1
+        raise self.error
+
+
+class _CloseErrorReaderStream(_FakeReaderStream):
+    def __init__(self, lines, error):
+        super().__init__(lines)
+        self.error = error
+
+    def close(self):
+        self.close_calls += 1
+        raise self.error
 
 
 class TestCommandHelp(unittest.TestCase):
@@ -947,6 +979,210 @@ class TestReadIdStore(TestCaseWithTmp):
 
         self.assertEqual(reader.wait_calls, 1)
         self.assertEqual(writer.wait_calls, 1)
+
+    def test_filter_bam_by_ids_writer_wait_error_outranks_close_broken_pipe(self):
+        """A later writer wait failure is more useful than a close-time pipe."""
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        writer_error = OSError(5, "writer wait failed")
+        reader = _FakeSamtoolsProcess(
+            0,
+            stdout=_FakeReaderStream([b"@HD\tVN:1.6\n"]),
+        )
+        writer = _FakeSamtoolsProcess(
+            0,
+            stdin=_CloseBrokenPipeStream(),
+            wait_error=writer_error,
+        )
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.extend(["read"])
+            with self.assertRaises(OSError) as raised:
+                self._filter_with_fake_processes(
+                    store,
+                    input_bam,
+                    output_bam,
+                    reader,
+                    writer,
+                )
+
+        self.assertIs(raised.exception, writer_error)
+        self.assertEqual(reader.wait_calls, 1)
+        self.assertEqual(writer.wait_calls, 1)
+        self.assertEqual(
+            raised.exception.cleanup_failures,
+            (
+                viral_ngs.core.misc.ReadIdCleanupFailure(
+                    operation="writer_stdin_close",
+                    error_type="BrokenPipeError",
+                    errno=None,
+                ),
+            ),
+        )
+
+    def test_filter_bam_by_ids_reader_wait_error_outranks_close_broken_pipe(self):
+        """A later reader wait failure is more useful than a close-time pipe."""
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        reader_error = OSError(10, "reader wait failed")
+        reader = _FakeSamtoolsProcess(
+            0,
+            stdout=_FakeReaderStream([b"@HD\tVN:1.6\n"]),
+            wait_error=reader_error,
+        )
+        writer = _FakeSamtoolsProcess(0, stdin=_CloseBrokenPipeStream())
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.extend(["read"])
+            with self.assertRaises(OSError) as raised:
+                self._filter_with_fake_processes(
+                    store,
+                    input_bam,
+                    output_bam,
+                    reader,
+                    writer,
+                )
+
+        self.assertIs(raised.exception, reader_error)
+        self.assertEqual(reader.wait_calls, 1)
+        self.assertEqual(writer.wait_calls, 1)
+        self.assertEqual(
+            [failure.operation for failure in raised.exception.cleanup_failures],
+            ["writer_stdin_close"],
+        )
+
+    def test_filter_bam_by_ids_writer_close_error_precedes_later_wait_errors(self):
+        """The first non-pipe cleanup failure remains authoritative."""
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        writer_close_error = OSError(6, "writer stdin close failed")
+        reader_wait_error = OSError(10, "reader wait failed")
+        reader = _FakeSamtoolsProcess(
+            0,
+            stdout=_FakeReaderStream([b"@HD\tVN:1.6\n"]),
+            wait_error=reader_wait_error,
+        )
+        writer = _FakeSamtoolsProcess(
+            0,
+            stdin=_CloseErrorWriterStream(writer_close_error),
+        )
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.extend(["read"])
+            with self.assertRaises(OSError) as raised:
+                self._filter_with_fake_processes(
+                    store,
+                    input_bam,
+                    output_bam,
+                    reader,
+                    writer,
+                )
+
+        self.assertIs(raised.exception, writer_close_error)
+        self.assertEqual(reader.wait_calls, 1)
+        self.assertEqual(writer.wait_calls, 1)
+        self.assertEqual(
+            [failure.operation for failure in raised.exception.cleanup_failures],
+            ["reader_wait"],
+        )
+
+    def test_filter_bam_by_ids_cleanup_failures_are_ordered_and_immutable(self):
+        """The first non-pipe cleanup failure wins and retains later facts."""
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        reader_close_error = OSError(6, "reader stdout close failed")
+        writer_wait_error = OSError(5, "writer wait failed")
+        reader_wait_error = OSError(10, "reader wait failed")
+        reader = _FakeSamtoolsProcess(
+            0,
+            stdout=_CloseErrorReaderStream(
+                [b"@HD\tVN:1.6\n"],
+                reader_close_error,
+            ),
+            wait_error=reader_wait_error,
+        )
+        writer = _FakeSamtoolsProcess(
+            0,
+            stdin=_CloseBrokenPipeStream(),
+            wait_error=writer_wait_error,
+        )
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.extend(["read"])
+            with self.assertRaises(OSError) as raised:
+                self._filter_with_fake_processes(
+                    store,
+                    input_bam,
+                    output_bam,
+                    reader,
+                    writer,
+                )
+
+        self.assertIs(raised.exception, reader_close_error)
+        self.assertEqual(reader.wait_calls, 1)
+        self.assertEqual(writer.wait_calls, 1)
+        failures = raised.exception.cleanup_failures
+        self.assertIsInstance(failures, tuple)
+        self.assertEqual(
+            [failure.operation for failure in failures],
+            ["writer_stdin_close", "writer_wait", "reader_wait"],
+        )
+        self.assertEqual(
+            [failure.error_type for failure in failures],
+            ["BrokenPipeError", "OSError", "OSError"],
+        )
+        self.assertEqual(
+            [failure.errno for failure in failures],
+            [None, 5, 10],
+        )
+        with self.assertRaises(FrozenInstanceError):
+            failures[0].operation = "changed"
+
+    def test_filter_bam_by_ids_processing_error_retains_all_cleanup_facts(self):
+        """A processing error stays primary while all cleanup steps still run."""
+        input_bam = viral_ngs.core.file.mkstempfname('.bam')
+        output_bam = viral_ngs.core.file.mkstempfname('.bam')
+        db_path = viral_ngs.core.file.mkstempfname('.db')
+        reader_close_error = OSError(6, "reader stdout close failed")
+        writer_wait_error = OSError(5, "writer wait failed")
+        reader = _FakeSamtoolsProcess(
+            0,
+            stdout=_CloseErrorReaderStream(
+                [b"@HD\tVN:1.6\n", b"\xff\t4\t*\t0\t0\t*\n"],
+                reader_close_error,
+            ),
+        )
+        writer = _FakeSamtoolsProcess(
+            0,
+            stdin=_CloseBrokenPipeStream(),
+            wait_error=writer_wait_error,
+        )
+
+        with viral_ngs.read_utils.ReadIdStore(db_path) as store:
+            store.extend(["read"])
+            with self.assertRaises(UnicodeDecodeError) as raised:
+                self._filter_with_fake_processes(
+                    store,
+                    input_bam,
+                    output_bam,
+                    reader,
+                    writer,
+                )
+
+        self.assertEqual(reader.wait_calls, 1)
+        self.assertEqual(writer.wait_calls, 1)
+        self.assertEqual(
+            [failure.operation for failure in raised.exception.cleanup_failures],
+            [
+                "writer_stdin_close",
+                "reader_stdout_close",
+                "writer_wait",
+            ],
+        )
 
 
 class TestRmdupBbnorm(TestCaseWithTmp):

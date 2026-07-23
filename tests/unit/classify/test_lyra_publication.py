@@ -10,6 +10,7 @@ import subprocess
 import pytest
 import pysam
 
+import viral_ngs.core.misc
 from viral_ngs.classify import lyra
 
 
@@ -1818,6 +1819,82 @@ def test_cleanup_continues_after_failure_and_ignores_tmpkeep(
     assert len(remaining_stages) == 1
     assert remaining_stages[0].name.startswith(".lyra-normalized-")
     assert not any(path.exists() for path in outputs)
+    remaining_stages[0].unlink()
+
+
+def test_bam_filter_and_transaction_cleanup_diagnostics_are_combined(
+    tmp_path,
+    monkeypatch,
+):
+    core_primary = OSError(5, "injected BAM-filter wait failure")
+    core_primary.cleanup_failures = (
+        viral_ngs.core.misc.ReadIdCleanupFailure(
+            operation="writer_stdin_close",
+            error_type="BrokenPipeError",
+            errno=None,
+        ),
+        viral_ngs.core.misc.ReadIdCleanupFailure(
+            operation="reader_wait",
+            error_type="OSError",
+            errno=10,
+        ),
+    )
+    original_unlink = lyra._unlink_path
+
+    def fail_bam_filter(*args, **kwargs):
+        raise core_primary
+
+    def fail_one_stage_unlink(path):
+        if os.path.basename(path).startswith(".lyra-normalized-"):
+            raise OSError(6, "injected stage cleanup failure")
+        return original_unlink(path)
+
+    monkeypatch.setattr(
+        viral_ngs.core.misc.ReadIdStore,
+        "filter_bam_by_ids",
+        fail_bam_filter,
+    )
+    monkeypatch.setattr(lyra, "_unlink_path", fail_one_stage_unlink)
+
+    with _publication_store(tmp_path, "bam-diagnostic") as (
+        store,
+        score_path,
+        bam_path,
+        _,
+    ):
+        path_plan, outputs = _staged_plan(tmp_path, score_path, bam_path)
+        with pytest.raises(lyra.LyraPublicationError) as exc_info:
+            lyra.write_lyra_artifacts(store, path_plan, work_dir=tmp_path)
+
+    error = exc_info.value
+    assert error.__cause__ is core_primary
+    assert [
+        (failure.category, failure.operation, failure.error_type, failure.errno)
+        for failure in error.cleanup_failures
+    ] == [
+        (
+            "stage_cleanup_unlink_failed",
+            "unlink",
+            "OSError",
+            6,
+        ),
+        (
+            "bam_filter_cleanup",
+            "writer_stdin_close",
+            "BrokenPipeError",
+            None,
+        ),
+        (
+            "bam_filter_cleanup",
+            "reader_wait",
+            "OSError",
+            10,
+        ),
+    ]
+    assert error.cleanup_failures_truncated is False
+    assert not any(path.exists() for path in outputs)
+    remaining_stages = list(tmp_path.rglob(".lyra-*"))
+    assert len(remaining_stages) == 1
     remaining_stages[0].unlink()
 
 
