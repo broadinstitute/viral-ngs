@@ -1836,7 +1836,7 @@ def test_bam_filter_and_transaction_cleanup_diagnostics_are_combined(
         viral_ngs.core.misc.ReadIdCleanupFailure(
             operation="reader_wait",
             error_type="OSError",
-            errno=10,
+            errno=5,
         ),
     )
     original_unlink = lyra._unlink_path
@@ -1874,7 +1874,7 @@ def test_bam_filter_and_transaction_cleanup_diagnostics_are_combined(
     ] == [
         (
             "stage_cleanup_unlink_failed",
-            "unlink",
+            "cleanup",
             "OSError",
             6,
         ),
@@ -1888,7 +1888,7 @@ def test_bam_filter_and_transaction_cleanup_diagnostics_are_combined(
             "bam_filter_cleanup",
             "reader_wait",
             "OSError",
-            10,
+            5,
         ),
     ]
     assert error.cleanup_failures_truncated is False

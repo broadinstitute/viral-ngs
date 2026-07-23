@@ -998,7 +998,8 @@ class TestReadIdStore(TestCaseWithTmp):
 
         with viral_ngs.read_utils.ReadIdStore(db_path) as store:
             store.extend(["read"])
-            with self.assertRaises(OSError) as raised:
+            caught_error = None
+            try:
                 self._filter_with_fake_processes(
                     store,
                     input_bam,
@@ -1006,12 +1007,24 @@ class TestReadIdStore(TestCaseWithTmp):
                     reader,
                     writer,
                 )
+            except OSError as raised_error:
+                caught_error = raised_error
+                traceback_names = []
+                error_traceback = raised_error.__traceback__
+                while error_traceback is not None:
+                    traceback_names.append(
+                        error_traceback.tb_frame.f_code.co_name
+                    )
+                    error_traceback = error_traceback.tb_next
+                self.assertIn("wait", traceback_names)
+            else:
+                self.fail("filter_bam_by_ids did not raise OSError")
 
-        self.assertIs(raised.exception, writer_error)
+        self.assertIs(caught_error, writer_error)
         self.assertEqual(reader.wait_calls, 1)
         self.assertEqual(writer.wait_calls, 1)
         self.assertEqual(
-            raised.exception.cleanup_failures,
+            caught_error.cleanup_failures,
             (
                 viral_ngs.core.misc.ReadIdCleanupFailure(
                     operation="writer_stdin_close",
@@ -1026,7 +1039,7 @@ class TestReadIdStore(TestCaseWithTmp):
         input_bam = viral_ngs.core.file.mkstempfname('.bam')
         output_bam = viral_ngs.core.file.mkstempfname('.bam')
         db_path = viral_ngs.core.file.mkstempfname('.db')
-        reader_error = OSError(10, "reader wait failed")
+        reader_error = OSError(5, "reader wait failed")
         reader = _FakeSamtoolsProcess(
             0,
             stdout=_FakeReaderStream([b"@HD\tVN:1.6\n"]),
@@ -1059,7 +1072,7 @@ class TestReadIdStore(TestCaseWithTmp):
         output_bam = viral_ngs.core.file.mkstempfname('.bam')
         db_path = viral_ngs.core.file.mkstempfname('.db')
         writer_close_error = OSError(6, "writer stdin close failed")
-        reader_wait_error = OSError(10, "reader wait failed")
+        reader_wait_error = OSError(5, "reader wait failed")
         reader = _FakeSamtoolsProcess(
             0,
             stdout=_FakeReaderStream([b"@HD\tVN:1.6\n"]),
@@ -1096,7 +1109,7 @@ class TestReadIdStore(TestCaseWithTmp):
         db_path = viral_ngs.core.file.mkstempfname('.db')
         reader_close_error = OSError(6, "reader stdout close failed")
         writer_wait_error = OSError(5, "writer wait failed")
-        reader_wait_error = OSError(10, "reader wait failed")
+        reader_wait_error = OSError(5, "reader wait failed")
         reader = _FakeSamtoolsProcess(
             0,
             stdout=_CloseErrorReaderStream(
@@ -1137,7 +1150,7 @@ class TestReadIdStore(TestCaseWithTmp):
         )
         self.assertEqual(
             [failure.errno for failure in failures],
-            [None, 5, 10],
+            [None, 5, 5],
         )
         with self.assertRaises(FrozenInstanceError):
             failures[0].operation = "changed"

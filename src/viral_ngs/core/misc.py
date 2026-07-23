@@ -21,6 +21,7 @@ import subprocess
 import sys
 import threading
 import time
+from dataclasses import dataclass
 import yaml
 
 import Bio.SeqIO
@@ -687,6 +688,34 @@ def convert_size_str(input_size_str, output_unit="m", round_number=True):
 
 # =========== ReadIdStore =================
 
+@dataclass(frozen=True)
+class ReadIdCleanupFailure:
+    """Bounded fact about a failed BAM-filter cleanup operation."""
+
+    operation: str
+    error_type: str
+    errno: int | None
+
+
+def _read_id_cleanup_failure(operation, error):
+    error_number = error.errno if isinstance(error, OSError) else None
+    if type(error_number) is not int:
+        error_number = None
+    return ReadIdCleanupFailure(
+        operation=operation,
+        error_type=type(error).__name__,
+        errno=error_number,
+    )
+
+
+def _attach_read_id_cleanup_failures(primary, outcomes, primary_index=None):
+    primary.cleanup_failures = tuple(
+        _read_id_cleanup_failure(operation, error)
+        for index, (operation, error, _) in enumerate(outcomes)
+        if index != primary_index
+    )
+
+
 class ReadIdStore:
     """
     SQLite-backed store for read IDs with O(1) memory footprint.
@@ -1033,10 +1062,24 @@ class ReadIdStore:
         read_proc = subprocess.Popen(read_argv, stdout=subprocess.PIPE)
         try:
             write_proc = subprocess.Popen(write_argv, stdin=subprocess.PIPE)
-        except BaseException:
-            read_proc.stdout.close()
-            read_proc.wait()
-            raise
+        except BaseException as exc:
+            primary_traceback = exc.__traceback__
+            startup_cleanup_outcomes = []
+            for operation, cleanup in (
+                ("reader_stdout_close", read_proc.stdout.close),
+                ("reader_wait", read_proc.wait),
+            ):
+                try:
+                    cleanup()
+                except BaseException as cleanup_error:
+                    startup_cleanup_outcomes.append(
+                        (operation, cleanup_error, cleanup_error.__traceback__)
+                    )
+            _attach_read_id_cleanup_failures(
+                exc,
+                startup_cleanup_outcomes,
+            )
+            raise exc.with_traceback(primary_traceback)
 
         processing_error = None
         processing_traceback = None
@@ -1080,58 +1123,97 @@ class ReadIdStore:
             processing_error = exc
             processing_traceback = exc.__traceback__
         finally:
-            cleanup_error = None
-            cleanup_traceback = None
-            for stream in (write_proc.stdin, read_proc.stdout):
+            cleanup_outcomes = []
+            for operation, cleanup in (
+                ("writer_stdin_close", write_proc.stdin.close),
+                ("reader_stdout_close", read_proc.stdout.close),
+            ):
                 try:
-                    stream.close()
+                    cleanup()
                 except BaseException as exc:
-                    if cleanup_error is None:
-                        cleanup_error = exc
-                        cleanup_traceback = exc.__traceback__
-            try:
-                write_status = write_proc.wait()
-            except BaseException as exc:
-                write_status = None
-                if cleanup_error is None:
-                    cleanup_error = exc
-                    cleanup_traceback = exc.__traceback__
-            try:
-                read_status = read_proc.wait()
-            except BaseException as exc:
-                read_status = None
-                if cleanup_error is None:
-                    cleanup_error = exc
-                    cleanup_traceback = exc.__traceback__
+                    cleanup_outcomes.append(
+                        (operation, exc, exc.__traceback__)
+                    )
+            child_statuses = {}
+            for operation, child_name, wait in (
+                ("writer_wait", "writer", write_proc.wait),
+                ("reader_wait", "reader", read_proc.wait),
+            ):
+                try:
+                    child_statuses[child_name] = wait()
+                except BaseException as exc:
+                    child_statuses[child_name] = None
+                    cleanup_outcomes.append(
+                        (operation, exc, exc.__traceback__)
+                    )
+
+        write_status = child_statuses["writer"]
+        read_status = child_statuses["reader"]
+
+        primary_error = None
+        primary_traceback = None
+        primary_cleanup_index = None
 
         if (
             processing_error is not None
             and not isinstance(processing_error, BrokenPipeError)
         ):
-            raise processing_error.with_traceback(processing_traceback)
-        if (
-            cleanup_error is not None
-            and not isinstance(cleanup_error, BrokenPipeError)
-        ):
-            raise cleanup_error.with_traceback(cleanup_traceback)
+            primary_error = processing_error
+            primary_traceback = processing_traceback
+        else:
+            for index, (_, error, error_traceback) in enumerate(
+                cleanup_outcomes
+            ):
+                if not isinstance(error, BrokenPipeError):
+                    primary_error = error
+                    primary_traceback = error_traceback
+                    primary_cleanup_index = index
+                    break
 
         pipe_error = None
         pipe_traceback = None
         if isinstance(processing_error, BrokenPipeError):
             pipe_error = processing_error
             pipe_traceback = processing_traceback
-        elif isinstance(cleanup_error, BrokenPipeError):
-            pipe_error = cleanup_error
-            pipe_traceback = cleanup_traceback
+        else:
+            for _, error, error_traceback in cleanup_outcomes:
+                if isinstance(error, BrokenPipeError):
+                    pipe_error = error
+                    pipe_traceback = error_traceback
+                    break
 
-        if pipe_error is not None and write_status:
-            raise subprocess.CalledProcessError(write_status, write_argv)
-        if read_status:
-            raise subprocess.CalledProcessError(read_status, read_argv)
-        if write_status:
-            raise subprocess.CalledProcessError(write_status, write_argv)
-        if pipe_error is not None:
-            raise pipe_error.with_traceback(pipe_traceback)
+        if primary_error is None and pipe_error is not None and write_status:
+            primary_error = subprocess.CalledProcessError(
+                write_status,
+                write_argv,
+            )
+        if primary_error is None and read_status:
+            primary_error = subprocess.CalledProcessError(
+                read_status,
+                read_argv,
+            )
+        if primary_error is None and write_status:
+            primary_error = subprocess.CalledProcessError(
+                write_status,
+                write_argv,
+            )
+        if primary_error is None and pipe_error is not None:
+            primary_error = pipe_error
+            primary_traceback = pipe_traceback
+            for index, (_, error, _) in enumerate(cleanup_outcomes):
+                if error is pipe_error:
+                    primary_cleanup_index = index
+                    break
+
+        if primary_error is not None:
+            _attach_read_id_cleanup_failures(
+                primary_error,
+                cleanup_outcomes,
+                primary_cleanup_index,
+            )
+            if primary_traceback is not None:
+                raise primary_error.with_traceback(primary_traceback)
+            raise primary_error
 
         elapsed = time.time() - start
         log.debug(f"PERF: filter_time={elapsed:.2f}s lookup_time={lookup_time:.2f}s "

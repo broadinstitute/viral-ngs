@@ -526,6 +526,39 @@ def _known_primary_command(primary):
     return rendered, len(command) > len(rendered)
 
 
+def _bam_filter_cleanup_failures(primary):
+    """Normalize trusted ReadIdStore cleanup facts for publication output."""
+    attached = vars(primary).get("cleanup_failures", ())
+    if type(attached) is not tuple:
+        return ()
+
+    failures = []
+    allowed_operations = {
+        "writer_stdin_close",
+        "reader_stdout_close",
+        "writer_wait",
+        "reader_wait",
+    }
+    for attached_failure in attached:
+        if type(attached_failure) is not util_misc.ReadIdCleanupFailure:
+            continue
+        values = vars(attached_failure)
+        operation = values.get("operation")
+        error_type = values.get("error_type")
+        error_number = values.get("errno")
+        if operation not in allowed_operations or type(error_type) is not str:
+            continue
+        failures.append(
+            CleanupFailure(
+                operation=operation,
+                error_type=error_type,
+                errno=error_number if type(error_number) is int else None,
+                category="bam_filter_cleanup",
+            )
+        )
+    return tuple(failures)
+
+
 class LyraPublicationError(RuntimeError):
     """One structured publication failure retaining its original cause."""
 
@@ -1956,7 +1989,10 @@ class LyraArtifactTransaction:
             raise LyraPublicationError(
                 stage=failure_stage,
                 primary=primary,
-                cleanup_failures=self._cleanup_failures(),
+                cleanup_failures=(
+                    self._cleanup_failures()
+                    + _bam_filter_cleanup_failures(primary)
+                ),
             ) from primary
 
 
