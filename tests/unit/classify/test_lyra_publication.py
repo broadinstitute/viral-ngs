@@ -1,8 +1,10 @@
+from contextlib import contextmanager
 from dataclasses import fields
 from dataclasses import FrozenInstanceError
 from decimal import Decimal
 import inspect
 import os
+import stat
 
 import pytest
 import pysam
@@ -48,6 +50,312 @@ def _artifact_paths(tmp_path, prefix):
         tmp_path / (prefix + "-summary.tsv"),
         tmp_path / (prefix + "-viral.bam"),
     )
+
+
+def _entry_snapshot(path):
+    path = os.fspath(path)
+    try:
+        entry_stat = os.lstat(path)
+    except FileNotFoundError:
+        return ("absent",)
+    if stat.S_ISLNK(entry_stat.st_mode):
+        return ("symlink", os.readlink(path))
+    if stat.S_ISDIR(entry_stat.st_mode):
+        return ("directory", entry_stat.st_dev, entry_stat.st_ino)
+    with open(path, "rb") as stream:
+        contents = stream.read()
+    return ("file", entry_stat.st_dev, entry_stat.st_ino, contents)
+
+
+def _invoke_invalid_postprocess(monkeypatch, paths, expected_category):
+    reconcile_calls = []
+
+    @contextmanager
+    def fail_if_called(*args, **kwargs):
+        reconcile_calls.append((args, kwargs))
+        pytest.fail("reconciliation must not run after invalid path preflight")
+        yield
+
+    monkeypatch.setattr(lyra, "reconcile_lyra_fragments", fail_if_called)
+    snapshots = {os.fspath(path): _entry_snapshot(path) for path in paths}
+
+    with pytest.raises(lyra.LyraPathError) as exc_info:
+        lyra.postprocess_lyra(
+            paths[0],
+            paths[1],
+            "sample",
+            "0.8",
+            paths[2],
+            paths[3],
+            paths[4],
+        )
+
+    assert exc_info.value.category == expected_category
+    assert reconcile_calls == []
+    assert {
+        os.fspath(path): _entry_snapshot(path)
+        for path in paths
+    } == snapshots
+    return exc_info.value
+
+
+@pytest.mark.parametrize("parent_kind", ["missing", "regular_file"])
+def test_preflight_rejects_invalid_output_parent_before_reconciliation(
+    tmp_path,
+    monkeypatch,
+    parent_kind,
+):
+    score_path = _write_scores(tmp_path, "parent-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "parent-source.bam")
+    parent = tmp_path / "invalid-parent"
+    if parent_kind == "regular_file":
+        parent.write_bytes(b"caller parent")
+    paths = (
+        score_path,
+        bam_path,
+        parent / "normalized.tsv",
+        tmp_path / "summary.tsv",
+        tmp_path / "viral.bam",
+    )
+
+    error = _invoke_invalid_postprocess(monkeypatch, paths, "output_parent")
+
+    assert error.role == "normalized"
+    assert error.path == os.fspath(paths[2])
+    assert error.conflicting_role is None
+    assert error.conflicting_path is None
+
+
+@pytest.mark.parametrize(
+    "alias_kind",
+    ["direct", "relative", "dotdot", "symlink_parent"],
+)
+def test_preflight_rejects_output_alias_spellings_before_reconciliation(
+    tmp_path,
+    monkeypatch,
+    alias_kind,
+):
+    score_path = _write_scores(tmp_path, "output-alias-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "output-alias-source.bam")
+    parent = tmp_path / "outputs"
+    parent.mkdir()
+    normalized = parent / "result.tsv"
+    if alias_kind == "direct":
+        summary = normalized
+    elif alias_kind == "relative":
+        summary = os.path.relpath(normalized, os.getcwd())
+    elif alias_kind == "dotdot":
+        nested = parent / "nested"
+        nested.mkdir()
+        summary = nested / ".." / normalized.name
+    else:
+        parent_alias = tmp_path / "outputs-link"
+        parent_alias.symlink_to(parent, target_is_directory=True)
+        summary = parent_alias / normalized.name
+    paths = (
+        score_path,
+        bam_path,
+        normalized,
+        summary,
+        tmp_path / "viral.bam",
+    )
+
+    error = _invoke_invalid_postprocess(monkeypatch, paths, "output_output_alias")
+
+    assert error.role == "summary"
+    assert error.conflicting_role == "normalized"
+    assert error.path == os.fspath(summary)
+    assert error.conflicting_path == os.fspath(normalized)
+
+
+@pytest.mark.parametrize("input_role", ["score", "bam"])
+@pytest.mark.parametrize("alias_kind", ["exact", "symlink", "hardlink"])
+def test_preflight_rejects_input_output_aliases_before_reconciliation(
+    tmp_path,
+    monkeypatch,
+    input_role,
+    alias_kind,
+):
+    score_path = _write_scores(tmp_path, "input-alias-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "input-alias-source.bam")
+    source = score_path if input_role == "score" else bam_path
+    if alias_kind == "exact":
+        normalized = source
+    elif alias_kind == "symlink":
+        normalized = tmp_path / "input-alias.tsv"
+        normalized.symlink_to(source.name)
+    else:
+        normalized = tmp_path / "input-hardlink.tsv"
+        os.link(source, normalized)
+    paths = (
+        score_path,
+        bam_path,
+        normalized,
+        tmp_path / "summary.tsv",
+        tmp_path / "viral.bam",
+    )
+
+    error = _invoke_invalid_postprocess(monkeypatch, paths, "input_output_alias")
+
+    assert error.role == "normalized"
+    assert error.conflicting_role == input_role
+    assert error.path == os.fspath(normalized)
+    assert error.conflicting_path == os.fspath(source)
+
+
+@pytest.mark.parametrize(
+    "entry_kind",
+    ["regular_file", "directory", "symlink", "dangling_symlink"],
+)
+def test_preflight_rejects_every_existing_final_entry_before_reconciliation(
+    tmp_path,
+    monkeypatch,
+    entry_kind,
+):
+    score_path = _write_scores(tmp_path, "existing-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "existing-source.bam")
+    normalized = tmp_path / "existing-normalized.tsv"
+    if entry_kind == "regular_file":
+        normalized.write_bytes(b"caller artifact")
+    elif entry_kind == "directory":
+        normalized.mkdir()
+    elif entry_kind == "symlink":
+        target = tmp_path / "existing-target"
+        target.write_bytes(b"caller target")
+        normalized.symlink_to(target.name)
+    else:
+        normalized.symlink_to("missing-target")
+    paths = (
+        score_path,
+        bam_path,
+        normalized,
+        tmp_path / "summary.tsv",
+        tmp_path / "viral.bam",
+    )
+
+    error = _invoke_invalid_postprocess(monkeypatch, paths, "output_exists")
+
+    assert error.role == "normalized"
+    assert error.path == os.fspath(normalized)
+
+
+def test_preflight_existing_input_alias_precedes_generic_existing_error(
+    tmp_path,
+    monkeypatch,
+):
+    score_path = _write_scores(tmp_path, "precedence-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "precedence-source.bam")
+    normalized = tmp_path / "precedence-normalized.tsv"
+    normalized.symlink_to(score_path.name)
+    paths = (
+        score_path,
+        bam_path,
+        normalized,
+        tmp_path / "summary.tsv",
+        tmp_path / "viral.bam",
+    )
+
+    error = _invoke_invalid_postprocess(monkeypatch, paths, "input_output_alias")
+
+    assert error.conflicting_role == "score"
+
+
+def test_preflight_existing_output_alias_precedes_generic_existing_error(
+    tmp_path,
+    monkeypatch,
+):
+    score_path = _write_scores(tmp_path, "output-precedence-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "output-precedence-source.bam")
+    normalized = tmp_path / "output-precedence-normalized.tsv"
+    summary = tmp_path / "output-precedence-summary.tsv"
+    normalized.write_bytes(b"caller output")
+    os.link(normalized, summary)
+    paths = (
+        score_path,
+        bam_path,
+        normalized,
+        summary,
+        tmp_path / "output-precedence-viral.bam",
+    )
+
+    error = _invoke_invalid_postprocess(monkeypatch, paths, "output_output_alias")
+
+    assert error.role == "summary"
+    assert error.conflicting_role == "normalized"
+
+
+@pytest.mark.parametrize(
+    ("normalized_name", "expected_suffix"),
+    [
+        ("normalized.tsv", ".tsv"),
+        ("normalized.tsv.gz", ".tsv.gz"),
+        ("normalized.tsv.zst", ".tsv.zst"),
+    ],
+)
+def test_preflight_valid_distinct_parents_produce_immutable_resolved_plan(
+    tmp_path,
+    normalized_name,
+    expected_suffix,
+):
+    score_path = _write_scores(tmp_path, "valid-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "valid-source.bam")
+    parents = [tmp_path / role for role in ("normalized", "summary", "bam")]
+    for parent in parents:
+        parent.mkdir()
+    outputs = (
+        parents[0] / normalized_name,
+        parents[1] / "summary.tsv",
+        parents[2] / "viral.bam",
+    )
+
+    path_plan = lyra._build_artifact_path_plan(
+        score_path,
+        bam_path,
+        *outputs,
+    )
+
+    assert [field.name for field in fields(lyra.ArtifactDestination)] == [
+        "role",
+        "caller_path",
+        "final_path",
+        "parent_path",
+        "destination_key",
+        "suffix",
+    ]
+    assert [field.name for field in fields(lyra.LyraArtifactPathPlan)] == [
+        "score_path",
+        "bam_path",
+        "normalized",
+        "summary",
+        "viral_bam",
+    ]
+    assert path_plan.score_path == os.fspath(score_path)
+    assert path_plan.bam_path == os.fspath(bam_path)
+    assert path_plan.normalized.suffix == expected_suffix
+    assert path_plan.summary.suffix == ".tsv"
+    assert path_plan.viral_bam.suffix == ".bam"
+    for destination, output, parent in zip(
+        (path_plan.normalized, path_plan.summary, path_plan.viral_bam),
+        outputs,
+        parents,
+    ):
+        parent_stat = os.stat(parent)
+        assert destination.caller_path == os.fspath(output)
+        assert destination.parent_path == os.path.realpath(parent, strict=True)
+        assert destination.final_path == os.path.join(
+            destination.parent_path,
+            output.name,
+        )
+        assert destination.destination_key == (
+            parent_stat.st_dev,
+            parent_stat.st_ino,
+            output.name,
+        )
+        assert not os.path.lexists(destination.final_path)
+        with pytest.raises(FrozenInstanceError):
+            destination.final_path = "redirected"
+    with pytest.raises(FrozenInstanceError):
+        path_plan.score_path = "redirected"
 
 
 def _replace_with_valid_bam(tmp_path, source_path):
