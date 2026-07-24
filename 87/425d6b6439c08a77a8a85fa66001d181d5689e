@@ -1,0 +1,19 @@
+tests/unit/classify/test_lyra_scale.py
+  s_281329c38cefd2::t_05bae619b1b556 1-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "87425d6b6439c08a77a8a85fa66001d181d5689e",
+  "prompts": {},
+  "sessions": {
+    "s_281329c38cefd2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06addecb9ffeKjjxIXVYpIsbCl",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
