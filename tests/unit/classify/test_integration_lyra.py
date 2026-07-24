@@ -1,4 +1,10 @@
+import json
+import os
+import subprocess
+import sys
+
 import pysam
+import pytest
 
 import viral_ngs.core.file as util_file
 from viral_ngs import metagenomics
@@ -10,6 +16,59 @@ _BAM_HEADER = {
     "RG": [{"ID": "fixture", "SM": "sample matrix"}],
     "PG": [{"ID": "fixture", "PN": "lyra-integration"}],
 }
+FORBIDDEN_TOP_LEVEL_PREFIXES = (
+    "lyra",
+    "torch",
+    "pytorch_lightning",
+    "cuda",
+    "cupy",
+    "nvidia",
+    "tensorflow",
+    "transformers",
+)
+CHILD_CODE = r"""
+import json
+import os
+import sys
+
+from viral_ngs import metagenomics
+
+score_path, bam_path, normalized, summary, viral_bam, modules_path = sys.argv[1:]
+args = metagenomics.full_parser().parse_args([
+    "lyra_postprocess",
+    score_path,
+    bam_path,
+    "runtime sample",
+    normalized,
+    summary,
+    viral_bam,
+])
+result = args.func_main(args)
+if result is not None:
+    raise RuntimeError("lyra_postprocess dispatcher returned a value")
+if not all(os.path.isfile(path) for path in (normalized, summary, viral_bam)):
+    raise RuntimeError("lyra_postprocess did not create every artifact")
+forbidden_prefixes = (
+    "lyra",
+    "torch",
+    "pytorch_lightning",
+    "cuda",
+    "cupy",
+    "nvidia",
+    "tensorflow",
+    "transformers",
+)
+loaded = sorted(
+    name
+    for name in sys.modules
+    if any(
+        name == prefix or name.startswith(prefix + ".")
+        for prefix in forbidden_prefixes
+    )
+)
+with open(modules_path, "w", encoding="utf-8") as output:
+    json.dump(loaded, output)
+"""
 
 
 def _segment(query_name, flag=0x4):
@@ -122,6 +181,18 @@ def _assert_summary_equations(row, normalized_rows, output_bam_records):
     assert counts["LYRA_OUTPUT_BAM_RECORDS"] == output_bam_records
 
 
+def _output_paths(tmp_path, prefix, normalized_suffix=".tsv"):
+    return (
+        tmp_path / (prefix + "-normalized" + normalized_suffix),
+        tmp_path / (prefix + "-summary.tsv"),
+        tmp_path / (prefix + "-viral.bam"),
+    )
+
+
+def _assert_paths_absent(paths):
+    assert not any(os.path.lexists(path) for path in paths)
+
+
 def test_full_parser_codec_matrix_has_identical_logical_content(tmp_path, capsys):
     input_suffixes = (".tsv", ".tsv.gz", ".tsv.zst")
     output_suffixes = (".tsv", ".tsv.gz", ".tsv.zst")
@@ -217,3 +288,252 @@ def test_full_parser_codec_matrix_has_identical_logical_content(tmp_path, capsys
 
     assert len(normalized_contents) == 9
     assert all(content == normalized_contents[0] for content in normalized_contents)
+
+
+def test_full_parser_explicit_threshold_exact_score_is_viral(tmp_path, capsys):
+    score_path = _write_score_table(
+        tmp_path / "threshold-scores.tsv",
+        [("threshold", "0.8", "0")],
+    )
+    source_bam = _write_bam(
+        tmp_path / "threshold-source.bam",
+        [_segment("threshold")],
+    )
+    outputs = _output_paths(tmp_path, "threshold")
+
+    result = _dispatch_lyra_postprocess([
+        str(score_path),
+        str(source_bam),
+        "threshold sample",
+        *(str(path) for path in outputs),
+        "--threshold",
+        "0.8",
+    ])
+
+    assert result is None
+    assert capsys.readouterr().out == ""
+    assert _logical_tsv_bytes(outputs[0]) == (
+        "\t".join(lyra.NORMALIZED_HEADER)
+        + "\nthreshold sample\tthreshold\t1\tSingle-end\t0.8\t0.8\t0.8\tViral\n"
+    ).encode("utf-8")
+    summary = _read_summary(outputs[1])
+    assert summary == dict(zip(
+        lyra.SUMMARY_HEADER,
+        ("threshold sample", "0.8", "1", "1", "1", "1", "1", "0", "0", "1", "0", "1"),
+    ))
+    source_header, source_records = _read_bam_records(source_bam)
+    output_header, output_records = _read_bam_records(outputs[2])
+    assert output_header == source_header
+    assert output_records == source_records
+    _assert_summary_equations(summary, normalized_rows=1, output_bam_records=1)
+
+
+def test_full_parser_empty_input_writes_complete_artifacts(tmp_path, capsys):
+    score_path = _write_score_table(tmp_path / "empty-scores.tsv", [])
+    source_bam = _write_bam(tmp_path / "empty-source.bam", [])
+    outputs = _output_paths(tmp_path, "empty")
+
+    result = _dispatch_lyra_postprocess([
+        str(score_path),
+        str(source_bam),
+        "empty sample",
+        *(str(path) for path in outputs),
+    ])
+
+    assert result is None
+    assert capsys.readouterr().out == ""
+    assert _logical_tsv_bytes(outputs[0]) == (
+        "\t".join(lyra.NORMALIZED_HEADER) + "\n"
+    ).encode("utf-8")
+    expected_summary = (
+        "\t".join(lyra.SUMMARY_HEADER)
+        + "\nempty sample\t0.8\t"
+        + "\t".join(["0"] * 10)
+        + "\n"
+    ).encode("utf-8")
+    assert outputs[1].read_bytes() == expected_summary
+    summary = _read_summary(outputs[1])
+    source_header, _ = _read_bam_records(source_bam)
+    output_header, output_records = _read_bam_records(outputs[2])
+    assert output_header == source_header
+    assert output_records == []
+    _assert_summary_equations(summary, normalized_rows=0, output_bam_records=0)
+
+
+def test_full_parser_no_hit_retains_nonviral_row(tmp_path, capsys):
+    score_path = _write_score_table(
+        tmp_path / "no-hit-scores.tsv",
+        [("nonviral", "0.1", "1")],
+    )
+    source_bam = _write_bam(
+        tmp_path / "no-hit-source.bam",
+        [_segment("nonviral")],
+    )
+    outputs = _output_paths(tmp_path, "no-hit", normalized_suffix=".tsv.zst")
+
+    result = _dispatch_lyra_postprocess([
+        str(score_path),
+        str(source_bam),
+        "no hit sample",
+        *(str(path) for path in outputs),
+    ])
+
+    assert result is None
+    assert capsys.readouterr().out == ""
+    assert _logical_tsv_bytes(outputs[0]) == (
+        "\t".join(lyra.NORMALIZED_HEADER)
+        + "\nno hit sample\tnonviral\t1\tSingle-end\t0.1\t0.1\t0.8\tNon-viral\n"
+    ).encode("utf-8")
+    summary = _read_summary(outputs[1])
+    assert summary == dict(zip(
+        lyra.SUMMARY_HEADER,
+        ("no hit sample", "0.8", "1", "1", "1", "1", "1", "0", "0", "0", "1", "0"),
+    ))
+    source_header, _ = _read_bam_records(source_bam)
+    output_header, output_records = _read_bam_records(outputs[2])
+    assert output_header == source_header
+    assert output_records == []
+    _assert_summary_equations(summary, normalized_rows=1, output_bam_records=0)
+
+
+def test_full_parser_malformed_native_input_has_stable_context(tmp_path, capsys):
+    score_path = tmp_path / "malformed-scores.tsv"
+    score_path.write_bytes(b"read_id\tscore\tcall\nmalformed\t0.9\tinvalid\n")
+    source_bam = _write_bam(
+        tmp_path / "malformed-source.bam",
+        [_segment("malformed")],
+    )
+    outputs = _output_paths(tmp_path, "malformed")
+
+    with pytest.raises(lyra.LyraInputError) as exc_info:
+        _dispatch_lyra_postprocess([
+            str(score_path),
+            str(source_bam),
+            "malformed sample",
+            *(str(path) for path in outputs),
+        ])
+
+    error = exc_info.value
+    assert error.category == "call"
+    assert error.path == str(score_path)
+    assert error.line_number == 2
+    assert error.field == "call"
+    assert capsys.readouterr().out == ""
+    _assert_paths_absent(outputs)
+
+
+def test_full_parser_score_bam_mismatch_has_stable_context(tmp_path, capsys):
+    score_path = _write_score_table(
+        tmp_path / "mismatch-scores.tsv",
+        [("mismatch", "0.9", "1")],
+    )
+    source_bam = _write_bam(
+        tmp_path / "mismatch-source.bam",
+        [
+            _segment("mismatch", flag=0x4 | 0x1 | 0x40),
+            _segment("mismatch", flag=0x4 | 0x1 | 0x80),
+        ],
+    )
+    outputs = _output_paths(tmp_path, "mismatch")
+
+    with pytest.raises(lyra.LyraReconciliationError) as exc_info:
+        _dispatch_lyra_postprocess([
+            str(score_path),
+            str(source_bam),
+            "mismatch sample",
+            *(str(path) for path in outputs),
+        ])
+
+    error = exc_info.value
+    assert error.category == "record_count_mismatch"
+    assert error.read_id == "mismatch"
+    assert error.score_count == 1
+    assert error.eligible_bam_count == 2
+    assert error.score_line_numbers == (2,)
+    assert capsys.readouterr().out == ""
+    _assert_paths_absent(outputs)
+
+
+def test_full_parser_existing_output_preserves_caller_bytes(tmp_path, capsys):
+    score_path = _write_score_table(
+        tmp_path / "existing-scores.tsv",
+        [("read", "0.9", "1")],
+    )
+    source_bam = _write_bam(
+        tmp_path / "existing-source.bam",
+        [_segment("read")],
+    )
+    outputs = _output_paths(tmp_path, "existing")
+    caller_bytes = b"caller-owned normalized artifact\n"
+    outputs[0].write_bytes(caller_bytes)
+
+    with pytest.raises(lyra.LyraPathError) as exc_info:
+        _dispatch_lyra_postprocess([
+            str(score_path),
+            str(source_bam),
+            "existing sample",
+            *(str(path) for path in outputs),
+        ])
+
+    error = exc_info.value
+    assert error.category == "output_exists"
+    assert error.role == "normalized"
+    assert error.path == str(outputs[0])
+    assert outputs[0].read_bytes() == caller_bytes
+    assert capsys.readouterr().out == ""
+    _assert_paths_absent(outputs[1:])
+
+
+def test_full_parser_real_command_does_not_load_lyra_runtime(tmp_path):
+    assert FORBIDDEN_TOP_LEVEL_PREFIXES == (
+        "lyra",
+        "torch",
+        "pytorch_lightning",
+        "cuda",
+        "cupy",
+        "nvidia",
+        "tensorflow",
+        "transformers",
+    )
+    score_path = _write_score_table(
+        tmp_path / "runtime-scores.tsv",
+        [("runtime", "0.9", "0")],
+    )
+    source_bam = _write_bam(
+        tmp_path / "runtime-source.bam",
+        [_segment("runtime")],
+    )
+    outputs = _output_paths(tmp_path, "runtime")
+    modules_path = tmp_path / "runtime-modules.json"
+
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            CHILD_CODE,
+            str(score_path),
+            str(source_bam),
+            *(str(path) for path in outputs),
+            str(modules_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert child.stdout == ""
+    assert json.loads(modules_path.read_text(encoding="utf-8")) == []
+    assert _logical_tsv_bytes(outputs[0]) == (
+        "\t".join(lyra.NORMALIZED_HEADER)
+        + "\nruntime sample\truntime\t1\tSingle-end\t0.9\t0.9\t0.8\tViral\n"
+    ).encode("utf-8")
+    summary = _read_summary(outputs[1])
+    assert summary == dict(zip(
+        lyra.SUMMARY_HEADER,
+        ("runtime sample", "0.8", "1", "1", "1", "1", "1", "0", "0", "1", "0", "1"),
+    ))
+    source_header, source_records = _read_bam_records(source_bam)
+    output_header, output_records = _read_bam_records(outputs[2])
+    assert output_header == source_header
+    assert output_records == source_records
+    _assert_summary_equations(summary, normalized_rows=1, output_bam_records=1)
