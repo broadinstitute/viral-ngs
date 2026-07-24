@@ -1,0 +1,219 @@
+import pysam
+
+import viral_ngs.core.file as util_file
+from viral_ngs import metagenomics
+from viral_ngs.classify import lyra
+
+
+_BAM_HEADER = {
+    "HD": {"VN": "1.6", "SO": "unsorted"},
+    "RG": [{"ID": "fixture", "SM": "sample matrix"}],
+    "PG": [{"ID": "fixture", "PN": "lyra-integration"}],
+}
+
+
+def _segment(query_name, flag=0x4):
+    record = pysam.AlignedSegment()
+    record.query_name = query_name
+    record.flag = flag
+    record.query_sequence = "A" * 50
+    record.query_qualities = pysam.qualitystring_to_array("I" * 50)
+    record.reference_id = -1
+    record.reference_start = -1
+    record.next_reference_id = -1
+    record.next_reference_start = -1
+    return record
+
+
+def _write_bam(path, records, header=None):
+    with pysam.AlignmentFile(
+        str(path),
+        "wb",
+        header=header or _BAM_HEADER,
+    ) as bam:
+        for record in records:
+            bam.write(record)
+    return path
+
+
+def _write_score_table(path, rows):
+    contents = "read_id\tscore\tcall\n" + "".join(
+        "{}\t{}\t{}\n".format(*row) for row in rows
+    )
+    with util_file.open_or_gzopen(str(path), "wb") as output:
+        output.write(contents.encode("utf-8"))
+    return path
+
+
+def _logical_tsv_bytes(path):
+    with util_file.open_or_gzopen(str(path), "rb") as stream:
+        return stream.read()
+
+
+def _read_summary(path):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    header = tuple(lines[0].split("\t"))
+    values = tuple(lines[1].split("\t"))
+    assert header == lyra.SUMMARY_HEADER
+    assert len(values) == len(header)
+    return dict(zip(header, values))
+
+
+def _record_snapshot(record):
+    return (
+        record.query_name,
+        record.flag,
+        record.reference_id,
+        record.reference_start,
+        record.mapping_quality,
+        record.cigarstring,
+        record.next_reference_id,
+        record.next_reference_start,
+        record.template_length,
+        record.query_sequence,
+        tuple(record.query_qualities),
+        record.get_tags(with_value_type=True),
+    )
+
+
+def _read_bam_records(path):
+    with pysam.AlignmentFile(str(path), "rb", check_sq=False) as bam:
+        header = bam.header.to_dict()
+        records = [
+            _record_snapshot(record)
+            for record in bam.fetch(until_eof=True)
+        ]
+    return header, records
+
+
+def _dispatch_lyra_postprocess(argv):
+    args = metagenomics.full_parser().parse_args(["lyra_postprocess"] + argv)
+    return args.func_main(args)
+
+
+def _assert_summary_equations(row, normalized_rows, output_bam_records):
+    counts = {
+        name: int(row[name])
+        for name in lyra.SUMMARY_HEADER[2:]
+    }
+    assert counts["LYRA_ELIGIBLE_BAM_RECORDS"] == counts["LYRA_SCORE_RECORDS"]
+    assert counts["LYRA_SCORE_RECORDS"] == (
+        counts["LYRA_SINGLE_END_FRAGMENTS"]
+        + counts["LYRA_INCOMPLETE_PAIR_FRAGMENTS"]
+        + 2 * counts["LYRA_COMPLETE_PAIR_FRAGMENTS"]
+    )
+    assert counts["LYRA_FRAGMENTS"] == (
+        counts["LYRA_SINGLE_END_FRAGMENTS"]
+        + counts["LYRA_COMPLETE_PAIR_FRAGMENTS"]
+        + counts["LYRA_INCOMPLETE_PAIR_FRAGMENTS"]
+    )
+    assert counts["LYRA_FRAGMENTS"] == (
+        counts["LYRA_VIRAL_FRAGMENT_CALLS"]
+        + counts["LYRA_NONVIRAL_FRAGMENT_CALLS"]
+    )
+    assert counts["LYRA_FRAGMENTS"] == normalized_rows
+    assert 0 <= counts["LYRA_OUTPUT_BAM_RECORDS"] <= counts[
+        "LYRA_INPUT_BAM_RECORDS"
+    ]
+    assert (counts["LYRA_OUTPUT_BAM_RECORDS"] == 0) == (
+        counts["LYRA_VIRAL_FRAGMENT_CALLS"] == 0
+    )
+    assert counts["LYRA_OUTPUT_BAM_RECORDS"] == output_bam_records
+
+
+def test_full_parser_codec_matrix_has_identical_logical_content(tmp_path, capsys):
+    input_suffixes = (".tsv", ".tsv.gz", ".tsv.zst")
+    output_suffixes = (".tsv", ".tsv.gz", ".tsv.zst")
+    score_rows = [
+        ("pair-incomplete", "1", "1"),
+        ("pair-viral", "0.9", "0"),
+        ("single-threshold", "0.8", "0"),
+        ("pair-nonviral", "0.79", "1"),
+        ("pair-viral", "0.8", "0"),
+        ("pair-nonviral", "0.9", "1"),
+    ]
+    source_bam = _write_bam(
+        tmp_path / "matrix-source.bam",
+        [
+            _segment("pair-nonviral", flag=0x4 | 0x1 | 0x40),
+            _segment("pair-viral", flag=0x4 | 0x1 | 0x80),
+            _segment("single-threshold"),
+            _segment("pair-incomplete", flag=0x4 | 0x1 | 0x40),
+            _segment("pair-viral", flag=0x4 | 0x1 | 0x40),
+            _segment("pair-nonviral", flag=0x4 | 0x1 | 0x80),
+        ],
+    )
+    source_header, source_records = _read_bam_records(source_bam)
+    expected_bam_records = [
+        record
+        for record in source_records
+        if record[0] in {"single-threshold", "pair-viral"}
+    ]
+    expected_normalized = (
+        "SAMPLE_ID\tREAD_ID\tLYRA_N_SCORES\tLYRA_PAIRING\t"
+        "LYRA_MIN_SCORE\tLYRA_MAX_SCORE\tLYRA_THRESHOLD\tLYRA_CALL\n"
+        "sample matrix\tpair-incomplete\t1\tPaired-incomplete\t1\t1\t0.8\tNon-viral\n"
+        "sample matrix\tpair-nonviral\t2\tPaired-complete\t0.79\t0.9\t0.8\tNon-viral\n"
+        "sample matrix\tpair-viral\t2\tPaired-complete\t0.8\t0.9\t0.8\tViral\n"
+        "sample matrix\tsingle-threshold\t1\tSingle-end\t0.8\t0.8\t0.8\tViral\n"
+    ).encode("utf-8")
+    expected_summary = (
+        "\t".join(lyra.SUMMARY_HEADER)
+        + "\n"
+        + "sample matrix\t0.8\t6\t6\t6\t4\t1\t2\t1\t2\t2\t3\n"
+    ).encode("utf-8")
+
+    score_paths = {
+        suffix: _write_score_table(
+            tmp_path / ("matrix-input" + suffix),
+            score_rows,
+        )
+        for suffix in input_suffixes
+    }
+    normalized_contents = []
+    for input_index, input_suffix in enumerate(input_suffixes):
+        for output_index, output_suffix in enumerate(output_suffixes):
+            cell = "{}-{}".format(input_index, output_index)
+            normalized = tmp_path / ("matrix-normalized-" + cell + output_suffix)
+            summary = tmp_path / ("matrix-summary-" + cell + ".tsv")
+            viral_bam = tmp_path / ("matrix-viral-" + cell + ".bam")
+
+            result = _dispatch_lyra_postprocess([
+                str(score_paths[input_suffix]),
+                str(source_bam),
+                "sample matrix",
+                str(normalized),
+                str(summary),
+                str(viral_bam),
+            ])
+
+            assert result is None
+            assert capsys.readouterr().out == ""
+            logical_content = _logical_tsv_bytes(normalized)
+            normalized_contents.append(logical_content)
+            assert logical_content == expected_normalized
+            assert not logical_content.startswith(b"\xef\xbb\xbf")
+            assert summary.read_bytes() == expected_summary
+            summary_row = _read_summary(summary)
+            assert summary_row == dict(zip(
+                lyra.SUMMARY_HEADER,
+                expected_summary.decode("utf-8").splitlines()[1].split("\t"),
+            ))
+
+            output_header, output_records = _read_bam_records(viral_bam)
+            assert output_header == source_header
+            assert output_records == expected_bam_records
+            assert len(output_records) == 3
+            assert not {
+                "pair-nonviral",
+                "pair-incomplete",
+            }.intersection(record[0] for record in output_records)
+            _assert_summary_equations(
+                summary_row,
+                normalized_rows=4,
+                output_bam_records=len(output_records),
+            )
+
+    assert len(normalized_contents) == 9
+    assert all(content == normalized_contents[0] for content in normalized_contents)
