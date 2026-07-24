@@ -2572,8 +2572,7 @@ class LyraArtifactTransaction:
             failure_stage = self._failure_stage(primary)
             initial_outcomes = ()
             if (
-                isinstance(primary, Exception)
-                and post_publication_cleanup is not None
+                post_publication_cleanup is not None
                 and not cleanup_attempted
             ):
                 self.stage = "close_fragment_store"
@@ -2581,7 +2580,10 @@ class LyraArtifactTransaction:
                 try:
                     post_publication_cleanup()
                 except BaseException as cleanup_error:
-                    if not isinstance(cleanup_error, Exception):
+                    if (
+                        isinstance(primary, Exception)
+                        and not isinstance(cleanup_error, Exception)
+                    ):
                         self.rollback_and_cleanup()
                         raise
                     initial_outcomes = (
@@ -2595,6 +2597,16 @@ class LyraArtifactTransaction:
                     )
             self._rollback_and_cleanup(initial_outcomes)
             if not isinstance(primary, Exception):
+                cleanup_failures = (
+                    self._cleanup_failures()
+                    + _bam_filter_cleanup_failures(primary)
+                )
+                primary.cleanup_failures = cleanup_failures[
+                    :_MAX_PUBLICATION_CLEANUP_FAILURES
+                ]
+                primary.cleanup_failures_truncated = len(
+                    cleanup_failures
+                ) > len(primary.cleanup_failures)
                 raise
             raise LyraPublicationError(
                 stage=failure_stage,
