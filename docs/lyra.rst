@@ -10,9 +10,9 @@ Runtime boundary
 
 viral-ngs consumes Lyra output only. Lyra inference remains in the separate
 ``lyra-cuda`` image, where external workflow code invokes ``lyra_cli``.
-viral-ngs neither executes nor packages Lyra, PyTorch, CUDA, model code or
-checkpoints, or a GPU runtime. It does not contain the viral-pipelines WDL
-implementation that invokes inference.
+viral-ngs neither executes, imports, nor packages Lyra, PyTorch, CUDA, model
+code or checkpoints, or a GPU runtime. It does not contain the viral-pipelines
+WDL implementation that invokes inference.
 
 Command
 -------
@@ -240,11 +240,11 @@ Publication and failure behavior
 --------------------------------
 
 Pre-existing final entries, input/output aliases, and output/output aliases are
-rejected without clobbering caller-owned paths. The command writes hidden
-same-parent stages and performs format-aware full readback validation and, on
-supported Linux filesystems, durability barriers before publication.
-Normalized output publishes first, the viral BAM second, and the summary last
-as the completion marker.
+rejected without clobbering caller-owned paths. Every hidden stage is created
+in the same parent directory as its final path and receives format-aware full
+readback validation and, on supported Linux filesystems, durability barriers
+before publication. Normalized output publishes first, the viral BAM second,
+and the summary last as the completion marker.
 
 On any reported failure, the process's nonzero status is authoritative. For a
 catchable failure, successful cleanup syscalls remove run-owned final entries
