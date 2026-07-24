@@ -40,6 +40,7 @@ from .classify import krona
 from .classify import centrifuger
 from .classify import kallisto
 from .classify import genomad
+from .classify import lyra
 from .classify import virnucpro
 from .classify.taxonomy import (
     TaxIdError, TaxonomyDb, BlastRecord, blast_records, paired_query_id,
@@ -643,6 +644,73 @@ def main_centrifuger_kreport(db, classification, output, no_lca=False,
 
 
 __commands__.append(('centrifuger_kreport', parser_centrifuger_kreport))
+
+
+def parser_lyra_postprocess(parser=argparse.ArgumentParser()):
+    parser.add_argument(
+        'score_path',
+        metavar='READ_SCORES_TSV',
+        help='Native Lyra read_scores TSV (.tsv, .tsv.gz, or .tsv.zst).',
+    )
+    parser.add_argument(
+        'bam_path',
+        metavar='SOURCE_BAM',
+        help='Source BAM used to produce the Lyra scores.',
+    )
+    parser.add_argument(
+        'sample_id',
+        metavar='SAMPLE_ID',
+        help='Sample identifier written to normalized and summary TSV output.',
+    )
+    parser.add_argument(
+        'normalized_output',
+        metavar='NORMALIZED_TSV',
+        help='Normalized fragment TSV output (.tsv, .tsv.gz, or .tsv.zst).',
+    )
+    parser.add_argument(
+        'summary_output',
+        metavar='SUMMARY_TSV',
+        help='One-row Lyra processing summary TSV output.',
+    )
+    parser.add_argument(
+        'viral_bam_output',
+        metavar='VIRAL_BAM',
+        help='BAM output containing records from viral fragments.',
+    )
+    parser.add_argument(
+        '--threshold',
+        type=lyra.validate_lyra_threshold,
+        default='0.8',
+        help='Inclusive viral classification threshold from 0 through 1. '
+             '(default: %(default)s)',
+    )
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_lyra_postprocess, split_args=True)
+    return parser
+
+
+def main_lyra_postprocess(
+    score_path,
+    bam_path,
+    sample_id,
+    normalized_output,
+    summary_output,
+    viral_bam_output,
+    threshold='0.8',
+):
+    '''Post-process native Lyra scores into pipeline-ready artifacts.'''
+    lyra.postprocess_lyra(
+        score_path,
+        bam_path,
+        sample_id,
+        threshold,
+        normalized_output,
+        summary_output,
+        viral_bam_output,
+    )
+
+
+__commands__.append(('lyra_postprocess', parser_lyra_postprocess))
 
 
 def parser_virnucpro_contigs(parser=argparse.ArgumentParser()):
