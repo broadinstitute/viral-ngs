@@ -4,6 +4,7 @@ import six
 import argparse
 from collections import Counter
 import copy
+from decimal import Decimal
 import os.path
 from os.path import join
 import tempfile
@@ -32,6 +33,86 @@ class TestCommandHelp(unittest.TestCase):
         for cmd_name, parser_fun in metagenomics.__commands__:
             parser = parser_fun(argparse.ArgumentParser())
             helpstring = parser.format_help()
+
+
+def _lyra_postprocess_args(*extra_args):
+    return [
+        'lyra_postprocess',
+        'scores.tsv',
+        'source.bam',
+        'sample',
+        'normalized.tsv',
+        'summary.tsv',
+        'viral.bam',
+        *extra_args,
+    ]
+
+
+@patch('viral_ngs.metagenomics.lyra.postprocess_lyra', autospec=True)
+def test_lyra_postprocess_full_parser_default_and_dispatch(mock_postprocess):
+    args = metagenomics.full_parser().parse_args(_lyra_postprocess_args())
+
+    assert args.command == 'lyra_postprocess'
+    assert args.threshold == Decimal('0.8')
+
+    args.func_main(args)
+
+    mock_postprocess.assert_called_once_with(
+        'scores.tsv',
+        'source.bam',
+        'sample',
+        Decimal('0.8'),
+        'normalized.tsv',
+        'summary.tsv',
+        'viral.bam',
+    )
+
+
+@pytest.mark.parametrize('threshold', ('0', '0.8', '1'))
+def test_lyra_postprocess_full_parser_accepts_inclusive_thresholds(threshold):
+    args = metagenomics.full_parser().parse_args(
+        _lyra_postprocess_args('--threshold', threshold)
+    )
+
+    assert args.threshold == Decimal(threshold)
+
+
+@pytest.mark.parametrize(
+    'threshold',
+    ('-0.0001', '1.0001', 'nan', 'inf', '-inf', 'not-a-decimal'),
+)
+@patch('viral_ngs.metagenomics.lyra.postprocess_lyra', autospec=True)
+def test_lyra_postprocess_full_parser_rejects_invalid_thresholds(
+    mock_postprocess,
+    threshold,
+):
+    with pytest.raises(SystemExit):
+        metagenomics.full_parser().parse_args(
+            _lyra_postprocess_args('--threshold', threshold)
+        )
+
+    mock_postprocess.assert_not_called()
+
+
+def test_lyra_postprocess_full_parser_help_contract(capsys):
+    with pytest.raises(SystemExit):
+        metagenomics.full_parser().parse_args(['lyra_postprocess', '--help'])
+
+    help_text = capsys.readouterr().out
+    position = -1
+    for metavar in (
+        'READ_SCORES_TSV',
+        'SOURCE_BAM',
+        'SAMPLE_ID',
+        'NORMALIZED_TSV',
+        'SUMMARY_TSV',
+        'VIRAL_BAM',
+    ):
+        position = help_text.index(metavar, position + 1)
+    assert '--threshold' in help_text
+    assert '--tmp_dir' in help_text
+    assert '--lyra-threshold' not in help_text
+    assert '--work-dir' not in help_text
 
 
 class TestKronaCalls(TestCaseWithTmp):
