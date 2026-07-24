@@ -1,0 +1,22 @@
+tests/unit/classify/test_metagenomics.py
+  s_56eb24e9180482::t_13303157fbd889 10,19,120-135,140-141,143-158
+  s_56eb24e9180482::t_1d84d2df79009b 136-139
+  s_56eb24e9180482::t_42e6fb81e6b850 142
+  s_56eb24e9180482::t_65924fa7112552 159-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "48b9fff6f48feb25aae1e8e6ac8ae2a25e9984e8",
+  "prompts": {},
+  "sessions": {
+    "s_56eb24e9180482": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06ae7efa5ffeJnxBMxz8szcAnj",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
