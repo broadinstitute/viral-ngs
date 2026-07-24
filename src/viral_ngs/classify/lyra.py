@@ -2509,6 +2509,23 @@ class LyraArtifactTransaction:
                 )
                 continue
 
+            if outcome.operation == "close_fragment_store":
+                failures.append(
+                    CleanupFailure(
+                        operation=outcome.operation,
+                        role=outcome.role,
+                        path=None,
+                        error_type=outcome.error_type,
+                        errno=(
+                            outcome.errno
+                            if type(outcome.errno) is int
+                            else None
+                        ),
+                        category="fragment_store_close_failed",
+                    )
+                )
+                continue
+
             prefix = (
                 "stage_cleanup"
                 if outcome.operation == "cleanup"
@@ -2538,6 +2555,7 @@ class LyraArtifactTransaction:
         return self.stage
 
     def generate_validate_and_publish(self, post_publication_cleanup=None):
+        cleanup_attempted = False
         try:
             self.stage = "pre_generation"
             _assert_path_plan_available(self.path_plan, self.stage)
@@ -2548,10 +2566,34 @@ class LyraArtifactTransaction:
             self._publish()
             if post_publication_cleanup is not None:
                 self.stage = "close_fragment_store"
+                cleanup_attempted = True
                 post_publication_cleanup()
         except BaseException as primary:
             failure_stage = self._failure_stage(primary)
-            self.rollback_and_cleanup()
+            initial_outcomes = ()
+            if (
+                isinstance(primary, Exception)
+                and post_publication_cleanup is not None
+                and not cleanup_attempted
+            ):
+                self.stage = "close_fragment_store"
+                cleanup_attempted = True
+                try:
+                    post_publication_cleanup()
+                except BaseException as cleanup_error:
+                    if not isinstance(cleanup_error, Exception):
+                        self.rollback_and_cleanup()
+                        raise
+                    initial_outcomes = (
+                        _cleanup_failure(
+                            "close_fragment_store",
+                            "fragment_store",
+                            None,
+                            "close_failed",
+                            cleanup_error,
+                        ),
+                    )
+            self._rollback_and_cleanup(initial_outcomes)
             if not isinstance(primary, Exception):
                 raise
             raise LyraPublicationError(
@@ -2886,7 +2928,8 @@ class LyraFragmentStore:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
+        if not self._closed:
+            self.close()
         return False
 
 
