@@ -1266,6 +1266,241 @@ def test_postprocess_publication_failure_remains_authoritative_when_store_close_
     _assert_combined_store_close_failure_cleanup(tmp_path, result)
 
 
+def _run_postprocess_system_exiting_primary_with_store_close_failure(
+    tmp_path,
+    monkeypatch,
+    primary,
+    failure_kind="producer",
+    fail_bam_rollback=False,
+):
+    score_path = _write_scores(tmp_path, "system-primary-scores.tsv")
+    bam_path, _ = _write_bam(tmp_path, "system-primary-source.bam")
+    outputs = _artifact_paths(tmp_path, "system-primary")
+    close_error = OSError(5, "injected retained source descriptor close failure")
+    rollback_error = OSError(5, "injected BAM rollback unlink failure")
+
+    real_store_close = lyra.LyraFragmentStore.close
+    real_descriptor_close = lyra.os.close
+    real_link = lyra._link_stage_no_clobber
+    real_unlink = lyra.os.unlink
+    store_close_calls = []
+    source_descriptors = []
+    source_close_calls = []
+    cleanup_operations = []
+    cleanup_paths = {}
+    published_before_summary_failure = {}
+
+    def record_store_close(store):
+        store_close_calls.append(store)
+        if len(store_close_calls) == 1:
+            source_descriptors.append(store.source_bam_fd)
+            cleanup_paths["database"] = store.database_path
+            cleanup_paths["temporary_directory"] = store._temporary_directory.name
+            real_connection = store._connection
+            real_temporary_cleanup = store._temporary_directory.cleanup
+
+            class RecordingConnection:
+                def close(self):
+                    cleanup_operations.append("database")
+                    real_connection.close()
+
+            def cleanup_temporary_directory():
+                cleanup_operations.append("temporary_directory")
+                real_temporary_cleanup()
+
+            store._connection = RecordingConnection()
+            store._temporary_directory.cleanup = cleanup_temporary_directory
+        return real_store_close(store)
+
+    def fail_retained_source_close(descriptor):
+        if source_descriptors and descriptor == source_descriptors[0]:
+            source_close_calls.append(descriptor)
+            cleanup_operations.append("source")
+            raise close_error
+        return real_descriptor_close(descriptor)
+
+    def fail_summary_link(stage, final_basename):
+        if stage.role == "summary":
+            published_before_summary_failure.update(
+                {
+                    os.fspath(path): _entry_snapshot(path)
+                    for path in outputs
+                }
+            )
+            assert published_before_summary_failure[os.fspath(outputs[0])][0] == (
+                "file"
+            )
+            assert published_before_summary_failure[os.fspath(outputs[2])][0] == (
+                "file"
+            )
+            assert published_before_summary_failure[os.fspath(outputs[1])] == (
+                "absent",
+            )
+            raise primary
+        return real_link(stage, final_basename)
+
+    def fail_bam_rollback_unlink(path, *, dir_fd=None):
+        if (
+            fail_bam_rollback
+            and source_close_calls
+            and path == outputs[2].name
+            and dir_fd is not None
+        ):
+            raise rollback_error
+        return real_unlink(path, dir_fd=dir_fd)
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(lyra.LyraFragmentStore, "close", record_store_close)
+            patch.setattr(lyra.os, "close", fail_retained_source_close)
+            patch.setattr(lyra.os, "unlink", fail_bam_rollback_unlink)
+            if failure_kind == "producer":
+                patch.setattr(
+                    lyra,
+                    "_write_normalized",
+                    lambda *args: _raise(primary),
+                )
+            else:
+                assert failure_kind == "publication"
+                patch.setattr(lyra, "_link_stage_no_clobber", fail_summary_link)
+
+            with pytest.raises(type(primary)) as exc_info:
+                lyra.postprocess_lyra(
+                    score_path,
+                    bam_path,
+                    "sample",
+                    "0.8",
+                    *outputs,
+                    work_dir=tmp_path,
+                )
+        error = exc_info.value
+    finally:
+        for descriptor in source_descriptors:
+            try:
+                os.fstat(descriptor)
+            except OSError:
+                continue
+            real_descriptor_close(descriptor)
+
+    return {
+        "error": error,
+        "primary": primary,
+        "outputs": outputs,
+        "store_close_calls": store_close_calls,
+        "source_descriptors": source_descriptors,
+        "source_close_calls": source_close_calls,
+        "cleanup_operations": cleanup_operations,
+        "cleanup_paths": cleanup_paths,
+        "published_before_summary_failure": published_before_summary_failure,
+    }
+
+
+def _assert_system_exiting_store_cleanup_attempted_once(tmp_path, result):
+    assert len(result["store_close_calls"]) == 1
+    assert result["source_close_calls"] == result["source_descriptors"]
+    assert result["cleanup_operations"] == [
+        "source",
+        "database",
+        "temporary_directory",
+    ]
+    assert not os.path.exists(result["cleanup_paths"]["database"])
+    assert not os.path.exists(result["cleanup_paths"]["temporary_directory"])
+    assert not list(tmp_path.rglob(".lyra-*"))
+
+
+@pytest.mark.parametrize(
+    "primary_factory",
+    [
+        pytest.param(lambda: SystemExit(17), id="system_exit"),
+        pytest.param(lambda: KeyboardInterrupt("stop"), id="keyboard_interrupt"),
+        pytest.param(lambda: GeneratorExit("close"), id="generator_exit"),
+    ],
+)
+def test_postprocess_system_exiting_primary_remains_authoritative_when_store_close_fails(
+    tmp_path,
+    monkeypatch,
+    primary_factory,
+):
+    primary = primary_factory()
+    original_args = primary.args
+    system_exit_code = primary.code if isinstance(primary, SystemExit) else None
+
+    result = _run_postprocess_system_exiting_primary_with_store_close_failure(
+        tmp_path,
+        monkeypatch,
+        primary,
+    )
+
+    assert result["error"] is primary
+    assert not isinstance(result["error"], lyra.LyraPublicationError)
+    assert result["error"].args == original_args
+    if isinstance(primary, SystemExit):
+        assert result["error"].code == system_exit_code
+    assert result["error"].cleanup_failures == (
+        lyra.CleanupFailure(
+            operation="close_fragment_store",
+            role="fragment_store",
+            path=None,
+            error_type="OSError",
+            errno=5,
+            category="fragment_store_close_failed",
+        ),
+    )
+    assert result["error"].cleanup_failures_truncated is False
+    assert result["published_before_summary_failure"] == {}
+    assert not any(path.exists() for path in result["outputs"])
+    _assert_system_exiting_store_cleanup_attempted_once(tmp_path, result)
+
+
+def test_postprocess_system_exit_primary_preserves_ordered_failed_unlink_context(
+    tmp_path,
+    monkeypatch,
+):
+    primary = SystemExit(29)
+
+    result = _run_postprocess_system_exiting_primary_with_store_close_failure(
+        tmp_path,
+        monkeypatch,
+        primary,
+        failure_kind="publication",
+        fail_bam_rollback=True,
+    )
+
+    assert result["error"] is primary
+    assert result["error"].code == 29
+    assert not isinstance(result["error"], lyra.LyraPublicationError)
+    assert [
+        failure.category for failure in result["error"].cleanup_failures
+    ] == ["fragment_store_close_failed", "rollback_unlink_failed"]
+    assert result["error"].cleanup_failures == (
+        lyra.CleanupFailure(
+            operation="close_fragment_store",
+            role="fragment_store",
+            path=None,
+            error_type="OSError",
+            errno=5,
+            category="fragment_store_close_failed",
+        ),
+        lyra.CleanupFailure(
+            operation="rollback",
+            role="viral_bam",
+            path=os.path.realpath(result["outputs"][2], strict=False),
+            error_type="OSError",
+            errno=5,
+            category="rollback_unlink_failed",
+        ),
+    )
+    assert result["error"].cleanup_failures_truncated is False
+    bam_snapshot = result["published_before_summary_failure"][
+        os.fspath(result["outputs"][2])
+    ]
+    assert _entry_snapshot(result["outputs"][2]) == bam_snapshot
+    assert not result["outputs"][0].exists()
+    assert not result["outputs"][1].exists()
+    _assert_system_exiting_store_cleanup_attempted_once(tmp_path, result)
+    os.unlink(result["outputs"][2])
+
+
 def test_source_identity_rejects_retargeted_retained_descriptor(tmp_path):
     source_path, _ = _write_bam(tmp_path, "descriptor-identity-source.bam")
     replacement_path, _ = _write_bam(
