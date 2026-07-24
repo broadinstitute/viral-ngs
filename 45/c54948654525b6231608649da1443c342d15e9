@@ -1,0 +1,19 @@
+docs/lyra.rst
+  s_47e0f772cc3a98::t_0582082a11f68a 1-256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "45c54948654525b6231608649da1443c342d15e9",
+  "prompts": {},
+  "sessions": {
+    "s_47e0f772cc3a98": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06addecacffe8I5e2Mznv8oXhq",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
