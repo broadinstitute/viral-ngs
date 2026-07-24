@@ -25,6 +25,7 @@ jobs:
       core: ${{ steps.filter.outputs.core }}
       assemble: ${{ steps.filter.outputs.assemble }}
       classify: ${{ steps.filter.outputs.classify }}
+      lyra: ${{ steps.filter.outputs.lyra }}
       phylo: ${{ steps.filter.outputs.phylo }}
       docker: ${{ steps.filter.outputs.docker }}
     steps:
@@ -62,6 +63,13 @@ jobs:
               - 'tests/unit/classify/**'
               - 'docker/requirements/classify.txt'
               - 'docker/Dockerfile.classify'
+            lyra:
+              - 'src/viral_ngs/classify/lyra.py'
+              - 'src/viral_ngs/metagenomics.py'
+              - 'tests/unit/classify/test_lyra*.py'
+              - 'tests/unit/classify/test_integration_lyra.py'
+              - 'tests/conftest.py'
+              - '.github/workflows/docker.yml'
             phylo:
               - 'src/viral_ngs/phylo/**'
               - 'src/viral_ngs/interhost.py'
@@ -1335,6 +1343,15 @@ jobs:
               --cov=viral_ngs \
               --cov-report=xml:/workspace/coverage-classify.xml \
               -n auto
+
+      - name: Run Lyra production-scale gate
+        if: needs.paths-filter.outputs.lyra == 'true'
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ${{ env.GHCR_REPO }}:${{ needs.create-manifest-classify.outputs.classify-tag }} \
+            pytest tests/unit/classify/test_lyra_scale.py::test_lyra_postprocess_one_million_records_full_parser --runslow -v --tb=short
 
       - name: Upload coverage to Codecov
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref_type == 'tag'
