@@ -7,6 +7,7 @@ import copy
 from decimal import Decimal
 import os.path
 from os.path import join
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -15,6 +16,7 @@ import pytest
 from unittest import mock
 from unittest.mock import patch
 
+import viral_ngs.classify.lyra
 from viral_ngs.core import picard
 from viral_ngs import metagenomics
 from viral_ngs.core import file as util_file
@@ -113,6 +115,47 @@ def test_lyra_postprocess_full_parser_help_contract(capsys):
     assert '--tmp_dir' in help_text
     assert '--lyra-threshold' not in help_text
     assert '--work-dir' not in help_text
+
+
+@patch('viral_ngs.metagenomics.lyra.postprocess_lyra', autospec=True)
+def test_lyra_postprocess_tmp_dir_lifecycle_and_silent_success(
+    mock_postprocess,
+    tmp_path,
+    capsys,
+):
+    scratch_base = tmp_path / 'scratch'
+    scratch_base.mkdir()
+    dispatch_tmp_dir = None
+
+    def capture_dispatch_tmp_dir(*args, **kwargs):
+        nonlocal dispatch_tmp_dir
+        dispatch_tmp_dir = tempfile.tempdir
+        assert os.path.isdir(dispatch_tmp_dir)
+
+    mock_postprocess.side_effect = capture_dispatch_tmp_dir
+    argv = [
+        'metagenomics',
+        *_lyra_postprocess_args('--tmp_dir', str(scratch_base)),
+    ]
+
+    with patch.object(sys, 'argv', argv):
+        metagenomics.main()
+
+    captured = capsys.readouterr()
+    assert captured.out == ''
+    assert metagenomics.lyra is viral_ngs.classify.lyra
+    assert dispatch_tmp_dir is not None
+    assert os.path.dirname(dispatch_tmp_dir) == str(scratch_base)
+    assert not os.path.exists(dispatch_tmp_dir)
+    mock_postprocess.assert_called_once_with(
+        'scores.tsv',
+        'source.bam',
+        'sample',
+        Decimal('0.8'),
+        'normalized.tsv',
+        'summary.tsv',
+        'viral.bam',
+    )
 
 
 class TestKronaCalls(TestCaseWithTmp):
