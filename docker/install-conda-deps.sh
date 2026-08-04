@@ -121,5 +121,16 @@ micromamba list
 micromamba clean -y --all
 rm -rf /opt/conda/pkgs/*
 
+# Remove pip's vendoring manifest. pip records the versions it vendored in
+# _vendor/vendor.txt, and Trivy's python-pkg analyzer reads that manifest as if each
+# line were an installed package -- so `setuptools==70.3.0` in it is reported as
+# CVE-2025-47273 even though the env's real setuptools is far newer and the vulnerable
+# code (setuptools' PackageIndex download/extract) is not part of what pip vendors.
+# The file is a build-time record only; pip runs fine without it (verified: --version,
+# list, download, and pkg_resources import all work). Done here rather than per-Dockerfile
+# so every tier is covered, including any conda-triggered pip reinstall.
+# A find sweep rather than a fixed path so it also catches a repopulated pkgs cache.
+find /opt/conda -path '*/pip/_vendor/vendor.txt' -delete 2>/dev/null || true
+
 echo ""
 echo "Done installing conda dependencies."
