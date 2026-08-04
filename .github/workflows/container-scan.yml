@@ -82,7 +82,7 @@ jobs:
           limit-severities-for-sarif: true
           exit-code: '0'
           ignore-unfixed: true
-          trivyignores: '.trivyignore'
+          trivyignores: '.trivyignore.yaml'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
           timeout: '20m0s'  # Increase timeout for large images
@@ -97,7 +97,7 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM'  # Include MEDIUM for debugging context
           exit-code: '0'   # don't fail here — Claude pipeline + final-step gate handles signaling
           ignore-unfixed: false  # Include non-fixable CVEs for comprehensive debugging/analysis
-          trivyignores: '.trivyignore'
+          trivyignores: '.trivyignore.yaml'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
           timeout: '20m0s'  # Increase timeout for large images
@@ -338,9 +338,13 @@ jobs:
             3. `.agents/skills/container-vulns/SKILL.md` — read fully. This is the repo's
                container-vulnerability playbook and tells you what the maintainers consider
                actionable vs. accepted risk.
-            4. `.trivyignore` — existing per-CVE exceptions with their justifications. Mirror
-               the writing style and depth of justification when you recommend `.trivyignore`
-               additions.
+            4. `.trivyignore.yaml` — existing per-CVE exceptions with their justifications.
+               Mirror the writing style and depth of justification when you recommend
+               additions. Note the format is YAML: every entry is SCOPED, either by
+               `paths` (glob, for findings that have a PkgPath) or by `purls` (package
+               identity + version, for findings that don't — e.g. anything Trivy derives
+               from an embedded SBOM). An un-scoped entry suppresses the CVE image-wide
+               and is not acceptable.
             5. `.trivy-ignore-policy.rego` — Rego policy for class-level CVE filtering.
                Understand what it filters and why.
             6. `docker/Dockerfile.*` — container build files showing dep installs and inline
@@ -380,7 +384,8 @@ jobs:
             5. **Recommended fix** — concrete and actionable. Options:
                 - Version bump (which file, which floor)
                 - Inline Dockerfile mitigation (which Dockerfile, what RUN-block addition)
-                - `.trivyignore` entry (with justification matching the existing style)
+                - `.trivyignore.yaml` entry (scoped by `paths` or `purls`, with
+                  justification matching the existing style)
                Cite historical precedent when applicable: `(mirror the fix in commit <sha>)`.
             6. **Practical exploitability** — in this deployment model (ephemeral batch
                containers, no network-facing services, no untrusted user input at runtime),
@@ -502,7 +507,8 @@ jobs:
   # Confidence bar (enforced in the prompt):
   #   - version-floor bumps in docker/requirements/*.txt
   #   - inline Dockerfile mitigations that mirror an exact precedent commit
-  #   - .trivyignore entries with justifications that mirror existing entries
+  #   - .trivyignore.yaml entries, scoped by paths/purls, with justifications
+  #     that mirror existing entries
   # Anything ambiguous, novel, or partial → skip the entire PR.
   # ============================================================================
   cve-fix-pr:
@@ -776,9 +782,14 @@ jobs:
             1. `.agents/skills/container-vulns/SKILL.md` — read fully. This is
                the repo's playbook. The maintainers' definition of "actionable
                vs. accepted risk" lives here.
-            2. `.trivyignore` — existing per-CVE exceptions with their
-               justifications. Any `.trivyignore` entry you add MUST mirror the
-               writing style and depth of justification of existing entries.
+            2. `.trivyignore.yaml` — existing per-CVE exceptions with their
+               justifications. Any entry you add MUST mirror the writing style
+               and depth of justification of existing entries, and MUST be
+               scoped: `paths` (glob) when the finding has a PkgPath, `purls`
+               (package + version) when it does not — SBOM-derived findings
+               ("AnalyzedBy": "sbom") have no path, so `paths` cannot match them.
+               A bare `id:` with no scoping suppresses the CVE image-wide and is
+               not acceptable.
             3. `.trivy-ignore-policy.rego` — Rego policy for class-level CVE
                filtering. Don't ever modify this file.
             4. `docker/Dockerfile.*` — container build files. Look for prior
@@ -818,15 +829,17 @@ jobs:
             mitigation pattern (the RUN-block additions) must match the
             precedent pattern; do not invent new mitigation shapes.
 
-            **(c) `.trivyignore` entry whose justification mirrors an existing
-            entry's wording and rationale.** Acceptable when (i) the CVE is
+            **(c) `.trivyignore.yaml` entry, correctly scoped, whose justification
+            mirrors an existing entry's wording and rationale.** Acceptable when (i) the CVE is
             architecturally unreachable in our deployment model and (ii) at
-            least one existing `.trivyignore` entry already accepts a CVE for
-            the same class of reason. Cite the existing entry as precedent.
+            least one existing entry already accepts a CVE for the same class of
+            reason. Cite the existing entry as precedent, and state which scoping
+            key you used and why.
 
             **If ANY open CVE issue requires:**
             - a novel mitigation pattern with no precedent,
-            - a `.trivyignore` justification not mirrored by existing entries,
+            - a `.trivyignore.yaml` justification not mirrored by existing entries,
+              or one you cannot scope to what you actually assessed,
             - a workaround for a *known* ARM64 solver conflict (pinning around
               the icu / openjdk / htslib / libdeflate chains described in the
               skill's ARM64 section),
@@ -927,7 +940,7 @@ jobs:
             - **Fix that would be required:** <description>
             - **Why this didn't meet the bar:** <specific category: e.g. "no
               precedent for inline mitigation of this shape" / "would need
-              novel .trivyignore justification" / "ARM64 conflict risk on
+              novel .trivyignore.yaml justification" / "ARM64 conflict risk on
               version bump" / "in-flight PR #<N> already addresses this">
 
             <repeat per CVE>
@@ -955,7 +968,7 @@ jobs:
             - Verify every commit SHA you cite with `git show <sha>`.
             - Verify every `FixedVersion` you cite against `trivy-results.json`.
             - Your edits must stay within `docker/requirements/*.txt`,
-              `docker/Dockerfile.*` and `.trivyignore`. This is enforced by the
+              `docker/Dockerfile.*` and `.trivyignore.yaml`. This is enforced by the
               workflow, which aborts if the staged diff touches anything else.
             - When uncertain about *what the fix is*, choose SKIP. Do NOT skip
               merely because you could not prove a fix works — see "What CI
@@ -1015,9 +1028,9 @@ jobs:
           # Enforce the change surface. The prompt asks the agent to stay out of
           # .github/workflows/ etc., but `git add -A` would commit whatever it wrote —
           # a prompt instruction is a request, not a control. Anything outside the
-          # requirements files, the Dockerfiles and .trivyignore is a hard stop.
+          # requirements files, the Dockerfiles and .trivyignore.yaml is a hard stop.
           disallowed=$(git diff --cached --name-only \
-            | grep -vE '^(docker/requirements/[A-Za-z0-9_.-]+\.txt|docker/Dockerfile\.[A-Za-z0-9_.-]+|\.trivyignore)$' \
+            | grep -vE '^(docker/requirements/[A-Za-z0-9_.-]+\.txt|docker/Dockerfile\.[A-Za-z0-9_.-]+|\.trivyignore\.yaml)$' \
             || true)
           if [ -n "$disallowed" ]; then
             echo "::error::Auto-fix diff touches files outside the allowed change surface — refusing to open a PR"
