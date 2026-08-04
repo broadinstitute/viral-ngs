@@ -1,0 +1,188 @@
+# Trivy ignore file — per-CVE exceptions with justifications
+#
+# This file documents individual CVE exceptions that cannot be addressed by
+# version bumps or by the Rego policy (.trivy-ignore-policy.rego). Each entry
+# MUST include a justification explaining why the CVE is accepted.
+#
+# FORMAT: YAML, not the one-CVE-per-line plain text format. The reason is
+# scoping. A plain `.trivyignore` line matches a CVE ID *globally* — it
+# suppresses that CVE anywhere in the image, including places we never
+# reviewed. The YAML format lets each entry be pinned to what was actually
+# assessed:
+#
+#   paths: [...]   match by file location (supports globs). Use for findings
+#                  that carry a PkgPath, e.g. a dependency inside a fat JAR.
+#   purls: [...]   match by package identity + version. Use for findings with
+#                  no PkgPath — notably anything Trivy derives from an embedded
+#                  SBOM ("AnalyzedBy": "sbom"), where there is no file to match.
+#
+# Either way, if the same CVE later turns up somewhere we did NOT assess, it is
+# reported instead of silently suppressed. That is the point: an un-scoped
+# ignore hides the finding we would most want to see.
+#
+# See: https://trivy.dev/latest/docs/configuration/filtering/#by-finding-ids
+#
+# Review cadence: Re-evaluate all entries quarterly or when the affected
+# package is upgraded. Remove entries once the underlying package ships a fix.
+#
+# =============================================================================
+
+vulnerabilities:
+  # ---------------------------------------------------------------------------
+  # CVE-2020-25649 — jackson-databind XXE in DOMDeserializer
+  # Severity: HIGH (AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N)
+  # Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
+  #
+  # JUSTIFICATION:
+  #   The vulnerable code path is DOMDeserializer, which is invoked when
+  #   jackson-databind deserializes XML input into DOM objects without
+  #   disabling external entity resolution. This enables XXE attacks
+  #   (SSRF, local file read) when processing attacker-controlled XML.
+  #
+  #   snpEff uses jackson-databind for JSON parsing only (config metadata,
+  #   database indices). snpEff's input formats are VCF (tab-delimited),
+  #   GenBank (flat text), and Java properties files. It never parses XML
+  #   through Jackson's DOMDeserializer. The vulnerable code is present in
+  #   the fat JAR but the code path is never traversed.
+  #
+  #   Scoped by path to snpEff's bundled copy. The glob covers snpeff version
+  #   bumps (the jar has moved between snpeff-5.1-0, 5.2-3 and 5.4.0c-0), but
+  #   the same CVE in any other JAR — picard, gatk, fgbio, fastqc — is still
+  #   reported, because those copies have not been assessed.
+  #
+  # RESOLUTION: Upstream snpEff must update its bundled jackson-databind.
+  # ADDED: 2026-03-20
+  # ---------------------------------------------------------------------------
+  - id: CVE-2020-25649
+    paths:
+      - "opt/conda/share/snpeff-*/snpEff.jar"
+    statement: >-
+      snpEff uses jackson-databind for JSON config/index parsing only and never
+      routes XML through DOMDeserializer, so the vulnerable path is unreachable.
+      Scoped to snpEff's bundled jar.
+
+  # ---------------------------------------------------------------------------
+  # CVE-2026-54512 — jackson-databind PolymorphicTypeValidator bypass via
+  #                  generic type parameters allows arbitrary class instantiation
+  # Severity: HIGH (AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H)
+  # Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
+  #
+  # JUSTIFICATION:
+  #   The vulnerable code path is DatabindContext._resolveAndValidateGeneric(),
+  #   which is invoked only when polymorphic typing is enabled (via
+  #   enableDefaultTyping() or @JsonTypeInfo) AND the type ID string contains
+  #   a generic parameter delimiter (<). When triggered, only the raw container
+  #   class is validated against the PTV allowlist; the nested type argument
+  #   is instantiated without further PTV checks.
+  #
+  #   snpEff uses jackson-databind only for plain JSON parsing of config
+  #   metadata and database index files — it never enables polymorphic typing.
+  #   Without polymorphic typing, _resolveAndValidateGeneric() and the entire
+  #   PTV code path are never invoked, making this bypass architecturally
+  #   unreachable regardless of pipeline input content.
+  #
+  #   Pipeline inputs (VCF, GenBank, FASTQ) are processed by native tools; no
+  #   attacker-controlled JSON reaches snpEff's jackson-databind deserialization.
+  #
+  #   Scoped by path to snpEff's bundled copy; the same CVE in any other JAR is
+  #   still reported.
+  #
+  # RESOLUTION: Upstream snpEff must update its bundled jackson-databind to >=2.18.8.
+  # ADDED: 2026-06-24
+  # REVIEW: Remove once snpeff on conda-forge bundles jackson-databind>=2.18.8
+  # ---------------------------------------------------------------------------
+  - id: CVE-2026-54512
+    paths:
+      - "opt/conda/share/snpeff-*/snpEff.jar"
+    statement: >-
+      snpEff never enables polymorphic typing, so the PolymorphicTypeValidator
+      code path this bypasses is never invoked. Scoped to snpEff's bundled jar.
+
+  # ---------------------------------------------------------------------------
+  # CVE-2026-54513 — jackson-databind array subtype allowlist bypass in
+  #                  BasicPolymorphicTypeValidator (allowIfSubTypeIsArray)
+  # Severity: HIGH (AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H)
+  # Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
+  #
+  # JUSTIFICATION:
+  #   The vulnerable code path is BasicPolymorphicTypeValidator built with
+  #   allowIfSubTypeIsArray(), which whitelists any array type on clazz.isArray()
+  #   alone without inspecting the component (element) type. This enables
+  #   instantiation of EvilType[] even when EvilType is not in the allowlist.
+  #   The exploit requires polymorphic typing to be ENABLED in the consuming
+  #   application AND a PTV built with allowIfSubTypeIsArray().
+  #
+  #   snpEff uses jackson-databind only for plain JSON parsing of config
+  #   metadata and database index files — it never enables polymorphic typing.
+  #   Without polymorphic typing, BasicPolymorphicTypeValidator and
+  #   allowIfSubTypeIsArray() are never invoked, making this bypass
+  #   architecturally unreachable regardless of pipeline input content.
+  #
+  #   Pipeline inputs (VCF, GenBank, FASTQ) are processed by native tools; no
+  #   attacker-controlled JSON reaches snpEff's jackson-databind deserialization.
+  #
+  #   Scoped by path to snpEff's bundled copy; the same CVE in any other JAR is
+  #   still reported.
+  #
+  # RESOLUTION: Upstream snpEff must update its bundled jackson-databind to >=2.18.8.
+  # ADDED: 2026-06-24
+  # REVIEW: Remove once snpeff on conda-forge bundles jackson-databind>=2.18.8
+  # ---------------------------------------------------------------------------
+  - id: CVE-2026-54513
+    paths:
+      - "opt/conda/share/snpeff-*/snpEff.jar"
+    statement: >-
+      snpEff never enables polymorphic typing, so allowIfSubTypeIsArray() and the
+      validator it bypasses are never invoked. Scoped to snpEff's bundled jar.
+
+  # ---------------------------------------------------------------------------
+  # CVE-2025-47273 — setuptools path traversal in PackageIndex
+  # Severity: HIGH (CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H, 8.8 per NVD)
+  # Package: setuptools 70.3.0 — reported, but NOT installed at that version
+  #
+  # JUSTIFICATION:
+  #   This finding does not come from an installed package. pip 26.2 ships a
+  #   CycloneDX SBOM of its vendored dependencies at pip/_vendor/bom.cdx.json,
+  #   which declares "setuptools 70.3.0". Trivy's SBOM analyzer reads that
+  #   manifest and synthesizes a package entry from it — the record carries
+  #   "AnalyzedBy": "sbom" and no FilePath, and no .dist-info or .egg-info for
+  #   setuptools 70.3.0 exists anywhere in any image layer (verified by
+  #   extracting and grepping every METADATA/PKG-INFO in the affected layers).
+  #
+  #   The vulnerable code path is setuptools/package_index.py (PackageIndex,
+  #   which fetches and extracts sdists from an index). pip vendors only
+  #   pkg_resources — a subset of the setuptools distribution — and does not
+  #   vendor package_index.py at all. Confirmed in the built image: pip/_vendor
+  #   contains pkg_resources/ but no setuptools/ package and no package_index*
+  #   file, so the vulnerable module is absent from the image.
+  #
+  #   The setuptools that IS installed in the conda env is 82.0.1, well above
+  #   the 78.1.1 fix version, and is reported separately and correctly by Trivy.
+  #
+  #   Why an ignore entry rather than deleting the SBOM: pip's SBOM is accurate
+  #   supply-chain metadata that also covers its other vendored packages
+  #   (urllib3, requests, certifi, idna, ...). Deleting it to silence one
+  #   mis-mapped CVE would blind the scanner to real future findings in that
+  #   vendored tree, which is a worse trade than one documented exception.
+  #
+  #   Scoped by PURL, not path: an SBOM-derived finding has no PkgPath, so there
+  #   is nothing for `paths` to match (verified — a paths-scoped entry does not
+  #   suppress it). The PURL pins the exact version, so a genuine setuptools
+  #   below 78.1.1 arriving by any other route is still reported. If pip later
+  #   vendors a different vulnerable setuptools version, this entry stops
+  #   matching and the finding resurfaces for review — which is the intent.
+  #
+  # RESOLUTION: Upstream pip must vendor pkg_resources from setuptools>=78.1.1,
+  #   or stop declaring the full setuptools distribution in its vendored SBOM.
+  # ADDED: 2026-08-04
+  # REVIEW: Remove once pip's bundled bom.cdx.json declares setuptools>=78.1.1
+  # ---------------------------------------------------------------------------
+  - id: CVE-2025-47273
+    purls:
+      - "pkg:pypi/setuptools@70.3.0"
+    statement: >-
+      Phantom package synthesized from pip's vendored CycloneDX SBOM, not an
+      installed distribution. pip vendors pkg_resources only, not
+      setuptools/package_index.py where the traversal lives; the real installed
+      setuptools is 82.0.1. Scoped by PURL because SBOM-derived findings have no
+      file path.

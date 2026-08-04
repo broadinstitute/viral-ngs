@@ -1040,7 +1040,7 @@ jobs:
           limit-severities-for-sarif: true
           exit-code: '0'
           ignore-unfixed: true
-          trivyignores: '.trivyignore'
+          trivyignores: '.trivyignore.yaml'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning disabled to reduce disk usage
           timeout: '20m0s'  # Increase timeout for large images (mega takes ~10min)
@@ -1055,7 +1055,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true
-          trivyignores: '.trivyignore'
+          trivyignores: '.trivyignore.yaml'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning disabled to reduce disk usage
           timeout: '20m0s'  # Increase timeout for large images (mega takes ~10min)
