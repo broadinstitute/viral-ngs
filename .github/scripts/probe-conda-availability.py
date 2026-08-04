@@ -254,6 +254,20 @@ def read_requirements(requirements_dir):
 # --------------------------------------------------------------------------------------
 
 
+# Three distinct outcomes have to stay distinguishable, because conflating the last two
+# would make the probe assert something false:
+#   dict          -- the package exists in this channel
+#   None          -- HTTP 404: the package genuinely is not in this channel
+#   FETCH_FAILED  -- timeout / 5xx / malformed JSON: we do not know either way
+# Reporting a failed lookup as "not packaged on conda-forge" would tell the agent a floor
+# bump does not apply when in fact nothing was checked.
+FETCH_FAILED = object()
+
+# Sentinel for "this (channel, name) has never been fetched", distinct from all three
+# outcomes above so the reverse scan can tell "not looked up" from "looked up, absent".
+NOT_CACHED = object()
+
+
 class ChannelClient:
     """Tiny cached client for the anaconda.org package API."""
 
@@ -266,7 +280,7 @@ class ChannelClient:
 
     def cached(self, channel, name):
         with self._lock:
-            return self._cache.get((channel, name.lower()), False)
+            return self._cache.get((channel, name.lower()), NOT_CACHED)
 
     def fetch(self, channel, name, timeout=None, retries=None):
         key = (channel, name.lower())
@@ -290,18 +304,20 @@ class ChannelClient:
                 if exc.code in (429, 500, 502, 503, 504) and attempt < retries:
                     time.sleep(2 * attempt)
                     continue
+                result = FETCH_FAILED
                 self._errors.append(
-                    "HTTP %s fetching %s/%s" % (exc.code, channel, name)
+                    "HTTP %s fetching %s/%s -- NOT checked; nothing may be claimed "
+                    "about it" % (exc.code, channel, name)
                 )
                 break
             except Exception as exc:  # network error, malformed JSON, ...
                 if attempt < retries:
                     time.sleep(2 * attempt)
                     continue
+                result = FETCH_FAILED
                 self._errors.append(
-                    "%s fetching %s/%s: %s -- this package was NOT checked; treat any "
-                    "claim about it as unverified"
-                    % (type(exc).__name__, channel, name, exc)
+                    "%s fetching %s/%s: %s -- NOT checked; nothing may be claimed "
+                    "about it" % (type(exc).__name__, channel, name, exc)
                 )
                 break
 
@@ -358,6 +374,9 @@ def probe_channel(client, channel, pkg_name, threshold):
     if payload is None and pkg_name != pkg_name.lower():
         payload = client.fetch(channel, pkg_name.lower())
         name_lookup = "lowercased"
+    if payload is FETCH_FAILED:
+        # NOT the same as "not in this channel" -- we learned nothing. See probe_errors.
+        return {"name_lookup": "probe_failed", "arch_ok": None}
     if payload is None:
         return {"name_lookup": "not_found"}
 
@@ -415,9 +434,11 @@ def find_reverse_constraints(client, candidates, target_name, target_version, er
         pending = [
             pin["package"]
             for key, pin in sorted(candidates.items())
-            if client.cached(channel, pin["package"]) is False
+            if client.cached(channel, pin["package"]) is NOT_CACHED
+            # Skip if an earlier channel already resolved it to a real payload.
             and not any(
-                client.cached(prior, pin["package"]) for prior in CHANNELS[: CHANNELS.index(channel)]
+                isinstance(client.cached(prior, pin["package"]), dict)
+                for prior in CHANNELS[: CHANNELS.index(channel)]
             )
         ]
         if not pending or time.monotonic() > deadline:
@@ -447,8 +468,9 @@ def find_reverse_constraints(client, candidates, target_name, target_version, er
     for key, pin in sorted(candidates.items()):
         for channel in CHANNELS:
             payload = client.cached(channel, pin["package"])
-            if payload is False:
-                # Never fetched (budget ran out before this one).
+            if payload is NOT_CACHED or payload is FETCH_FAILED:
+                # Budget ran out before this one, or the lookup failed. Either way we
+                # cannot say whether it constrains the target -- report, don't assume.
                 if pin["package"] not in unscanned:
                     unscanned.append(pin["package"])
                 continue
@@ -515,8 +537,8 @@ def find_reverse_constraints(client, candidates, target_name, target_version, er
 
     if unscanned:
         errors.append(
-            "reverse dependency scan for %s was truncated after %ss; %d package(s) not "
-            "checked for a constraint on %s: %s"
+            "reverse dependency scan for %s is INCOMPLETE (budget %ss); %d package(s) "
+            "were not checked for a constraint on %s: %s"
             % (
                 target_name,
                 REVERSE_SCAN_BUDGET_SECONDS,
@@ -635,7 +657,15 @@ def summarize(entry):
             "floor bump VERIFIED as installable."
             % (name, cves, name, hit[1], hit[0])
         )
-    elif any(d.get("name_lookup") != "not_found" for d in entry["channels"].values()):
+    elif any(
+        d.get("name_lookup") == "probe_failed" for d in entry["channels"].values()
+    ):
+        lines.append(
+            "%s (%s): the channel lookup FAILED (see probe_errors) -- nothing was "
+            "checked. Do NOT conclude anything about availability from this entry; "
+            "verify it yourself before acting." % (name, cves)
+        )
+    elif any(d.get("name_lookup") not in ("not_found", "probe_failed") for d in entry["channels"].values()):
         lines.append(
             "%s (%s): no build >= %s satisfies both linux-64 and linux-aarch64 -> "
             "treat availability as UNVERIFIED."
@@ -715,19 +745,27 @@ def main():
         pin = pins.get(pkg_name.lower())
         entry["repo_requirement"] = pin
 
+        # Don't query conda for findings a conda package could never match: an Ubuntu apt
+        # package, or a Maven coordinate bundled in a fat JAR
+        # (`com.fasterxml.jackson.core:jackson-databind` is not a conda package name).
         entry["channels"] = {}
-        if entry["fix_shape"] != "os-package":
+        if entry["fix_shape"] not in ("os-package", "bundled-jar"):
             for channel in CHANNELS:
                 entry["channels"][channel] = probe_channel(
                     client, channel, pkg_name, entry["fix_threshold"]
                 )
 
+        # The reverse scan is the expensive half (up to ~88 package payloads), so it is
+        # restricted to findings a requirements floor bump can actually fix. Without this,
+        # a single fat-JAR CVE would fetch every pinned package to look for a dependency
+        # on a Maven coordinate that no conda package declares -- burning the budget and
+        # manufacturing timeout errors.
         entry["constrained_by"] = []
         entry["reverse_scan_scope"] = None
         if (
             not args.no_reverse_scan
             and entry["fix_threshold"]
-            and entry["fix_shape"] != "os-package"
+            and entry["fix_shape"] == "conda-requirements-pin"
         ):
             candidates, scoped_file = reverse_scan_candidates(pins, pkg_name)
             entry["reverse_scan_scope"] = {

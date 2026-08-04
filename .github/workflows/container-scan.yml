@@ -599,16 +599,22 @@ jobs:
           # anyone can comment — filter to maintainers HERE, not in the prompt. An
           # unfiltered comments array is a direct untrusted-instruction channel into an
           # agent that edits files and opens PRs; a prompt instruction is not a control.
+          # `// []` guards against a null/absent comments field (gh returns [] today, but
+          # `.comments[]` on null would abort this step under `set -e`).
           gh issue list --repo "$GITHUB_REPOSITORY" \
             --label cve --state open \
             --json number,title,body,labels,comments --limit 100 \
           | jq '[ .[]
-                  | .comments = [ .comments[]
+                  | .comments = [ (.comments // [])[]
                       | select(.authorAssociation == "OWNER"
                                or .authorAssociation == "MEMBER"
                                or .authorAssociation == "COLLABORATOR")
                       | {author: .author.login, authorAssociation, createdAt, body} ] ]' \
             > .cve-fix-context/open-issues.json
+          # Log what the filter kept vs dropped. Maintainer comments now steer the fix, so
+          # silently losing them would be worse than the crash the guard above prevents.
+          kept=$(jq '[.[].comments | length] | add // 0' .cve-fix-context/open-issues.json)
+          echo "::notice::Retained $kept maintainer comment(s) across open cve issues"
           gh pr list --repo "$GITHUB_REPOSITORY" \
             --label cve-fix --state open \
             --json number,title,headRefName,body --limit 50 \
@@ -802,9 +808,10 @@ jobs:
             `recommended_floor`, availability is **VERIFIED** — do not treat it
             as an open question, and do not skip on the grounds that you cannot
             reach the network yourself. Availability is unverified only when the
-            probe reports `name_lookup: not_found` or lists the package in
-            `probe_errors`. Remember to apply any `constrained_by` floor raise in
-            the same commit.
+            probe reports `name_lookup: not_found`, `name_lookup: probe_failed`
+            (the lookup itself errored — nothing was checked), or lists the
+            package in `probe_errors`. Remember to apply any `constrained_by`
+            floor raise in the same commit.
 
             **(b) Inline Dockerfile mitigation that mirrors an exact precedent
             commit.** You must cite the precedent SHA in your PR body. The
