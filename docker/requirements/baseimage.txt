@@ -17,8 +17,8 @@ google-cloud-storage>=2.14.0
 # bioconda noarch package has an overly restrictive python<3.12 constraint
 
 # Python libraries pinned to address vulnerabilities in transitive dependencies
-cryptography>=46.0.5
-pyopenssl>=26.0.0
+cryptography>=50.0.0
+pyopenssl>=26.4.0
 pyasn1>=0.6.3
 tornado>=6.5.4
 urllib3>=2.7.0
