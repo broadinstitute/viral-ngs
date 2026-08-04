@@ -37,10 +37,20 @@ COPY docker/install-conda-deps.sh /tmp/
 #     deserialization bypass via ERB#def_module); remove default gem and install >=6.0.4
 #   - Ruby net-imap gem: same chain (mummer4 → yaggo → ruby), CVE-2026-42246 (STARTTLS
 #     stripping via invalid response timing); remove default gem and install >=0.6.4
+#   - pip in the isolated FreeBayes env: pip's own `_vendor/vendor.txt` records
+#     `setuptools==70.3.0`, and Trivy reads that manifest as an installed package, so it
+#     reports CVE-2025-47273 against the whole assemble/mega tier. Nothing is actually
+#     installed at that version (the env's real setuptools is 83.0.0) and the vulnerable
+#     code path — setuptools' PackageIndex download/extract — is not part of what pip
+#     vendors. The env exists only to provide the freebayes binary, so pip is dead weight;
+#     removing it deletes the manifest and the finding with it.
 RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements/core.txt /tmp/requirements/assemble.txt \
     --x86-only:/tmp/requirements/assemble-x86.txt && \
     micromamba create -y -p /opt/freebayes --file /tmp/requirements/freebayes.txt && \
     ln -s /opt/freebayes/bin/freebayes /usr/local/bin/freebayes && \
+    rm -rf /opt/freebayes/lib/python3.12/site-packages/pip \
+           /opt/freebayes/lib/python3.12/site-packages/pip-*.dist-info \
+           /opt/freebayes/bin/pip* && \
     micromamba clean -y --all && \
     rm -rf /opt/conda/pkgs/* && \
     rm -f /opt/conda/libexec/mafft/dash_client && \
