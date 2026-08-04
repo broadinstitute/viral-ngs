@@ -112,3 +112,47 @@ CVE-2026-54512
 # REVIEW: Remove once snpeff on conda-forge bundles jackson-databind>=2.18.8
 # -----------------------------------------------------------------------------
 CVE-2026-54513
+
+# -----------------------------------------------------------------------------
+# CVE-2025-47273 — setuptools path traversal in PackageIndex
+# Severity: HIGH (CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H, 8.8 per NVD)
+# Package: setuptools 70.3.0 — reported, but NOT installed at that version
+# Location: opt/conda/lib/python3.12/site-packages/pip/_vendor/bom.cdx.json
+#
+# JUSTIFICATION:
+#   This finding does not come from an installed package. pip 26.2 ships a
+#   CycloneDX SBOM of its vendored dependencies at pip/_vendor/bom.cdx.json,
+#   which declares "setuptools 70.3.0". Trivy's SBOM analyzer reads that
+#   manifest and synthesizes a package entry from it — the record carries
+#   "AnalyzedBy": "sbom" and no FilePath, and no .dist-info or .egg-info for
+#   setuptools 70.3.0 exists anywhere in any image layer (verified by
+#   extracting and grepping every METADATA/PKG-INFO in the affected layers).
+#
+#   The vulnerable code path is setuptools/package_index.py (PackageIndex,
+#   which fetches and extracts sdists from an index). pip vendors only
+#   pkg_resources — a subset of the setuptools distribution — and does not
+#   vendor package_index.py at all. Confirmed in the built image: pip/_vendor
+#   contains pkg_resources/ but no setuptools/ package and no package_index*
+#   file, so the vulnerable module is absent from the image.
+#
+#   The setuptools that IS installed in the conda env is 82.0.1, well above
+#   the 78.1.1 fix version, and is reported separately and correctly by Trivy.
+#
+#   Why an ignore entry rather than deleting the SBOM: pip's SBOM is accurate
+#   supply-chain metadata that also covers its other vendored packages
+#   (urllib3, requests, certifi, idna, ...). Deleting it to silence one
+#   mis-mapped CVE would blind the scanner to real future findings in that
+#   vendored tree, which is a worse trade than one documented exception.
+#
+#   Trivy matches .trivyignore by CVE ID globally, so this entry would also
+#   suppress a genuine setuptools <78.1.1 install. We accept that because the
+#   conda floor is pinned at setuptools>=80.10.1 in
+#   docker/requirements/baseimage.txt; if that floor is ever lowered below
+#   78.1.1, re-evaluate this entry.
+#
+# RESOLUTION: Upstream pip must vendor pkg_resources from setuptools>=78.1.1,
+#   or stop declaring the full setuptools distribution in its vendored SBOM.
+# ADDED: 2026-08-04
+# REVIEW: Remove once pip's bundled bom.cdx.json declares setuptools>=78.1.1
+# -----------------------------------------------------------------------------
+CVE-2025-47273
