@@ -40,6 +40,12 @@ output path must end in exact lowercase ``.bam``. A successful command writes
 nothing to stdout. ``--tmp_dir`` selects the base for command-managed SQLite
 scratch state.
 
+The sample identifier must be a non-empty, printable, UTF-8-encodable
+string with no leading or trailing whitespace; whitespace-only values are
+rejected. An invalid identifier is rejected before any artifact is
+published. A valid identifier is emitted unchanged into the ``SAMPLE_ID``
+column of both the normalized and summary tables.
+
 Native score input
 ------------------
 
