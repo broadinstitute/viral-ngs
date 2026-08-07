@@ -1345,7 +1345,10 @@ jobs:
               -n auto
 
       - name: Run Lyra production-scale gate
-        if: needs.paths-filter.outputs.lyra == 'true'
+        if: |
+          needs.paths-filter.outputs.lyra == 'true' ||
+          needs.paths-filter.outputs.core == 'true' ||
+          needs.paths-filter.outputs.docker == 'true'
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
