@@ -20,13 +20,15 @@ LABEL org.opencontainers.image.source="https://github.com/broadinstitute/viral-n
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 # Copy requirements and dependency installation script
-COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt docker/requirements/assemble-x86.txt docker/requirements/classify.txt docker/requirements/classify-x86.txt docker/requirements/phylo.txt docker/requirements/phylo-x86.txt /tmp/requirements/
+COPY docker/requirements/baseimage.txt docker/requirements/core.txt docker/requirements/assemble.txt docker/requirements/assemble-x86.txt docker/requirements/freebayes.txt docker/requirements/classify.txt docker/requirements/classify-x86.txt docker/requirements/phylo.txt docker/requirements/phylo-x86.txt /tmp/requirements/
 COPY docker/install-conda-deps.sh /tmp/
 
-# Install ALL conda dependencies in single resolver call for proper dependency resolution
-# All files resolved together; x86-only files skipped on ARM
+# Install main-environment conda dependencies in one resolver call; x86-only files
+# are skipped on ARM. FreeBayes is isolated because its ARM64 libdeflate constraint
+# conflicts with Pillow 12.3.
 # Post-install fixups (inline so vulnerable files never appear in a committed layer):
 #   - mafft's dash_client: Go 1.22.1 binary with Go stdlib CVEs; we never use --dash mode
+#   - snpEff config: remove a deprecated, commented Azure SAS token
 #   - Ruby json gem: mummer4 → yaggo → Ruby, whose bundled json gem has CVE-2026-33210;
 #     remove the old default gem and install patched version (>=2.19.2)
 #   - Ruby erb gem: same chain (mummer4 → yaggo → ruby), CVE-2026-41316 (Marshal
@@ -37,7 +39,12 @@ RUN /tmp/install-conda-deps.sh /tmp/requirements/baseimage.txt /tmp/requirements
     --x86-only:/tmp/requirements/assemble-x86.txt \
     --x86-only:/tmp/requirements/classify-x86.txt \
     --x86-only:/tmp/requirements/phylo-x86.txt && \
+    micromamba create -y -p /opt/freebayes --file /tmp/requirements/freebayes.txt && \
+    ln -s /opt/freebayes/bin/freebayes /usr/local/bin/freebayes && \
+    micromamba clean -y --all && \
+    rm -rf /opt/conda/pkgs/* && \
     rm -f /opt/conda/libexec/mafft/dash_client && \
+    sed -i '/^#database\.repositoryKey = /d' /opt/conda/share/snpeff-*/snpEff.config && \
     find /opt/conda/lib/ruby -maxdepth 3 -name 'json*' -not -path '*/psych/*' -exec rm -rf {} + && \
     rm -f /opt/conda/lib/ruby/gems/*/specifications/default/json-*.gemspec && \
     gem install json --version '>=2.19.2' --no-document && \
@@ -68,7 +75,8 @@ RUN python -c "from viral_ngs import read_utils, illumina; print('Core command m
     python -c "from viral_ngs.core import samtools, picard, bwa; print('Core tools OK')" && \
     python -c "from viral_ngs.assemble import spades, mummer, mafft; print('Assemble tools OK')" && \
     python -c "from viral_ngs.classify import kraken2, blast, bmtagger; print('Classify tools OK')" && \
-    python -c "from viral_ngs.phylo import mafft, muscle, snpeff; print('Phylo tools OK')"
+    python -c "from viral_ngs.phylo import mafft, muscle, snpeff; print('Phylo tools OK')" && \
+    freebayes --version
 
 # Clean up
 RUN rm -rf /tmp/requirements /tmp/install-conda-deps.sh

@@ -69,8 +69,12 @@ jobs:
         # commits). This SHA is the vetted v0.36.0 release per broadinstitute/py3-bio#12;
         # do NOT blindly bump to whatever the upstream v0.36.0 tag currently points to —
         # the tag has been moved since. Verify any new SHA against multiple sources.
+        # `version:` pins the Trivy scanner binary itself (independent of the action
+        # wrapper's SHA above) so it doesn't silently drift if the action's own
+        # default changes; bump explicitly rather than relying on the wrapper default.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
+          version: 'v0.72.0'
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'sarif'
           output: 'trivy-results.sarif'
@@ -78,7 +82,7 @@ jobs:
           limit-severities-for-sarif: true
           exit-code: '0'
           ignore-unfixed: true
-          trivyignores: '.trivyignore'
+          trivyignores: '.trivyignore.yaml'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
           timeout: '20m0s'  # Increase timeout for large images
@@ -86,13 +90,14 @@ jobs:
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
         with:
+          version: 'v0.72.0'
           image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
           format: 'json'
           output: 'trivy-results.json'
           severity: 'CRITICAL,HIGH,MEDIUM'  # Include MEDIUM for debugging context
           exit-code: '0'   # don't fail here — Claude pipeline + final-step gate handles signaling
           ignore-unfixed: false  # Include non-fixable CVEs for comprehensive debugging/analysis
-          trivyignores: '.trivyignore'
+          trivyignores: '.trivyignore.yaml'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning handled by docker.yml scan-secrets job
           timeout: '20m0s'  # Increase timeout for large images
@@ -189,6 +194,27 @@ jobs:
           echo "cve_ids=$new_list" >> "$GITHUB_OUTPUT"
           echo "test_mode=false" >> "$GITHUB_OUTPUT"
 
+      # Answer "is the fix version actually installable?" deterministically, before
+      # Claude runs. Claude has web access below and could look this up itself, but doing
+      # it here makes the answer identical run-to-run, costs the agent no turns, and
+      # archives it as an artifact for audit.
+      - name: Probe conda channel availability for fix versions
+        if: steps.triage.outputs.cve_ids != ''
+        env:
+          CVE_IDS: ${{ steps.triage.outputs.cve_ids }}
+        run: |
+          set -uo pipefail
+          # Fail soft: a broken probe should be loudly visible but must not stop CVE
+          # issues from being filed. The prompt tells Claude to fall back to its own
+          # lookups when the file is missing or incomplete.
+          if ! python3 .github/scripts/probe-conda-availability.py \
+              --trivy-json trivy-results.json \
+              --cve-ids "$CVE_IDS" \
+              --requirements-dir docker/requirements \
+              --out .cve-fix-context/conda-availability.json; then
+            echo "::error::conda availability probe failed — triage will proceed without it"
+          fi
+
       - name: Authenticate to GCP via Workload Identity Federation
         if: steps.triage.outputs.cve_ids != ''
         uses: google-github-actions/auth@v3
@@ -208,9 +234,14 @@ jobs:
 
       - name: Claude analysis on Vertex AI
         if: steps.triage.outputs.cve_ids != ''
-        # Pinned to commit SHA (== v1 as of 2026-04-27) for supply-chain safety;
-        # bump this SHA when picking up new claude-code-action releases.
-        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
+        # Pinned to commit SHA (== v1.0.179 as of 2026-07-21) for supply-chain
+        # safety; bump this SHA when picking up new claude-code-action releases.
+        # Bumped from 567fe954 (v1, 2026-04-27 / agent-SDK ^0.2.119) because that
+        # pin predates Claude Sonnet 5 support: its SDK still emitted the legacy
+        # `thinking.type.enabled` request shape, which Vertex rejects with HTTP 400
+        # for Sonnet 5 ("Use thinking.type.adaptive and output_config.effort").
+        # v1.0.179 ships agent-SDK ^0.3.216, which speaks the adaptive-thinking API.
+        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
@@ -219,12 +250,28 @@ jobs:
           use_vertex: 'true'
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: '--model claude-sonnet-5 --max-turns 30'
+          # WebSearch + WebFetch are allowed here: this agent has no Edit permission, its
+          # only output is .md files that a later step files as issues for humans to read,
+          # and it cannot push. Being able to read the actual GHSA/NVD advisory is what
+          # keeps reports from hedging on facts it could simply look up.
           settings: |
             {
               "permissions": {
                 "allow": [
                   "Read",
                   "Write",
+                  "WebSearch",
+                  "WebFetch(domain:github.com)",
+                  "WebFetch(domain:raw.githubusercontent.com)",
+                  "WebFetch(domain:api.anaconda.org)",
+                  "WebFetch(domain:anaconda.org)",
+                  "WebFetch(domain:nvd.nist.gov)",
+                  "WebFetch(domain:avd.aquasec.com)",
+                  "WebFetch(domain:cve.org)",
+                  "WebFetch(domain:www.cve.org)",
+                  "WebFetch(domain:pypi.org)",
+                  "WebFetch(domain:bioconda.github.io)",
+                  "WebFetch(domain:conda-forge.org)",
                   "Bash(mkdir:*)",
                   "Bash(git log:*)",
                   "Bash(git show:*)",
@@ -275,20 +322,37 @@ jobs:
                own knowledge if the CVE is present in the JSON. If the CVE is NOT in the
                JSON (test mode, or scan-target divergence), explicitly say so in the report
                and use your training knowledge as a clearly-labeled fallback.
-            2. `.agents/skills/container-vulns/SKILL.md` — read fully. This is the repo's
+            2. `.cve-fix-context/conda-availability.json` — **the authoritative answer to
+               "is the fix version installable?"** Pre-computed against the conda-forge and
+               bioconda APIs before you started. Read its `summary` array first, then the
+               per-package detail. It tells you, per affected package: whether the fixed
+               version exists on a conda channel, whether it is built for BOTH `linux-64`
+               and `linux-aarch64` (or is `noarch`), whether the finding is even the shape
+               a requirements pin can fix (`fix_shape`: an Ubuntu `os-package` or a
+               `bundled-jar` is not), and which other pinned packages carry a constraint
+               that would exclude the fix version (`constrained_by` — e.g. `pyopenssl`
+               capping `cryptography`). Cite it rather than hedging about availability. If
+               a package appears in `probe_errors`, or the file is absent entirely (the
+               probe failed — the workflow logs an error), say so explicitly and use your
+               web tools to check it yourself.
+            3. `.agents/skills/container-vulns/SKILL.md` — read fully. This is the repo's
                container-vulnerability playbook and tells you what the maintainers consider
                actionable vs. accepted risk.
-            3. `.trivyignore` — existing per-CVE exceptions with their justifications. Mirror
-               the writing style and depth of justification when you recommend `.trivyignore`
-               additions.
-            4. `.trivy-ignore-policy.rego` — Rego policy for class-level CVE filtering.
+            4. `.trivyignore.yaml` — existing per-CVE exceptions with their justifications.
+               Mirror the writing style and depth of justification when you recommend
+               additions. Note the format is YAML: every entry is SCOPED, either by
+               `paths` (glob, for findings that have a PkgPath) or by `purls` (package
+               identity + version, for findings that don't — e.g. anything Trivy derives
+               from an embedded SBOM). An un-scoped entry suppresses the CVE image-wide
+               and is not acceptable.
+            5. `.trivy-ignore-policy.rego` — Rego policy for class-level CVE filtering.
                Understand what it filters and why.
-            5. `docker/Dockerfile.*` — container build files showing dep installs and inline
+            6. `docker/Dockerfile.*` — container build files showing dep installs and inline
                mitigations. Look for prior fixups (`find ... -exec rm`, `gem install`, etc.)
                applied to similar packages.
-            6. `docker/requirements/*.txt` — conda dependency lists. Use `grep` to find
+            7. `docker/requirements/*.txt` — conda dependency lists. Use `grep` to find
                which file pulls in the affected package.
-            7. Recent git history — full history is available (the workflow checks out
+            8. Recent git history — full history is available (the workflow checks out
                with `fetch-depth: 0`). Use:
                  - `git log --all --oneline --grep <package>` to find prior commits
                    touching the affected package
@@ -320,7 +384,8 @@ jobs:
             5. **Recommended fix** — concrete and actionable. Options:
                 - Version bump (which file, which floor)
                 - Inline Dockerfile mitigation (which Dockerfile, what RUN-block addition)
-                - `.trivyignore` entry (with justification matching the existing style)
+                - `.trivyignore.yaml` entry (scoped by `paths` or `purls`, with
+                  justification matching the existing style)
                Cite historical precedent when applicable: `(mirror the fix in commit <sha>)`.
             6. **Practical exploitability** — in this deployment model (ephemeral batch
                containers, no network-facing services, no untrusted user input at runtime),
@@ -405,6 +470,15 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: true
 
+      - name: Upload conda availability probe as artifact
+        if: steps.triage.outputs.cve_ids != '' && always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: conda-availability-scan
+          path: .cve-fix-context/conda-availability.json
+          if-no-files-found: warn
+          include-hidden-files: true
+
       - name: Summarize CVE discovery
         # Notice-level only — we do NOT exit 1 here. New CVE discovery is the
         # expected outcome of a useful scan, not a workflow failure: notifications
@@ -433,7 +507,8 @@ jobs:
   # Confidence bar (enforced in the prompt):
   #   - version-floor bumps in docker/requirements/*.txt
   #   - inline Dockerfile mitigations that mirror an exact precedent commit
-  #   - .trivyignore entries with justifications that mirror existing entries
+  #   - .trivyignore.yaml entries, scoped by paths/purls, with justifications
+  #     that mirror existing entries
   # Anything ambiguous, novel, or partial → skip the entire PR.
   # ============================================================================
   cve-fix-pr:
@@ -471,11 +546,10 @@ jobs:
       #   AUTOFIX_APP_ID          — numeric App ID
       #   AUTOFIX_APP_PRIVATE_KEY — full .pem contents (BEGIN/END lines included)
       #
-      # This step runs BEFORE checkout so the App token can be passed to
-      # actions/checkout via `token:`, which persists it in the local git
-      # config for the subsequent `git push`. (Without that, git push would
-      # silently fall back to the cached default GITHUB_TOKEN, defeating the
-      # whole point of using the App.)
+      # NOTE: the token is deliberately NOT persisted into .git/config by the
+      # checkout below — see the `persist-credentials: false` comment there. The
+      # authenticated push remote is configured in "Open auto-fix PR" instead,
+      # after the Claude step has finished running.
       - name: Mint GitHub App installation token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
@@ -499,9 +573,14 @@ jobs:
           # CVE-fix commits — required to satisfy the moderate confidence bar
           # (mirror an exact precedent or skip).
           fetch-depth: 0
-          # Persist the App token in .git/config so `git push` later in the
-          # job authenticates as the App, not the default GITHUB_TOKEN.
           token: ${{ steps.app-token.outputs.token }}
+          # Do NOT write the App installation token into .git/config. The Claude
+          # step below can Read any file in the workspace and has WebFetch, so an
+          # on-disk token (contents:write + pull-requests:write, 1h lifetime)
+          # would be both readable and exfiltratable via a crafted URL. The
+          # "Open auto-fix PR" step sets an authenticated push remote instead,
+          # after the agent has finished.
+          persist-credentials: false
 
       - name: Configure git author
         run: |
@@ -521,10 +600,27 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .cve-fix-context
+          # Include issue comments so maintainers can steer the bot by commenting on the
+          # issue (e.g. "also raise the pyopenssl floor"). viral-ngs is a PUBLIC repo, so
+          # anyone can comment — filter to maintainers HERE, not in the prompt. An
+          # unfiltered comments array is a direct untrusted-instruction channel into an
+          # agent that edits files and opens PRs; a prompt instruction is not a control.
+          # `// []` guards against a null/absent comments field (gh returns [] today, but
+          # `.comments[]` on null would abort this step under `set -e`).
           gh issue list --repo "$GITHUB_REPOSITORY" \
             --label cve --state open \
-            --json number,title,body,labels --limit 100 \
+            --json number,title,body,labels,comments --limit 100 \
+          | jq '[ .[]
+                  | .comments = [ (.comments // [])[]
+                      | select(.authorAssociation == "OWNER"
+                               or .authorAssociation == "MEMBER"
+                               or .authorAssociation == "COLLABORATOR")
+                      | {author: .author.login, authorAssociation, createdAt, body} ] ]' \
             > .cve-fix-context/open-issues.json
+          # Log what the filter kept vs dropped. Maintainer comments now steer the fix, so
+          # silently losing them would be worse than the crash the guard above prevents.
+          kept=$(jq '[.[].comments | length] | add // 0' .cve-fix-context/open-issues.json)
+          echo "::notice::Retained $kept maintainer comment(s) across open cve issues"
           gh pr list --repo "$GITHUB_REPOSITORY" \
             --label cve-fix --state open \
             --json number,title,headRefName,body --limit 50 \
@@ -538,6 +634,26 @@ jobs:
         run: |
           echo "::notice::No open cve issues — nothing for the auto-fix pipeline to do."
 
+      # Pre-compute conda channel/arch availability for every CVE under consideration.
+      # Before this existed the agent had no way to check it and skipped every
+      # version-floor bump as unverifiable — see the SKIPPED.md decision logs from runs
+      # 29883237168 and 30898278357.
+      - name: Probe conda channel availability for fix versions
+        if: steps.context.outputs.issue_count != '0'
+        run: |
+          set -uo pipefail
+          cve_ids=$(jq -r '[.[].title | scan("CVE-[0-9]{4}-[0-9]+")] | unique | join(" ")' \
+            .cve-fix-context/open-issues.json)
+          echo "::notice::Probing conda availability for: ${cve_ids:-<none>}"
+          # Fail soft, loudly — see the matching step in the scan job.
+          if ! python3 .github/scripts/probe-conda-availability.py \
+              --trivy-json trivy-results.json \
+              --cve-ids "$cve_ids" \
+              --requirements-dir docker/requirements \
+              --out .cve-fix-context/conda-availability.json; then
+            echo "::error::conda availability probe failed — the assessment will proceed without it"
+          fi
+
       - name: Authenticate to GCP via Workload Identity Federation
         if: steps.context.outputs.issue_count != '0'
         uses: google-github-actions/auth@v3
@@ -549,7 +665,7 @@ jobs:
         if: steps.context.outputs.issue_count != '0'
         # Pinned to the same commit SHA as the scan job's Claude step. When
         # bumping, bump both call sites together so they stay aligned.
-        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434  # v1
+        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
@@ -557,7 +673,15 @@ jobs:
         with:
           use_vertex: 'true'
           github_token: ${{ steps.app-token.outputs.token }}
-          claude_args: '--model claude-sonnet-5 --max-turns 30'
+          # 40 turns, not 30: web lookups cost turns, and an agent that exhausts its
+          # budget writes neither PROCEED.md nor SKIPPED.md, which hard-fails the
+          # "Validate Claude output" step below.
+          claude_args: '--model claude-sonnet-5 --max-turns 40'
+          # Domain-scoped WebFetch only — no WebSearch. Unlike the triage agent, this one
+          # has Edit and its output is committed and pushed, so the one channel whose
+          # content an attacker can steer (search results) stays closed. Its actual
+          # questions are already answered by conda-availability.json, trivy-results.json
+          # and git history; WebFetch covers the advisory lookups those don't.
           settings: |
             {
               "permissions": {
@@ -565,6 +689,13 @@ jobs:
                   "Read",
                   "Write",
                   "Edit",
+                  "WebFetch(domain:github.com)",
+                  "WebFetch(domain:raw.githubusercontent.com)",
+                  "WebFetch(domain:api.anaconda.org)",
+                  "WebFetch(domain:anaconda.org)",
+                  "WebFetch(domain:nvd.nist.gov)",
+                  "WebFetch(domain:avd.aquasec.com)",
+                  "WebFetch(domain:pypi.org)",
                   "Bash(mkdir:*)",
                   "Bash(git log:*)",
                   "Bash(git show:*)",
@@ -603,14 +734,46 @@ jobs:
             ## Inputs
 
             1. `.cve-fix-context/open-issues.json` — every open issue with the
-               `cve` label. Each entry has `number`, `title`, `body`, `labels`.
-               The `body` contains the original triage report (CVSS, dependency
-               chain, recommended fix, etc.).
+               `cve` label. Each entry has `number`, `title`, `body`, `labels`,
+               `comments`. The `body` contains the original triage report (CVSS,
+               dependency chain, recommended fix, etc.).
             2. `.cve-fix-context/open-fix-prs.json` — every open PR with the
                `cve-fix` label (prior auto-fix runs whose PRs haven't merged yet).
             3. `trivy-results.json` — the most recent scan output containing ALL
                vulnerabilities (CRITICAL/HIGH/MEDIUM, fixable and non-fixable). Use `jq`
                to cross-reference CVSS data or confirm a CVE is still flagged.
+            4. `.cve-fix-context/conda-availability.json` — **the authoritative
+               answer to "is this fix version installable?"**, pre-computed
+               against the conda-forge and bioconda APIs before you started.
+               Read its `summary` array first, then the per-package detail:
+                 - `channels.*.recommended_floor` / `arch_ok` — the lowest fixed
+                   version built for BOTH `linux-64` and `linux-aarch64` (or
+                   `noarch`). This is the floor to pin.
+                 - `fix_shape` — whether a requirements pin can fix this finding
+                   at all. `os-package` (Ubuntu/apt) and `bundled-jar` cannot.
+                 - `constrained_by` — other packages pinned in
+                   `docker/requirements/*.txt` whose own dependency constraints
+                   would exclude the fix version. Where `floor_needs_raise` is
+                   true you MUST raise that package's floor to
+                   `min_version_allowing_target` in the same commit, or the
+                   environment will not solve.
+                 - `probe_errors` — anything the probe could not check. Only
+                   these are genuinely unverified; use WebFetch on
+                   `api.anaconda.org` to check them yourself.
+               If this file is absent entirely the probe failed (the workflow logs
+               an error): fall back to WebFetch on
+               `https://api.anaconda.org/package/conda-forge/<pkg>` and say in the
+               PR body that you verified availability yourself.
+
+            ## Maintainer guidance in issue comments
+
+            The `comments` array on each issue has already been filtered to repo
+            maintainers (OWNER / MEMBER / COLLABORATOR). Those comments are
+            **authoritative and outrank the issue body** — the body was generated
+            by an earlier automated triage pass, the comments are human review.
+            If a maintainer comment specifies, amends or narrows the fix,
+            implement it as specified and cite the comment in the per-CVE
+            rationale of your PR body.
 
             ## Required reading
 
@@ -619,9 +782,14 @@ jobs:
             1. `.agents/skills/container-vulns/SKILL.md` — read fully. This is
                the repo's playbook. The maintainers' definition of "actionable
                vs. accepted risk" lives here.
-            2. `.trivyignore` — existing per-CVE exceptions with their
-               justifications. Any `.trivyignore` entry you add MUST mirror the
-               writing style and depth of justification of existing entries.
+            2. `.trivyignore.yaml` — existing per-CVE exceptions with their
+               justifications. Any entry you add MUST mirror the writing style
+               and depth of justification of existing entries, and MUST be
+               scoped: `paths` (glob) when the finding has a PkgPath, `purls`
+               (package + version) when it does not — SBOM-derived findings
+               ("AnalyzedBy": "sbom") have no path, so `paths` cannot match them.
+               A bare `id:` with no scoping suppresses the CVE image-wide and is
+               not acceptable.
             3. `.trivy-ignore-policy.rego` — Rego policy for class-level CVE
                filtering. Don't ever modify this file.
             4. `docker/Dockerfile.*` — container build files. Look for prior
@@ -646,30 +814,58 @@ jobs:
             **(a) Version-floor bump in `docker/requirements/*.txt`.** Direct
             edit to a requirements file pinning the affected package to a
             patched minimum. Verify the fix version against `trivy-results.json`
-            (the `FixedVersion` field) and ensure the package is available on
-            conda-forge (it often lags PyPI — flag this if unsure).
+            (the `FixedVersion` field) and its installability against
+            `conda-availability.json`. Where that file reports `arch_ok` with a
+            `recommended_floor`, availability is **VERIFIED** — do not treat it
+            as an open question, and do not skip on the grounds that you cannot
+            reach the network yourself. Availability is unverified only when the
+            probe reports `name_lookup: not_found`, `name_lookup: probe_failed`
+            (the lookup itself errored — nothing was checked), or lists the
+            package in `probe_errors`. Remember to apply any `constrained_by`
+            floor raise in the same commit.
 
             **(b) Inline Dockerfile mitigation that mirrors an exact precedent
             commit.** You must cite the precedent SHA in your PR body. The
             mitigation pattern (the RUN-block additions) must match the
             precedent pattern; do not invent new mitigation shapes.
 
-            **(c) `.trivyignore` entry whose justification mirrors an existing
-            entry's wording and rationale.** Acceptable when (i) the CVE is
+            **(c) `.trivyignore.yaml` entry, correctly scoped, whose justification
+            mirrors an existing entry's wording and rationale.** Acceptable when (i) the CVE is
             architecturally unreachable in our deployment model and (ii) at
-            least one existing `.trivyignore` entry already accepts a CVE for
-            the same class of reason. Cite the existing entry as precedent.
+            least one existing entry already accepts a CVE for the same class of
+            reason. Cite the existing entry as precedent, and state which scoping
+            key you used and why.
 
             **If ANY open CVE issue requires:**
             - a novel mitigation pattern with no precedent,
-            - a `.trivyignore` justification not mirrored by existing entries,
-            - an ARM64 solver-conflict workaround,
+            - a `.trivyignore.yaml` justification not mirrored by existing entries,
+              or one you cannot scope to what you actually assessed,
+            - a workaround for a *known* ARM64 solver conflict (pinning around
+              the icu / openjdk / htslib / libdeflate chains described in the
+              skill's ARM64 section),
             - a Java fat-JAR version bump,
             - any judgment call where you're uncertain,
 
             **→ then SKIP the entire PR.** Partial PRs are not allowed: it is
             all-of-them-cleanly or none. The SKIPPED.md log will tell humans
             exactly what needs their attention.
+
+            ## What CI verifies for you — do NOT skip for these reasons
+
+            The PR you open is built and tested by `docker.yml` before any human
+            can merge it: all six image tiers (baseimage, core, assemble,
+            classify, phylo, mega) are built for **both `linux/amd64` and native
+            `linux/arm64`** (`ubuntu-24.04-arm` runners), and each is re-scanned
+            by Trivy with the CI gate enabled. A conda solver conflict introduced
+            by a version-floor bump therefore turns into a red required check on
+            an unmerged PR — it cannot reach `main`.
+
+            So: unproven-but-plausible solvability is **not** grounds for SKIP.
+            Do not pre-verify what CI verifies. **Reserve SKIP for cases where
+            you cannot determine _what_ the fix should be — not cases where you
+            cannot prove the fix works.** The cost of a wrong guess here is one
+            red check that a human reads; the cost of a reflexive skip is that
+            nothing ever gets fixed automatically.
 
             ## Dedup against in-flight auto-fix PRs
 
@@ -704,6 +900,10 @@ jobs:
             - **Fix:** <one-line description: e.g. "pin urllib3>=2.7.0 in baseimage.txt">
             - **Precedent:** <commit SHA + one-line description, verified with git show>
             - **Confidence:** <one of: version-bump | dockerfile-precedent | trivyignore-precedent>
+            - **Availability:** <from conda-availability.json: channel, version, subdirs —
+              e.g. "conda-forge 50.0.0, linux-64 + linux-aarch64 (py312)">
+            - **Coupled bumps:** <any `constrained_by` floor raises applied, or "none">
+            - **Maintainer guidance:** <cite any maintainer comment you followed, or "none">
 
             <repeat per CVE>
 
@@ -740,7 +940,7 @@ jobs:
             - **Fix that would be required:** <description>
             - **Why this didn't meet the bar:** <specific category: e.g. "no
               precedent for inline mitigation of this shape" / "would need
-              novel .trivyignore justification" / "ARM64 conflict risk on
+              novel .trivyignore.yaml justification" / "ARM64 conflict risk on
               version bump" / "in-flight PR #<N> already addresses this">
 
             <repeat per CVE>
@@ -767,8 +967,12 @@ jobs:
               `.cve-fix-context/`.
             - Verify every commit SHA you cite with `git show <sha>`.
             - Verify every `FixedVersion` you cite against `trivy-results.json`.
-            - When uncertain, choose SKIP. The cost of a skip is a small
-              artifact upload; the cost of a bad PR is reviewer trust.
+            - Your edits must stay within `docker/requirements/*.txt`,
+              `docker/Dockerfile.*` and `.trivyignore.yaml`. This is enforced by the
+              workflow, which aborts if the staged diff touches anything else.
+            - When uncertain about *what the fix is*, choose SKIP. Do NOT skip
+              merely because you could not prove a fix works — see "What CI
+              verifies for you" above.
             - If you finish with budget remaining, do NOT pad — stop.
 
       - name: Validate Claude output and decide next step
@@ -821,6 +1025,18 @@ jobs:
           # pathspec matches a gitignored path, which kills this step under `set -e`.
           # trivy-results.json is NOT gitignored, so it still needs the explicit exclude.
           git add -A -- ':!trivy-results.json'
+          # Enforce the change surface. The prompt asks the agent to stay out of
+          # .github/workflows/ etc., but `git add -A` would commit whatever it wrote —
+          # a prompt instruction is a request, not a control. Anything outside the
+          # requirements files, the Dockerfiles and .trivyignore.yaml is a hard stop.
+          disallowed=$(git diff --cached --name-only \
+            | grep -vE '^(docker/requirements/[A-Za-z0-9_.-]+\.txt|docker/Dockerfile\.[A-Za-z0-9_.-]+|\.trivyignore\.yaml)$' \
+            || true)
+          if [ -n "$disallowed" ]; then
+            echo "::error::Auto-fix diff touches files outside the allowed change surface — refusing to open a PR"
+            echo "$disallowed" | sed 's/^/  /'
+            exit 1
+          fi
           # Scan staged diff for secrets before committing (defence-in-depth).
           # gitleaks is installed by the "Install gitleaks" step above (it is NOT
           # pre-installed on GitHub-hosted ubuntu-latest runners).
@@ -830,6 +1046,12 @@ jobs:
             exit 1
           fi
           git commit -m "Auto-fix: address open CVE issues (run ${GITHUB_RUN_ID})"
+          # Checkout ran with persist-credentials:false so the App token was never on
+          # disk while the agent ran. Attach it now, after the agent is done, so the
+          # push is authored by the App (which is what makes downstream required checks
+          # fire on the PR — the default GITHUB_TOKEN would not trigger them).
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push -u origin "$branch"
           gh pr create \
             --repo "$GITHUB_REPOSITORY" \
@@ -838,6 +1060,15 @@ jobs:
             --title "Auto-fix: address open CVE issues ($(date -u +%Y-%m-%d))" \
             --body-file .claude-fix-pr/PROCEED.md \
             --label cve-fix --label security
+
+      - name: Upload conda availability probe as artifact
+        if: always() && steps.context.outputs.issue_count != '0'
+        uses: actions/upload-artifact@v6
+        with:
+          name: conda-availability-fix
+          path: .cve-fix-context/conda-availability.json
+          if-no-files-found: warn
+          include-hidden-files: true
 
       - name: Upload decision log (skip case)
         if: always() && steps.decide.outputs.decision == 'skip'
