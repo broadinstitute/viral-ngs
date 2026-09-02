@@ -1123,6 +1123,202 @@ def parser_rmdup_bbnorm_bam(parser=argparse.ArgumentParser()):
 __commands__.append(('rmdup_bbnorm_bam', parser_rmdup_bbnorm_bam))
 
 
+def rmdup_clumpify_bam(inBam, outBam,
+                       subs=None, containment=False, optical=False, dupedist=None,
+                       memory=None, threads=None,
+                       min_input_reads=None, max_output_reads=None):
+    """
+    Remove duplicate reads from a BAM file using BBTools' clumpify.
+
+    Deduplication is performed per library: read groups are grouped by their
+    @RG LB: tag and clumpify is run once per library. This matters -- two reads
+    with identical sequence from different libraries are independent
+    observations of the molecule, not duplicates of each other, and collapsing
+    them across libraries discards real evidence.
+
+    Surviving read IDs are accumulated into a single ReadIdStore and used to
+    filter the *original* BAM, so the full header and every per-read tag are
+    preserved byte-for-byte rather than being rebuilt from FASTQ.
+
+    Args:
+        inBam: Input BAM file
+        outBam: Output BAM file
+        subs: Max substitutions allowed between duplicates (clumpify default: 2)
+        containment: Also treat a shorter sequence contained in a longer one as
+                     a duplicate (clumpify default: off)
+        optical: Restrict removal to optical duplicates only (requires
+                 Illumina-style read names carrying flowcell coordinates)
+        dupedist: Max flowcell distance for optical duplicates; only meaningful
+                  with optical
+        memory: Java memory for clumpify (e.g., "4g")
+        threads: Number of threads for clumpify
+        min_input_reads: Skip processing if input has fewer reads (copy input to output)
+        max_output_reads: Randomly downsample keep-list if larger than this
+    """
+    samtools_tool = samtools.SamtoolsTool()
+
+    # Count input reads
+    input_read_count = samtools_tool.count(inBam)
+    log.info("Input BAM has %d reads", input_read_count)
+
+    # Skip processing if empty or below min_input_reads threshold
+    min_threshold = min_input_reads if min_input_reads is not None else 1
+    if input_read_count < min_threshold:
+        if min_input_reads is not None:
+            log.info("Input read count %d below min_input_reads %d, copying input to output",
+                     input_read_count, min_input_reads)
+        else:
+            log.info("Input BAM is empty, copying to output")
+        shutil.copyfile(inBam, outBam)
+        return 0
+
+    with util_file.tmp_dir(suffix='_clumpify') as tmpdir:
+        # Convert BAM -> FASTQ pairs per read group, then group read groups by library
+        rg_dir = os.path.join(tmpdir, 'per_rg')
+        os.mkdir(rg_dir)
+        picard.SamToFastqTool().per_read_group(inBam, rg_dir,
+                                               picardOptions=['VALIDATION_STRINGENCY=LENIENT'])
+        read_groups = [x[1:] for x in samtools_tool.getHeader(inBam) if x[0] == '@RG']
+        read_groups = [dict(pair.split(':', 1) for pair in rg) for rg in read_groups]
+
+        lb_to_files = {}
+        for rg in read_groups:
+            lb_to_files.setdefault(rg.get('LB', 'none'), set())
+            lb_to_files[rg.get('LB', 'none')].add(os.path.join(rg_dir, rg['ID']))
+        log.info("found %d distinct libraries and %d read groups", len(lb_to_files), len(read_groups))
+
+        db_path = os.path.join(tmpdir, 'read_ids.db')
+        with ReadIdStore(db_path) as store:
+            # Libraries are processed serially: clumpify is itself multi-threaded,
+            # so it gets the full thread and memory budget rather than a slice of it.
+            for idx, (lb, files) in enumerate(lb_to_files.items()):
+                _clumpify_one_library(
+                    lb, files, os.path.join(tmpdir, 'lib_%d' % idx), store,
+                    subs=subs, containment=containment, optical=optical,
+                    dupedist=dupedist, threads=threads, memory=memory
+                )
+
+            num_ids = len(store)
+            log.info("clumpify retained %d read IDs", num_ids)
+
+            # Downsample if needed (modifies store in-place via SQL)
+            if max_output_reads is not None and num_ids > max_output_reads:
+                log.info("Downsampling from %d to %d read IDs", num_ids, max_output_reads)
+                store.shrink_to_subsample(max_output_reads)
+
+            # Filter original input BAM against keep-list
+            store.filter_bam_by_ids(inBam, outBam, include=True)
+
+    # Count output reads
+    output_read_count = samtools_tool.count(outBam)
+    log.info("Output BAM has %d reads (%.1f%% of input)",
+             output_read_count, 100.0 * output_read_count / max(input_read_count, 1))
+
+    return 0
+
+
+def _clumpify_one_library(lb, files, lb_dir, store, subs=None, containment=False,
+                          optical=False, dupedist=None, threads=None, memory=None):
+    """Merge one library's per-read-group FASTQs, dedup them, add survivors to store.
+
+    clumpify reorders its output, so only read IDs are harvested here; the caller
+    filters the original BAM.
+    """
+    log.info("executing clumpify dedupe on library %s", lb)
+
+    os.mkdir(lb_dir)
+    infastqs = (os.path.join(lb_dir, 'in.1.fastq'), os.path.join(lb_dir, 'in.2.fastq'))
+
+    # create merged FASTQs per library
+    for d in range(2):
+        with open(infastqs[d], 'wt') as outf:
+            for fprefix in files:
+                fn = '%s_%d.fastq' % (fprefix, d + 1)
+                if os.path.isfile(fn):
+                    with open(fn, 'rt') as inf:
+                        for line in inf:
+                            outf.write(line)
+                    os.unlink(fn)
+                else:
+                    log.warning(
+                        """no reads found in %s,
+                                assuming that's because there's no reads in that read group""", fn
+                    )
+
+    if not (os.path.getsize(infastqs[0]) > 0 or os.path.getsize(infastqs[1]) > 0):
+        return
+
+    outfastqs = (os.path.join(lb_dir, 'out.1.fastq'), os.path.join(lb_dir, 'out.2.fastq'))
+    paired = os.path.getsize(infastqs[1]) > 10
+    bbmap.BBMapTool().clumpify(
+        infastqs[0], outfastqs[0],
+        inFastq2=infastqs[1] if paired else None,
+        outFastq2=outfastqs[1] if paired else None,
+        tmpdir=lb_dir, subs=subs, containment=containment,
+        optical=optical, dupedist=dupedist, threads=threads, memory=memory
+    )
+
+    # add_from_fastq strips /1 and /2 mate suffixes, so both mates map to one
+    # template ID and the UNIQUE constraint collapses them
+    store.add_from_fastq(outfastqs[0])
+    if paired:
+        store.add_from_fastq(outfastqs[1])
+
+
+def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
+    parser.add_argument('inBam', help='Input reads, BAM format.')
+    parser.add_argument('outBam', help='Output reads, BAM format.')
+    parser.add_argument(
+        '--subs',
+        type=int,
+        default=None,
+        help='Maximum substitutions allowed between duplicates (default: clumpify default of 2)'
+    )
+    parser.add_argument(
+        '--containment',
+        action='store_true',
+        help='Also treat a shorter sequence contained within a longer one as a duplicate'
+    )
+    parser.add_argument(
+        '--optical',
+        action='store_true',
+        help='Remove only optical duplicates. Requires Illumina-style read names '
+             'carrying flowcell coordinates.'
+    )
+    parser.add_argument(
+        '--dupedist',
+        type=int,
+        default=None,
+        help='Max flowcell distance for optical duplicates, only used with --optical '
+             '(default: clumpify default of 40)'
+    )
+    parser.add_argument(
+        '--memory',
+        default=None,
+        help='Java memory for clumpify (e.g., "4g", "8g")'
+    )
+    parser.add_argument(
+        '--minInputReads',
+        dest='min_input_reads',
+        type=int,
+        default=None,
+        help='Skip processing if input has fewer than this many reads'
+    )
+    parser.add_argument(
+        '--maxOutputReads',
+        dest='max_output_reads',
+        type=int,
+        default=None,
+        help='Randomly downsample output to at most this many read IDs'
+    )
+    util_cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
+    util_cmd.attach_main(parser, rmdup_clumpify_bam, split_args=True)
+    return parser
+
+
+__commands__.append(('rmdup_clumpify_bam', parser_rmdup_clumpify_bam))
+
+
 def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
     parser.add_argument('inFastq1', help='Input fastq file; 1st end of paired-end reads.')
     parser.add_argument('inFastq2', help='Input fastq file; 2nd end of paired-end reads.')
