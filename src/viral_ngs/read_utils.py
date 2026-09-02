@@ -363,6 +363,14 @@ def parser_downsample_bams(parser=argparse.ArgumentParser()):
     group.add_argument('--deduplicateBefore', action='store_true', dest="deduplicate_before", help='de-duplicate reads before downsampling.')
     group.add_argument('--deduplicateAfter', action='store_true', dest="deduplicate_after", help='de-duplicate reads after downsampling.')
     parser.add_argument(
+        '--dedupTool',
+        dest='dedup_tool',
+        choices=('clumpify', 'cdhit'),
+        default='clumpify',
+        help='de-duplication method used by --deduplicateBefore/--deduplicateAfter '
+             '(default: %(default)s)'
+    )
+    parser.add_argument(
         '--JVMmemory',
         default=picard.DownsampleSamTool.jvmMemDefault,
         help='JVM virtual memory size (default: %(default)s)'
@@ -378,7 +386,7 @@ def parser_downsample_bams(parser=argparse.ArgumentParser()):
     return parser
 
 
-def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplicate_before=False, deduplicate_after=False, picardOptions=None, threads=None, JVMmemory=None):
+def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplicate_before=False, deduplicate_after=False, dedup_tool='clumpify', picardOptions=None, threads=None, JVMmemory=None):
     '''Downsample multiple bam files to the smallest read count in common, or to the specified count.'''
     if picardOptions is None:
         picardOptions = []
@@ -421,9 +429,10 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
                     raise
 
     def dedup_bams(data_pairs, threads=None):
+        rmdup = {'clumpify': rmdup_clumpify_bam, 'cdhit': rmdup_cdhit_bam}[dedup_tool]
         workers = min(util_misc.sanitize_thread_count(threads), len(data_pairs))
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
-            future_to_file = {executor.submit(rmdup_mvicuna_bam, *fp): fp[0] for fp in data_pairs}
+            future_to_file = {executor.submit(rmdup, *fp): fp[0] for fp in data_pairs}
             for future in concurrent.futures.as_completed(future_to_file):
                 f = future_to_file[future]
                 try:
@@ -1157,6 +1166,9 @@ def rmdup_clumpify_bam(inBam, outBam,
     """
     samtools_tool = samtools.SamtoolsTool()
 
+    # Never leave the heap to BBTools' autodetection; see BBMapTool.memDefault
+    memory = memory or bbmap.BBMapTool.memDefault
+
     # Count input reads
     input_read_count = samtools_tool.count(inBam)
     log.info("Input BAM has %d reads", input_read_count)
@@ -1294,8 +1306,8 @@ def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--memory',
-        default=None,
-        help='Java memory for clumpify (e.g., "4g", "8g")'
+        default=bbmap.BBMapTool.memDefault,
+        help='Java memory for clumpify, e.g. "4g" (default: %(default)s)'
     )
     parser.add_argument(
         '--minInputReads',
