@@ -10,7 +10,7 @@ import viral_ngs.core
 IS_ARM = platform.machine() in ('arm64', 'aarch64')
 
 # Tool class names that require x86-only bioconda packages
-X86_ONLY_TOOLS = {'NovoalignTool', 'MvicunaTool'}
+X86_ONLY_TOOLS = {'NovoalignTool'}
 
 
 # Simply do nothing to override stub_conda in conftest.py

@@ -243,36 +243,10 @@ class TestFastqBam(TestCaseWithTmp):
 
 class TestRmdupUnaligned(TestCaseWithTmp):
     @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
-    def test_mvicuna_canned_input(self):
-        samtools = viral_ngs.core.samtools.SamtoolsTool()
-
-        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'input.bam')
-        expected_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'expected.bam')
-        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
-        viral_ngs.read_utils.rmdup_mvicuna_bam(
-            input_bam,
-            output_bam
-        )
-
-        self.assertEqual(samtools.count(output_bam), samtools.count(expected_bam))
-
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
-    def test_mvicuna_empty_input(self):
-        samtools = viral_ngs.core.samtools.SamtoolsTool()
-        empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
-        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
-        viral_ngs.read_utils.rmdup_mvicuna_bam(
-            empty_bam,
-            output_bam
-        )
-        self.assertEqual(samtools.count(output_bam), 0)
-
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_cdhit_canned_input(self):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
 
         input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'input.bam')
-        expected_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'expected.bam')
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
         viral_ngs.read_utils.rmdup_cdhit_bam(
             input_bam,
@@ -993,38 +967,32 @@ class TestRmdupClumpify(TestCaseWithTmp):
         self.assertLessEqual(output_count, max_output_reads * 2)
 
 
-@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
-class TestMvicuna(TestCaseWithTmp):
-    """
-    Input consists of 3 read pairs.
-    Second read pair is identical to first.
-    Third read pair has same 5' read as first, but different 3' read.
-    What Mvicuna did was create paired output files in which the 2nd read
-        was deleted. It created an empty unpaired output file. Although
-        it initially created the postDupRm pair, it renamed them to the output
-        pair.
-    [IJ:]I have no idea if this is the correct behavior, but test checks that it
-        doesn't change.
+class TestMvicunaRemoved(unittest.TestCase):
+    """M-Vicuna is gone: x86-only, unmaintained, ~17x slower than clumpify, and
+    its single-end path was a documented no-op that copied input to output.
+
+    rmdup_clumpify_bam carries forward the property that made it worth keeping
+    -- library-aware and provenance-preserving in one implementation.
     """
 
-    def test_mvicuna(self):
-        tempDir = tempfile.mkdtemp()
-        myInputDir = viral_ngs.core.file.get_test_input_path(self)
+    def test_tool_module_gone(self):
+        self.assertFalse(hasattr(viral_ngs.core, 'mvicuna'))
 
-        # Run mvicuna
-        inFastq1 = os.path.join(myInputDir, 'in.1.fastq')
-        inFastq2 = os.path.join(myInputDir, 'in.2.fastq')
-        pairedOutFastq1 = os.path.join(tempDir, 'pairedOut.1.fastq')
-        pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
-        unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
-        viral_ngs.core.mvicuna.MvicunaTool().rmdup(
-            (inFastq1, inFastq2), (pairedOutFastq1, pairedOutFastq2),
-            outUnpaired=unpairedOutFastq)
+    def test_command_unregistered(self):
+        commands = dict(viral_ngs.read_utils.__commands__)
+        self.assertNotIn('rmdup_mvicuna_bam', commands)
+        # the replacement is registered in its place
+        self.assertIn('rmdup_clumpify_bam', commands)
 
-        # Compare to expected
-        for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq', 'unpairedOut.fastq']:
-            self.assertEqualContents(os.path.join(tempDir, filename), os.path.join(myInputDir, 'expected_' + filename))
+    def test_no_module_attributes_left(self):
+        for attr in ('rmdup_mvicuna_bam', 'parser_rmdup_mvicuna_bam',
+                     'mvicuna_fastqs_to_readlist', '_merge_fastqs_and_mvicuna'):
+            self.assertFalse(hasattr(viral_ngs.read_utils, attr),
+                             msg="read_utils still exposes %s" % attr)
 
+    def test_tool_class_gone(self):
+        names = [cls.__name__ for cls in viral_ngs.core.all_tool_classes()]
+        self.assertNotIn('MvicunaTool', names)
 
 
 class TestAlignAndFix(TestCaseWithTmp):
