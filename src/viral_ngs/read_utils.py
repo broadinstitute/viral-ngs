@@ -821,63 +821,76 @@ def main_reheader_bams(args):
 
 __commands__.append(('reheader_bams', parser_reheader_bams))
 
-def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
+def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None):
     ''' Remove duplicate reads from BAM file using cd-hit-dup.
+
+        Deduplicates per library -- picard SplitSamByLibrary splits the input on
+        the @RG LB: tag and cd-hit-dup runs once per library. Identical sequences
+        from different libraries are independent observations, not duplicates.
+
+        Surviving read IDs are accumulated into a ReadIdStore and used to filter
+        the original BAM, so the header and per-read tags carry through unchanged
+        instead of being rebuilt from FASTQ.
     '''
     max_mismatches = max_mismatches or 4
-    tmp_dir = tempfile.mkdtemp()
 
-    picard.SplitSamByLibraryTool().execute(inBam, tmp_dir)
+    with util_file.tmp_dir(suffix='_cdhit') as tmp_dir:
+        split_dir = os.path.join(tmp_dir, 'libraries')
+        os.mkdir(split_dir)
+        picard.SplitSamByLibraryTool().execute(inBam, split_dir)
 
-    s2fq_tool = picard.SamToFastqTool()
-    cdhit_tool = cdhit.CdHit()
-    out_bams = []
-    for f in os.listdir(tmp_dir):
-        out_bam = mkstempfname('.bam')
-        out_bams.append(out_bam)
-        library_sam = os.path.join(tmp_dir, f)
+        s2fq_tool = picard.SamToFastqTool()
+        cdhit_tool = cdhit.CdHit()
 
-        in_fastqs = mkstempfname('.1.fastq'), mkstempfname('.2.fastq')
+        db_path = os.path.join(tmp_dir, 'read_ids.db')
+        with ReadIdStore(db_path) as store:
+            for idx, f in enumerate(os.listdir(split_dir)):
+                library_sam = os.path.join(split_dir, f)
+                lib_dir = os.path.join(tmp_dir, 'lib_%d' % idx)
+                os.mkdir(lib_dir)
 
-        s2fq_tool.execute(library_sam, in_fastqs[0], in_fastqs[1])
-        if not os.path.getsize(in_fastqs[0]) > 0 and not os.path.getsize(in_fastqs[1]) > 0:
-            continue
+                in_fastqs = (os.path.join(lib_dir, 'in.1.fastq'),
+                             os.path.join(lib_dir, 'in.2.fastq'))
+                s2fq_tool.execute(library_sam, in_fastqs[0], in_fastqs[1])
+                if not os.path.getsize(in_fastqs[0]) > 0 and not os.path.getsize(in_fastqs[1]) > 0:
+                    continue
 
-        out_fastqs = mkstempfname('.1.fastq'), mkstempfname('.2.fastq')
-        options = {
-            '-e': max_mismatches,
-        }
-        if in_fastqs[1] is not None and os.path.getsize(in_fastqs[1]) > 10:
-            options['-i2'] = in_fastqs[1]
-            options['-o2'] = out_fastqs[1]
+                out_fastqs = (os.path.join(lib_dir, 'out.1.fastq'),
+                              os.path.join(lib_dir, 'out.2.fastq'))
+                options = {
+                    '-e': max_mismatches,
+                }
+                paired = os.path.getsize(in_fastqs[1]) > 10
+                if paired:
+                    options['-i2'] = in_fastqs[1]
+                    options['-o2'] = out_fastqs[1]
 
-        log.info("executing cd-hit-dup on library " + library_sam)
-        # cd-hit-dup cannot operate on piped fastq input because it reads twice
-        # Run cd-hit-dup synchronously (not in background) to ensure output files are complete
-        # before FastqToSamTool tries to read them
-        cdhit_tool.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0], options=options, background=False)
+                log.info("executing cd-hit-dup on library " + library_sam)
+                # cd-hit-dup cannot operate on piped fastq input because it reads twice
+                cdhit_tool.execute('cd-hit-dup', in_fastqs[0], out_fastqs[0],
+                                   options=options, background=False)
 
-        samtools.SamtoolsTool().import_fastq(
-            out_fastqs[0], out_fastqs[1], out_bam,
-            sample_name=f,
-        )
-        for fn in in_fastqs:
-            os.unlink(fn)
+                # cd-hit-dup preserves read names, so its surviving output names
+                # address the original records directly. add_from_fastq strips the
+                # /1 and /2 mate suffixes, collapsing both mates to one template ID.
+                store.add_from_fastq(out_fastqs[0])
+                if paired:
+                    store.add_from_fastq(out_fastqs[1])
 
-    with util_file.fifo(name='merged.sam') as merged_bam:
-        merge_opts = ['SORT_ORDER=queryname']
-        picard.MergeSamFilesTool().execute(out_bams, merged_bam, picardOptions=merge_opts, JVMmemory=jvm_memory, background=True)
-        picard.ReplaceSamHeaderTool().execute(merged_bam, inBam, outBam, JVMmemory=jvm_memory)
+            store.filter_bam_by_ids(inBam, outBam, include=True)
+
+    return 0
 
 
 def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
     parser.add_argument('inBam', help='Input reads, BAM format.')
     parser.add_argument('outBam', help='Output reads, BAM format.')
     parser.add_argument(
-        '--JVMmemory',
-        default=picard.FilterSamReadsTool.jvmMemDefault,
-        help='JVM virtual memory size (default: %(default)s)',
-        dest='jvm_memory'
+        '--maxMismatches',
+        dest='max_mismatches',
+        type=int,
+        default=None,
+        help='Maximum mismatches allowed between duplicates (default: 4)'
     )
     util_cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
     util_cmd.attach_main(parser, rmdup_cdhit_bam, split_args=True)
