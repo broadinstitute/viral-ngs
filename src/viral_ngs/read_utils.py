@@ -367,7 +367,8 @@ def parser_downsample_bams(parser=argparse.ArgumentParser()):
         choices=('clumpify', 'cdhit'),
         default='clumpify',
         help='de-duplication method used by --deduplicateBefore/--deduplicateAfter '
-             '(default: %(default)s)'
+             '(default: %(default)s). Note that cdhit output currently fails strict '
+             'BAM validation: it references a read group its header does not declare.'
     )
     parser.add_argument(
         '--JVMmemory',
