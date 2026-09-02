@@ -364,11 +364,10 @@ def parser_downsample_bams(parser=argparse.ArgumentParser()):
     parser.add_argument(
         '--dedupTool',
         dest='dedup_tool',
-        choices=('clumpify', 'cdhit'),
+        choices=sorted(DEDUP_TOOLS),
         default='clumpify',
         help='de-duplication method used by --deduplicateBefore/--deduplicateAfter '
-             '(default: %(default)s). Note that cdhit output currently fails strict '
-             'BAM validation: it references a read group its header does not declare.'
+             '(default: %(default)s)'
     )
     parser.add_argument(
         '--JVMmemory',
@@ -390,6 +389,10 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
     '''Downsample multiple bam files to the smallest read count in common, or to the specified count.'''
     if picardOptions is None:
         picardOptions = []
+
+    if dedup_tool not in DEDUP_TOOLS:
+        raise ValueError("unknown dedup_tool %r; expected one of %s"
+                         % (dedup_tool, ', '.join(sorted(DEDUP_TOOLS))))
 
     opts = list(picardOptions) + []
 
@@ -429,7 +432,7 @@ def main_downsample_bams(in_bams, out_path, specified_read_count=None, deduplica
                     raise
 
     def dedup_bams(data_pairs, threads=None):
-        rmdup = {'clumpify': rmdup_clumpify_bam, 'cdhit': rmdup_cdhit_bam}[dedup_tool]
+        rmdup = DEDUP_TOOLS[dedup_tool]
         workers = min(util_misc.sanitize_thread_count(threads), len(data_pairs))
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
             future_to_file = {executor.submit(rmdup, *fp): fp[0] for fp in data_pairs}
@@ -1042,8 +1045,9 @@ def rmdup_clumpify_bam(inBam, outBam,
     them across libraries discards real evidence.
 
     Surviving read IDs are accumulated into a single ReadIdStore and used to
-    filter the *original* BAM, so the full header and every per-read tag are
-    preserved byte-for-byte rather than being rebuilt from FASTQ.
+    filter the *original* BAM: filter_bam_by_ids streams the original header and
+    read records through unchanged (the BAM container is re-encoded), so the
+    header and every per-read tag survive rather than being rebuilt from FASTQ.
 
     Args:
         inBam: Input BAM file
@@ -1225,6 +1229,15 @@ def parser_rmdup_clumpify_bam(parser=argparse.ArgumentParser()):
 
 
 __commands__.append(('rmdup_clumpify_bam', parser_rmdup_clumpify_bam))
+
+
+# Dedup methods selectable via downsample_bams --dedupTool. Both are library-aware
+# and provenance-preserving; rmdup_bbnorm_bam is deliberately absent, since it pools
+# libraries by design and is normalization rather than deduplication.
+DEDUP_TOOLS = {
+    'clumpify': rmdup_clumpify_bam,
+    'cdhit': rmdup_cdhit_bam,
+}
 
 
 def parser_rmdup_prinseq_fastq(parser=argparse.ArgumentParser()):
