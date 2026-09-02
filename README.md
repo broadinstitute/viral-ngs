@@ -161,7 +161,7 @@ See [AGENTS.md](AGENTS.md) for comprehensive development documentation.
 
 Images are built for both `linux/amd64` and `linux/arm64` (Apple Silicon, ARM servers).
 
-Some tools (novoalign, mvicuna) are x86-only and will be skipped on ARM builds.
+Some tools (novoalign, cd-hit-auxtools) are x86-only and will be skipped on ARM builds.
 
 ### Module Structure
 

@@ -5,7 +5,7 @@
 # with C extensions that would otherwise require compilation.
 #
 # Note: General utilities (parallel, pigz, jq, etc.) are in baseimage.txt
-# Note: x86-only packages (novoalign, mvicuna) are in core-x86.txt
+# Note: x86-only packages (novoalign, cd-hit-auxtools) are in core-x86.txt
 
 # Testing framework
 pytest>=7.0.0

@@ -32,7 +32,6 @@ from .core import cdhit
 from .core import picard
 from .core import samtools
 from .core import minimap2
-from .core import mvicuna
 from .core import prinseq
 from .core import novoalign
 from .core import sambamba
@@ -821,39 +820,6 @@ def main_reheader_bams(args):
 
 __commands__.append(('reheader_bams', parser_reheader_bams))
 
-# ============================
-# ***  dup_remove_mvicuna  ***
-# ============================
-
-
-def mvicuna_fastqs_to_readlist(inFastq1, inFastq2, readList):
-    # Run M-Vicuna on FASTQ files
-    outFastq1 = mkstempfname('.1.fastq')
-    outFastq2 = mkstempfname('.2.fastq')
-    if inFastq2 is None or os.path.getsize(inFastq2) < 10:
-        mvicuna.MvicunaTool().rmdup_single(inFastq1, outFastq1)
-    else:
-        mvicuna.MvicunaTool().rmdup((inFastq1, inFastq2), (outFastq1, outFastq2), None)
-
-    # Make a list of reads to keep
-    with open(readList, 'at') as outf:
-        for fq in (outFastq1, outFastq2):
-            with util_file.open_or_gzopen(fq, 'rt') as inf:
-                line_num = 0
-                for line in inf:
-                    if (line_num % 4) == 0:
-                        idVal = line.rstrip('\n')[1:]
-                        if idVal.endswith('/1'):
-                            outf.write(idVal[:-2] + '\n')
-                        # single-end reads do not have /1 /2 mate suffix
-                        # so pass through their IDs
-                        if not (idVal.endswith('/1') or idVal.endswith('/2')):
-                            outf.write(idVal + '\n')
-                    line_num += 1
-    os.unlink(outFastq1)
-    os.unlink(outFastq2)
-
-
 def rmdup_cdhit_bam(inBam, outBam, max_mismatches=None, jvm_memory=None):
     ''' Remove duplicate reads from BAM file using cd-hit-dup.
     '''
@@ -919,93 +885,6 @@ def parser_rmdup_cdhit_bam(parser=argparse.ArgumentParser()):
 
 __commands__.append(('rmdup_cdhit_bam', parser_rmdup_cdhit_bam))
 
-def _merge_fastqs_and_mvicuna(lb, files):
-    readList = mkstempfname('.keep_reads.txt')
-    log.info("executing M-Vicuna DupRm on library " + lb)
-
-    # create merged FASTQs per library
-    infastqs = (mkstempfname('.1.fastq'), mkstempfname('.2.fastq'))
-    for d in range(2):
-        with open(infastqs[d], 'wt') as outf:
-            for fprefix in files:
-                fn = '%s_%d.fastq' % (fprefix, d + 1)
-
-                if os.path.isfile(fn):
-                    with open(fn, 'rt') as inf:
-                        for line in inf:
-                            outf.write(line)
-                    os.unlink(fn)
-                else:
-                    log.warning(
-                        """no reads found in %s,
-                                assuming that's because there's no reads in that read group""", fn
-                    )
-
-    # M-Vicuna DupRm to see what we should keep (append IDs to running file)
-    if os.path.getsize(infastqs[0]) > 0 or os.path.getsize(infastqs[1]) > 0:
-        mvicuna_fastqs_to_readlist(infastqs[0], infastqs[1], readList)
-    for fn in infastqs:
-        os.unlink(fn)
-
-    return readList
-
-def rmdup_mvicuna_bam(inBam, outBam, threads=None):
-    ''' Remove duplicate reads from BAM file using M-Vicuna. The
-        primary advantage to this approach over Picard's MarkDuplicates tool
-        is that Picard requires that input reads are aligned to a reference,
-        and M-Vicuna can operate on unaligned reads.
-    '''
-
-    # Convert BAM -> FASTQ pairs per read group and load all read groups
-    tempDir = tempfile.mkdtemp()
-    picard.SamToFastqTool().per_read_group(inBam, tempDir, picardOptions=['VALIDATION_STRINGENCY=LENIENT'])
-    read_groups = [x[1:] for x in samtools.SamtoolsTool().getHeader(inBam) if x[0] == '@RG']
-    read_groups = [dict(pair.split(':', 1) for pair in rg) for rg in read_groups]
-
-    # Collect FASTQ pairs for each library
-    lb_to_files = {}
-    for rg in read_groups:
-        lb_to_files.setdefault(rg.get('LB', 'none'), set())
-        fname = rg['ID']
-        lb_to_files[rg.get('LB', 'none')].add(os.path.join(tempDir, fname))
-    log.info("found %d distinct libraries and %d read groups", len(lb_to_files), len(read_groups))
-
-    # Create ReadIdStore and collect read IDs from all libraries
-    with util_file.tmp_dir(suffix='_mvicuna_filter') as filter_tmpdir:
-        db_path = os.path.join(filter_tmpdir, 'read_ids.db')
-        with ReadIdStore(db_path) as store:
-            # For each library, merge FASTQs and run M-Vicuna, collecting read IDs
-            with concurrent.futures.ProcessPoolExecutor(
-                    max_workers=threads or util_misc.available_cpu_count()) as executor:
-                futures = [executor.submit(_merge_fastqs_and_mvicuna, lb, files)
-                           for lb, files in lb_to_files.items()]
-                for future in concurrent.futures.as_completed(futures):
-                    log.info("mvicuna finished processing library")
-                    try:
-                        readList = future.result()
-                        # Stream read IDs directly into store (no intermediate concat)
-                        with open(readList, 'rt') as f:
-                            store.extend(line.strip() for line in f if line.strip())
-                        os.unlink(readList)  # Clean up per-library file immediately
-                    except Exception as exc:
-                        log.error('mvicuna process call generated an exception: %s' % (exc))
-                        raise
-
-            # Filter original input BAM against keep-list
-            store.filter_bam_by_ids(inBam, outBam, include=True)
-
-    return 0
-
-
-def parser_rmdup_mvicuna_bam(parser=argparse.ArgumentParser()):
-    parser.add_argument('inBam', help='Input reads, BAM format.')
-    parser.add_argument('outBam', help='Output reads, BAM format.')
-    util_cmd.common_args(parser, (('threads',None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
-    util_cmd.attach_main(parser, rmdup_mvicuna_bam, split_args=True)
-    return parser
-
-
-__commands__.append(('rmdup_mvicuna_bam', parser_rmdup_mvicuna_bam))
 
 
 def rmdup_bbnorm_bam(inBam, outBam,
