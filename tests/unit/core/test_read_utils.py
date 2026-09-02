@@ -1289,6 +1289,20 @@ class TestDownsampleBams(TestCaseWithTmp):
         with self.assertRaises(SystemExit):
             parser.parse_args(['in.bam', '--dedupTool', 'mvicuna'])
 
+    def test_downsample_unknown_dedup_tool(self):
+        """An unknown dedup_tool fails with a clear error, before any work starts.
+
+        argparse choices guard the CLI, but main_downsample_bams is also a Python
+        API, where a bad value used to surface as a bare KeyError from inside the
+        executor.
+        """
+        with self.assertRaises(ValueError) as caught:
+            viral_ngs.read_utils.main_downsample_bams(
+                [self.with_dups], out_path=None, deduplicate_before=True,
+                dedup_tool='bogus', specified_read_count=1500, JVMmemory="1g")
+        self.assertIn('bogus', str(caught.exception))
+        self.assertIn('clumpify', str(caught.exception))
+
     def test_downsample_to_too_large_target_count(self):
         """ Should fail """
         temp_dir = tempfile.mkdtemp()
