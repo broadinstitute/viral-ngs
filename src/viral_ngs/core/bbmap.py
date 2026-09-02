@@ -105,3 +105,72 @@ class BBMapTool(Tool):
         _log.debug('Running bbnorm: %s', ' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
 
+    def clumpify(self, inFastq, outFastq, inFastq2=None, outFastq2=None,
+                 interleaved=None, tmpdir=None, subs=None, containment=False,
+                 optical=False, dupedist=None, threads=None, memory=None):
+        """
+        Run clumpify in deduplication mode.
+
+        Args:
+            inFastq: Input FASTQ (read 1, or interleaved/single-end)
+            outFastq: Output FASTQ corresponding to inFastq
+            inFastq2: Optional read 2 input, for split (non-interleaved) pairs
+            outFastq2: Optional read 2 output, required when inFastq2 is given
+            interleaved: Force interleaved interpretation of a single input file
+                         (clumpify auto-detects by default)
+            tmpdir: Temporary directory for clumpify's intermediate group files
+            subs: Max substitutions allowed between duplicates (clumpify default: 2)
+            containment: Also treat a shorter sequence contained in a longer one
+                         as a duplicate (clumpify default: off)
+            optical: Restrict removal to optical duplicates only. Requires
+                     Illumina-style read names carrying flowcell coordinates.
+            dupedist: Max flowcell distance for optical duplicates (clumpify
+                      default: 40). Only meaningful with optical=True.
+            threads: Number of threads (default: auto)
+            memory: Java memory allocation string (e.g., "4g")
+
+        Note: clumpify's `passes` parameter is deliberately not exposed. Despite
+        appearing in duplicate-removal recipes online, it controls the number of
+        *error-correction* passes and has no effect on deduplication.
+
+        Note: clumpify reorders its output into clumps. Callers must not rely on
+        read order -- rmdup_clumpify_bam only harvests read IDs from the output
+        and filters the original BAM.
+        """
+        tool_dir = os.path.dirname(self.install_and_get_path())
+        tool_cmd = [os.path.join(tool_dir, 'clumpify.sh'), '-eoom']
+
+        if memory:
+            tool_cmd.append('-Xmx{}'.format(memory))
+
+        # Build arguments
+        if inFastq2 is not None:
+            if outFastq2 is None:
+                raise ValueError('outFastq2 is required when inFastq2 is given')
+            tool_cmd.append('in1={}'.format(inFastq))
+            tool_cmd.append('in2={}'.format(inFastq2))
+            tool_cmd.append('out1={}'.format(outFastq))
+            tool_cmd.append('out2={}'.format(outFastq2))
+        else:
+            tool_cmd.append('in={}'.format(inFastq))
+            tool_cmd.append('out={}'.format(outFastq))
+        tool_cmd.append('dedupe=t')
+
+        if interleaved is not None:
+            tool_cmd.append('interleaved={}'.format('t' if interleaved else 'f'))
+        if tmpdir is not None:
+            tool_cmd.append('usetmpdir=t')
+            tool_cmd.append('tmpdir={}'.format(tmpdir))
+        if subs is not None:
+            tool_cmd.append('subs={}'.format(subs))
+        if containment:
+            tool_cmd.append('containment=t')
+        if optical:
+            tool_cmd.append('optical=t')
+        if dupedist is not None:
+            tool_cmd.append('dupedist={}'.format(dupedist))
+        if threads is not None:
+            tool_cmd.append('threads={}'.format(threads))
+
+        _log.debug('Running clumpify: %s', ' '.join(tool_cmd))
+        subprocess.check_call(tool_cmd)
