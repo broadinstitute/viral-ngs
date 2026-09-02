@@ -19,12 +19,13 @@ _log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 class BBMapTool(Tool):
     '''Tool wrapper for the BBMap aligner and related tools.'''
 
-    # BBTools' own heap autodetection (calcmem.sh) subtracts a fixed 500MB floor
-    # from detected free RAM, so under container memory limits it can emit a
-    # negative -Xmx and the JVM refuses to start. Callers that do not specify
-    # memory should pass this instead of relying on autodetection. Modest on
-    # purpose: clumpify's groups=auto bounds its own footprint by spilling to
-    # disk, so a large heap buys little.
+    # BBTools' own heap autodetection (calcmem.sh) is unreliable under a container
+    # memory limit, in both directions: bbmap 39.10 subtracts a fixed 500MB floor
+    # from detected free RAM and can emit a negative -Xmx that the JVM refuses,
+    # while 40.00 asked for -Xmx31000m on a 6GB host and was OOM-killed. Callers
+    # that do not specify memory should pass this instead. Deliberately modest --
+    # it is a floor for direct CLI use, and every viral-pipelines invocation
+    # overrides it with its own autocalculation.
     memDefault = '2g'
 
     def __init__(self, install_methods=None):

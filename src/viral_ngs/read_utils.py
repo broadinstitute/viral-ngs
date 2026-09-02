@@ -924,6 +924,9 @@ def rmdup_bbnorm_bam(inBam, outBam,
     """
     samtools_tool = samtools.SamtoolsTool()
 
+    # Never leave the heap to BBTools' autodetection; see BBMapTool.memDefault
+    memory = memory or bbmap.BBMapTool.memDefault
+
     # Count input reads
     input_read_count = samtools_tool.count(inBam)
     log.info("Input BAM has %d reads", input_read_count)
@@ -1000,8 +1003,8 @@ def parser_rmdup_bbnorm_bam(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         '--memory',
-        default=None,
-        help='Java memory for bbnorm (e.g., "4g", "8g")'
+        default=bbmap.BBMapTool.memDefault,
+        help='Java memory for bbnorm, e.g. "4g" (default: %(default)s)'
     )
     parser.add_argument(
         '--minInputReads',
