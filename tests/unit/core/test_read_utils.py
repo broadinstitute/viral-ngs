@@ -8,6 +8,7 @@ import filecmp
 import os
 import glob
 import platform
+import random
 
 import pysam
 import viral_ngs.read_utils
@@ -240,38 +241,80 @@ class TestFastqBam(TestCaseWithTmp):
         self.assertGreater(header_size, 0, "BAM header should be non-empty")
 
 
+def collapse_libraries(inBam, library='onelib'):
+    """Return a copy of inBam whose read groups all share a single LB tag."""
+    samtools = viral_ngs.core.samtools.SamtoolsTool()
+    header_file = viral_ngs.core.file.mkstempfname('.txt')
+    with open(header_file, 'wt') as outf:
+        for row in samtools.getHeader(inBam):
+            if row[0] == '@RG':
+                row = [('LB:' + library) if x.startswith('LB:') else x for x in row]
+            outf.write('\t'.join(row) + '\n')
+    out_bam = viral_ngs.core.file.mkstempfname('.onelib.bam')
+    samtools.reheader(inBam, header_file, out_bam)
+    return out_bam
+
+
+def make_cross_library_bam(n=200, seed=7):
+    """Build an unaligned BAM where every template appears in both libraries.
+
+    n distinct paired templates, each written once under read group rgA
+    (LB:libA) and once under rgB (LB:libB) with a different query name. There
+    are therefore no duplicates *within* a library, and exactly one duplicate
+    for every template *across* libraries.
+
+    Returns (bam_path, n).
+    """
+    rnd = random.Random(seed)
+    header = {
+        'HD': {'VN': '1.6', 'SO': 'unsorted'},
+        'RG': [
+            {'ID': 'rgA', 'LB': 'libA', 'SM': 'sample', 'PL': 'illumina'},
+            {'ID': 'rgB', 'LB': 'libB', 'SM': 'sample', 'PL': 'illumina'},
+        ],
+    }
+    seqs = set()
+    while len(seqs) < n:
+        seqs.add((''.join(rnd.choice('ACGT') for _ in range(60)),
+                  ''.join(rnd.choice('ACGT') for _ in range(60))))
+    seqs = sorted(seqs)
+
+    out_bam = viral_ngs.core.file.mkstempfname('.crosslib.bam')
+    with pysam.AlignmentFile(out_bam, 'wb', header=header) as out:
+        for i, (seq1, seq2) in enumerate(seqs):
+            for rg in ('rgA', 'rgB'):
+                for mate, seq in ((1, seq1), (2, seq2)):
+                    read = pysam.AlignedSegment()
+                    read.query_name = 'tmpl%04d_%s' % (i, rg)
+                    read.query_sequence = seq
+                    read.query_qualities = pysam.qualitystring_to_array('I' * len(seq))
+                    read.flag = 0x1 | 0x4 | 0x8 | (0x40 if mate == 1 else 0x80)
+                    read.set_tag('RG', rg)
+                    out.write(read)
+    return out_bam, len(seqs)
+
+
+def assert_read_groups_declared(testcase, bam):
+    """Every RG tag carried by a read must be declared in the BAM's own header."""
+    samtools = viral_ngs.core.samtools.SamtoolsTool()
+    declared = set()
+    for row in samtools.getHeader(bam):
+        if row[0] == '@RG':
+            declared.update(f[3:] for f in row if f.startswith('ID:'))
+    with pysam.AlignmentFile(bam, 'rb', check_sq=False) as inb:
+        used = set(r.get_tag('RG') for r in inb if r.has_tag('RG'))
+    testcase.assertTrue(
+        used <= declared,
+        msg="reads reference read groups absent from the header: %s (header declares %s)"
+            % (sorted(used - declared), sorted(declared)))
+
+
 class TestRmdupUnaligned(TestCaseWithTmp):
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
-    def test_mvicuna_canned_input(self):
-        samtools = viral_ngs.core.samtools.SamtoolsTool()
-
-        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'input.bam')
-        expected_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'expected.bam')
-        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
-        viral_ngs.read_utils.rmdup_mvicuna_bam(
-            input_bam,
-            output_bam
-        )
-
-        self.assertEqual(samtools.count(output_bam), samtools.count(expected_bam))
-
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
-    def test_mvicuna_empty_input(self):
-        samtools = viral_ngs.core.samtools.SamtoolsTool()
-        empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
-        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
-        viral_ngs.read_utils.rmdup_mvicuna_bam(
-            empty_bam,
-            output_bam
-        )
-        self.assertEqual(samtools.count(output_bam), 0)
-
     @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_cdhit_canned_input(self):
         samtools = viral_ngs.core.samtools.SamtoolsTool()
 
         input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'input.bam')
-        expected_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'expected.bam')
         output_bam = viral_ngs.core.file.mkstempfname("output.bam")
         viral_ngs.read_utils.rmdup_cdhit_bam(
             input_bam,
@@ -279,6 +322,69 @@ class TestRmdupUnaligned(TestCaseWithTmp):
         )
 
         self.assertEqual(samtools.count(output_bam), 1772)
+
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+    def test_cdhit_read_groups_are_declared(self):
+        """Output must not reference a read group its own header omits.
+
+        rmdup_cdhit_bam used to rebuild each library with
+        samtools.import_fastq(sample_name=...), which invents read group 'A',
+        then restore the original header via ReplaceSamHeaderTool -- producing a
+        BAM that htsjdk rejects:
+
+            SAMFormatException: ERROR::READ_GROUP_NOT_FOUND: RG ID on SAMRecord
+            not found in header: A
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_cdhit_bam(input_bam, output_bam)
+
+        assert_read_groups_declared(self, output_bam)
+
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+    def test_cdhit_preserves_header_and_tags(self):
+        """The @RG header block and per-read tags survive deduplication."""
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(self), 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_cdhit_bam(input_bam, output_bam)
+
+        in_rgs = [row for row in samtools.getHeader(input_bam) if row[0] == '@RG']
+        out_rgs = [row for row in samtools.getHeader(output_bam) if row[0] == '@RG']
+        self.assertEqual(in_rgs, out_rgs)
+
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            in_tags = {r.query_name: r.get_tag('RG') for r in bam if r.has_tag('RG')}
+        self.assertGreater(len(in_tags), 0)
+
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as bam:
+            out_reads = list(bam)
+        self.assertGreater(len(out_reads), 0)
+        for read in out_reads:
+            self.assertTrue(read.has_tag('RG'),
+                            msg="read {} lost its RG tag".format(read.query_name))
+            self.assertEqual(read.get_tag('RG'), in_tags[read.query_name])
+
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+    def test_cdhit_library_aware(self):
+        """Duplicates are collapsed within a library but never across libraries."""
+        samtools = viral_ngs.core.samtools.SamtoolsTool()
+        input_bam, num_templates = make_cross_library_bam()
+        per_library_bam = viral_ngs.core.file.mkstempfname("per_library.bam")
+        pooled_bam = viral_ngs.core.file.mkstempfname("pooled.bam")
+
+        input_count = samtools.count(input_bam)
+        self.assertEqual(input_count, num_templates * 4)  # 2 libraries x 2 mates
+
+        viral_ngs.read_utils.rmdup_cdhit_bam(input_bam, per_library_bam)
+        viral_ngs.read_utils.rmdup_cdhit_bam(collapse_libraries(input_bam), pooled_bam)
+
+        # nothing is duplicated within a library, so a library-aware dedup keeps it all
+        self.assertEqual(samtools.count(per_library_bam), input_count)
+        # pooling the libraries collapses each cross-library twin
+        self.assertEqual(samtools.count(pooled_bam), num_templates * 2)
 
     @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_cdhit_empty_input(self):
@@ -757,6 +863,21 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         self.assertGreater(output_count, 0)
         self.assertLessEqual(output_count, input_count)
 
+    def test_bbnorm_default_memory(self):
+        """Runs without an explicit memory= argument.
+
+        BBTools' heap autodetection (calcmem.sh) is unreliable under a container
+        memory limit: bbmap 39.10 computed a negative -Xmx and the JVM refused to
+        start, while 40.00 asks for -Xmx31000m on a 6GB host and gets OOM-killed.
+        The command must supply its own default rather than rely on it.
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1)
+
+        self.assertGreater(self.samtools.count(output_bam), 0)
+
     def test_bbnorm_max_output_reads_downsample(self):
         """Test that max_output_reads downsamples the keep-list."""
         input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
@@ -776,38 +897,200 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         self.assertLessEqual(output_count, expected_max_reads)
 
 
-@unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
-class TestMvicuna(TestCaseWithTmp):
-    """
-    Input consists of 3 read pairs.
-    Second read pair is identical to first.
-    Third read pair has same 5' read as first, but different 3' read.
-    What Mvicuna did was create paired output files in which the 2nd read
-        was deleted. It created an empty unpaired output file. Although
-        it initially created the postDupRm pair, it renamed them to the output
-        pair.
-    [IJ:]I have no idea if this is the correct behavior, but test checks that it
-        doesn't change.
+class TestRmdupClumpify(TestCaseWithTmp):
+    """Tests for rmdup_clumpify_bam.
+
+    clumpify ships in the bbmap conda package on both amd64 and arm64, so
+    unlike the mvicuna and cdhit dedup tests these are not ARM-skipped.
     """
 
-    def test_mvicuna(self):
-        tempDir = tempfile.mkdtemp()
-        myInputDir = viral_ngs.core.file.get_test_input_path(self)
+    def setUp(self):
+        super(TestRmdupClumpify, self).setUp()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
 
-        # Run mvicuna
-        inFastq1 = os.path.join(myInputDir, 'in.1.fastq')
-        inFastq2 = os.path.join(myInputDir, 'in.2.fastq')
-        pairedOutFastq1 = os.path.join(tempDir, 'pairedOut.1.fastq')
-        pairedOutFastq2 = os.path.join(tempDir, 'pairedOut.2.fastq')
-        unpairedOutFastq = os.path.join(tempDir, 'unpairedOut.fastq')
-        viral_ngs.core.mvicuna.MvicunaTool().rmdup(
-            (inFastq1, inFastq2), (pairedOutFastq1, pairedOutFastq2),
-            outUnpaired=unpairedOutFastq)
+    def test_clumpify_canned_input(self):
+        """Standard paired-end input: reads are removed, some survive."""
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
 
-        # Compare to expected
-        for filename in ['pairedOut.1.fastq', 'pairedOut.2.fastq', 'unpairedOut.fastq']:
-            self.assertEqualContents(os.path.join(tempDir, filename), os.path.join(myInputDir, 'expected_' + filename))
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1, memory='250m')
 
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLess(output_count, input_count)
+
+    def test_clumpify_empty_input(self):
+        """Empty BAM in, valid header-only BAM out -- never a crash."""
+        empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(empty_bam, output_bam)
+
+        self.assertEqual(self.samtools.count(output_bam), 0)
+        # output must still be a readable BAM, not a zero-byte file
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as bam:
+            self.assertEqual(len(list(bam)), 0)
+
+    def test_clumpify_single_end(self):
+        """Single-end dedup actually removes reads.
+
+        This is the case rmdup_mvicuna_bam silently passed through untouched.
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestPerSample', 'in.2libs3rgs.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLess(output_count, input_count)
+
+    def test_clumpify_preserves_header_and_tags(self):
+        """Filtering the original BAM preserves the header and per-read tags.
+
+        This is what rmdup_cdhit_bam's FASTQ round-trip loses.
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        in_rgs = [row for row in self.samtools.getHeader(input_bam) if row[0] == '@RG']
+        out_rgs = [row for row in self.samtools.getHeader(output_bam) if row[0] == '@RG']
+        self.assertEqual(in_rgs, out_rgs)
+
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            in_tags = {r.query_name: r.get_tag('RG') for r in bam if r.has_tag('RG')}
+        self.assertGreater(len(in_tags), 0)
+
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as bam:
+            out_reads = list(bam)
+        self.assertGreater(len(out_reads), 0)
+        for read in out_reads:
+            self.assertTrue(read.has_tag('RG'),
+                            msg="read {} lost its RG tag".format(read.query_name))
+            self.assertEqual(read.get_tag('RG'), in_tags[read.query_name])
+
+    def test_clumpify_multi_library(self):
+        """Smoke test across a real 12-read-group, 2-library BAM."""
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_clumpify_library_aware(self):
+        """Duplicates are collapsed within a library but never across libraries.
+
+        Identical sequences from different libraries are independent observations
+        of the molecule, not duplicates of each other; collapsing them discards
+        real evidence and corrupts downstream library-level replicate reasoning.
+
+        The fixture has every template present in both libraries and none repeated
+        within one, so a library-aware dedup must retain everything, while pooling
+        the libraries halves it.
+        """
+        input_bam, num_templates = make_cross_library_bam()
+        per_library_bam = viral_ngs.core.file.mkstempfname("per_library.bam")
+        pooled_bam = viral_ngs.core.file.mkstempfname("pooled.bam")
+
+        input_count = self.samtools.count(input_bam)
+        self.assertEqual(input_count, num_templates * 4)  # 2 libraries x 2 mates
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, per_library_bam,
+                                                threads=1, memory='500m')
+
+        one_library_input = collapse_libraries(input_bam)
+        libraries = set(
+            field for row in self.samtools.getHeader(one_library_input)
+            if row[0] == '@RG' for field in row if field.startswith('LB:')
+        )
+        self.assertEqual(len(libraries), 1, msg="fixture setup failed to collapse libraries")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(one_library_input, pooled_bam,
+                                                threads=1, memory='500m')
+
+        per_library_count = self.samtools.count(per_library_bam)
+        pooled_count = self.samtools.count(pooled_bam)
+
+        # nothing is duplicated within a library, so a library-aware dedup keeps it all
+        self.assertEqual(per_library_count, input_count)
+        # pooling the libraries collapses each cross-library twin
+        self.assertEqual(pooled_count, num_templates * 2)
+
+    def test_clumpify_default_memory(self):
+        """Runs without an explicit memory= argument.
+
+        BBTools' own heap autodetection (calcmem.sh) subtracts a fixed 500MB
+        floor and can compute a negative -Xmx inside a container, which makes
+        the JVM refuse to start. The command must supply its own default rather
+        than relying on that.
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1)
+
+        self.assertGreater(self.samtools.count(output_bam), 0)
+
+    def test_clumpify_min_input_reads_skip(self):
+        """min_input_reads below threshold copies input through untouched."""
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        # input.bam has 1794 reads
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, min_input_reads=2000)
+
+        self.assertEqual(self.samtools.count(output_bam), self.samtools.count(input_bam))
+
+    def test_clumpify_max_output_reads_downsample(self):
+        """max_output_reads shrinks the keep-list before filtering."""
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        max_output_reads = 300
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam,
+                                                max_output_reads=max_output_reads,
+                                                threads=1, memory='250m')
+
+        # IDs are per-template, so a paired BAM yields up to 2 reads per kept ID
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, max_output_reads * 2)
+
+
+class TestMvicunaRemoved(unittest.TestCase):
+    """M-Vicuna is gone: x86-only, unmaintained, ~17x slower than clumpify, and
+    its single-end path was a documented no-op that copied input to output.
+
+    rmdup_clumpify_bam carries forward the property that made it worth keeping
+    -- library-aware and provenance-preserving in one implementation.
+    """
+
+    def test_tool_module_gone(self):
+        self.assertFalse(hasattr(viral_ngs.core, 'mvicuna'))
+
+    def test_command_unregistered(self):
+        commands = dict(viral_ngs.read_utils.__commands__)
+        self.assertNotIn('rmdup_mvicuna_bam', commands)
+        # the replacement is registered in its place
+        self.assertIn('rmdup_clumpify_bam', commands)
+
+    def test_no_module_attributes_left(self):
+        for attr in ('rmdup_mvicuna_bam', 'parser_rmdup_mvicuna_bam',
+                     'mvicuna_fastqs_to_readlist', '_merge_fastqs_and_mvicuna'):
+            self.assertFalse(hasattr(viral_ngs.read_utils, attr),
+                             msg="read_utils still exposes %s" % attr)
+
+    def test_tool_class_gone(self):
+        names = [cls.__name__ for cls in viral_ngs.core.all_tool_classes()]
+        self.assertNotIn('MvicunaTool', names)
 
 
 class TestAlignAndFix(TestCaseWithTmp):
@@ -950,7 +1233,6 @@ class TestDownsampleBams(TestCaseWithTmp):
         for out_bam in output_bams:
             self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
 
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_downsample_with_dedup_after(self):
         """ Also tests subdir output """
         temp_dir = tempfile.mkdtemp()
@@ -964,7 +1246,6 @@ class TestDownsampleBams(TestCaseWithTmp):
         for out_bam in output_bams:
             self.assertLess(self.samtools.count(out_bam), target_count, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
 
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_downsample_with_dedup_before(self):
         """ Also tests subdir output """
         temp_dir = tempfile.mkdtemp()
@@ -977,6 +1258,50 @@ class TestDownsampleBams(TestCaseWithTmp):
         self.assertGreater(len(output_bams), 0, msg="No output found")
         for out_bam in output_bams:
             self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
+
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+    def test_downsample_with_dedup_tool_cdhit(self):
+        """--dedupTool cdhit routes the dedup step through rmdup_cdhit_bam."""
+        temp_dir = tempfile.mkdtemp()
+
+        target_count = 1500
+        viral_ngs.read_utils.main_downsample_bams([self.with_dups], temp_dir,
+                                                  deduplicate_before=True,
+                                                  dedup_tool='cdhit',
+                                                  specified_read_count=target_count,
+                                                  JVMmemory="1g")
+
+        output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
+        self.assertGreater(len(output_bams), 0, msg="No output found")
+        for out_bam in output_bams:
+            self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10)
+
+    def test_downsample_dedup_tool_parser_roundtrip(self):
+        """--dedupTool parses, defaults to clumpify, and rejects unknown tools."""
+        parser = viral_ngs.read_utils.parser_downsample_bams(argparse.ArgumentParser())
+
+        args = parser.parse_args(['in.bam', '--deduplicateBefore'])
+        self.assertEqual(args.dedup_tool, 'clumpify')
+
+        args = parser.parse_args(['in.bam', '--deduplicateBefore', '--dedupTool', 'cdhit'])
+        self.assertEqual(args.dedup_tool, 'cdhit')
+
+        with self.assertRaises(SystemExit):
+            parser.parse_args(['in.bam', '--dedupTool', 'mvicuna'])
+
+    def test_downsample_unknown_dedup_tool(self):
+        """An unknown dedup_tool fails with a clear error, before any work starts.
+
+        argparse choices guard the CLI, but main_downsample_bams is also a Python
+        API, where a bad value used to surface as a bare KeyError from inside the
+        executor.
+        """
+        with self.assertRaises(ValueError) as caught:
+            viral_ngs.read_utils.main_downsample_bams(
+                [self.with_dups], out_path=None, deduplicate_before=True,
+                dedup_tool='bogus', specified_read_count=1500, JVMmemory="1g")
+        self.assertIn('bogus', str(caught.exception))
+        self.assertIn('clumpify', str(caught.exception))
 
     def test_downsample_to_too_large_target_count(self):
         """ Should fail """
