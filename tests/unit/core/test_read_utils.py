@@ -8,6 +8,7 @@ import filecmp
 import os
 import glob
 import platform
+import random
 
 import pysam
 import viral_ngs.read_utils
@@ -774,6 +775,207 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         # Allow some tolerance over exactly 2x
         expected_max_reads = max_output_reads * 2 + 100  # IDs * 2 reads/pair + tolerance
         self.assertLessEqual(output_count, expected_max_reads)
+
+
+class TestRmdupClumpify(TestCaseWithTmp):
+    """Tests for rmdup_clumpify_bam.
+
+    clumpify ships in the bbmap conda package on both amd64 and arm64, so
+    unlike the mvicuna and cdhit dedup tests these are not ARM-skipped.
+    """
+
+    def setUp(self):
+        super(TestRmdupClumpify, self).setUp()
+        self.samtools = viral_ngs.core.samtools.SamtoolsTool()
+
+    def _collapse_libraries(self, inBam, library='onelib'):
+        """Return a copy of inBam whose read groups all share a single LB tag."""
+        header_file = viral_ngs.core.file.mkstempfname('.txt')
+        with open(header_file, 'wt') as outf:
+            for row in self.samtools.getHeader(inBam):
+                if row[0] == '@RG':
+                    row = [('LB:' + library) if x.startswith('LB:') else x for x in row]
+                outf.write('\t'.join(row) + '\n')
+        out_bam = viral_ngs.core.file.mkstempfname('.onelib.bam')
+        self.samtools.reheader(inBam, header_file, out_bam)
+        return out_bam
+
+    def test_clumpify_canned_input(self):
+        """Standard paired-end input: reads are removed, some survive."""
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLess(output_count, input_count)
+
+    def test_clumpify_empty_input(self):
+        """Empty BAM in, valid header-only BAM out -- never a crash."""
+        empty_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'empty.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(empty_bam, output_bam)
+
+        self.assertEqual(self.samtools.count(output_bam), 0)
+        # output must still be a readable BAM, not a zero-byte file
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as bam:
+            self.assertEqual(len(list(bam)), 0)
+
+    def test_clumpify_single_end(self):
+        """Single-end dedup actually removes reads.
+
+        This is the case rmdup_mvicuna_bam silently passed through untouched.
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestPerSample', 'in.2libs3rgs.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLess(output_count, input_count)
+
+    def test_clumpify_preserves_header_and_tags(self):
+        """Filtering the original BAM preserves the header and per-read tags.
+
+        This is what rmdup_cdhit_bam's FASTQ round-trip loses.
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        in_rgs = [row for row in self.samtools.getHeader(input_bam) if row[0] == '@RG']
+        out_rgs = [row for row in self.samtools.getHeader(output_bam) if row[0] == '@RG']
+        self.assertEqual(in_rgs, out_rgs)
+
+        with pysam.AlignmentFile(input_bam, 'rb', check_sq=False) as bam:
+            in_tags = {r.query_name: r.get_tag('RG') for r in bam if r.has_tag('RG')}
+        self.assertGreater(len(in_tags), 0)
+
+        with pysam.AlignmentFile(output_bam, 'rb', check_sq=False) as bam:
+            out_reads = list(bam)
+        self.assertGreater(len(out_reads), 0)
+        for read in out_reads:
+            self.assertTrue(read.has_tag('RG'),
+                            msg="read {} lost its RG tag".format(read.query_name))
+            self.assertEqual(read.get_tag('RG'), in_tags[read.query_name])
+
+    def _make_cross_library_bam(self, n=200, seed=7):
+        """Build an unaligned BAM where every template appears in both libraries.
+
+        200 distinct paired templates, each written once under read group rgA
+        (LB:libA) and once under rgB (LB:libB) with a different query name.
+        There are therefore no duplicates *within* a library, and exactly one
+        duplicate for every template *across* libraries.
+        """
+        rnd = random.Random(seed)
+        header = {
+            'HD': {'VN': '1.6', 'SO': 'unsorted'},
+            'RG': [
+                {'ID': 'rgA', 'LB': 'libA', 'SM': 'sample', 'PL': 'illumina'},
+                {'ID': 'rgB', 'LB': 'libB', 'SM': 'sample', 'PL': 'illumina'},
+            ],
+        }
+        seqs = set()
+        while len(seqs) < n:
+            seqs.add((''.join(rnd.choice('ACGT') for _ in range(60)),
+                      ''.join(rnd.choice('ACGT') for _ in range(60))))
+        seqs = sorted(seqs)
+
+        out_bam = viral_ngs.core.file.mkstempfname('.crosslib.bam')
+        with pysam.AlignmentFile(out_bam, 'wb', header=header) as out:
+            for i, (seq1, seq2) in enumerate(seqs):
+                for rg in ('rgA', 'rgB'):
+                    for mate, seq in ((1, seq1), (2, seq2)):
+                        read = pysam.AlignedSegment()
+                        read.query_name = 'tmpl%04d_%s' % (i, rg)
+                        read.query_sequence = seq
+                        read.query_qualities = pysam.qualitystring_to_array('I' * len(seq))
+                        read.flag = 0x1 | 0x4 | 0x8 | (0x40 if mate == 1 else 0x80)
+                        read.set_tag('RG', rg)
+                        out.write(read)
+        return out_bam, len(seqs)
+
+    def test_clumpify_multi_library(self):
+        """Smoke test across a real 12-read-group, 2-library BAM."""
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'G5012.3.testreads.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1, memory='250m')
+
+        input_count = self.samtools.count(input_bam)
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, input_count)
+
+    def test_clumpify_library_aware(self):
+        """Duplicates are collapsed within a library but never across libraries.
+
+        Identical sequences from different libraries are independent observations
+        of the molecule, not duplicates of each other; collapsing them discards
+        real evidence and corrupts downstream library-level replicate reasoning.
+
+        The fixture has every template present in both libraries and none repeated
+        within one, so a library-aware dedup must retain everything, while pooling
+        the libraries halves it.
+        """
+        input_bam, num_templates = self._make_cross_library_bam()
+        per_library_bam = viral_ngs.core.file.mkstempfname("per_library.bam")
+        pooled_bam = viral_ngs.core.file.mkstempfname("pooled.bam")
+
+        input_count = self.samtools.count(input_bam)
+        self.assertEqual(input_count, num_templates * 4)  # 2 libraries x 2 mates
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, per_library_bam,
+                                                threads=1, memory='500m')
+
+        one_library_input = self._collapse_libraries(input_bam)
+        libraries = set(
+            field for row in self.samtools.getHeader(one_library_input)
+            if row[0] == '@RG' for field in row if field.startswith('LB:')
+        )
+        self.assertEqual(len(libraries), 1, msg="fixture setup failed to collapse libraries")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(one_library_input, pooled_bam,
+                                                threads=1, memory='500m')
+
+        per_library_count = self.samtools.count(per_library_bam)
+        pooled_count = self.samtools.count(pooled_bam)
+
+        # nothing is duplicated within a library, so a library-aware dedup keeps it all
+        self.assertEqual(per_library_count, input_count)
+        # pooling the libraries collapses each cross-library twin
+        self.assertEqual(pooled_count, num_templates * 2)
+
+    def test_clumpify_min_input_reads_skip(self):
+        """min_input_reads below threshold copies input through untouched."""
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        # input.bam has 1794 reads
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, min_input_reads=2000)
+
+        self.assertEqual(self.samtools.count(output_bam), self.samtools.count(input_bam))
+
+    def test_clumpify_max_output_reads_downsample(self):
+        """max_output_reads shrinks the keep-list before filtering."""
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        max_output_reads = 300
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam,
+                                                max_output_reads=max_output_reads,
+                                                threads=1, memory='250m')
+
+        # IDs are per-template, so a paired BAM yields up to 2 reads per kept ID
+        output_count = self.samtools.count(output_bam)
+        self.assertGreater(output_count, 0)
+        self.assertLessEqual(output_count, max_output_reads * 2)
 
 
 @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
