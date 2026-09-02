@@ -863,6 +863,21 @@ class TestRmdupBbnorm(TestCaseWithTmp):
         self.assertGreater(output_count, 0)
         self.assertLessEqual(output_count, input_count)
 
+    def test_bbnorm_default_memory(self):
+        """Runs without an explicit memory= argument.
+
+        BBTools' heap autodetection (calcmem.sh) is unreliable under a container
+        memory limit: bbmap 39.10 computed a negative -Xmx and the JVM refused to
+        start, while 40.00 asks for -Xmx31000m on a 6GB host and gets OOM-killed.
+        The command must supply its own default rather than rely on it.
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_bbnorm_bam(input_bam, output_bam, threads=1)
+
+        self.assertGreater(self.samtools.count(output_bam), 0)
+
     def test_bbnorm_max_output_reads_downsample(self):
         """Test that max_output_reads downsamples the keep-list."""
         input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
