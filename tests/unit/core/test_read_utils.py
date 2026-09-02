@@ -952,6 +952,21 @@ class TestRmdupClumpify(TestCaseWithTmp):
         # pooling the libraries collapses each cross-library twin
         self.assertEqual(pooled_count, num_templates * 2)
 
+    def test_clumpify_default_memory(self):
+        """Runs without an explicit memory= argument.
+
+        BBTools' own heap autodetection (calcmem.sh) subtracts a fixed 500MB
+        floor and can compute a negative -Xmx inside a container, which makes
+        the JVM refuse to start. The command must supply its own default rather
+        than relying on that.
+        """
+        input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
+        output_bam = viral_ngs.core.file.mkstempfname("output.bam")
+
+        viral_ngs.read_utils.rmdup_clumpify_bam(input_bam, output_bam, threads=1)
+
+        self.assertGreater(self.samtools.count(output_bam), 0)
+
     def test_clumpify_min_input_reads_skip(self):
         """min_input_reads below threshold copies input through untouched."""
         input_bam = os.path.join(viral_ngs.core.file.get_test_input_path(), 'TestRmdupUnaligned', 'input.bam')
@@ -1152,7 +1167,6 @@ class TestDownsampleBams(TestCaseWithTmp):
         for out_bam in output_bams:
             self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
 
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_downsample_with_dedup_after(self):
         """ Also tests subdir output """
         temp_dir = tempfile.mkdtemp()
@@ -1166,7 +1180,6 @@ class TestDownsampleBams(TestCaseWithTmp):
         for out_bam in output_bams:
             self.assertLess(self.samtools.count(out_bam), target_count, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
 
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
     def test_downsample_with_dedup_before(self):
         """ Also tests subdir output """
         temp_dir = tempfile.mkdtemp()
@@ -1179,6 +1192,36 @@ class TestDownsampleBams(TestCaseWithTmp):
         self.assertGreater(len(output_bams), 0, msg="No output found")
         for out_bam in output_bams:
             self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10, msg="{} not downsampled to the target size: {}".format(os.path.basename(out_bam),target_count))
+
+    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+    def test_downsample_with_dedup_tool_cdhit(self):
+        """--dedupTool cdhit routes the dedup step through rmdup_cdhit_bam."""
+        temp_dir = tempfile.mkdtemp()
+
+        target_count = 1500
+        viral_ngs.read_utils.main_downsample_bams([self.with_dups], temp_dir,
+                                                  deduplicate_before=True,
+                                                  dedup_tool='cdhit',
+                                                  specified_read_count=target_count,
+                                                  JVMmemory="1g")
+
+        output_bams = list(glob.glob(os.path.join(temp_dir, '*.bam')))
+        self.assertGreater(len(output_bams), 0, msg="No output found")
+        for out_bam in output_bams:
+            self.assertAlmostEqual(self.samtools.count(out_bam), target_count, delta=10)
+
+    def test_downsample_dedup_tool_parser_roundtrip(self):
+        """--dedupTool parses, defaults to clumpify, and rejects unknown tools."""
+        parser = viral_ngs.read_utils.parser_downsample_bams(argparse.ArgumentParser())
+
+        args = parser.parse_args(['in.bam', '--deduplicateBefore'])
+        self.assertEqual(args.dedup_tool, 'clumpify')
+
+        args = parser.parse_args(['in.bam', '--deduplicateBefore', '--dedupTool', 'cdhit'])
+        self.assertEqual(args.dedup_tool, 'cdhit')
+
+        with self.assertRaises(SystemExit):
+            parser.parse_args(['in.bam', '--dedupTool', 'mvicuna'])
 
     def test_downsample_to_too_large_target_count(self):
         """ Should fail """
