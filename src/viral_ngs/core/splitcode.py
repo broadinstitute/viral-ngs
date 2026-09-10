@@ -131,6 +131,21 @@ class SplitCodeTool(Tool):
 # ==================
 
 
+def barcode_group_for_row(row):
+    """Return the pool identity of a samplesheet row: its outer barcodes.
+
+    A pool is defined by (barcode_1, barcode_2) alone. Deliberately excludes
+    library_id_per_sample, which is per-sample -- two library preps of one
+    sample can share a pool, and folding the library id into the pool identity
+    splits one physical pool in two (issues #1115, #1117).
+    """
+    b1 = row.get("barcode_1", "")
+    b2 = row.get("barcode_2", "")
+    if b2 and str(b2).strip():
+        return f"{b1}-{b2}"
+    return b1
+
+
 def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
     """
     Create a lookup table (LUT) consolidating splitcode demux results with sample metadata.
@@ -348,13 +363,7 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
     # Splitcode produces ONE summary JSON per outer barcode group (barcode_1+barcode_2),
     # but muxed_pool includes library_id_per_sample. When samples have unique library_ids,
     # there are multiple muxed_pool values per barcode group but only one JSON file.
-    def _barcode_group(row):
-        b1 = row.get("barcode_1", "")
-        b2 = row.get("barcode_2", "")
-        if b2 and str(b2).strip():
-            return f"{b1}-{b2}"
-        return b1
-    barcodes_df["barcode_group"] = barcodes_df.apply(_barcode_group, axis=1)
+    barcodes_df["barcode_group"] = barcodes_df.apply(barcode_group_for_row, axis=1)
 
     for barcode_group in barcodes_df["barcode_group"].unique():
         samplesheet_rows_for_pool_df = barcodes_df[barcodes_df["barcode_group"] == barcode_group]
@@ -497,6 +506,9 @@ def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_
 
         unmatched_dict = {
             "sample"                : f"{unmatched_name}.{barcode_group}",
+            # NOTE: arbitrary pick when a pool holds several library ids (set
+            # ordering is not stable). Harmless only because the unmatched row is
+            # never emitted as a BAM -- see the note in illumina.splitcode_demux.
             "library_id_per_sample" : list(set(samplesheet_rows_for_pool_hx_df["library_id_per_sample"]))[0],
             "run"                   : f"{unmatched_name}.{barcode_group}",
             "muxed_pool"            : barcode_group,
@@ -541,8 +553,13 @@ def plot_read_counts(df_csv_path, outDir):
     fig, axs = plt.subplots(figsize=(10, 10), nrows=3, sharex=True)
     fontsize = 14
 
+    # Group by the pool (outer barcodes), not by library_id: library_id_per_sample
+    # is per-sample, so a pool holding two library preps of one sample would
+    # otherwise be plotted as two pools, each normalized over part of the reads.
+    df_lut["pool"] = df_lut.apply(barcode_group_for_row, axis=1)
+
     df_grouped = (
-        df_lut.groupby(["inline_barcode", "library_id"])["num_reads_total"]
+        df_lut.groupby(["inline_barcode", "pool"])["num_reads_total"]
         .sum()
         .unstack(fill_value=0)
     )
@@ -552,9 +569,9 @@ def plot_read_counts(df_csv_path, outDir):
     bar_positions = np.arange(len(df_grouped))
 
     # Define colors
-    unique_library_ids = df_lut["library_id"].nunique()
+    unique_pools = df_lut["pool"].nunique()
     tab20_colors = plt.cm.tab20.colors
-    pool_colors = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
+    pool_colors = (tab20_colors * (unique_pools // 20 + 1))[:unique_pools]
 
     for i, pool in enumerate(df_grouped.columns):
         axs[0].bar(
@@ -620,22 +637,21 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
     fig, axs = plt.subplots(figsize=(10, 10), nrows=4, sharex=True)
     fontsize = 14
 
+    # A pool is its outer barcodes, not its library_id -- see plot_read_counts.
+    df_lut["pool"] = df_lut.apply(barcode_group_for_row, axis=1)
+
     # Define colors
-    unique_library_ids = df_lut["library_id"].nunique()
-    log.debug(f"Number of distinct library_id values (pools) present: {unique_library_ids}")
-    log.debug(f"library_id values (pools): {', '.join(sorted(list(set(df_lut['library_id'].astype(str)))))}")
+    unique_pools = df_lut["pool"].nunique()
+    log.debug(f"Number of distinct pools present: {unique_pools}")
+    log.debug(f"pools: {', '.join(sorted(list(set(df_lut['pool'].astype(str)))))}")
 
     tab20_colors = plt.cm.tab20.colors
-    pool_colors  = (tab20_colors * (unique_library_ids // 20 + 1))[:unique_library_ids]
+    pool_colors  = (tab20_colors * (unique_pools // 20 + 1))[:unique_pools]
 
-    for i, pool in enumerate(sorted(df_lut["library_id"].unique())):
-        log.debug(f"Processing read counts to plot for library_id (pool): {pool}")
-        # pool_metrics = df_lut[
-        #     (df_lut["library_id"] == str(pool))
-        #     & (df_lut["inline_barcode"] != unmatched_name)
-        # ]
+    for i, pool in enumerate(sorted(df_lut["pool"].unique())):
+        log.debug(f"Processing read counts to plot for pool: {pool}")
         pool_metrics = df_lut[
-            (df_lut["library_id"] == pool)
+            (df_lut["pool"] == pool)
             & (~df_lut['inline_barcode'].str.match(r'^N+$', na=False))
         ]
         num_reads = pool_metrics["num_reads_total"]
@@ -644,7 +660,7 @@ def plot_sorted_curve(df_csv_path, out_dir, unmatched_name, out_basename=None):
             ax.scatter(
                 np.arange(len(num_reads)),
                 num_reads,
-                label=f'{pool.split("_")[-1]}',
+                label=f'{pool}',
                 color=pool_colors[i],
             )
             ax.plot(np.arange(len(num_reads)), num_reads, color=pool_colors[i])

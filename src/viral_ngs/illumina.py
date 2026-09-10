@@ -3091,11 +3091,14 @@ def write_barcode_metrics_for_pools(input_csv_path,
     Process sequencing data to calculate read metrics for each inline barcode across library pools
     and write results to a file.
     
-    For each (library_id, inline_barcode) pair, calculates:
-    - {library_id}_reads: Total reads for the pair
-    - {library_id}_reads_pool_pct: Reads as fraction of total reads in that library
-    - {library_id}_reads_all_pct: Reads as fraction of total reads across all libraries
-    - {library_id}_barcode_reads_vs_all_reads_for_barcode_pct: Reads as fraction of total reads for that barcode across all libraries
+    For each (pool, inline_barcode) pair, calculates:
+    - {pool}_reads: Total reads for the pair
+    - {pool}_reads_pool_pct: Reads as fraction of total reads in that pool
+    - {pool}_reads_all_pct: Reads as fraction of total reads across all pools
+    - {pool}_barcode_reads_vs_all_reads_for_barcode_pct: Reads as fraction of total reads for that barcode across all pools
+
+    A pool is identified by its outer barcodes (barcode_1[-barcode_2]), not by
+    library_id_per_sample, which is per-sample and may vary within one pool.
     
     Parameters:
     -----------
@@ -3130,15 +3133,21 @@ def write_barcode_metrics_for_pools(input_csv_path,
     # This handles variable numbers of N's (e.g., "N", "NN", "NNNNNNNNN", etc.)
     df_filtered = df[~df['inline_barcode'].str.match(r'^N+$', na=False)].copy()
 
-    # Get unique inline barcodes and library IDs
-    unique_barcodes  = df_filtered['inline_barcode'].unique()
-    unique_libraries = df_filtered['library_id'].unique()
+    # Group by the pool (outer barcodes), not by library_id: library_id_per_sample
+    # is per-sample, so a pool holding two library preps of one sample would
+    # otherwise be reported as two pools, each with a denominator covering only
+    # part of the pool's reads (issue #1117).
+    df_filtered['pool'] = df_filtered.apply(splitcode.barcode_group_for_row, axis=1)
 
-    # Calculate total reads across all libraries for percentage calculations
+    # Get unique inline barcodes and pools
+    unique_barcodes  = df_filtered['inline_barcode'].unique()
+    unique_pools     = df_filtered['pool'].unique()
+
+    # Calculate total reads across all pools for percentage calculations
     total_reads_all = df_filtered['num_reads_total'].sum()
-    
-    # Calculate total reads per library for pool percentage calculations
-    library_totals = df_filtered.groupby('library_id')['num_reads_total'].sum()
+
+    # Calculate total reads per pool for pool percentage calculations
+    pool_totals = df_filtered.groupby('pool')['num_reads_total'].sum()
     
     # Calculate total reads per barcode across all libraries for barcode-specific percentages
     barcode_totals = df_filtered.groupby('inline_barcode')['num_reads_total'].sum()
@@ -3147,18 +3156,18 @@ def write_barcode_metrics_for_pools(input_csv_path,
     result_df = pd.DataFrame(index=unique_barcodes, dtype=str)
     result_df.index.name = 'inline_barcode'
     
-    # For each library, calculate metrics
-    for library_id in unique_libraries:
-        library_data = df_filtered[df_filtered['library_id'] == library_id]
-        
-        # Group by inline_barcode and sum reads for this library
-        barcode_reads = library_data.groupby('inline_barcode')['num_reads_total'].sum()
-        
-        # Add columns for this library
-        reads_col       = f"{library_id}_reads"
-        pool_pct_col    = f"{library_id}_reads_pool_pct"
-        all_pct_col     = f"{library_id}_reads_all_pct"
-        barcode_pct_col = f"{library_id}_barcode_reads_vs_all_reads_for_barcode_pct"
+    # For each pool, calculate metrics
+    for pool in unique_pools:
+        pool_data = df_filtered[df_filtered['pool'] == pool]
+
+        # Group by inline_barcode and sum reads for this pool
+        barcode_reads = pool_data.groupby('inline_barcode')['num_reads_total'].sum()
+
+        # Add columns for this pool
+        reads_col       = f"{pool}_reads"
+        pool_pct_col    = f"{pool}_reads_pool_pct"
+        all_pct_col     = f"{pool}_reads_all_pct"
+        barcode_pct_col = f"{pool}_barcode_reads_vs_all_reads_for_barcode_pct"
         
         # Initialize columns with 0
         result_df[reads_col]       = 0
@@ -3170,7 +3179,7 @@ def write_barcode_metrics_for_pools(input_csv_path,
         for barcode in barcode_reads.index:
             reads = barcode_reads[barcode]
             result_df.loc[barcode, reads_col]       = reads
-            result_df.loc[barcode, pool_pct_col]    = reads / library_totals[library_id] if library_totals[library_id] > 0 else 0.0
+            result_df.loc[barcode, pool_pct_col]    = reads / pool_totals[pool] if pool_totals[pool] > 0 else 0.0
             result_df.loc[barcode, all_pct_col]     = reads / total_reads_all if total_reads_all > 0 else 0.0
             result_df.loc[barcode, barcode_pct_col] = reads / barcode_totals[barcode] if barcode_totals[barcode] > 0 else 0.0
     
@@ -3409,27 +3418,45 @@ def splitcode_demux(
     sample_library_id_to_fastqs                 = {}
     pool_ids_successfully_demuxed_via_splitcode = []
 
+    # A pool is its outer barcode pair, so that is the pool key here. Do NOT use
+    # muxed_run ("{bc1}-{bc2}.l{library_id_per_sample}[.{run_id}]"): that string
+    # is the pool BAM's *filename*, and the outer demux built it by collapsing
+    # the whole barcode group (collapse_sample_index_duplicates folds differing
+    # library ids into e.g. "1_2_muxed"), so it cannot be rebuilt from a single
+    # row. Using it as a key also split one physical pool into one pool per
+    # library id, which ran splitcode twice over the same BAM (issue #1117).
+    inner_demux_barcode_map_df = inner_demux_barcode_map_df.copy()
+    inner_demux_barcode_map_df["barcode_group"] = inner_demux_barcode_map_df.apply(
+        splitcode.barcode_group_for_row, axis=1)
+    inner_demux_barcode_map_df["muxed_run"] = inner_demux_barcode_map_df["barcode_group"].map(
+        lambda group: f"{group}.{run_id}" if run_id else group)
+
+    # NOTE (known, pre-dating #1117): several locals below are built and never
+    # read again -- demux_bams_to_sample_library_id_map, sample_to_demux_bam_map,
+    # inline_barcodes, samtools_tool, lane_count. Left in place deliberately;
+    # removing dead code belongs in its own change, not in a bug fix.
+
     # Iterate over rows
     for sample_name, sample_row in inner_demux_barcode_map_df.iterrows():
         log.debug(f"Looking for input pool bam files for '{sample_name}'")
-        #b1              = sample_row["barcode_1"]
-        #b3              = sample_row["barcode_3"]
-        #inline_index_id = sample_row["Inline_Index_ID"]
-        #run_str         = sample_row["run"]
-        muxed_pool_str = sample_row["muxed_run"]
+        pool_id = sample_row["muxed_run"]
 
-        bam_to_glob_for = f"{sample_row['muxed_run']}*.bam"
+        # Glob on the barcode group alone: the trailing wildcard then absorbs
+        # whatever suffix the collapse produced -- ".lL1", ".l1_2_muxed", an md5
+        # form for many differing values, and the ".r<n>" that SampleSheet adds
+        # for non-unique library ids.
+        bam_to_glob_for = f"{sample_row['barcode_group']}*.bam"
         found_bam_files = glob.glob(f"{inDir}/{bam_to_glob_for}".replace("//","/"))
         found_bam_file = found_bam_files[0] if found_bam_files else None
-        
+
         if found_bam_file:
-            if muxed_pool_str not in pool_id_to_pool_bam:
-                pool_id_to_pool_bam[muxed_pool_str] = found_bam_file
-                log.info(f"Found input pool bam file for {muxed_pool_str}: {found_bam_file}")
+            if pool_id not in pool_id_to_pool_bam:
+                pool_id_to_pool_bam[pool_id] = found_bam_file
+                log.info(f"Found input pool bam file for {pool_id}: {found_bam_file}")
 
             demux_bams_to_sample_library_id_map[found_bam_file].append(sample_row["run"])
             sample_to_demux_bam_map[sample_name] = found_bam_file
-            pool_id_to_sample_library_id_map[sample_row["muxed_run"]].append(sample_row["run"])
+            pool_id_to_sample_library_id_map[pool_id].append(sample_row["run"])
         else:
             raise FileNotFoundError(f"No bam file found: for {bam_to_glob_for}")
 
@@ -3518,6 +3545,16 @@ def splitcode_demux(
             ]
 
         # Add unmatched reads to the mapping
+        #
+        # NOTE (known, pre-dates #1117): the unmatched BAM is never actually
+        # emitted. This builds "{unmatched_name}.{pool_id}", but the metrics LUT
+        # keys its unmatched row "{unmatched_name}.{barcode_group}" (no run id --
+        # see splitcode.create_splitcode_lookup_table), so the lookup below always
+        # misses and logs "not found in the samplesheet data". Separately,
+        # run_splitcode_on_pool writes the file as lowercase "unmatched.*" because
+        # this call site never forwards unmatched_name. Both must be fixed
+        # together, and doing so adds an output file no downstream workflow has
+        # seen, so it is deliberately left alone here.
         unmatched_sample_name = f"{unmatched_name}.{pool_id}"
         unmatched_output_prefix = f"{splitcode_out_tmp_dir}/{unmatched_sample_name}"
         sample_library_id_to_fastqs[unmatched_sample_name] = [
@@ -3580,6 +3617,8 @@ def splitcode_demux(
 
     splitcode_demux_failures = list(set(pool_id_to_sample_library_id_map.keys()) - set(pool_ids_successfully_demuxed_via_splitcode))
     if len(splitcode_demux_failures)>0:
+        # NOTE: missing its format argument -- a latent TypeError. Unreachable
+        # today because a failed pool raises above before this runs.
         log.warning("splitcode demux failed for: %s", )
 
     # gather metrics and create output plots
@@ -3593,6 +3632,8 @@ def splitcode_demux(
         inner_demux_barcode_map_df,  # Pass DataFrame directly (not file path)
         splitcode_csv_metrics_out,
         unmatched_name,
+        # NOTE: create_splitcode_lookup_table binds pool_ids and never reads it,
+        # so passing it is inert. Left alone rather than churn a shared signature.
         pool_ids_successfully_demuxed_via_splitcode
         # Note: append_run_id not needed when passing DataFrame (it's already in the DataFrame)
     )
@@ -3714,6 +3755,11 @@ def splitcode_demux(
         row["lane"] = str(lane)
     if out_meta_by_sample:
         with open(out_meta_by_sample, "wt") as outf:
+            # NOTE (known, pre-dates #1117): keyed by sample name, which repeats
+            # across libraries of one sample, so all but the last are dropped.
+            # 44e3d18c fixed the same defect in demux_metrics.json on the FASTQ
+            # path, but unlike that file this one is consumed by the WDL, so
+            # re-keying it needs its own compatibility assessment.
             json.dump(dict((r["sample"], r) for r in sample_meta), outf, indent=2)
     if out_meta_by_filename:
         with open(out_meta_by_filename, "wt") as outf:
