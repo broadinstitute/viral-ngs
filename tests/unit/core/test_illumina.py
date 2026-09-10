@@ -87,14 +87,14 @@ class TestSampleSheet(TestCaseWithTmp):
                                       )
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(samples.duplicate_rows_collapsed, False)
-        self.assertEqual(samples.can_be_collapsed, True)
+        self.assertEqual(samples.has_collapsible_duplicates, True)
         self.assertEqual(samples.num_samples, 96)
 
         samples.collapse_sample_index_duplicates()
 
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(samples.duplicate_rows_collapsed, True)
-        self.assertEqual(samples.can_be_collapsed, False)
+        self.assertEqual(samples.has_collapsible_duplicates, False)
         self.assertEqual(len(samples.get_rows()), 4)
 
         # check that unique values in grouped rows are preserved
@@ -110,6 +110,28 @@ class TestSampleSheet(TestCaseWithTmp):
         # check that the collapsed output is what we expect
         self.assertEqual(tuple(r["barcode_1"] for r in samples.get_rows()), ("CTGATCGT","ACTCTCGA","TGAGCTAG","GAGACGAT"))
         self.assertEqual(tuple(r["barcode_2"] for r in samples.get_rows()), ("GCGCATAT","CTGTACCA","GAACGGTT","ACCGGTTA"))
+
+    def test_has_collapsible_duplicates_single_row(self):
+        """A one-row sheet has nothing to collapse, and that is not an error.
+
+        The predicate is "two or more rows share an index pair", so one row is
+        always False. Guards the N==1 boundary that the 96-row fixture above
+        never reaches, and that issue #1115 tripped over by reading this
+        property (and an inline copy of it) as "these rows form one pool".
+        """
+        with tempfile.TemporaryDirectory() as sheet_dir:
+            sheet = os.path.join(sheet_dir, 'SampleSheet-one-row.tsv')
+            with open(sheet, 'wt') as outf:
+                outf.write("sample\tbarcode_1\tbarcode_2\tbarcode_3\tlibrary_id_per_sample\n")
+                outf.write("TestSampleSolo\tATCGATCG\tGCTAGCTA\tAAAAAAAA\tL1\n")
+
+            samples = viral_ngs.illumina.SampleSheet(sheet, allow_non_unique=True)
+
+            self.assertEqual(samples.num_samples, 1)
+            self.assertEqual(samples.has_collapsible_duplicates, False)
+            # and the inner demux map builds fine from it -- nothing here needs N>1
+            self.assertEqual(len(samples.inner_demux_mapper()), 1)
+
 
     def test_tabfile_win_endings(self):
         inDir = viral_ngs.core.file.get_test_input_path(self)
@@ -823,6 +845,63 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
                     # Verify BAM content matches expected
                     assert_equal_bam_reads(self, actual_sample1_bam, expected_sample1_bam)
                     assert_equal_bam_reads(self, actual_sample2_bam, expected_sample2_bam)
+
+    def test_splitcode_demux_singleton_pools(self):
+        """
+        Test splitcode_demux on a samplesheet where every pool holds one sample.
+
+        Regression test for GitHub issue #1115. The collapsibility check asks
+        whether any outer-barcode pair is duplicated; when each pool carries a
+        single library nothing is, so inner_demux_barcode_map_df was left None
+        and then dereferenced -- an AttributeError, not a clean diagnostic.
+
+        This is the shape of the samplesheet that failed in production: 7 rows,
+        each with distinct outer barcodes.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+
+        sample_a_pairs = 100
+        sample_b_pairs = 50
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                # One pool BAM per singleton pool
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, 'ATCGATCG-GCTAGCTA.lL1.TESTFLOW.1.bam'),
+                    {"AAAAAAAA": sample_a_pairs},
+                )
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, 'CTGATCGT-TAGATCGC.lL1.TESTFLOW.1.bam'),
+                    {"CCCCCCCC": sample_b_pairs},
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=os.path.join(inDir, 'SampleSheet-singleton-pools.tsv'),
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                for sample, expected_pairs in (('TestSampleA', sample_a_pairs),
+                                               ('TestSampleB', sample_b_pairs)):
+                    bam = os.path.join(outDir, f'{sample}.lL1.TESTFLOW.1.bam')
+                    self.assertTrue(os.path.exists(bam),
+                                    f"Expected output BAM not found: {bam}; "
+                                    f"got {sorted(os.listdir(outDir))}")
+                    # samtools.count() reports records (R1+R2); the helper above
+                    # takes pairs
+                    self.assertEqual(self.samtools.count(bam) // 2, expected_pairs,
+                                     f"{sample} read pair count mismatch")
 
 
 class TestParseIlluminaFastqFilename(unittest.TestCase):
@@ -2995,8 +3074,9 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         Test that collapsibility is checked only on the filtered pool, not the entire samplesheet.
 
         This is a regression test for GitHub Copilot comment #2510390315.
-        The bug: can_be_collapsed was checking the entire samplesheet instead of just
-        the filtered samples for the current pool.
+        The bug: the collapsibility check (then SampleSheet.can_be_collapsed, now
+        has_collapsible_duplicates) was applied to the entire samplesheet instead
+        of just the filtered samples for the current pool.
 
         Scenario:
         - Samplesheet contains multiple pools:
@@ -3006,7 +3086,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         - FASTQ file contains only Pool 1 data (ATCGATCG+GCTAGCTA)
         - Should succeed even though Pool 3 exists with unique outer barcodes
 
-        Before fix: Would fail because can_be_collapsed checked entire samplesheet
+        Before fix: Would fail because the check covered the entire samplesheet
         After fix: Succeeds because collapsibility is checked only on Pool 1
         """
         out_dir = tempfile.mkdtemp()
@@ -3053,6 +3133,259 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         for bam in pool2_bams + pool3_bams:
             self.assertFalse(os.path.exists(bam),
                            f"BAM from different pool should not be created: {bam}")
+
+    # ------------------------------------------------------------------
+    # Single-sample 3-barcode pools (issue #1115)
+    #
+    # The collapsibility guard asked whether any outer-barcode pair occurred
+    # more than once, rather than whether the filtered rows all shared one
+    # pair. A pool holding a single library never has a "duplicate", so it
+    # always failed -- even though one sample trivially satisfies the
+    # condition the error message states.
+    # ------------------------------------------------------------------
+
+    def test_single_sample_3bc_pool(self):
+        """A 3-barcode pool with exactly one sample demuxes normally.
+
+        samples_3bc_single.tsv holds one row on Pool 1's outer barcodes with
+        inline barcode AAAAAAAA, which is 100 of the 250 read pairs in the
+        TestPool1 FASTQs; the other 125 are left unassigned.
+        """
+        out_dir = tempfile.mkdtemp()
+        samples_single = os.path.join(self.input_dir, 'samples_3bc_single.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samples_single,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            bam = os.path.join(out_dir, 'TestSampleSolo.lL1.bam')
+            self.assertTrue(os.path.exists(bam),
+                            f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            self.assertEqual(samtools.count(bam) // 2, 100,
+                             "TestSampleSolo should have 100 read pairs")
+
+            with open(os.path.join(out_dir, 'demux_metrics.json'), 'rt') as f:
+                metrics = json.load(f)
+            self.assertIn('TestSampleSolo.lL1', metrics['samples'])
+            self.assertEqual(metrics['samples']['TestSampleSolo.lL1']['sample'], 'TestSampleSolo')
+            self.assertEqual(metrics['samples']['TestSampleSolo.lL1']['read_count'], 100)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_single_sample_3bc_pool_with_append_run_id(self):
+        """Single-sample 3-barcode pool through the append_run_id naming path.
+
+        Exercises pool_id / muxed_run derivation on a one-row frame, which is
+        where a singleton pool would break if anything downstream still
+        assumed more than one sample.
+        """
+        out_dir = tempfile.mkdtemp()
+        samples_single = os.path.join(self.input_dir, 'samples_3bc_single.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samples_single,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            bam = os.path.join(out_dir, 'TestSampleSolo.lL1.TESTFC01.1.bam')
+            self.assertTrue(os.path.exists(bam),
+                            f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            self.assertEqual(samtools.count(bam) // 2, 100)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_multi_sample_3bc_pool_still_works(self):
+        """A pool of several samples sharing outer barcodes keeps working.
+
+        Green before and after the #1115 fix -- a regression guard that
+        correcting the N==1 case does not loosen the N>1 one.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            for sample, expected_pairs in (('TestSample1', 100), ('TestSample2', 75), ('TestSample3', 50)):
+                bam = os.path.join(out_dir, f'{sample}.lL1.bam')
+                self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+                self.assertEqual(samtools.count(bam) // 2, expected_pairs)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    # ------------------------------------------------------------------
+    # Pools whose samples carry different library_id_per_sample
+    #
+    # A pool is defined by its outer barcodes; library_id_per_sample is
+    # per-sample ("independent libraries from the same original sample"), so
+    # two preps of one sample can legitimately sit in one pool. But the pool
+    # was identified by the *name* muxed_run = "{bc1}-{bc2}.l{library_id}",
+    # which is a filename, not a key -- grouping on it silently splits one
+    # physical pool in two and demuxes only the first.
+    #
+    # samples_3bc_multilib.tsv is one pool (ATCGATCG+GCTAGCTA) holding
+    # TestSampleA libraries 1 and 2 plus TestSampleB library 1, matching the
+    # 100 / 75 / 50 read pairs in the TestPool1 FASTQs.
+    # ------------------------------------------------------------------
+
+    EXPECTED_MULTILIB = (
+        # run id,          inline barcode, read pairs
+        ('TestSampleA.l1', 'AAAAAAAA', 100),
+        ('TestSampleA.l2', 'CCCCCCCC', 75),
+        ('TestSampleB.l1', 'GGGGTTTT', 50),
+    )
+
+    def test_pool_with_mixed_library_ids(self):
+        """Every library in a pool is demuxed, not just the first library id."""
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.bam')
+                self.assertTrue(os.path.exists(bam),
+                                f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+                self.assertEqual(samtools.count(bam) // 2, expected_pairs,
+                                 f"{run_id} read pair count mismatch")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_platform_units(self):
+        """Each library gets its own inline barcode in the read-group PU.
+
+        Guards a second consequence of the same confusion: the barcode is
+        looked up by sample name, which is not unique across libraries of one
+        sample, so the wrong barcode_3 can be attached (or the lookup returns
+        several rows at once).
+        """
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            for run_id, inline, _pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.bam')
+                self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+                with pysam.AlignmentFile(bam, 'rb', check_sq=False) as samfile:
+                    read_groups = samfile.header.to_dict()['RG']
+                self.assertEqual(read_groups[0]['PU'],
+                                 f'TESTFC01.1.ATCGATCG-GCTAGCTA-{inline}',
+                                 f"{run_id} carries the wrong inline barcode in its PU")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_metadata(self):
+        """Metadata and metrics account for every library, not just the first.
+
+        meta_by_filename and demux_metrics are keyed by the library id, which
+        is unique; the bare sample name is not, and would collapse the two
+        TestSampleA libraries into one entry.
+        """
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                out_meta_by_filename=out_meta_by_filename,
+                threads=1
+            )
+
+            with open(out_meta_by_filename, 'rt') as f:
+                meta_by_filename = json.load(f)
+            with open(os.path.join(out_dir, 'demux_metrics.json'), 'rt') as f:
+                metrics = json.load(f)
+
+            expected_runs = sorted(r for r, _i, _p in self.EXPECTED_MULTILIB)
+            self.assertEqual(sorted(meta_by_filename), expected_runs)
+            for run_id in expected_runs:
+                self.assertTrue(os.path.exists(os.path.join(out_dir, run_id + '.bam')),
+                                f"no BAM matching metadata key {run_id}")
+
+            self.assertEqual(sorted(metrics['samples']), expected_runs)
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                self.assertEqual(metrics['samples'][run_id]['read_count'], expected_pairs)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_append_run_id(self):
+        """Mixed-library pool through the append_run_id naming path."""
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.TESTFC01.1.bam')
+                self.assertTrue(os.path.exists(bam),
+                                f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+                self.assertEqual(samtools.count(bam) // 2, expected_pairs)
+
+        finally:
+            shutil.rmtree(out_dir)
 
     def test_fastq_filename_parsing(self):
         """
