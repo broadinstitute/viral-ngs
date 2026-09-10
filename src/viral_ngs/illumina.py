@@ -1316,7 +1316,9 @@ def splitcode_demux_fastqs(
         metrics = {
             'demux_type': '2-barcode (no splitcode)',
             'samples': {
-                sample_name: {
+                # keyed by library id, matching the 3-barcode branch
+                sample_library_id: {
+                    'sample': sample_name,
                     'sample_library_id': sample_library_id,
                     'read_count': read_pairs
                 }
@@ -1511,11 +1513,26 @@ def splitcode_demux_fastqs(
 
         log.info(f"Filtered to {len(samples_with_bc3)} samples with 3-barcode scheme")
 
-        # Use the filtered dataframe
-        inner_demux_barcode_map_df = filtered_df
+        # This pool is exactly the rows matching the FASTQ's outer barcodes, which is
+        # what filtered_df already holds, so identify it by those barcodes.
+        #
+        # Do NOT identify it by muxed_run ("{bc1}-{bc2}.l{library_id_per_sample}").
+        # That string is a filename -- it reproduces the pool BAM that the outer demux
+        # writes -- not a grouping key. inner_demux_mapper() groups on
+        # [barcode_1, barcode_2] and only then builds the name per row, so selecting a
+        # pool by the name means grouping on (bc1, bc2, library_id_per_sample).
+        # library_id_per_sample is per-sample, so two libraries of one sample in the
+        # same pool give it two values and one physical pool silently splits in two.
+        pool_id = f"{auth_bc1}-{auth_bc2}" if auth_bc2 else str(auth_bc1)
+        if run_id_str:
+            pool_id += f".{run_id_str}"
 
-        # The pool_id is the unique muxed_run for this outer barcode pair
-        pool_id = filtered_df['muxed_run'].iloc[0]
+        # generate_splitcode_config_and_keep_files() and create_splitcode_lookup_table()
+        # both select a pool by matching muxed_run, so give every row of this pool the
+        # same value and they see the whole pool. The BAM-input path (splitcode_demux)
+        # still needs the per-row filename form to locate its pool BAM on disk, so those
+        # shared helpers are left alone.
+        inner_demux_barcode_map_df = filtered_df.assign(muxed_run=pool_id)
 
         # Generate splitcode config and keep files using existing helper function
         splitcode_config, splitcode_keep_file, sample_library_ids = splitcode.generate_splitcode_config_and_keep_files(
@@ -1569,17 +1586,21 @@ def splitcode_demux_fastqs(
         # Convert splitcode FASTQs to BAMs in parallel
         # Build mapping from sample_library_id to sample name
         # Note: inner_demux_barcode_map_df is already filtered to this pool, so no need to check pool_id
-        sample_library_to_sample = {}
+        # Key by 'run' (the library id), which is unique per row. The dataframe is
+        # indexed by sample name, which is not: libraries of one sample share it, and
+        # .loc on a repeated index returns every matching row rather than one.
+        sample_library_to_row = {}
         for sample_name, row in inner_demux_barcode_map_df.iterrows():
-            sample_library_to_sample[row['run']] = sample_name
+            sample_library_to_row[row['run']] = (sample_name, row)
 
         # Build list of conversion jobs with all metadata
         conversion_jobs = []
         for sample_library_id in sample_library_ids:
-            sample_name = sample_library_to_sample.get(sample_library_id)
-            if not sample_name:
+            entry = sample_library_to_row.get(sample_library_id)
+            if entry is None:
                 log.warning(f"No sample name found for library ID: {sample_library_id}")
                 continue
+            sample_name, sample_row = entry
 
             # Find splitcode output FASTQs for this sample
             # With keep_r1_r2_suffixes=True, splitcode outputs: {outdir}/{sample_library_id}_R1.fastq.gz and _R2.fastq.gz
@@ -1591,8 +1612,7 @@ def splitcode_demux_fastqs(
                 log.warning(f"Splitcode output FASTQs not found for {sample_library_id}: {bc_r1}, {bc_r2}")
                 continue
 
-            # Get inline barcode for this sample from the dataframe
-            sample_row = inner_demux_barcode_map_df.loc[sample_name]
+            # Inline barcode for this library (sample_row came from the run-keyed map above)
             inline_barcode = sample_row.get('barcode_3', '')
 
             # Build Picard options dict with richer metadata
@@ -1666,8 +1686,10 @@ def splitcode_demux_fastqs(
                     log.info(f"Conversion complete: {sample_name} -> {output_bam} "
                            f"({read_pairs} read pairs)")
 
-                    # Store metrics
-                    sample_metrics[sample_name] = {
+                    # Store metrics, keyed by the library id rather than the sample
+                    # name: two libraries of one sample would collapse into one entry.
+                    sample_metrics[sample_library_id] = {
+                        'sample': sample_name,
                         'sample_library_id': sample_library_id,
                         'read_count': read_pairs
                     }

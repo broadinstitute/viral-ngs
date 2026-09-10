@@ -3173,8 +3173,9 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
             with open(os.path.join(out_dir, 'demux_metrics.json'), 'rt') as f:
                 metrics = json.load(f)
-            self.assertIn('TestSampleSolo', metrics['samples'])
-            self.assertEqual(metrics['samples']['TestSampleSolo']['read_count'], 100)
+            self.assertIn('TestSampleSolo.lL1', metrics['samples'])
+            self.assertEqual(metrics['samples']['TestSampleSolo.lL1']['sample'], 'TestSampleSolo')
+            self.assertEqual(metrics['samples']['TestSampleSolo.lL1']['read_count'], 100)
 
         finally:
             shutil.rmtree(out_dir)
