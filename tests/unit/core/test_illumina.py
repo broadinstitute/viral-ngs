@@ -1140,6 +1140,9 @@ class TestParseIlluminaFastqFilename(unittest.TestCase):
         self.assertIn("Simple", message)
         # the no-lane form must be discoverable from the error itself
         self.assertIn("S#_R#", message)
+        # ...and the lane-split forms must not still advertise a 3-padded,
+        # single-digit lane token, which the patterns no longer require
+        self.assertNotIn("L00#", message)
 
 
 class TestNormalizeBarcode(unittest.TestCase):

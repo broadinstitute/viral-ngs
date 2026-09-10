@@ -51,11 +51,11 @@ def parse_illumina_fastq_filename(filename):
 
     Supports three filename formats:
     1. DRAGEN format (with flowcell ID):
-       {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
+       {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L#}_{R#}_{chunk}.fastq[.gz]
        Example: 22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
 
     2. Simple bcl2fastq format (without flowcell ID):
-       {sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
+       {sample_name}_{S#}_{L#}_{R#}_{chunk}.fastq[.gz]
        Example: mebv-48-5_S17_L001_R1_001.fastq.gz
 
     3. No-lane-splitting format (DRAGEN run without lane splitting, which is
@@ -76,13 +76,13 @@ def parse_illumina_fastq_filename(filename):
                 - numeric_id (str): Numeric identifier
                 - sample_name (str): Sample name (may contain underscores)
                 - sample_number (int): Sample number (from S#)
-                - lane (int): Full lane number (from L00#)
+                - lane (int): Full lane number (from L#)
                 - read (int): Read number (1 or 2)
                 - chunk (int): Chunk number (typically 001)
             For simple format:
                 - sample_name (str): Sample name
                 - sample_number (int): Sample number (from S#)
-                - lane (int): Lane number (from L00#)
+                - lane (int): Lane number (from L#)
                 - read (int): Read number (1 or 2)
                 - chunk (int): Chunk number (typically 001)
             For no-lane-splitting format: same keys as the simple format, with
@@ -99,11 +99,11 @@ def parse_illumina_fastq_filename(filename):
     basename = basename.replace('.fastq.gz', '').replace('.fastq', '')
 
     # Try DRAGEN format first (with flowcell ID)
-    # Pattern: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}
+    # Pattern: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L#}_{R#}_{chunk}
     # The tricky part: sample_name can contain underscores!
     # Strategy: Match from both ends and extract the middle as sample_name
 
-    # DRAGEN pattern: we know the last 4 fields are always S#_L00#_R#_chunk
+    # DRAGEN pattern: we know the last 4 fields are always S#_L#_R#_chunk
     # and the first 3 fields are flowcell_lane_numeric_id
     # Everything in between is the sample name
     dragen_pattern = r'^([A-Z0-9]{5,15})_(\d+)_(\d{10})_(.+)_S(\d+)_L(\d+)_(R|I)(\d)_(\d{3})$'
@@ -123,7 +123,7 @@ def parse_illumina_fastq_filename(filename):
         }
 
     # Try simple bcl2fastq format (without flowcell ID)
-    # Pattern: {sample_name}_{S#}_{L00#}_{R#}_{chunk}
+    # Pattern: {sample_name}_{S#}_{L#}_{R#}_{chunk}
     # Sample name cannot contain underscores followed by S# pattern
     simple_pattern = r'^(.+)_S(\d+)_L(\d+)_(R|I)(\d)_(\d{3})$'
     match = re.match(simple_pattern, basename)
@@ -163,8 +163,8 @@ def parse_illumina_fastq_filename(filename):
     raise ValueError(
         f"Filename '{basename}' does not match expected Illumina FASTQ format. "
         f"Expected formats:\n"
-        f"  DRAGEN: {{flowcell}}_{{lane}}_{{numeric_id}}_{{sample_name}}_S#_L00#_R#_###.fastq[.gz]\n"
-        f"  Simple: {{sample_name}}_S#_L00#_R#_###.fastq[.gz]\n"
+        f"  DRAGEN: {{flowcell}}_{{lane}}_{{numeric_id}}_{{sample_name}}_S#_L#_R#_###.fastq[.gz]\n"
+        f"  Simple: {{sample_name}}_S#_L#_R#_###.fastq[.gz]\n"
         f"  No lane splitting: {{sample_name}}_S#_R#_###.fastq[.gz]"
     )
 
