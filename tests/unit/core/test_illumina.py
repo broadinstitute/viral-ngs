@@ -10,14 +10,18 @@ import tempfile
 import argparse
 import filecmp
 import shutil
+import io
 import json
 import gzip
+import glob
 import pytest
 import pysam
+import pandas as pd
 import viral_ngs.core
 import viral_ngs.illumina
 import viral_ngs.core.samtools
 import viral_ngs.core.picard
+import viral_ngs.core.splitcode
 from tests import TestCaseWithTmp, assert_equal_bam_reads
 
 
@@ -616,6 +620,56 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertRaises(Exception, viral_ngs.illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
 
 
+class TestBarcodeGroupForRow(unittest.TestCase):
+    """Pool identity is the outer barcodes, with a missing barcode_2 read as absent.
+
+    Callers hand rows in from dicts, from pd.read_csv(dtype=str), and from
+    frames that have been through .astype(str), so an empty barcode_2 arrives
+    as "", as NaN, or as the literal string "nan". All three mean single-index.
+    """
+
+    def test_dual_index(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row(
+                {'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'}),
+            'ATCGATCG-GCTAGCTA')
+
+    def test_single_index_shapes_of_missing_barcode_2(self):
+        """Every shape an absent barcode_2 arrives in yields the bare barcode_1."""
+        for barcode_2 in ('', '   ', None, float('nan'), 'nan'):
+            row = {'barcode_1': 'ATCGATCG'}
+            if barcode_2 is not None:
+                row['barcode_2'] = barcode_2
+            self.assertEqual(
+                viral_ngs.core.splitcode.barcode_group_for_row(row), 'ATCGATCG',
+                f"barcode_2={barcode_2!r} should read as absent")
+
+    def test_column_absent_entirely(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row({'barcode_1': 'ATCGATCG'}),
+            'ATCGATCG')
+
+    def test_single_index_frame_from_read_csv(self):
+        """The shape that actually reaches the metrics and plot code.
+
+        Those three consumers read the LUT with pd.read_csv(dtype=str), which
+        turns an empty barcode_2 cell into NaN. Before this was handled, a
+        single-index run was grouped under the pool id "ATCGATCG-nan".
+        """
+        df = pd.read_csv(io.StringIO(
+            "barcode_1,barcode_2,inline_barcode\n"
+            "ATCGATCG,,AAAAAAAA\n"
+            "ATCGATCG,,CCCCCCCC\n"), dtype=str)
+        pools = df.apply(viral_ngs.core.splitcode.barcode_group_for_row, axis=1)
+        self.assertEqual(list(pools), ['ATCGATCG', 'ATCGATCG'])
+
+    def test_barcodes_are_stripped(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row(
+                {'barcode_1': ' ATCGATCG ', 'barcode_2': ' GCTAGCTA '}),
+            'ATCGATCG-GCTAGCTA')
+
+
 class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
     """
     End-to-end integration test for splitcode_demux command.
@@ -857,8 +911,16 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
 
         This is the shape of the samplesheet that failed in production: 7 rows,
         each with distinct outer barcodes.
+
+        The pool BAM names are derived rather than written out: a pool of one
+        never collapses, so the outer demux names its BAM after the *sample*
+        ("TestSampleA.lL1.TESTFLOW.1.bam"), not after the barcode group. This
+        test originally hard-coded barcode-group names, which no demux would
+        produce, so it passed without exercising that lookup at all.
         """
         inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-singleton-pools.tsv')
+        pool_bams = self._pool_bam_names(samplesheet, "TESTFLOW.1")
 
         sample_a_pairs = 100
         sample_b_pairs = 50
@@ -867,11 +929,11 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
             with tempfile.TemporaryDirectory() as outDir:
                 # One pool BAM per singleton pool
                 self.create_test_bam_with_inline_barcodes(
-                    os.path.join(input_bams_dir, 'ATCGATCG-GCTAGCTA.lL1.TESTFLOW.1.bam'),
+                    os.path.join(input_bams_dir, pool_bams['ATCGATCG-GCTAGCTA']),
                     {"AAAAAAAA": sample_a_pairs},
                 )
                 self.create_test_bam_with_inline_barcodes(
-                    os.path.join(input_bams_dir, 'CTGATCGT-TAGATCGC.lL1.TESTFLOW.1.bam'),
+                    os.path.join(input_bams_dir, pool_bams['CTGATCGT-TAGATCGC']),
                     {"CCCCCCCC": sample_b_pairs},
                 )
 
@@ -879,7 +941,7 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
                     inDir=input_bams_dir,
                     lane="1",
                     outDir=outDir,
-                    sampleSheet=os.path.join(inDir, 'SampleSheet-singleton-pools.tsv'),
+                    sampleSheet=samplesheet,
                     runinfo=os.path.join(inDir, 'RunInfo.xml'),
                     flowcell="TESTFLOW",
                     run_id="TESTFLOW.1",
@@ -902,6 +964,250 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
                     # takes pairs
                     self.assertEqual(self.samtools.count(bam) // 2, expected_pairs,
                                      f"{sample} read pair count mismatch")
+
+
+    def test_splitcode_demux_mixed_collapsed_and_singleton_pools(self):
+        """Demux a sheet where one pool collapsed and another did not.
+
+        Scenario unsupported before this fix, and the realistic shape for this
+        entry point: splitcode_demux only runs when *something* collapsed, so a
+        run routinely carries both kinds of pool at once. The two are named by
+        different rules --
+
+            pool of 3 (collapses)  ATCGATCG-GCTAGCTA.l1_2_muxed.TESTFLOW.1.bam
+            pool of 1 (singleton)  TestSampleC.l1.TESTFLOW.1.bam
+
+        -- so no single filename pattern finds both. Globbing the barcode group
+        locates the collapsed pool but never the singleton one, and the
+        muxed_run pattern it replaced found neither, so either way the run dies
+        with FileNotFoundError on the singleton rows.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-mixed-pools.tsv')
+        pool_bams = self._pool_bam_names(samplesheet, "TESTFLOW.1")
+
+        # the collapsed pool is named after its barcodes, the singleton after its sample
+        self.assertIn('_muxed', pool_bams['ATCGATCG-GCTAGCTA'])
+        self.assertTrue(pool_bams['CTGATCGT-TAGATCGC'].startswith('TestSampleC.'),
+                        f"expected a sample-named singleton pool BAM, got {pool_bams['CTGATCGT-TAGATCGC']}")
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bams['ATCGATCG-GCTAGCTA']),
+                    {"AAAAAAAA": 100, "CCCCCCCC": 75},
+                )
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bams['CTGATCGT-TAGATCGC']),
+                    {"GGGGTTTT": 50},
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                for run_id, expected_pairs in (('TestSampleA.l1', 100),
+                                               ('TestSampleA.l2', 75),
+                                               ('TestSampleC.l1', 50)):
+                    bam = os.path.join(outDir, f'{run_id}.TESTFLOW.1.bam')
+                    self.assertTrue(os.path.exists(bam),
+                                    f"Expected output BAM not found: {bam}; "
+                                    f"got {sorted(os.listdir(outDir))}")
+                    self.assertEqual(self.samtools.count(bam) // 2, expected_pairs,
+                                     f"{run_id} read pair count mismatch")
+
+    # ------------------------------------------------------------------
+    # Pools holding more than one library_id_per_sample (issue #1117)
+    #
+    # A pool is its outer barcode pair. library_id_per_sample is per-sample --
+    # "independent libraries from the same original sample" -- so two preps of
+    # one sample legitimately share a pool. The outer Picard demux collapses
+    # such a pool into ONE BAM whose name folds the differing library ids
+    # together (ATCGATCG-GCTAGCTA.l1_2_muxed.TESTFLOW.1.bam), while this
+    # function rebuilds the name per row from that row's own library id.
+    # ------------------------------------------------------------------
+
+    def _pool_bam_names(self, samplesheet, run_id):
+        """Map each pool (outer barcodes) to the BAM basename the OUTER demux writes.
+
+        Derived rather than hard-coded, because the naming rule is not uniform:
+        the outer demux names every pool after row["run"] of the *collapsed*
+        samplesheet, and a pool that collapsed is named after its barcode group
+        with the differing columns folded together
+        ("ATCGATCG-GCTAGCTA.l1_2_muxed.RUNID.bam"), while a pool that never
+        collapsed -- a single sample on its own barcode pair -- keeps that
+        sample's own name ("TestSampleC.l1.RUNID.bam"). Reproducing the collapse
+        here keeps the fixtures honest and documents that the two are coupled.
+        """
+        samples = viral_ngs.illumina.SampleSheet(
+            samplesheet, allow_non_unique=True, append_run_id=run_id)
+        return dict(
+            (viral_ngs.core.splitcode.barcode_group_for_row(row), row["run"] + ".bam")
+            for row in samples.collapse_sample_index_duplicates(overwrite_instance_data=False))
+
+    def test_splitcode_demux_pool_with_mixed_library_ids(self):
+        """Demux a pool that holds two library preps of the same sample.
+
+        Scenario unsupported before this fix: SampleSheet-multilib.tsv puts
+        TestSampleA library 1, TestSampleA library 2 and TestSampleB library 1
+        on one outer barcode pair. Because the library ids differ, the outer
+        demux collapses them and names the single pool BAM
+        "ATCGATCG-GCTAGCTA.l1_2_muxed.TESTFLOW.1.bam". splitcode_demux rebuilt
+        that name per row as "...l1.TESTFLOW.1" / "...l2.TESTFLOW.1" and
+        globbed for it; the run id sits after the library id, so the glob's
+        trailing wildcard cannot absorb the "_2_muxed" in the middle and no
+        row matched. The task died with FileNotFoundError before demuxing a
+        single read -- every sample in the pool lost, not just the odd one.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-multilib.tsv')
+        expected = (('TestSampleA.l1', 'AAAAAAAA', 100),
+                    ('TestSampleA.l2', 'CCCCCCCC', 75),
+                    ('TestSampleB.l1', 'GGGGTTTT', 50))
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                pool_bam = self._pool_bam_names(samplesheet, "TESTFLOW.1")['ATCGATCG-GCTAGCTA']
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bam),
+                    dict((barcode, pairs) for _run, barcode, pairs in expected),
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                for run_id, _barcode, expected_pairs in expected:
+                    bam = os.path.join(outDir, f'{run_id}.TESTFLOW.1.bam')
+                    self.assertTrue(os.path.exists(bam),
+                                    f"Expected output BAM not found: {bam}; "
+                                    f"got {sorted(os.listdir(outDir))}")
+                    self.assertEqual(self.samtools.count(bam) // 2, expected_pairs,
+                                     f"{run_id} read pair count mismatch")
+
+    def test_splitcode_demux_runs_once_per_pool(self):
+        """One physical pool must be demultiplexed exactly once.
+
+        Scenario unsupported before this fix: the pool dictionaries were keyed
+        by the per-row name "{bc1}-{bc2}.l{library_id}.{run_id}", so a pool
+        whose samples carry two library ids looked like two pools sharing one
+        BAM. splitcode would then be invoked twice over the same input, each
+        pass given only the inline barcodes of its own library id and quietly
+        writing the other library's reads out as unassigned. Nothing raised,
+        so the only visible trace was one splitcode summary JSON per phantom
+        pool -- which is what this test counts.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-multilib.tsv')
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                pool_bam = self._pool_bam_names(samplesheet, "TESTFLOW.1")['ATCGATCG-GCTAGCTA']
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bam),
+                    {"AAAAAAAA": 100, "CCCCCCCC": 75, "GGGGTTTT": 50},
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                summaries = sorted(os.path.basename(p)
+                                   for p in glob.glob(os.path.join(outDir, '*_summary.json')))
+                self.assertEqual(len(summaries), 1,
+                                 f"one pool should produce one splitcode run; got {summaries}")
+
+    def test_splitcode_demux_metrics_group_by_pool(self):
+        """Metrics must report a mixed-library pool as one pool.
+
+        Scenario unsupported before this fix: the metrics and plots identify a
+        pool by library_id rather than by its barcodes, so the pool above was
+        reported as two pools -- one per library id -- each with a denominator
+        covering only part of the pool's reads, giving per-barcode percentages
+        that do not add up over the real pool.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-multilib.tsv')
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                pool_bam = self._pool_bam_names(samplesheet, "TESTFLOW.1")['ATCGATCG-GCTAGCTA']
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bam),
+                    {"AAAAAAAA": 100, "CCCCCCCC": 75, "GGGGTTTT": 50},
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                lut = pd.read_csv(os.path.join(outDir, 'bc2sample_lut.csv'), dtype=str)
+                sample_rows = lut[lut['run'].isin(
+                    ['TestSampleA.l1.TESTFLOW.1', 'TestSampleA.l2.TESTFLOW.1',
+                     'TestSampleB.l1.TESTFLOW.1'])]
+                self.assertEqual(len(sample_rows), 3,
+                                 f"all three libraries should appear in the LUT; got {list(lut['run'])}")
+                self.assertEqual(sample_rows['muxed_pool'].nunique(), 1,
+                                 "the three libraries share one pool, so one muxed_pool value: "
+                                 f"got {sorted(sample_rows['muxed_pool'].unique())}")
+
+                # reads_per_bc.csv emits one set of columns per pool
+                per_bc = pd.read_csv(os.path.join(outDir, 'reads_per_bc.csv'), dtype=str)
+                pool_pct_cols = [c for c in per_bc.columns if c.endswith('_reads_pool_pct')]
+                self.assertEqual(len(pool_pct_cols), 1,
+                                 f"one pool should yield one set of pool columns; got {pool_pct_cols}")
 
 
 class TestParseIlluminaFastqFilename(unittest.TestCase):
