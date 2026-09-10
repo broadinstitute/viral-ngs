@@ -49,7 +49,7 @@ log = logging.getLogger(__name__)
 def parse_illumina_fastq_filename(filename):
     """Parse Illumina FASTQ filename to extract metadata.
 
-    Supports two filename formats:
+    Supports three filename formats:
     1. DRAGEN format (with flowcell ID):
        {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
        Example: 22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
@@ -57,6 +57,13 @@ def parse_illumina_fastq_filename(filename):
     2. Simple bcl2fastq format (without flowcell ID):
        {sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
        Example: mebv-48-5_S17_L001_R1_001.fastq.gz
+
+    3. No-lane-splitting format (DRAGEN run without lane splitting, which is
+       always the case on a single-lane flowcell):
+       {sample_name}_{S#}_{R#}_{chunk}.fastq[.gz]
+       Example: NTC_S1_R1_001.fastq.gz
+       These names carry no lane at all, so 'lane' is returned as None and it
+       is up to the caller to decide what an absent lane means.
 
     Args:
         filename (str): FASTQ filename (with or without path)
@@ -78,6 +85,8 @@ def parse_illumina_fastq_filename(filename):
                 - lane (int): Lane number (from L00#)
                 - read (int): Read number (1 or 2)
                 - chunk (int): Chunk number (typically 001)
+            For no-lane-splitting format: same keys as the simple format, with
+                - lane (None): no lane token in the filename
 
     Raises:
         ValueError: If filename doesn't match expected format
@@ -97,7 +106,7 @@ def parse_illumina_fastq_filename(filename):
     # DRAGEN pattern: we know the last 4 fields are always S#_L00#_R#_chunk
     # and the first 3 fields are flowcell_lane_numeric_id
     # Everything in between is the sample name
-    dragen_pattern = r'^([A-Z0-9]{5,15})_(\d)_(\d{10})_(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    dragen_pattern = r'^([A-Z0-9]{5,15})_(\d+)_(\d{10})_(.+)_S(\d+)_L(\d+)_(R|I)(\d)_(\d{3})$'
     match = re.match(dragen_pattern, basename)
 
     if match:
@@ -116,7 +125,7 @@ def parse_illumina_fastq_filename(filename):
     # Try simple bcl2fastq format (without flowcell ID)
     # Pattern: {sample_name}_{S#}_{L00#}_{R#}_{chunk}
     # Sample name cannot contain underscores followed by S# pattern
-    simple_pattern = r'^(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    simple_pattern = r'^(.+)_S(\d+)_L(\d+)_(R|I)(\d)_(\d{3})$'
     match = re.match(simple_pattern, basename)
 
     if match:
@@ -129,12 +138,34 @@ def parse_illumina_fastq_filename(filename):
             'is_index': match.group(4) == 'I'
         }
 
-    # If neither pattern matches, raise an error
+    # Finally, try the no-lane-splitting format (DRAGEN emits no lane token when
+    # the run is not lane-split; a single-lane flowcell never is).
+    # Pattern: {sample_name}_{S#}_{R#}_{chunk}
+    # This must be tried LAST. Both patterns above require an L token, so the
+    # only names that reach here are those with no lane token at all -- that
+    # ordering is what stops lane-split names from silently losing their lane.
+    # Note the group numbers differ from the simple pattern: there is no lane
+    # group, so R|I/read/chunk all shift down by one.
+    nolane_pattern = r'^(.+)_S(\d+)_(R|I)(\d)_(\d{3})$'
+    match = re.match(nolane_pattern, basename)
+
+    if match:
+        return {
+            'sample_name': match.group(1),
+            'sample_number': int(match.group(2)),
+            'lane': None,
+            'read': int(match.group(4)),
+            'chunk': int(match.group(5)),
+            'is_index': match.group(3) == 'I'
+        }
+
+    # If no pattern matches, raise an error
     raise ValueError(
         f"Filename '{basename}' does not match expected Illumina FASTQ format. "
         f"Expected formats:\n"
         f"  DRAGEN: {{flowcell}}_{{lane}}_{{numeric_id}}_{{sample_name}}_S#_L00#_R#_###.fastq[.gz]\n"
-        f"  Simple: {{sample_name}}_S#_L00#_R#_###.fastq[.gz]"
+        f"  Simple: {{sample_name}}_S#_L00#_R#_###.fastq[.gz]\n"
+        f"  No lane splitting: {{sample_name}}_S#_R#_###.fastq[.gz]"
     )
 
 
@@ -1085,6 +1116,21 @@ def splitcode_demux_fastqs(
     pool_name = fastq_metadata['sample_name']
     lane = fastq_metadata['lane']
 
+    if lane is None:
+        # DRAGEN omits the lane token when the run is not lane-split. A single-lane
+        # flowcell has exactly one lane, so the lane is unambiguous; otherwise this
+        # FASTQ spans every lane and 0 means "all/unknown", matching illumina_metadata.
+        # Read LaneCount lazily and tolerantly: lane-split inputs never reach here, and
+        # hand-rolled minimal RunInfo.xml files (no FlowcellLayout) must not start failing.
+        lane_count = None
+        if runinfo_obj is not None:
+            try:
+                lane_count = runinfo_obj.get_lane_count()
+            except Exception as e:
+                log.warning(f"Could not read LaneCount from RunInfo.xml: {e}")
+        lane = 1 if lane_count == 1 else 0
+        log.info(f"FASTQ filename carries no lane token; using lane {lane}")
+
     log.info(f"Processing pool: {pool_name}, lane: {lane}")
 
     # Build run_id for BAM filenames if requested
@@ -1330,12 +1376,13 @@ def splitcode_demux_fastqs(
 
         # Generate sample metadata JSONs if requested
         # The sample_rows already have 'run' field set from SampleSheet with append_run_id
-        # We just need to update the 'lane' field to use actual lane from FASTQ filename
+        # We just need to update the 'lane' field to use the lane resolved above
+        # (from the FASTQ filename, or from RunInfo when the filename has no lane token)
         if out_meta_by_sample or out_meta_by_filename:
             sample_meta = []
             for row in sample_rows:
                 meta_row = dict(row)  # Copy all samplesheet columns
-                meta_row['lane'] = str(lane)  # Use actual lane from FASTQ filename (critical fix)
+                meta_row['lane'] = str(lane)
                 sample_meta.append(meta_row)
 
             if out_meta_by_sample:
@@ -1662,12 +1709,13 @@ def splitcode_demux_fastqs(
 
         # Generate sample metadata JSONs if requested
         # The sample_rows already have 'run' field set from SampleSheet with append_run_id
-        # We just need to update the 'lane' field to use actual lane from FASTQ filename
+        # We just need to update the 'lane' field to use the lane resolved above
+        # (from the FASTQ filename, or from RunInfo when the filename has no lane token)
         if out_meta_by_sample or out_meta_by_filename:
             sample_meta = []
             for row in sample_rows:
                 meta_row = dict(row)  # Copy all samplesheet columns
-                meta_row['lane'] = str(lane)  # Use actual lane from FASTQ filename (critical fix)
+                meta_row['lane'] = str(lane)
                 sample_meta.append(meta_row)
 
             if out_meta_by_sample:
