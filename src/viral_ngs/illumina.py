@@ -1425,9 +1425,9 @@ def splitcode_demux_fastqs(
             # defense in depth for internal callers; don't try to write an end-to-end
             # test for it.
             raise ValueError(
-                "The outer (barcode_1, barcode_2) sequences in the filtered sample rows do not appear to be collapsible. "
-                "For 3-barcode demux, all samples in a pool must share the same outer barcodes. "
-                f"Found {len(outer_barcodes)} distinct combinations: {sorted(outer_barcodes)}"
+                f"The outer ({', '.join(grouping_cols)}) sequences in the filtered sample rows do not appear "
+                "to be collapsible. For 3-barcode demux, all samples in a pool must share the same outer "
+                f"barcodes. Found {len(outer_barcodes)} distinct combinations: {sorted(outer_barcodes)}"
             )
 
         # Create the inner demux barcode map using SampleSheet method

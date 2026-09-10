@@ -119,17 +119,18 @@ class TestSampleSheet(TestCaseWithTmp):
         never reaches, and that issue #1115 tripped over by reading this
         property (and an inline copy of it) as "these rows form one pool".
         """
-        sheet = os.path.join(tempfile.mkdtemp(), 'SampleSheet-one-row.tsv')
-        with open(sheet, 'wt') as outf:
-            outf.write("sample\tbarcode_1\tbarcode_2\tbarcode_3\tlibrary_id_per_sample\n")
-            outf.write("TestSampleSolo\tATCGATCG\tGCTAGCTA\tAAAAAAAA\tL1\n")
+        with tempfile.TemporaryDirectory() as sheet_dir:
+            sheet = os.path.join(sheet_dir, 'SampleSheet-one-row.tsv')
+            with open(sheet, 'wt') as outf:
+                outf.write("sample\tbarcode_1\tbarcode_2\tbarcode_3\tlibrary_id_per_sample\n")
+                outf.write("TestSampleSolo\tATCGATCG\tGCTAGCTA\tAAAAAAAA\tL1\n")
 
-        samples = viral_ngs.illumina.SampleSheet(sheet, allow_non_unique=True)
+            samples = viral_ngs.illumina.SampleSheet(sheet, allow_non_unique=True)
 
-        self.assertEqual(samples.num_samples, 1)
-        self.assertEqual(samples.has_collapsible_duplicates, False)
-        # and the inner demux map builds fine from it -- nothing here needs N>1
-        self.assertEqual(len(samples.inner_demux_mapper()), 1)
+            self.assertEqual(samples.num_samples, 1)
+            self.assertEqual(samples.has_collapsible_duplicates, False)
+            # and the inner demux map builds fine from it -- nothing here needs N>1
+            self.assertEqual(len(samples.inner_demux_mapper()), 1)
 
 
     def test_tabfile_win_endings(self):
