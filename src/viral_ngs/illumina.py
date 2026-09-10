@@ -3431,6 +3431,22 @@ def splitcode_demux(
     inner_demux_barcode_map_df["muxed_run"] = inner_demux_barcode_map_df["barcode_group"].map(
         lambda group: f"{group}.{run_id}" if run_id else group)
 
+    # Which BAM holds each pool is a separate question from the pool's identity,
+    # and it has only one reliable answer: reproduce the naming. The outer Picard
+    # demux named every pool BAM after row["run"] of the *collapsed* samplesheet
+    # (illumina_utils.make_params_file), and that rule is not uniform --
+    #
+    #   pool that collapsed  ATCGATCG-GCTAGCTA.l1_2_muxed.RUNID.bam  (barcode group)
+    #   pool of one sample   TestSampleC.l1.RUNID.bam                (sample name)
+    #
+    # -- so no single filename pattern finds both. Running the same collapse here
+    # gives the exact basename per pool. overwrite_instance_data=False leaves
+    # `samples` alone; the only state it touches is the duplicate_rows_collapsed
+    # flag, which nothing on this path reads.
+    pool_bam_basename_by_group = dict(
+        (splitcode.barcode_group_for_row(row), row["run"])
+        for row in samples.collapse_sample_index_duplicates(overwrite_instance_data=False))
+
     # NOTE (known, pre-dating #1117): several locals below are built and never
     # read again -- demux_bams_to_sample_library_id_map, sample_to_demux_bam_map,
     # inline_barcodes, samtools_tool, lane_count. Left in place deliberately;
@@ -3441,22 +3457,17 @@ def splitcode_demux(
         log.debug(f"Looking for input pool bam files for '{sample_name}'")
         pool_id = sample_row["muxed_run"]
 
-        # Glob on the barcode group: the wildcard absorbs whatever suffix the
-        # collapse produced -- ".lL1", ".l1_2_muxed", an md5 form for many
-        # differing values, and the ".r<n>" that SampleSheet adds for non-unique
-        # library ids. Anchor the tail on the run id when we have one, so BAMs
-        # from another run or lane that happen to share outer barcodes cannot be
-        # swept in; the collapsed name is "{group}.l{...}.{run_id}.bam".
-        #
-        # NOTE (known, pre-dates #1117): a pool that was never collapsed -- one
-        # sample on its own barcode pair -- is named after the sample rather than
-        # the barcode group ("PatC.l1.RUNID.bam"), so neither this pattern nor the
-        # muxed_run one it replaced can find it. A sheet mixing collapsed and
-        # singleton pools still raises below for the singleton rows.
-        if run_id:
-            bam_to_glob_for = f"{sample_row['barcode_group']}*.{run_id}.bam"
-        else:
-            bam_to_glob_for = f"{sample_row['barcode_group']}*.bam"
+        # Look up the basename the outer demux gave this pool, then allow a
+        # trailing wildcard for any decoration added downstream. The basename
+        # already carries the run id, so this cannot pull in another run's BAM.
+        expected_pool_bam = pool_bam_basename_by_group.get(sample_row["barcode_group"])
+        if expected_pool_bam is None:
+            raise FileNotFoundError(
+                f"Samplesheet defines no pool for barcode group "
+                f"'{sample_row['barcode_group']}' (sample '{sample_name}')"
+            )
+
+        bam_to_glob_for = f"{expected_pool_bam}*.bam"
         found_bam_files = sorted(set(glob.glob(f"{inDir}/{bam_to_glob_for}".replace("//","/"))))
         if len(found_bam_files) > 1:
             raise ValueError(
