@@ -3237,6 +3237,154 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         finally:
             shutil.rmtree(out_dir)
 
+    # ------------------------------------------------------------------
+    # Pools whose samples carry different library_id_per_sample
+    #
+    # A pool is defined by its outer barcodes; library_id_per_sample is
+    # per-sample ("independent libraries from the same original sample"), so
+    # two preps of one sample can legitimately sit in one pool. But the pool
+    # was identified by the *name* muxed_run = "{bc1}-{bc2}.l{library_id}",
+    # which is a filename, not a key -- grouping on it silently splits one
+    # physical pool in two and demuxes only the first.
+    #
+    # samples_3bc_multilib.tsv is one pool (ATCGATCG+GCTAGCTA) holding
+    # TestSampleA libraries 1 and 2 plus TestSampleB library 1, matching the
+    # 100 / 75 / 50 read pairs in the TestPool1 FASTQs.
+    # ------------------------------------------------------------------
+
+    EXPECTED_MULTILIB = (
+        # run id,          inline barcode, read pairs
+        ('TestSampleA.l1', 'AAAAAAAA', 100),
+        ('TestSampleA.l2', 'CCCCCCCC', 75),
+        ('TestSampleB.l1', 'GGGGTTTT', 50),
+    )
+
+    def test_pool_with_mixed_library_ids(self):
+        """Every library in a pool is demuxed, not just the first library id."""
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.bam')
+                self.assertTrue(os.path.exists(bam),
+                                f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+                self.assertEqual(samtools.count(bam) // 2, expected_pairs,
+                                 f"{run_id} read pair count mismatch")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_platform_units(self):
+        """Each library gets its own inline barcode in the read-group PU.
+
+        Guards a second consequence of the same confusion: the barcode is
+        looked up by sample name, which is not unique across libraries of one
+        sample, so the wrong barcode_3 can be attached (or the lookup returns
+        several rows at once).
+        """
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            for run_id, inline, _pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.bam')
+                self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+                with pysam.AlignmentFile(bam, 'rb', check_sq=False) as samfile:
+                    read_groups = samfile.header.to_dict()['RG']
+                self.assertEqual(read_groups[0]['PU'],
+                                 f'TESTFC01.1.ATCGATCG-GCTAGCTA-{inline}',
+                                 f"{run_id} carries the wrong inline barcode in its PU")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_metadata(self):
+        """Metadata and metrics account for every library, not just the first.
+
+        meta_by_filename and demux_metrics are keyed by the library id, which
+        is unique; the bare sample name is not, and would collapse the two
+        TestSampleA libraries into one entry.
+        """
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                out_meta_by_filename=out_meta_by_filename,
+                threads=1
+            )
+
+            with open(out_meta_by_filename, 'rt') as f:
+                meta_by_filename = json.load(f)
+            with open(os.path.join(out_dir, 'demux_metrics.json'), 'rt') as f:
+                metrics = json.load(f)
+
+            expected_runs = sorted(r for r, _i, _p in self.EXPECTED_MULTILIB)
+            self.assertEqual(sorted(meta_by_filename), expected_runs)
+            for run_id in expected_runs:
+                self.assertTrue(os.path.exists(os.path.join(out_dir, run_id + '.bam')),
+                                f"no BAM matching metadata key {run_id}")
+
+            self.assertEqual(sorted(metrics['samples']), expected_runs)
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                self.assertEqual(metrics['samples'][run_id]['read_count'], expected_pairs)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_append_run_id(self):
+        """Mixed-library pool through the append_run_id naming path."""
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.TESTFC01.1.bam')
+                self.assertTrue(os.path.exists(bam),
+                                f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+                self.assertEqual(samtools.count(bam) // 2, expected_pairs)
+
+        finally:
+            shutil.rmtree(out_dir)
+
     def test_fastq_filename_parsing(self):
         """
         Test extraction of metadata from FASTQ filenames.
