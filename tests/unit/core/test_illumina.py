@@ -13,6 +13,7 @@ import shutil
 import json
 import gzip
 import pytest
+import pysam
 import viral_ngs.core
 import viral_ngs.illumina
 import viral_ngs.core.samtools
@@ -829,6 +830,10 @@ class TestParseIlluminaFastqFilename(unittest.TestCase):
 
     DRAGEN format: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq.gz
     Example: 22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
+
+    Simple format:  {sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq.gz
+    No-lane format: {sample_name}_{S#}_{R#}_{chunk}.fastq.gz  (DRAGEN with no
+    lane splitting; see issue #1113)
     """
 
     def test_standard_dragen_format_r1(self):
@@ -980,6 +985,164 @@ class TestParseIlluminaFastqFilename(unittest.TestCase):
         # If DRAGEN produces index files, they might follow a different pattern
         # For now, test that we handle them gracefully or raise appropriate errors
         pass
+
+    # ------------------------------------------------------------------
+    # No-lane-splitting names (issue #1113)
+    #
+    # DRAGEN on-instrument demux omits the _L00N_ token entirely when the run
+    # is not lane-split (single-lane flowcells always are). These names carry
+    # no lane at all, so the parser reports lane=None and leaves it to the
+    # caller to decide what an absent lane means.
+    # ------------------------------------------------------------------
+
+    def test_nolane_format_r1(self):
+        """Test no-lane-splitting DRAGEN format: {sample}_{S#}_{R#}_{chunk}."""
+        filename = "NTC_S1_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        # 'lane' must be present (callers index it directly, not via .get())
+        self.assertIn('lane', result)
+        self.assertIsNone(result['lane'])
+        self.assertEqual(result['sample_name'], 'NTC')
+        self.assertEqual(result['sample_number'], 1)
+        self.assertEqual(result['read'], 1)
+        self.assertEqual(result['chunk'], 1)
+        self.assertFalse(result['is_index'])
+        self.assertIsNone(result.get('flowcell'))
+
+    def test_nolane_format_r2(self):
+        """Test no-lane-splitting format for R2.
+
+        Guards against a group-index off-by-one: the no-lane pattern has one
+        fewer capture group than the lane-split one, so a copy-pasted return
+        dict silently reports chunk as the read number.
+        """
+        filename = "NTC_S1_R2_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['read'], 2)
+        self.assertEqual(result['chunk'], 1)
+        self.assertIsNone(result['lane'])
+
+    def test_nolane_sample_name_with_underscores(self):
+        """Test no-lane-splitting name whose sample name spans underscores.
+
+        This is the literal filename from issue #1113.
+        """
+        filename = "RU_01_rep_S5_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'RU_01_rep')
+        self.assertEqual(result['sample_number'], 5)
+        self.assertEqual(result['read'], 1)
+        self.assertIsNone(result['lane'])
+
+    def test_nolane_index_read(self):
+        """Test that index reads are flagged in no-lane-splitting names."""
+        filename = "NTC_S1_I1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertTrue(result['is_index'])
+        self.assertEqual(result['read'], 1)
+        self.assertIsNone(result['lane'])
+
+    def test_nolane_with_full_path(self):
+        """Test no-lane-splitting name with a full directory path."""
+        filename = "/path/to/data/NTC_S1_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'NTC')
+        self.assertIsNone(result['lane'])
+
+    def test_nolane_without_gz_extension(self):
+        """Test no-lane-splitting name without the .gz extension."""
+        filename = "NTC_S1_R1_001.fastq"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'NTC')
+        self.assertEqual(result['chunk'], 1)
+
+    def test_nolane_chunk_number(self):
+        """Test chunk numbers other than 001 in no-lane-splitting names."""
+        filename = "NTC_S1_R1_002.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['chunk'], 2)
+        self.assertEqual(result['read'], 1)
+
+    def test_lane_pattern_takes_precedence_over_nolane(self):
+        """Test that a lane-split name still reports its lane.
+
+        Regression guard on pattern ordering: the no-lane pattern would also
+        match if it were tried first, silently dropping the lane from every
+        lane-split run.
+        """
+        result = viral_ngs.illumina.parse_illumina_fastq_filename("Sample1_S1_L001_R1_001.fastq.gz")
+        self.assertEqual(result['lane'], 1)
+
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(
+            "22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz")
+        self.assertEqual(result['lane'], 6)
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+
+    def test_nolane_does_not_shadow_malformed(self):
+        """Test that the no-lane pattern does not accept malformed names."""
+        for filename in (
+            'Sample_S1_L006_001.fastq.gz',       # no read token
+            'Sample_R1_001.fastq.gz',            # no sample number
+            'Sample_S1_R1.fastq.gz',             # no chunk
+            'Sample_S1_R1_0011.fastq.gz',        # 4-digit chunk
+            'Sample_S1_R1_001_extra.fastq.gz',   # trailing junk
+            'random_file.fastq.gz',
+        ):
+            with self.assertRaises(ValueError, msg=f"should not have parsed: {filename}"):
+                viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+    def test_multi_digit_lane(self):
+        """Test that lane tokens beyond L009 parse."""
+        filename = "mebv-48-5_S17_L010_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'mebv-48-5')
+        self.assertEqual(result['lane'], 10)
+
+    def test_multi_digit_lane_short_dragen(self):
+        """Test that a DRAGEN name with a multi-digit lane prefix stays DRAGEN.
+
+        Without a multi-digit lane_short group this falls through to the simple
+        pattern and silently swallows the flowcell prefix into the sample name.
+        """
+        filename = "22J5GLLT4_10_0420593812_B13Pool1a_S1_L010_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['lane_short'], 10)
+        self.assertEqual(result['numeric_id'], '0420593812')
+        self.assertEqual(result['sample_name'], 'B13Pool1a')
+        self.assertEqual(result['lane'], 10)
+
+        # single-digit lane token, two-digit lane prefix: this one parses today,
+        # but silently as the simple format with the prefix eaten by sample_name
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(
+            "22J5GLLT4_11_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz")
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['lane_short'], 11)
+        self.assertEqual(result['sample_name'], 'B13Pool1a')
+        self.assertEqual(result['lane'], 6)
+
+    def test_error_message_lists_all_three_formats(self):
+        """Test that the error message documents every accepted format."""
+        with self.assertRaises(ValueError) as context:
+            viral_ngs.illumina.parse_illumina_fastq_filename("random_file.fastq.gz")
+
+        message = str(context.exception)
+        self.assertIn("DRAGEN", message)
+        self.assertIn("Simple", message)
+        # the no-lane form must be discoverable from the error itself
+        self.assertIn("S#_R#", message)
+        # ...and the lane-split forms must not still advertise a 3-padded,
+        # single-digit lane token, which the patterns no longer require
+        self.assertNotIn("L00#", message)
 
 
 class TestNormalizeBarcode(unittest.TestCase):
@@ -3428,6 +3591,353 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
         finally:
             shutil.rmtree(out_dir)
+
+    # ------------------------------------------------------------------
+    # No-lane-splitting FASTQ names (issue #1113)
+    #
+    # DRAGEN omits the _L00N_ token when the run is not lane-split, which is
+    # always the case on a single-lane flowcell. The fixture RunInfo.xml here
+    # already declares LaneCount="1", so it is exactly that situation; only the
+    # filenames differ. The fixtures are copied under new names rather than
+    # committed twice, since the name is the only thing under test.
+    # ------------------------------------------------------------------
+
+    def _stage_fastqs(self, r1_name, r2_name, src_r1=None, src_r2=None):
+        """Copy the fixture FASTQ pair into a fresh temp dir under new names.
+
+        Returns (staged_dir, r1_path, r2_path); the caller removes staged_dir.
+        """
+        staged_dir = tempfile.mkdtemp()
+        r1 = os.path.join(staged_dir, r1_name)
+        r2 = os.path.join(staged_dir, r2_name)
+        shutil.copy(src_r1 or self.r1_fastq, r1)
+        shutil.copy(src_r2 or self.r2_fastq, r2)
+        return staged_dir, r1, r2
+
+    def _runinfo_with_lane_count(self, dest_dir, lane_count):
+        """Write a copy of the fixture RunInfo.xml with a different LaneCount."""
+        with open(self.runinfo_xml, 'rt') as inf:
+            xml_text = inf.read()
+        self.assertIn('LaneCount="1"', xml_text)
+        path = os.path.join(dest_dir, f'RunInfo_lanecount{lane_count}.xml')
+        with open(path, 'wt') as outf:
+            outf.write(xml_text.replace('LaneCount="1"', f'LaneCount="{lane_count}"'))
+        return path
+
+    def test_lane_from_filename_wins_over_runinfo(self):
+        """Test that a lane in the filename is used verbatim, not inferred.
+
+        The fixture RunInfo says LaneCount=1, so an implementation that derives
+        the lane from RunInfo instead of only falling back to it would produce
+        lane 1 here and be wrong. Every other fixture in this class is L001,
+        which makes that mistake invisible.
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_L002_R1_001.fastq.gz', 'TestPool1_S1_L002_R2_001.fastq.gz')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.2.bam')),
+                            f"lane 2 from the filename should win; got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_names_with_runinfo(self):
+        """Test lane-less FASTQ names on a single-lane flowcell.
+
+        Output must be indistinguishable from the lane-split run of the same
+        flowcell (compare test_append_run_id_3bc).
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            expected_bams = [
+                os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.1.bam'),
+                os.path.join(out_dir, 'TestSample2.lL1.TESTFC01.1.bam'),
+                os.path.join(out_dir, 'TestSample3.lL1.TESTFC01.1.bam'),
+            ]
+            for bam in expected_bams:
+                self.assertTrue(os.path.exists(bam),
+                                f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            self.assertEqual(samtools.count(expected_bams[0]) // 2, 100)
+            self.assertEqual(samtools.count(expected_bams[1]) // 2, 75)
+            self.assertEqual(samtools.count(expected_bams[2]) // 2, 50)
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_names_without_runinfo(self):
+        """Test lane-less names with no RunInfo to prove the lane count.
+
+        Without RunInfo the lane is genuinely unknown, so it falls back to the
+        0 sentinel this codebase already uses for an unspecified lane.
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                # no runinfo: flowcell supplied directly, lane unknowable
+                flowcell_id='TESTFC01',
+                append_run_id=True,
+                threads=1
+            )
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.0.bam')),
+                            f"expected lane 0 fallback; got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_multilane_runinfo_resolves_to_zero(self):
+        """Test lane-less names on a multi-lane flowcell.
+
+        No lane splitting on a 4-lane flowcell means the FASTQ spans all of
+        them, so no single lane number is correct and 0 means "all/unknown".
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            runinfo_4lane = self._runinfo_with_lane_count(staged_dir, 4)
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=runinfo_4lane,
+                append_run_id=True,
+                threads=1
+            )
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.0.bam')),
+                            f"expected lane 0 on a 4-lane flowcell; got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_runinfo_missing_flowcell_layout(self):
+        """Test lane-less names against a RunInfo.xml with no FlowcellLayout.
+
+        Hand-rolled minimal RunInfo.xml files are common (the --runinfo help
+        calls it optional metadata), and they work today because this command
+        never reads FlowcellLayout. Resolving a missing lane must not turn that
+        into a crash.
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            minimal_runinfo = os.path.join(staged_dir, 'RunInfo_minimal.xml')
+            with open(minimal_runinfo, 'wt') as outf:
+                outf.write(
+                    '<?xml version="1.0"?>\n'
+                    '<RunInfo Version="6">\n'
+                    '  <Run Id="250101_TEST_0001_BTESTFC01" Number="1">\n'
+                    '    <Flowcell>TESTFC01</Flowcell>\n'
+                    '    <Instrument>TEST001</Instrument>\n'
+                    '    <Date>2025-01-01T10:00:00Z</Date>\n'
+                    '    <Reads>\n'
+                    '      <Read Number="1" NumCycles="50" IsIndexedRead="N" IsReverseComplement="N"/>\n'
+                    '      <Read Number="2" NumCycles="8" IsIndexedRead="Y" IsReverseComplement="N"/>\n'
+                    '      <Read Number="3" NumCycles="8" IsIndexedRead="Y" IsReverseComplement="Y"/>\n'
+                    '      <Read Number="4" NumCycles="50" IsIndexedRead="N" IsReverseComplement="N"/>\n'
+                    '    </Reads>\n'
+                    '  </Run>\n'
+                    '</RunInfo>\n'
+                )
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=minimal_runinfo,
+                append_run_id=True,
+                threads=1
+            )
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.0.bam')),
+                            f"expected lane 0 fallback; got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_metadata_lane_field(self):
+        """Test the lane field in metadata JSON for lane-less FASTQ names."""
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                out_meta_by_sample=out_meta_by_sample,
+                out_meta_by_filename=out_meta_by_filename,
+                threads=1
+            )
+
+            with open(out_meta_by_sample, 'rt') as f:
+                meta_by_sample = json.load(f)
+            with open(out_meta_by_filename, 'rt') as f:
+                meta_by_filename = json.load(f)
+
+            self.assertTrue(meta_by_sample)
+            for sample_name, metadata in meta_by_sample.items():
+                self.assertEqual(metadata['lane'], '1',
+                                 f"{sample_name} lane should be resolved to '1' on a single-lane flowcell")
+
+            # the meta_by_filename keys must still match the BAM basenames
+            for run_id in meta_by_filename:
+                self.assertTrue(os.path.exists(os.path.join(out_dir, run_id + '.bam')),
+                                f"no BAM matching metadata key {run_id}")
+
+            # an unresolved lane would show up as the literal string 'None' somewhere
+            self.assertNotIn('None', json.dumps(meta_by_sample))
+            self.assertNotIn('None', json.dumps(meta_by_filename))
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_platform_unit_in_bam_header(self):
+        """Test the read-group PLATFORM_UNIT for lane-less names (3-barcode path)."""
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            bam = os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.1.bam')
+            self.assertTrue(os.path.exists(bam))
+
+            with pysam.AlignmentFile(bam, 'rb', check_sq=False) as samfile:
+                read_groups = samfile.header.to_dict()['RG']
+            self.assertEqual(read_groups[0]['PU'], 'TESTFC01.1.ATCGATCG-GCTAGCTA-AAAAAAAA')
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_2bc_bypass(self):
+        """Test lane-less names through the 2-barcode direct-conversion path.
+
+        The 2-barcode branch bypasses splitcode entirely and builds its own
+        read group, so it needs the resolved lane independently of the
+        3-barcode path.
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool3_S3_R1_001.fastq.gz', 'TestPool3_S3_R2_001.fastq.gz',
+            src_r1=os.path.join(self.input_dir, 'TestPool3_S3_L001_R1_001.fastq.gz'),
+            src_r2=os.path.join(self.input_dir, 'TestPool3_S3_L001_R2_001.fastq.gz'))
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            bam = os.path.join(out_dir, 'TestSampleNoSplitcode.lL3.TESTFC01.1.bam')
+            self.assertTrue(os.path.exists(bam),
+                            f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            self.assertEqual(samtools.count(bam) // 2, 80)
+
+            with pysam.AlignmentFile(bam, 'rb', check_sq=False) as samfile:
+                read_groups = samfile.header.to_dict()['RG']
+            self.assertEqual(read_groups[0]['PU'], 'TESTFC01.1.GGAATTCC-CCGGAATT')
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_via_parser(self):
+        """CLI round-trip for lane-less FASTQ names (the path real users hit)."""
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            parser = viral_ngs.illumina.parser_splitcode_demux_fastqs(argparse.ArgumentParser())
+            args = parser.parse_args([
+                '--fastq_r1', r1,
+                '--fastq_r2', r2,
+                '--samplesheet', self.samples_3bc,
+                '--runinfo', self.runinfo_xml,
+                '--outdir', out_dir,
+                '--append_run_id',
+            ])
+            args.func_main(args)
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.1.bam')),
+                            f"got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
 
     def test_splitcode_demux_fastqs_metadata_output(self):
         """
