@@ -1399,22 +1399,33 @@ def splitcode_demux_fastqs(
         # 3-barcode samples → run splitcode demux
         log.info("3-barcode samples detected - running splitcode demultiplexing")
 
-        # Check if the FILTERED samples can be collapsed (outer barcodes are collapsible)
-        # We need to check only the filtered sample_rows, not the entire samplesheet
-        # Create a temporary dataframe from filtered sample_rows to check collapsibility
-        sample_rows_df = pd.DataFrame(sample_rows)
-
-        # Group by outer barcodes to verify all samples in this pool share the same outer barcodes
+        # For 3-barcode demux every sample in this pool must carry the same outer
+        # barcodes. Check the FILTERED sample_rows, not the whole samplesheet.
+        #
+        # Ask how many distinct outer-barcode pairs are present, NOT whether any pair
+        # is duplicated: one sample is never a "duplicate" of anything, so the latter
+        # rejects a single-library pool that trivially satisfies the condition (#1115).
+        #
+        # Compare normalized values, the way match_barcodes_with_orientation did when
+        # it selected these rows, so a difference in case alone cannot read as two pools.
         grouping_cols = ["barcode_1"]
-        if "barcode_2" in sample_rows_df.columns:
+        if any("barcode_2" in row for row in sample_rows):
             grouping_cols.append("barcode_2")
 
-        # For 3-barcode demux, all samples must share the same outer barcodes (be collapsible)
-        duplicated_mask = sample_rows_df.duplicated(subset=grouping_cols, keep=False)
-        if not duplicated_mask.any():
+        outer_barcodes = set(
+            tuple(normalize_barcode(row.get(col, '')) for col in grouping_cols)
+            for row in sample_rows
+        )
+        if len(outer_barcodes) != 1:
+            # Note: unreachable via this entry point -- match_barcodes_with_orientation
+            # already returns no rows with skipped_reason='ambiguous' when the matches
+            # span more than one outer pair, and we return early above on empty. Kept as
+            # defense in depth for internal callers; don't try to write an end-to-end
+            # test for it.
             raise ValueError(
                 "The outer (barcode_1, barcode_2) sequences in the filtered sample rows do not appear to be collapsible. "
-                "For 3-barcode demux, all samples in a pool must share the same outer barcodes."
+                "For 3-barcode demux, all samples in a pool must share the same outer barcodes. "
+                f"Found {len(outer_barcodes)} distinct combinations: {sorted(outer_barcodes)}"
             )
 
         # Create the inner demux barcode map using SampleSheet method
@@ -2082,7 +2093,7 @@ def main_illumina_demux(args):
         )
 
     collapse_requested = (args.collapse_duplicated_barcodes is not False)
-    if not samples.can_be_collapsed:
+    if not samples.has_collapsible_duplicates:
         if collapse_requested:
             log.warning(
                 "'--collapse_duplicated_barcodes' specified, but no duplicated barcodes "
@@ -3353,13 +3364,11 @@ def splitcode_demux(
     # Load samplesheet into dataframe
     barcodes_df = pd.json_normalize(samples.get_rows()).astype(str).fillna("")
 
-    inner_demux_barcode_map_df = None
-    if samples.can_be_collapsed:
-        #samples.collapse_sample_index_duplicates()
-        #collapsed_barcodes_df = pd.json_normalize(samples.get_rows()).fillna("")
-        inner_demux_barcode_map_df = samples.inner_demux_mapper()
-    else:
-        log.error("The outer (barcode_1,barcode_2) sequences in the sample sheet do not appear to be collapsible.")
+    # No collapsibility precondition here: inner_demux_mapper() groups by outer
+    # barcodes and is correct for any number of pools and any pool size. Gating it
+    # on "the sheet has duplicate barcode pairs" left this None for a sheet whose
+    # pools are all single-library, and it is dereferenced unguarded below (#1115).
+    inner_demux_barcode_map_df = samples.inner_demux_mapper()
 
     # TODO: guardrails around missing barcode_3 values or a mixture of rows with it present/absent
 

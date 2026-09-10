@@ -87,14 +87,14 @@ class TestSampleSheet(TestCaseWithTmp):
                                       )
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(samples.duplicate_rows_collapsed, False)
-        self.assertEqual(samples.can_be_collapsed, True)
+        self.assertEqual(samples.has_collapsible_duplicates, True)
         self.assertEqual(samples.num_samples, 96)
 
         samples.collapse_sample_index_duplicates()
 
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(samples.duplicate_rows_collapsed, True)
-        self.assertEqual(samples.can_be_collapsed, False)
+        self.assertEqual(samples.has_collapsible_duplicates, False)
         self.assertEqual(len(samples.get_rows()), 4)
 
         # check that unique values in grouped rows are preserved
@@ -102,6 +102,14 @@ class TestSampleSheet(TestCaseWithTmp):
         collapsed_row = next((r for r in samples.get_rows() if r["sample"] == "CTGATCGT-GCGCATAT" and r["barcode_1"] == "CTGATCGT" and r["barcode_2"] == "GCGCATAT"), None)
         self.assertEqual(collapsed_row["library_id_per_sample"], "Pool_1")
         self.assertEqual(collapsed_row["barcode_3"],"2e094627_muxed")
+
+        # check for dups in the collapsed output
+        self.assertEqual(len(set((r["barcode_1"] for r in samples.get_rows()))), len(list((r["barcode_1"] for r in samples.get_rows()))))
+        self.assertEqual(len(set((r["barcode_2"] for r in samples.get_rows()))), len(list((r["barcode_2"] for r in samples.get_rows()))))
+
+        # check that the collapsed output is what we expect
+        self.assertEqual(tuple(r["barcode_1"] for r in samples.get_rows()), ("CTGATCGT","ACTCTCGA","TGAGCTAG","GAGACGAT"))
+        self.assertEqual(tuple(r["barcode_2"] for r in samples.get_rows()), ("GCGCATAT","CTGTACCA","GAACGGTT","ACCGGTTA"))
 
     def test_has_collapsible_duplicates_single_row(self):
         """A one-row sheet has nothing to collapse, and that is not an error.
@@ -123,13 +131,6 @@ class TestSampleSheet(TestCaseWithTmp):
         # and the inner demux map builds fine from it -- nothing here needs N>1
         self.assertEqual(len(samples.inner_demux_mapper()), 1)
 
-        # check for dups in the collapsed output
-        self.assertEqual(len(set((r["barcode_1"] for r in samples.get_rows()))), len(list((r["barcode_1"] for r in samples.get_rows()))))
-        self.assertEqual(len(set((r["barcode_2"] for r in samples.get_rows()))), len(list((r["barcode_2"] for r in samples.get_rows()))))
-
-        # check that the collapsed output is what we expect
-        self.assertEqual(tuple(r["barcode_1"] for r in samples.get_rows()), ("CTGATCGT","ACTCTCGA","TGAGCTAG","GAGACGAT"))
-        self.assertEqual(tuple(r["barcode_2"] for r in samples.get_rows()), ("GCGCATAT","CTGTACCA","GAACGGTT","ACCGGTTA"))
 
     def test_tabfile_win_endings(self):
         inDir = viral_ngs.core.file.get_test_input_path(self)
@@ -858,19 +859,19 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
         """
         inDir = viral_ngs.core.file.get_test_input_path(self)
 
-        sample_a_reads = 100
-        sample_b_reads = 50
+        sample_a_pairs = 100
+        sample_b_pairs = 50
 
         with tempfile.TemporaryDirectory() as input_bams_dir:
             with tempfile.TemporaryDirectory() as outDir:
                 # One pool BAM per singleton pool
                 self.create_test_bam_with_inline_barcodes(
                     os.path.join(input_bams_dir, 'ATCGATCG-GCTAGCTA.lL1.TESTFLOW.1.bam'),
-                    {"AAAAAAAA": sample_a_reads},
+                    {"AAAAAAAA": sample_a_pairs},
                 )
                 self.create_test_bam_with_inline_barcodes(
                     os.path.join(input_bams_dir, 'CTGATCGT-TAGATCGC.lL1.TESTFLOW.1.bam'),
-                    {"CCCCCCCC": sample_b_reads},
+                    {"CCCCCCCC": sample_b_pairs},
                 )
 
                 viral_ngs.illumina.splitcode_demux(
@@ -890,14 +891,16 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
                     threads=1,
                 )
 
-                for sample, expected_reads in (('TestSampleA', sample_a_reads),
-                                               ('TestSampleB', sample_b_reads)):
+                for sample, expected_pairs in (('TestSampleA', sample_a_pairs),
+                                               ('TestSampleB', sample_b_pairs)):
                     bam = os.path.join(outDir, f'{sample}.lL1.TESTFLOW.1.bam')
                     self.assertTrue(os.path.exists(bam),
                                     f"Expected output BAM not found: {bam}; "
                                     f"got {sorted(os.listdir(outDir))}")
-                    self.assertEqual(self.samtools.count(bam), expected_reads,
-                                     f"{sample} read count mismatch")
+                    # samtools.count() reports records (R1+R2); the helper above
+                    # takes pairs
+                    self.assertEqual(self.samtools.count(bam) // 2, expected_pairs,
+                                     f"{sample} read pair count mismatch")
 
 
 class TestParseIlluminaFastqFilename(unittest.TestCase):
@@ -3070,8 +3073,9 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         Test that collapsibility is checked only on the filtered pool, not the entire samplesheet.
 
         This is a regression test for GitHub Copilot comment #2510390315.
-        The bug: can_be_collapsed was checking the entire samplesheet instead of just
-        the filtered samples for the current pool.
+        The bug: the collapsibility check (then SampleSheet.can_be_collapsed, now
+        has_collapsible_duplicates) was applied to the entire samplesheet instead
+        of just the filtered samples for the current pool.
 
         Scenario:
         - Samplesheet contains multiple pools:
@@ -3081,7 +3085,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         - FASTQ file contains only Pool 1 data (ATCGATCG+GCTAGCTA)
         - Should succeed even though Pool 3 exists with unique outer barcodes
 
-        Before fix: Would fail because can_be_collapsed checked entire samplesheet
+        Before fix: Would fail because the check covered the entire samplesheet
         After fix: Succeeds because collapsibility is checked only on Pool 1
         """
         out_dir = tempfile.mkdtemp()
