@@ -3441,12 +3441,28 @@ def splitcode_demux(
         log.debug(f"Looking for input pool bam files for '{sample_name}'")
         pool_id = sample_row["muxed_run"]
 
-        # Glob on the barcode group alone: the trailing wildcard then absorbs
-        # whatever suffix the collapse produced -- ".lL1", ".l1_2_muxed", an md5
-        # form for many differing values, and the ".r<n>" that SampleSheet adds
-        # for non-unique library ids.
-        bam_to_glob_for = f"{sample_row['barcode_group']}*.bam"
-        found_bam_files = glob.glob(f"{inDir}/{bam_to_glob_for}".replace("//","/"))
+        # Glob on the barcode group: the wildcard absorbs whatever suffix the
+        # collapse produced -- ".lL1", ".l1_2_muxed", an md5 form for many
+        # differing values, and the ".r<n>" that SampleSheet adds for non-unique
+        # library ids. Anchor the tail on the run id when we have one, so BAMs
+        # from another run or lane that happen to share outer barcodes cannot be
+        # swept in; the collapsed name is "{group}.l{...}.{run_id}.bam".
+        #
+        # NOTE (known, pre-dates #1117): a pool that was never collapsed -- one
+        # sample on its own barcode pair -- is named after the sample rather than
+        # the barcode group ("PatC.l1.RUNID.bam"), so neither this pattern nor the
+        # muxed_run one it replaced can find it. A sheet mixing collapsed and
+        # singleton pools still raises below for the singleton rows.
+        if run_id:
+            bam_to_glob_for = f"{sample_row['barcode_group']}*.{run_id}.bam"
+        else:
+            bam_to_glob_for = f"{sample_row['barcode_group']}*.bam"
+        found_bam_files = sorted(set(glob.glob(f"{inDir}/{bam_to_glob_for}".replace("//","/"))))
+        if len(found_bam_files) > 1:
+            raise ValueError(
+                f"Multiple pool bam files match '{bam_to_glob_for}' in {inDir}: {found_bam_files}. "
+                "Cannot determine which one holds this pool; expected exactly one."
+            )
         found_bam_file = found_bam_files[0] if found_bam_files else None
 
         if found_bam_file:
@@ -3617,9 +3633,7 @@ def splitcode_demux(
 
     splitcode_demux_failures = list(set(pool_id_to_sample_library_id_map.keys()) - set(pool_ids_successfully_demuxed_via_splitcode))
     if len(splitcode_demux_failures)>0:
-        # NOTE: missing its format argument -- a latent TypeError. Unreachable
-        # today because a failed pool raises above before this runs.
-        log.warning("splitcode demux failed for: %s", )
+        log.warning("splitcode demux failed for: %s", splitcode_demux_failures)
 
     # gather metrics and create output plots
     log.info("gathering splitcode demux metrics...")

@@ -10,6 +10,7 @@ import tempfile
 import argparse
 import filecmp
 import shutil
+import io
 import json
 import gzip
 import glob
@@ -20,6 +21,7 @@ import viral_ngs.core
 import viral_ngs.illumina
 import viral_ngs.core.samtools
 import viral_ngs.core.picard
+import viral_ngs.core.splitcode
 from tests import TestCaseWithTmp, assert_equal_bam_reads
 
 
@@ -616,6 +618,56 @@ class TestMiseqToBam(TestCaseWithTmp):
         fastq = (os.path.join(inDir, 'mebv-48-5_17_L001_R1_001.fastq.gz'),
                  os.path.join(inDir, 'mebv-48-5_17_L001_R2_001.fastq.gz'))
         self.assertRaises(Exception, viral_ngs.illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
+
+
+class TestBarcodeGroupForRow(unittest.TestCase):
+    """Pool identity is the outer barcodes, with a missing barcode_2 read as absent.
+
+    Callers hand rows in from dicts, from pd.read_csv(dtype=str), and from
+    frames that have been through .astype(str), so an empty barcode_2 arrives
+    as "", as NaN, or as the literal string "nan". All three mean single-index.
+    """
+
+    def test_dual_index(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row(
+                {'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'}),
+            'ATCGATCG-GCTAGCTA')
+
+    def test_single_index_shapes_of_missing_barcode_2(self):
+        """Every shape an absent barcode_2 arrives in yields the bare barcode_1."""
+        for barcode_2 in ('', '   ', None, float('nan'), 'nan'):
+            row = {'barcode_1': 'ATCGATCG'}
+            if barcode_2 is not None:
+                row['barcode_2'] = barcode_2
+            self.assertEqual(
+                viral_ngs.core.splitcode.barcode_group_for_row(row), 'ATCGATCG',
+                f"barcode_2={barcode_2!r} should read as absent")
+
+    def test_column_absent_entirely(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row({'barcode_1': 'ATCGATCG'}),
+            'ATCGATCG')
+
+    def test_single_index_frame_from_read_csv(self):
+        """The shape that actually reaches the metrics and plot code.
+
+        Those three consumers read the LUT with pd.read_csv(dtype=str), which
+        turns an empty barcode_2 cell into NaN. Before this was handled, a
+        single-index run was grouped under the pool id "ATCGATCG-nan".
+        """
+        df = pd.read_csv(io.StringIO(
+            "barcode_1,barcode_2,inline_barcode\n"
+            "ATCGATCG,,AAAAAAAA\n"
+            "ATCGATCG,,CCCCCCCC\n"), dtype=str)
+        pools = df.apply(viral_ngs.core.splitcode.barcode_group_for_row, axis=1)
+        self.assertEqual(list(pools), ['ATCGATCG', 'ATCGATCG'])
+
+    def test_barcodes_are_stripped(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row(
+                {'barcode_1': ' ATCGATCG ', 'barcode_2': ' GCTAGCTA '}),
+            'ATCGATCG-GCTAGCTA')
 
 
 class TestSplitcodeDemuxIntegration(TestCaseWithTmp):

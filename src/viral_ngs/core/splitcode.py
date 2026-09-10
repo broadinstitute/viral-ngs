@@ -138,12 +138,27 @@ def barcode_group_for_row(row):
     library_id_per_sample, which is per-sample -- two library preps of one
     sample can share a pool, and folding the library id into the pool identity
     splits one physical pool in two (issues #1115, #1117).
+
+    Missing barcode_2 (single-index runs) must read as absent, not as a value.
+    Callers hand us rows from several sources, and an empty cell reaches us in
+    three different shapes: "" from a dict, NaN from pd.read_csv(dtype=str),
+    and the literal string "nan" once such a frame has been through
+    .astype(str). All three mean "no barcode_2"; without this, a single-index
+    pool is identified as "<barcode_1>-nan".
     """
-    b1 = row.get("barcode_1", "")
-    b2 = row.get("barcode_2", "")
-    if b2 and str(b2).strip():
-        return f"{b1}-{b2}"
-    return b1
+    def _clean(value):
+        # NaN is truthy and str(NaN) is "nan", so neither a bare truthiness test
+        # nor str().strip() rejects it. Compare lowercase "nan" only: a real
+        # barcode is ACGTN and upper-cased by normalize_barcode, so the
+        # lowercase form is unambiguously pandas' rendering of a missing value.
+        if value is None or (isinstance(value, float) and value != value):
+            return ""
+        value = str(value).strip()
+        return "" if value == "nan" else value
+
+    b1 = _clean(row.get("barcode_1", ""))
+    b2 = _clean(row.get("barcode_2", ""))
+    return f"{b1}-{b2}" if b2 else b1
 
 
 def create_splitcode_lookup_table(sample_sheet_or_dataframe, csv_out, unmatched_name, pool_ids=None, append_run_id=None, check_sample_sheet_consistency=False):
