@@ -25,7 +25,11 @@ ENV LANG="en_US.UTF-8" \
     TZ="UTC"
 
 # Install system packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Remove pebble — Canonical's service manager, which the rockcraft-built
+# Ubuntu 26.04 image ships as a loose Go binary (not a deb). We never use it
+# (entrypoint is micromamba's _entrypoint.sh), and its Go stdlib carries CVEs.
+RUN rm -f /usr/bin/pebble && \
+    apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
