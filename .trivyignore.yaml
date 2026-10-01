@@ -186,3 +186,47 @@ vulnerabilities:
       setuptools/package_index.py where the traversal lives; the real installed
       setuptools is 82.0.1. Scoped by PURL because SBOM-derived findings have no
       file path.
+
+  # ---------------------------------------------------------------------------
+  # CVE-2026-97687 — urllib3 HTTPS proxy TLS context mutation (GHSA-8988-9cw3-xx77)
+  # Severity: HIGH
+  # Package: urllib3 2.7.0, vendored inside pip 26.2.1 (pip/_vendor/urllib3)
+  #
+  # JUSTIFICATION:
+  #   The urllib3 installed in the conda env is 2.8.0 (the fix version), pinned
+  #   by `urllib3>=2.8.0` in docker/requirements/baseimage.txt. This finding is
+  #   the copy pip vendors: pip 26.2.1's pip/_vendor/vendor.txt pins
+  #   urllib3==2.7.0, and Trivy reads it from pip's embedded bom.cdx.json
+  #   ("AnalyzedBy": "sbom", no PkgPath). pip 26.2.1 is the newest release on
+  #   PyPI and conda-forge, and pip main still pins urllib3==2.7.0, so no
+  #   version bump in this repo can update it.
+  #
+  #   Unlike the setuptools entry above, the vulnerable code IS present: pip
+  #   passes its SSL context to urllib3 as proxy_ssl_context. It is reachable
+  #   only when pip itself runs in the container, through an HTTPS proxy, with
+  #   certificate verification disabled for a target (e.g. --trusted-host).
+  #   Batch pipeline tasks do not invoke pip; dependencies are installed via
+  #   conda at image build time.
+  #
+  #   Scoped by PURL because SBOM-derived findings have no file path. Caveat:
+  #   the PURL would also match a real site-packages urllib3 2.7.0, which can
+  #   only happen if the >=2.8.0 floor is removed or something caps urllib3.
+  #   Same approach as broadinstitute/py3-bio#29.
+  #
+  # RESOLUTION: Upstream pip must vendor urllib3>=2.8.0 (expected in pip 26.3).
+  # ADDED: 2026-10-01
+  # REVIEW: Expires 2026-12-31 so the finding resurfaces if pip has not caught up.
+  # ---------------------------------------------------------------------------
+  - id: CVE-2026-97687
+    purls:
+      - "pkg:pypi/urllib3@2.7.0"
+    expired_at: 2026-12-31
+    statement: >-
+      pip 26.2.1 (the latest release; pip main is unchanged) vendors urllib3
+      2.7.0, reported via pip's embedded SBOM. The installed urllib3
+      distribution is 2.8.0. Unlike the setuptools entry, the vulnerable code
+      is present: pip passes its SSL context as proxy_ssl_context. It is
+      reachable only when pip itself runs in the container through an HTTPS
+      proxy with certificate verification disabled for a target (e.g.
+      --trusted-host); batch pipeline tasks do not invoke pip. Short expiry so
+      this is revisited once pip vendors urllib3 >= 2.8.0 (GHSA-8988-9cw3-xx77).
