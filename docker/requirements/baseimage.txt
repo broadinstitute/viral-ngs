@@ -20,8 +20,8 @@ google-cloud-storage>=2.14.0
 cryptography>=50.0.0
 pyopenssl>=26.4.0
 pyasn1>=0.6.3
-tornado>=6.5.4
-urllib3>=2.7.0
+tornado>=6.5.10
+urllib3>=2.8.0
 # Versions >=2026.6.3 bundle pyo3>=0.29.0, fixing GHSA-36hh-v3qg-5jq4
 rpds-py>=2026.6.3
 
