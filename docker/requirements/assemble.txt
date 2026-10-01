@@ -9,6 +9,9 @@
 # Note: gap2seq is x86-only (ARM64 build conflicts with pillow/libtiff), see assemble-x86.txt
 mafft>=7.525
 mummer4>=4.0.1
+# Not a direct dependency (mummer4 → yaggo → ruby). Floor keeps the solver off
+# ruby 3.4.x, whose bundled uri 1.0.2 gem has CVE-2025-61594. Same as phylo.txt.
+ruby>=4.0
 muscle>=3.8,<4
 spades>=4.2.0
 
