@@ -3,8 +3,5 @@
 # They are installed separately from the main core requirements
 # Install with: install-conda-deps.sh --x86-only requirements/core-x86.txt
 
-# Aligners (bioconda, x86 only)
-novoalign>=3.09.04,<4
-
 # CD-HIT auxiliary tools (includes cd-hit-dup for duplicate removal)
 cd-hit-auxtools>=4.6.8

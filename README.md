@@ -161,7 +161,8 @@ See [AGENTS.md](AGENTS.md) for comprehensive development documentation.
 
 Images are built for both `linux/amd64` and `linux/arm64` (Apple Silicon, ARM servers).
 
-Some tools (novoalign, cd-hit-auxtools) are x86-only and will be skipped on ARM builds.
+Some tools (cd-hit-auxtools) are x86-only and will be skipped on ARM builds.
+Novoalign is not bundled in any image; to use it, supply your own binary via `$PATH` or `$NOVOALIGN_PATH` (and license via `$NOVOALIGN_LICENSE_PATH`).
 
 ### Module Structure
 
