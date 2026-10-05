@@ -2,9 +2,10 @@
     Novoalign aligner by Novocraft
 
     This is commercial software that has different licenses depending
-    on use cases. As such, we do not have an auto-downloader. The user
-    must have Novoalign pre-installed on their own and available
-    either in $PATH or $NOVOALIGN_PATH.
+    on use cases. As such, we do not have an auto-downloader, and it is
+    not bundled in the viral-ngs docker images. The user must have
+    Novoalign pre-installed on their own and available either in $PATH
+    or $NOVOALIGN_PATH (license file via $NOVOALIGN_LICENSE_PATH).
 '''
 
 import logging
@@ -37,7 +38,9 @@ class NovoalignTool(Tool):
                         require_executability=True
                     )
                 )
-        install_methods.append(PrexistingUnixCommand(shutil.which(TOOL_NAME), require_executability=True))
+        which_path = shutil.which(TOOL_NAME)
+        if which_path is not None:
+            install_methods.append(PrexistingUnixCommand(which_path, require_executability=True))
 
         post_verify_command = None
         for novo_license_path in [license_path, os.environ.get("NOVOALIGN_LICENSE_PATH"), '']:
@@ -56,6 +59,14 @@ class NovoalignTool(Tool):
 
         #install_methods.append(tools.CondaPackage(TOOL_NAME, version=TOOL_VERSION, post_verify_command=post_verify_command))
         Tool.__init__(self, install_methods=install_methods)
+
+    def install_and_get_path(self):
+        self.install()
+        if self.executable_path() is None:
+            raise NameError(
+                "novoalign not found: it is not bundled in viral-ngs images. "
+                "Put it on $PATH or set $NOVOALIGN_PATH to its directory.")
+        return self.executable_path()
 
     def _get_tool_version(self):
         self.tool_version = subprocess.check_output([self.install_and_get_path(), '-V']).decode('UTF-8').strip().split()[1]

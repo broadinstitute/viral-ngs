@@ -1358,7 +1358,7 @@ def align_and_fix(
     outBamAll=None,
     outBamFiltered=None,
     aligner_options='',
-    aligner="novoalign",
+    aligner="minimap2",
     bwa_min_score=None,
     novoalign_amplicons_bed=None,
     amplicon_window=4,
@@ -1369,7 +1369,7 @@ def align_and_fix(
     novoalign_license_path=None,
     skip_realign=False,
 ):
-    ''' Take reads, align to reference with Novoalign, minimap2, or BWA-MEM.
+    ''' Take reads, align to reference with minimap2 (default), BWA-MEM, or Novoalign.
         Optionally mark duplicates with Picard or sambamba,
         and optionally filter final file to mapped/non-dupe reads.
     '''
@@ -1484,7 +1484,7 @@ def parser_align_and_fix(parser=argparse.ArgumentParser()):
                 duplicates will be not be marked and will be included in the output.'''
     )
     parser.add_argument('--aligner_options', default=None, help='aligner options (default for novoalign: "-r Random", bwa: "-T 30"')
-    parser.add_argument('--aligner', choices=['novoalign', 'minimap2', 'bwa'], default='novoalign', help='aligner (default: %(default)s)')
+    parser.add_argument('--aligner', choices=['novoalign', 'minimap2', 'bwa'], default='minimap2', help='aligner (default: %(default)s)')
     parser.add_argument('--bwa_min_score', type=int, default=None, help='BWA mem on paired reads ignores the -T parameter. Set a value here (e.g. 30) to invoke a custom post-alignment filter (default: no filtration)')
     parser.add_argument('--novoalign_amplicons_bed', default=None, help='Novoalign only: amplicon primer file (BED format) to soft clip')
     parser.add_argument('--amplicon_window', type=int, default=4, help='Novoalign only: amplicon primer window size (default: %(default)s)')
