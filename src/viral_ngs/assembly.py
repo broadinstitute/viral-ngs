@@ -513,7 +513,7 @@ def impute_from_reference(
             that would otherwise be Ns, and we will correct all of the inferred
             positions with two steps of read-based refinement (below), and
             revert positions back to Ns where read support is lacking.
-        FASTA indexing: output assembly is indexed for Picard, Samtools, Novoalign.
+        FASTA indexing: output assembly is indexed for Picard, Samtools, and (if installed) Novoalign.
     '''
     tempFastas = []
 
@@ -602,11 +602,14 @@ def impute_from_reference(
     for tmpFile in tempFastas:
         os.unlink(tmpFile)
 
-    # Index final output FASTA for Picard, Samtools, and Novoalign
+    # Index final output FASTA for Picard, Samtools, and Novoalign (if available)
     if index:
         viral_ngs.core.samtools.SamtoolsTool().faidx(outFasta, overwrite=True)
         viral_ngs.core.picard.CreateSequenceDictionaryTool().execute(outFasta, overwrite=True)
-        viral_ngs.core.novoalign.NovoalignTool().index_fasta(outFasta)
+        novoalign = viral_ngs.core.novoalign.NovoalignTool()
+        novoalign.install()
+        if novoalign.is_installed():
+            novoalign.index_fasta(outFasta)
 
     return 0
 
@@ -647,7 +650,7 @@ def parser_impute_from_reference(parser=argparse.ArgumentParser()):
     )
     parser.add_argument(
         "--index",
-        help="""Index outFasta for Picard/GATK, Samtools, and Novoalign.""",
+        help="""Index outFasta for Picard/GATK, Samtools, and (if installed) Novoalign.""",
         default=False,
         action="store_true",
         dest="index"

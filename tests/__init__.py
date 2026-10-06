@@ -24,6 +24,14 @@ IS_ARM = platform.machine() in ('arm64', 'aarch64')
 import viral_ngs.core
 from viral_ngs.core.misc import available_cpu_count
 from viral_ngs.core.samtools import SamtoolsTool
+from viral_ngs.core.novoalign import NovoalignTool
+
+# novoalign is not bundled in the viral-ngs images; users may supply their own
+# binary via $PATH or $NOVOALIGN_PATH. Tests that need it skip when it's absent.
+_novoalign = NovoalignTool()
+_novoalign.install()
+HAS_NOVOALIGN = _novoalign.is_installed()
+SKIP_NO_NOVOALIGN_REASON = "novoalign not installed (not bundled in viral-ngs images; set NOVOALIGN_PATH to test)"
 
 logging.getLogger('botocore').setLevel(logging.WARNING)
 logging.getLogger('boto3').setLevel(logging.WARNING)

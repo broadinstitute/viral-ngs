@@ -17,7 +17,7 @@ import tempfile
 import viral_ngs.core
 import viral_ngs.core.bwa
 import viral_ngs.core.samtools
-from tests import TestCaseWithTmp, assert_equal_bam_reads
+from tests import TestCaseWithTmp, assert_equal_bam_reads, HAS_NOVOALIGN, SKIP_NO_NOVOALIGN_REASON
 
 # Skip tests requiring x86-only tools on ARM platforms
 IS_ARM = platform.machine() in ('arm64', 'aarch64')
@@ -1100,12 +1100,18 @@ class TestAlignAndFix(TestCaseWithTmp):
         self.refFasta = viral_ngs.core.file.mkstempfname('.ref.fasta')
         shutil.copyfile(orig_ref, self.refFasta)
 
-    @unittest.skipIf(IS_ARM, SKIP_X86_ONLY_REASON)
+    @unittest.skipUnless(HAS_NOVOALIGN, SKIP_NO_NOVOALIGN_REASON)
     def test_novoalign(self):
         self.simple_execution('novoalign')
 
     def test_bwa(self):
         self.simple_execution('bwa')
+
+    def test_default_aligner_is_minimap2(self):
+        # novoalign is not bundled in the image, so it must not be the default
+        args = viral_ngs.read_utils.parser_align_and_fix(argparse.ArgumentParser()).parse_args(
+            ['in.bam', 'ref.fasta', '--outBamAll', 'out.bam'])
+        self.assertEqual(args.aligner, 'minimap2')
 
     def test_minimap2(self):
         self.simple_execution('minimap2')

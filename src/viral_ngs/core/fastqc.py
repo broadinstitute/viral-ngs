@@ -46,7 +46,7 @@ class FastQC(Tool):
                 # fastqc sets java "-Xmx" (max java heap size) to 250mb/thread
                 tool_cmd = [self.install_and_get_path(),
                     '-t', str(threads),
-                    '-o', out_dir,
+                    '--outdir', out_dir,
                     inBam]
                 log.debug(' '.join(tool_cmd))
                 subprocess.check_call(tool_cmd, stdout=sys.stderr)
