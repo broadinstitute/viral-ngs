@@ -19,14 +19,20 @@ MAIN_TAGS = ['main', 'main-baseimage', 'main-core', 'main-assemble', 'main-class
 class FakeQuay:
     """Stands in for qd.Quay: tracks live tags and records every call."""
 
-    def __init__(self, tags, delete_status=None, cascade=None):
+    def __init__(self, tags, delete_status=None, cascade=None, head_status=None, head_status_after_delete=None):
         self.tags = set(tags)
         self.delete_status = delete_status or {}
         self.cascade = cascade or {}
+        self.head_status = head_status or {}
+        self.head_status_after_delete = head_status_after_delete or {}
         self.calls = []
 
     def head(self, tag):
         self.calls.append(('HEAD', tag))
+        if self.deleted() and tag in self.head_status_after_delete:
+            return self.head_status_after_delete[tag]
+        if tag in self.head_status:
+            return self.head_status[tag]
         return 200 if tag in self.tags else 404
 
     def delete(self, tag):
@@ -95,6 +101,17 @@ class TestRefusals(unittest.TestCase):
         self.assert_refused('')
         self.assert_refused('v')
 
+    def test_refuses_invalid_docker_tags(self):
+        # '#' is legal in git branch names; urllib would drop it as a URL fragment and
+        # send DELETE /manifests/main. A digest reference would delete by digest.
+        for branch in ('main#cleanup', 'feature#1', 'foo%23bar', 'sha256:' + 'a' * 64,
+                       '-leading-dash', '.leading-dot', 'x' * 120):
+            with self.subTest(branch=branch):
+                self.assert_refused(branch)
+
+    def test_longest_valid_tag_not_refused(self):
+        self.assertIsNone(qd.refusal_reason('x' * (128 - len('-baseimage'))))
+
     def test_ordinary_branch_not_refused(self):
         self.assertIsNone(qd.refusal_reason('feature-foo'))
         self.assertIsNone(qd.refusal_reason('maintenance-docs'))
@@ -121,6 +138,26 @@ class TestCollisions(unittest.TestCase):
         rc, _ = run('feature/foo', quay, live_branches=['main', 'feature/foo'])
         self.assertEqual(rc, 0)
         self.assertEqual(quay.deleted(), [])
+
+    def test_keeps_tag_that_is_a_live_branch_mega_tag(self):
+        # foo's -core tag is the same name as live branch foo-core's mega tag
+        quay = FakeQuay(MAIN_TAGS + qd.branch_tags('foo') + qd.branch_tags('foo-core'))
+        rc, out = run('foo', quay, live_branches=['main', 'foo-core'])
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn('foo-core', quay.deleted())
+        self.assertIn('foo-core', quay.tags)
+        self.assertEqual(sorted(quay.deleted()),
+                         sorted(t for t in qd.branch_tags('foo') if t != 'foo-core'))
+
+    def test_keeps_mega_tag_that_is_a_live_branch_flavor_tag(self):
+        # foo-core's mega tag is the same name as live branch foo's -core tag
+        quay = FakeQuay(MAIN_TAGS + qd.branch_tags('foo') + qd.branch_tags('foo-core'))
+        rc, out = run('foo-core', quay, live_branches=['main', 'foo'])
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn('foo-core', quay.deleted())
+        self.assertIn('foo-core', quay.tags)
+        self.assertEqual(sorted(quay.deleted()),
+                         sorted(t for t in qd.branch_tags('foo-core') if t != 'foo-core'))
 
     def test_parse_ls_remote(self):
         text = ('abc123\trefs/heads/main\n'
@@ -161,6 +198,25 @@ class TestDeletion(unittest.TestCase):
         rc, out = run('feature/foo', quay, live_branches=['main'])
         self.assertEqual(rc, 1)
         self.assertIn('main-baseimage', out)
+
+    def test_canary_unreadable_before_aborts_without_deleting(self):
+        tags = qd.branch_tags('feature-foo')
+        for status in (0, 401, 403, 503):
+            with self.subTest(status=status):
+                quay = FakeQuay(MAIN_TAGS + tags, head_status={'main-core': status})
+                rc, out = run('feature/foo', quay, live_branches=['main'])
+                self.assertEqual(rc, 1)
+                self.assertEqual(quay.deleted(), [])
+                self.assertIn('main-core', out)
+
+    def test_canary_unreadable_after_fails(self):
+        tags = qd.branch_tags('feature-foo')
+        for status in (0, 401, 503):
+            with self.subTest(status=status):
+                quay = FakeQuay(MAIN_TAGS + tags, head_status_after_delete={'latest': status})
+                rc, out = run('feature/foo', quay, live_branches=['main'])
+                self.assertEqual(rc, 1)
+                self.assertIn('latest', out)
 
     def test_dry_run_never_deletes(self):
         tags = qd.branch_tags('feature-foo')
@@ -214,6 +270,17 @@ class TestQuayClient(unittest.TestCase):
         self.assertTrue(opener.requests[0].full_url.endswith(
             '/v2/broadinstitute/viral-ngs/manifests/feature-foo-core'))
         self.assertEqual(opener.requests[0].get_header('Authorization'), 'Bearer tok')
+
+    def test_rejects_invalid_tag_without_a_request(self):
+        opener = FakeOpener([])
+        quay = qd.Quay(REPO, 'tok', opener=opener, sleep=lambda s: None)
+        for tag in ('main#cleanup', 'sha256:' + 'a' * 64, '', 'a/b'):
+            with self.subTest(tag=tag):
+                with self.assertRaises(ValueError):
+                    quay.delete(tag)
+                with self.assertRaises(ValueError):
+                    quay.head(tag)
+        self.assertEqual(opener.requests, [])
 
     def test_does_not_retry_client_errors(self):
         opener = FakeOpener([404])
