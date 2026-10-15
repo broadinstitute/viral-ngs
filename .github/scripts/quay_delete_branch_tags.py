@@ -13,12 +13,16 @@ incident happened: branch `-baseimage` builds usually reproduce main's (and the 
 release's) digest. So this script never deletes by digest.
 
 Safety rails:
+  * Refuses (exit 2) a branch whose tags aren't all valid Docker tags. Git allows
+    characters such as '#' that would change the request URL (`main#x` would become
+    DELETE .../manifests/main), and a `sha256:` reference would delete by digest.
   * Refuses (exit 2) a branch whose tags would include main's tags, the bare flavor
     aliases, `latest`, or anything version-like (e.g. branch `vmain` or `core`).
-  * Skips (exit 0) if a live branch still maps to the same tag prefix
-    (`feature/foo` and `feature-foo`, or `foo` and `vfoo`), since the images are now
-    that branch's.
-  * Checks main's tags before and after deleting, and exits 1 if any vanished.
+  * Keeps any tag that a live branch also produces. That covers branches sharing a
+    prefix (`feature/foo` and `feature-foo`, `foo` and `vfoo`) and overlapping names
+    (branch `foo`'s `foo-core` is branch `foo-core`'s mega tag).
+  * Checks main's tags before and after deleting. It deletes nothing if any of them
+    can't be read first, and exits 1 if any vanished or can't be read afterwards.
   * Dry run unless --execute. A dry run needs no credentials.
 
 Usage:
@@ -49,6 +53,8 @@ FLAVOR_SUFFIXES = ('-baseimage', '-core', '-assemble', '-classify', '-phylo', ''
 ALIAS_TAGS = ('latest', 'baseimage', 'core', 'assemble', 'classify', 'phylo')
 CANARY_TAGS = tuple('main' + s for s in FLAVOR_SUFFIXES) + ALIAS_TAGS
 VERSION_LIKE = re.compile(r'^\d+\.\d+')
+# Docker tag grammar (distribution reference spec)
+DOCKER_TAG = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$')
 
 MANIFEST_TYPES = ', '.join((
     'application/vnd.oci.image.index.v1+json',
@@ -81,6 +87,9 @@ def is_protected(tag):
 def refusal_reason(prefix):
     if not prefix:
         return 'empty tag prefix'
+    invalid = [t for t in branch_tags(prefix) if not DOCKER_TAG.match(t)]
+    if invalid:
+        return 'not valid Docker tags: ' + ', '.join(invalid)
     protected = [t for t in branch_tags(prefix) if is_protected(t)]
     if protected:
         return 'its tags would include protected tags: ' + ', '.join(protected)
@@ -147,6 +156,9 @@ class Quay:
         return self._status('DELETE', tag)
 
     def _status(self, method, tag):
+        # Anything else could rewrite the URL ('#', '/') or address a digest ('sha256:...').
+        if not DOCKER_TAG.match(tag):
+            raise ValueError(f'not a valid Docker tag: {tag!r}')
         req = urllib.request.Request(
             f'https://{REGISTRY}/v2/{self.repo}/manifests/{tag}', method=method,
             headers={'Authorization': f'Bearer {self.token}', 'Accept': MANIFEST_TYPES})
@@ -181,19 +193,35 @@ def run(branch, quay, live_branches, execute, out=sys.stdout, summary=None):
         annotate(out, 'error', f'Refusing to delete tags for branch {branch!r}: {reason}')
         return 2
 
-    twins = [b for b in live_branches if tag_prefix(b) == prefix]
-    if twins:
-        annotate(out, 'notice', f'Not deleting {prefix}* tags: live branch(es) {", ".join(twins)} '
-                                f'use the same tag prefix.')
+    # A tag that a live branch also produces is that branch's image now, e.g. branch foo's
+    # foo-core is branch foo-core's mega tag, and feature/foo shares every tag with feature-foo.
+    live_owner = {}
+    for live in live_branches:
+        for tag in branch_tags(tag_prefix(live)):
+            live_owner.setdefault(tag, live)
+    shared = {t: live_owner[t] for t in branch_tags(prefix) if t in live_owner}
+    if len(shared) == len(FLAVOR_SUFFIXES):
+        annotate(out, 'notice', f'Not deleting {prefix}* tags: live branch(es) '
+                                f'{", ".join(sorted(set(shared.values())))} produce the same tags.')
         return 0
 
-    canary_before = [t for t in CANARY_TAGS if quay.head(t) == 200] if execute else []
+    canary_before = []
+    if execute:
+        canary_status = {t: quay.head(t) for t in CANARY_TAGS}
+        unreadable = [f'{t} (HTTP {s})' for t, s in canary_status.items() if s not in (200, 404)]
+        if unreadable:
+            annotate(out, 'error', f'Could not check main\'s tags before deleting, so nothing was '
+                                   f'deleted: {", ".join(unreadable)}')
+            return 1
+        canary_before = [t for t, s in canary_status.items() if s == 200]
 
     mode = 'execute' if execute else 'dry run'
     print(f'Branch {branch!r} -> tag prefix {prefix!r} ({mode})', file=out)
     rows = []
     for tag in branch_tags(prefix):
-        if execute:
+        if tag in shared:
+            outcome, status = f'kept: {shared[tag]}\'s tag', '-'
+        elif execute:
             status = quay.delete(tag)
             outcome = {200: 'deleted', 202: 'deleted', 204: 'deleted', 404: 'absent'}.get(status, 'ERROR')
         else:
@@ -207,12 +235,17 @@ def run(branch, quay, live_branches, execute, out=sys.stdout, summary=None):
     if errors:
         annotate(out, 'error', f'Failed on {len(errors)} tag(s): {", ".join(errors)}')
         rc = 1
-    vanished = [t for t in canary_before if quay.head(t) == 404]
+    canary_after = {t: quay.head(t) for t in canary_before}
+    vanished = [t for t, s in canary_after.items() if s == 404]
+    unverified = [f'{t} (HTTP {s})' for t, s in canary_after.items() if s not in (200, 404)]
     if vanished:
         annotate(out, 'error',
                  f'Possible cascade: {", ".join(vanished)} resolved before the deletes and are gone now. '
                  f'Restore main-* and aliases by rerunning docker.yml deploy-to-quay on main; '
                  f'a repo admin can also restore them from quay\'s time machine.')
+        rc = 1
+    if unverified:
+        annotate(out, 'error', f'Could not confirm main\'s tags survived the deletes: {", ".join(unverified)}')
         rc = 1
 
     if summary is not None:
