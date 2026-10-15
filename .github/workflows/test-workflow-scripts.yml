@@ -1,0 +1,29 @@
+name: Workflow Script Tests
+
+# Unit tests for the helper scripts in .github/scripts (stdlib only, no network).
+
+on:
+  push:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/test-workflow-scripts.yml'
+  pull_request:
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/test-workflow-scripts.yml'
+
+permissions: {}
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
