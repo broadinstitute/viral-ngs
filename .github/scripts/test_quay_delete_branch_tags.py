@@ -4,10 +4,12 @@ Run with: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
 """
 
 import base64
+import http.client
 import io
 import json
 import unittest
 import urllib.error
+from unittest import mock
 
 import quay_delete_branch_tags as qd
 
@@ -252,6 +254,8 @@ class FakeOpener:
     def __call__(self, req, timeout=None):
         self.requests.append(req)
         r = self.responses.pop(0)
+        if isinstance(r, Exception):
+            raise r
         if isinstance(r, int) and r >= 400:
             raise urllib.error.HTTPError(req.full_url, r, 'error', {}, io.BytesIO(b''))
         if isinstance(r, int):
@@ -270,6 +274,40 @@ class TestQuayClient(unittest.TestCase):
         self.assertTrue(opener.requests[0].full_url.endswith(
             '/v2/broadinstitute/viral-ngs/manifests/feature-foo-core'))
         self.assertEqual(opener.requests[0].get_header('Authorization'), 'Bearer tok')
+
+    def test_retries_timeouts_and_dropped_connections(self):
+        # urlopen raises these unwrapped (not as URLError) while waiting for the response
+        for exc in (TimeoutError('timed out'), http.client.RemoteDisconnected('closed'),
+                    urllib.error.URLError('unreachable')):
+            with self.subTest(exc=type(exc).__name__):
+                opener = FakeOpener([exc, 202])
+                quay = qd.Quay(REPO, 'tok', opener=opener, sleep=lambda s: None)
+                self.assertEqual(quay.delete('feature-foo-core'), 202)
+                self.assertEqual(len(opener.requests), 2)
+
+    def test_no_response_after_retries_is_status_0(self):
+        opener = FakeOpener([TimeoutError('timed out')] * 10)
+        quay = qd.Quay(REPO, 'tok', opener=opener, sleep=lambda s: None)
+        self.assertEqual(quay.delete('feature-foo-core'), 0)
+        self.assertLessEqual(len(opener.requests), 4)
+
+    def test_timeout_on_one_tag_does_not_skip_other_tags_or_canary(self):
+        def opener(req, timeout=None):
+            opener.requests.append((req.get_method(), req.full_url.rsplit('/', 1)[1]))
+            if req.get_method() == 'DELETE' and req.full_url.endswith('/feature-foo-core'):
+                raise TimeoutError('timed out')
+            return FakeResponse(202 if req.get_method() == 'DELETE' else 200)
+        opener.requests = []
+        quay = qd.Quay(REPO, 'tok', opener=opener, sleep=lambda s: None)
+        out = io.StringIO()
+        rc = qd.run('feature/foo', quay, live_branches=['main'], execute=True, out=out)
+        self.assertEqual(rc, 1)
+        self.assertIn('feature-foo-core', out.getvalue())
+        deletes = [t for m, t in opener.requests if m == 'DELETE']
+        self.assertEqual(sorted(set(deletes)), sorted(qd.branch_tags('feature-foo')))
+        last_delete = max(i for i, (m, _) in enumerate(opener.requests) if m == 'DELETE')
+        canary_after = {t for m, t in opener.requests[last_delete:] if m == 'HEAD'}
+        self.assertEqual(canary_after, set(qd.CANARY_TAGS))
 
     def test_rejects_invalid_tag_without_a_request(self):
         opener = FakeOpener([])
@@ -320,6 +358,15 @@ class TestAuthenticate(unittest.TestCase):
     def test_execute_without_credentials_fails(self):
         with self.assertRaises(qd.AuthError):
             qd.authenticate(REPO, execute=True, env={}, opener=FakeOpener([]))
+
+    def test_main_reports_token_timeout_cleanly(self):
+        for exc in (TimeoutError('timed out'), http.client.RemoteDisconnected('closed')):
+            with self.subTest(exc=type(exc).__name__):
+                with mock.patch.object(qd, 'live_branches', return_value=['main']), \
+                     mock.patch.object(qd, 'authenticate', side_effect=exc), \
+                     mock.patch('sys.stdout', new_callable=io.StringIO) as out:
+                    self.assertEqual(qd.main(['--branch', 'feature/foo', '--execute']), 1)
+                self.assertIn(str(exc), out.getvalue())
 
     def test_dry_run_is_anonymous_pull(self):
         opener = FakeOpener([self.token_response(['pull'])])
