@@ -170,7 +170,10 @@ class Quay:
             except urllib.error.HTTPError as e:
                 status = e.code
                 e.close()
-            except urllib.error.URLError:
+            except OSError:
+                # URLError, plus what urlopen doesn't wrap: TimeoutError or a dropped
+                # connection while waiting for the response. Retrying is safe: a DELETE
+                # that quay already applied just comes back 404.
                 status = 0
             if status and status not in RETRY_STATUSES:
                 return status
@@ -274,7 +277,7 @@ def main(argv=None):
     try:
         live = live_branches(args.repo)
         token = authenticate(args.repo, args.execute)
-    except (AuthError, subprocess.CalledProcessError, urllib.error.URLError) as e:
+    except (AuthError, subprocess.CalledProcessError, OSError) as e:
         annotate(sys.stdout, 'error', str(e))
         return 1
 
