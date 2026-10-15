@@ -491,7 +491,7 @@ The `docs.yml` workflow builds Sphinx documentation. Key points:
 
 - **GHCR (ghcr.io)**: Primary build registry, images pushed during CI for all events including PRs
 - **Quay.io**: Production registry, images copied from GHCR after tests pass (push/tag events only)
-- Feature branch images should be cleaned up periodically from Quay.io
+- Feature branch images are deleted from Quay.io when the branch is deleted (`cleanup-images.yml`, which runs `.github/scripts/quay_delete_branch_tags.py`). To clean up leftovers, run that workflow by hand with the branch name; it is a dry run unless `execute` is checked. Delete Quay tags by tag, never by digest: a digest delete removes every tag on that manifest, and branch `-baseimage` builds usually share main's and the latest release's digest.
 
 ---
 
