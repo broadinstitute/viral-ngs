@@ -47,7 +47,9 @@ vulnerabilities:
   #   PDB-format text files (PDBFileReader/PDBFileParser) in its `pdb`
   #   subcommand, never the MMTF reader. mmtf-serialization's only ObjectMapper
   #   is a plain msgpack mapper. viral-ngs runs only snpEff `build`,
-  #   `databases` and `ann` (src/viral_ngs/phylo/snpeff.py), never `pdb`.
+  #   `databases`, `download` and `ann` (src/viral_ngs/phylo/snpeff.py), never
+  #   `pdb`. (`ann` may read a database's protein-interaction file, but as
+  #   plain text, not through biojava's structure parsers.)
   #   Nothing in the image routes XML through Jackson's DOMDeserializer; the
   #   vulnerable code is present in the fat JAR but never traversed.
   #
@@ -67,8 +69,9 @@ vulnerabilities:
     statement: >-
       jackson-databind is in snpEff's jar only as a transitive dependency of
       biojava's MMTF support. snpEff never imports it or reads MMTF, and
-      viral-ngs never runs the `pdb` subcommand that uses biojava-structure, so
-      nothing routes XML through DOMDeserializer. Scoped to snpEff's bundled jar.
+      viral-ngs never runs `pdb`, the only subcommand that parses structures
+      with biojava, so nothing routes XML through DOMDeserializer. Scoped to
+      snpEff's bundled jar.
 
   # ---------------------------------------------------------------------------
   # CVE-2026-54512 — jackson-databind PolymorphicTypeValidator bypass via
@@ -94,8 +97,8 @@ vulnerabilities:
   #   pipeline input content.
   #
   #   No pipeline input reaches Jackson at all: viral-ngs runs only snpEff
-  #   `build`, `databases` and `ann`, never the `pdb` subcommand that loads
-  #   biojava-structure.
+  #   `build`, `databases`, `download` and `ann`, never `pdb`, the only
+  #   subcommand that parses structures with biojava.
   #
   #   Scoped by path to snpEff's bundled copy; the same CVE in any other JAR is
   #   still reported.
@@ -138,8 +141,8 @@ vulnerabilities:
   #   pipeline input content.
   #
   #   No pipeline input reaches Jackson at all: viral-ngs runs only snpEff
-  #   `build`, `databases` and `ann`, never the `pdb` subcommand that loads
-  #   biojava-structure.
+  #   `build`, `databases`, `download` and `ann`, never `pdb`, the only
+  #   subcommand that parses structures with biojava.
   #
   #   Scoped by path to snpEff's bundled copy; the same CVE in any other JAR is
   #   still reported.
