@@ -39,27 +39,39 @@ vulnerabilities:
   #   disabling external entity resolution. This enables XXE attacks
   #   (SSRF, local file read) when processing attacker-controlled XML.
   #
-  #   snpEff uses jackson-databind for JSON parsing only (config metadata,
-  #   database indices). snpEff's input formats are VCF (tab-delimited),
-  #   GenBank (flat text), and Java properties files. It never parses XML
-  #   through Jackson's DOMDeserializer. The vulnerable code is present in
-  #   the fat JAR but the code path is never traversed.
+  #   jackson-databind is not a direct snpEff dependency. It is bundled
+  #   transitively through biojava's MMTF (binary protein-structure) support:
+  #   biojava-structure 6.0.4 -> mmtf-serialization -> jackson-dataformat-msgpack
+  #   0.8.24 -> jackson-databind 2.10.5. snpEff's own source never imports
+  #   com.fasterxml.jackson, and it uses biojava-structure only to parse
+  #   PDB-format text files (PDBFileReader/PDBFileParser) in its `pdb`
+  #   subcommand, never the MMTF reader. mmtf-serialization's only ObjectMapper
+  #   is a plain msgpack mapper. viral-ngs runs only snpEff `build`,
+  #   `databases`, `download` and `ann` (src/viral_ngs/phylo/snpeff.py), never
+  #   `pdb`. (`ann` may read a database's protein-interaction file, but as
+  #   plain text, not through biojava's structure parsers.)
+  #   Nothing in the image routes XML through Jackson's DOMDeserializer; the
+  #   vulnerable code is present in the fat JAR but never traversed.
   #
   #   Scoped by path to snpEff's bundled copy. The glob covers snpeff version
   #   bumps (the jar has moved between snpeff-5.1-0, 5.2-3 and 5.4.0c-0), but
   #   the same CVE in any other JAR — picard, gatk, fgbio, fastqc — is still
   #   reported, because those copies have not been assessed.
   #
-  # RESOLUTION: Upstream snpEff must update its bundled jackson-databind.
+  # RESOLUTION: Upstream snpEff must bump biojava or override the transitive
+  #   jackson-databind it bundles.
   # ADDED: 2026-03-20
+  # REVIEWED: 2026-10-16 — still reported in snpeff 5.4.0c (latest on bioconda)
   # ---------------------------------------------------------------------------
   - id: CVE-2020-25649
     paths:
       - "opt/conda/share/snpeff-*/snpEff.jar"
     statement: >-
-      snpEff uses jackson-databind for JSON config/index parsing only and never
-      routes XML through DOMDeserializer, so the vulnerable path is unreachable.
-      Scoped to snpEff's bundled jar.
+      jackson-databind is in snpEff's jar only as a transitive dependency of
+      biojava's MMTF support. snpEff never imports it or reads MMTF, and
+      viral-ngs never runs `pdb`, the only subcommand that parses structures
+      with biojava, so nothing routes XML through DOMDeserializer. Scoped to
+      snpEff's bundled jar.
 
   # ---------------------------------------------------------------------------
   # CVE-2026-54512 — jackson-databind PolymorphicTypeValidator bypass via
@@ -75,28 +87,35 @@ vulnerabilities:
   #   class is validated against the PTV allowlist; the nested type argument
   #   is instantiated without further PTV checks.
   #
-  #   snpEff uses jackson-databind only for plain JSON parsing of config
-  #   metadata and database index files — it never enables polymorphic typing.
-  #   Without polymorphic typing, _resolveAndValidateGeneric() and the entire
-  #   PTV code path are never invoked, making this bypass architecturally
-  #   unreachable regardless of pipeline input content.
+  #   jackson-databind reaches snpEff's jar only transitively, via biojava's
+  #   MMTF support (see CVE-2020-25649 above). Polymorphic typing is enabled by
+  #   whoever configures the ObjectMapper: snpEff never imports Jackson, and
+  #   mmtf-serialization builds a plain msgpack ObjectMapper with no default
+  #   typing and no @JsonTypeInfo. Without polymorphic typing,
+  #   _resolveAndValidateGeneric() and the entire PTV code path are never
+  #   invoked, making this bypass architecturally unreachable regardless of
+  #   pipeline input content.
   #
-  #   Pipeline inputs (VCF, GenBank, FASTQ) are processed by native tools; no
-  #   attacker-controlled JSON reaches snpEff's jackson-databind deserialization.
+  #   No pipeline input reaches Jackson at all: viral-ngs runs only snpEff
+  #   `build`, `databases`, `download` and `ann`, never `pdb`, the only
+  #   subcommand that parses structures with biojava.
   #
   #   Scoped by path to snpEff's bundled copy; the same CVE in any other JAR is
   #   still reported.
   #
-  # RESOLUTION: Upstream snpEff must update its bundled jackson-databind to >=2.18.8.
+  # RESOLUTION: Upstream snpEff must bump biojava or override the transitive
+  #   jackson-databind it bundles to >=2.18.8.
   # ADDED: 2026-06-24
-  # REVIEW: Remove once snpeff on conda-forge bundles jackson-databind>=2.18.8
+  # REVIEW: Remove once snpeff on bioconda bundles jackson-databind>=2.18.8
+  # REVIEWED: 2026-10-16 — still reported in snpeff 5.4.0c (latest on bioconda)
   # ---------------------------------------------------------------------------
   - id: CVE-2026-54512
     paths:
       - "opt/conda/share/snpeff-*/snpEff.jar"
     statement: >-
-      snpEff never enables polymorphic typing, so the PolymorphicTypeValidator
-      code path this bypasses is never invoked. Scoped to snpEff's bundled jar.
+      Neither snpEff nor the MMTF library that pulls in jackson-databind enables
+      polymorphic typing, so the PolymorphicTypeValidator code path this
+      bypasses is never invoked. Scoped to snpEff's bundled jar.
 
   # ---------------------------------------------------------------------------
   # CVE-2026-54513 — jackson-databind array subtype allowlist bypass in
@@ -112,28 +131,35 @@ vulnerabilities:
   #   The exploit requires polymorphic typing to be ENABLED in the consuming
   #   application AND a PTV built with allowIfSubTypeIsArray().
   #
-  #   snpEff uses jackson-databind only for plain JSON parsing of config
-  #   metadata and database index files — it never enables polymorphic typing.
-  #   Without polymorphic typing, BasicPolymorphicTypeValidator and
-  #   allowIfSubTypeIsArray() are never invoked, making this bypass
-  #   architecturally unreachable regardless of pipeline input content.
+  #   jackson-databind reaches snpEff's jar only transitively, via biojava's
+  #   MMTF support (see CVE-2020-25649 above). Polymorphic typing is enabled by
+  #   whoever configures the ObjectMapper: snpEff never imports Jackson, and
+  #   mmtf-serialization builds a plain msgpack ObjectMapper with no default
+  #   typing and no @JsonTypeInfo. Without polymorphic typing,
+  #   BasicPolymorphicTypeValidator and allowIfSubTypeIsArray() are never
+  #   invoked, making this bypass architecturally unreachable regardless of
+  #   pipeline input content.
   #
-  #   Pipeline inputs (VCF, GenBank, FASTQ) are processed by native tools; no
-  #   attacker-controlled JSON reaches snpEff's jackson-databind deserialization.
+  #   No pipeline input reaches Jackson at all: viral-ngs runs only snpEff
+  #   `build`, `databases`, `download` and `ann`, never `pdb`, the only
+  #   subcommand that parses structures with biojava.
   #
   #   Scoped by path to snpEff's bundled copy; the same CVE in any other JAR is
   #   still reported.
   #
-  # RESOLUTION: Upstream snpEff must update its bundled jackson-databind to >=2.18.8.
+  # RESOLUTION: Upstream snpEff must bump biojava or override the transitive
+  #   jackson-databind it bundles to >=2.18.8.
   # ADDED: 2026-06-24
-  # REVIEW: Remove once snpeff on conda-forge bundles jackson-databind>=2.18.8
+  # REVIEW: Remove once snpeff on bioconda bundles jackson-databind>=2.18.8
+  # REVIEWED: 2026-10-16 — still reported in snpeff 5.4.0c (latest on bioconda)
   # ---------------------------------------------------------------------------
   - id: CVE-2026-54513
     paths:
       - "opt/conda/share/snpeff-*/snpEff.jar"
     statement: >-
-      snpEff never enables polymorphic typing, so allowIfSubTypeIsArray() and the
-      validator it bypasses are never invoked. Scoped to snpEff's bundled jar.
+      Neither snpEff nor the MMTF library that pulls in jackson-databind enables
+      polymorphic typing, so allowIfSubTypeIsArray() and the validator it
+      bypasses are never invoked. Scoped to snpEff's bundled jar.
 
   # ---------------------------------------------------------------------------
   # CVE-2025-47273 — setuptools path traversal in PackageIndex
@@ -156,8 +182,9 @@ vulnerabilities:
   #   contains pkg_resources/ but no setuptools/ package and no package_index*
   #   file, so the vulnerable module is absent from the image.
   #
-  #   The setuptools that IS installed in the conda env is 82.0.1, well above
-  #   the 78.1.1 fix version, and is reported separately and correctly by Trivy.
+  #   The setuptools that IS installed in the conda env is floored at >=80.10.1
+  #   by docker/requirements/baseimage.txt (84.0.0 as of 2026-10-16), above the
+  #   78.1.1 fix version, and is reported separately and correctly by Trivy.
   #
   #   Why an ignore entry rather than deleting the SBOM: pip's SBOM is accurate
   #   supply-chain metadata that also covers its other vendored packages
@@ -176,6 +203,7 @@ vulnerabilities:
   #   or stop declaring the full setuptools distribution in its vendored SBOM.
   # ADDED: 2026-08-04
   # REVIEW: Remove once pip's bundled bom.cdx.json declares setuptools>=78.1.1
+  # REVIEWED: 2026-10-16 — pip 26.2.1 (latest) and pip main still vendor 70.3.0
   # ---------------------------------------------------------------------------
   - id: CVE-2025-47273
     purls:
@@ -184,8 +212,8 @@ vulnerabilities:
       Phantom package synthesized from pip's vendored CycloneDX SBOM, not an
       installed distribution. pip vendors pkg_resources only, not
       setuptools/package_index.py where the traversal lives; the real installed
-      setuptools is 82.0.1. Scoped by PURL because SBOM-derived findings have no
-      file path.
+      setuptools is floored above the fix version (>=80.10.1). Scoped by PURL
+      because SBOM-derived findings have no file path.
 
   # ---------------------------------------------------------------------------
   # CVE-2026-97687 — urllib3 HTTPS proxy TLS context mutation (GHSA-8988-9cw3-xx77)
@@ -216,6 +244,8 @@ vulnerabilities:
   # RESOLUTION: Upstream pip must vendor urllib3>=2.8.0 (expected in pip 26.3).
   # ADDED: 2026-10-01
   # REVIEW: Expires 2026-12-31 so the finding resurfaces if pip has not caught up.
+  # REVIEWED: 2026-10-16 — pip main still pins urllib3==2.7.0; pip 26.3 is due
+  #   2026-10-31 and is the likely point to remove this entry.
   # ---------------------------------------------------------------------------
   - id: CVE-2026-97687
     purls:
