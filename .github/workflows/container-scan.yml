@@ -33,25 +33,30 @@ env:
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
 
 jobs:
+  # The two agents run in jobs of their own (`triage`, `cve-fix-pr`) whose
+  # GITHUB_TOKEN is read-only and that hold no other credential except the Vertex
+  # one they need. Everything that writes (SARIF upload, filing issues, pushing and
+  # opening the auto-fix PR) happens in a job no agent ran in, and takes the agent's
+  # output only as an artifact that it re-validates. A job's permissions are what a
+  # prompt-injected agent gets: claude-code-action exports its github_token into
+  # the agent's environment as GH_TOKEN/GITHUB_TOKEN, and an agent with Write and
+  # an allowlist that includes `git grep` (-O<cmd> runs a program) has to be assumed
+  # able to run code in its job, including later steps' (e.g. via .git/config it
+  # writes, which any later git command in that job obeys).
   scan:
     runs-on: ubuntu-latest
     outputs:
-      # Exposed so the downstream cve-fix-pr job can gate on them.
+      # Exposed so the downstream jobs can gate on them.
       cve_ids:   ${{ steps.triage.outputs.cve_ids }}
       test_mode: ${{ steps.triage.outputs.test_mode }}
     permissions:
       contents: read
       packages: read
       security-events: write
-      issues: write     # for filing CVE issues
-      id-token: write   # for OIDC token to GCP via WIF
+      issues: read      # dedup lists existing issue titles
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          # Full history so the Claude analysis step can `git log --grep` and `git show`
-          # precedent CVE-fix commits (e.g., to mirror past mitigation patterns exactly).
-          fetch-depth: 0
+        uses: actions/checkout@v7
 
       - name: Free up disk space
         uses: ./.github/actions/free-disk-space
@@ -119,16 +124,17 @@ jobs:
 
       - name: Upload Trivy JSON results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-mega-scheduled
           path: trivy-results.json
 
       # === Claude triage pipeline ===
-      # If new fixable HIGH/CRITICAL CVEs are found, hand them to Claude (Sonnet 5
-      # on Vertex AI) for analysis, then file GitHub issues. Source of truth for
-      # "new" is GH issues themselves: a CVE is new if no existing issue (open OR
-      # closed) has the CVE ID in its title.
+      # If new fixable HIGH/CRITICAL CVEs are found, the triage job hands them to
+      # Claude (Sonnet 5.5 on Vertex AI) for analysis and the file-issues job files
+      # the reports as GitHub issues. Source of truth for "new" is GH issues
+      # themselves: a finding is new if no existing issue (open OR closed) has its ID,
+      # or a CVE/GHSA alias of it, in its title.
 
       - name: Identify new fixable CVEs
         id: triage
@@ -147,51 +153,24 @@ jobs:
             exit 0
           fi
 
-          # Production mode: parse trivy JSON for fixable HIGH/CRITICAL CVEs.
-          # Note: trivy-results.json contains all CRITICAL/HIGH/MEDIUM (fixable + non-fixable)
-          # for comprehensive debugging, but we only auto-triage fixable HIGH/CRITICAL here.
-          all_cves=$(jq -r '
-            [.Results[]?.Vulnerabilities[]?
-              | select((.Severity == "HIGH" or .Severity == "CRITICAL")
-                       and (.FixedVersion // "") != "")
-              | .VulnerabilityID]
-            | unique[]
-          ' trivy-results.json)
-
-          if [ -z "$all_cves" ]; then
-            echo "::notice::No fixable HIGH/CRITICAL CVEs in scan."
-            echo "cve_ids=" >> "$GITHUB_OUTPUT"
-            echo "test_mode=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          # Production mode: fixable HIGH/CRITICAL findings that no issue (open or closed)
+          # names in its title, by VulnerabilityID or by a CVE/GHSA alias in VendorIDs —
+          # see cve_pipeline.py new-ids. trivy-results.json also holds MEDIUM and
+          # non-fixable findings for debugging; only fixable HIGH/CRITICAL are triaged.
+          # One issue listing matched locally, rather than a search per ID: the search
+          # API allows 30 requests a minute, and aliases roughly double the IDs.
+          issues_json="$RUNNER_TEMP/all-issues.json"
+          gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 5000 \
+            --json number,title > "$issues_json"
+          if [ "$(jq length "$issues_json")" -ge 5000 ]; then
+            echo "::error::Issue listing hit its 5000 limit — older issues would be missed by dedup"
+            exit 1
           fi
-
-          # Dedup against existing GH issues (open + closed) by title-substring search.
-          # gh search issues --state only accepts "open" or "closed" (not "all"),
-          # so we query each state separately and sum the counts.
-          new_cves=()
-          for cve in $all_cves; do
-            open=$(gh search issues \
-              --repo "$GITHUB_REPOSITORY" \
-              --state open \
-              "\"$cve\" in:title" \
-              --json url --jq 'length')
-            closed=$(gh search issues \
-              --repo "$GITHUB_REPOSITORY" \
-              --state closed \
-              "\"$cve\" in:title" \
-              --json url --jq 'length')
-            count=$((open + closed))
-            if [ "$count" = "0" ]; then
-              new_cves+=("$cve")
-              echo "  NEW: $cve"
-            else
-              echo "  existing issue for $cve, skipping"
-            fi
-          done
-
-          new_list="${new_cves[*]:-}"
-          echo "::notice::Found ${#new_cves[@]} new fixable CVE(s)"
-          echo "cve_ids=$new_list" >> "$GITHUB_OUTPUT"
+          python3 .github/scripts/cve_pipeline.py new-ids \
+            --trivy-json trivy-results.json \
+            --issues-json "$issues_json" \
+            --out "$RUNNER_TEMP/new-ids.txt"
+          echo "cve_ids=$(cat "$RUNNER_TEMP/new-ids.txt")" >> "$GITHUB_OUTPUT"
           echo "test_mode=false" >> "$GITHUB_OUTPUT"
 
       # Answer "is the fix version actually installable?" deterministically, before
@@ -215,33 +194,67 @@ jobs:
             echo "::error::conda availability probe failed — triage will proceed without it"
           fi
 
+      - name: Upload conda availability probe as artifact
+        if: steps.triage.outputs.cve_ids != '' && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: conda-availability-scan
+          path: .cve-fix-context/conda-availability.json
+          if-no-files-found: warn
+          include-hidden-files: true
+
+  # ============================================================================
+  # TRIAGE — the agent writes one report per new ID. Read-only token: see the note
+  # at the top of `jobs:`.
+  # ============================================================================
+  triage:
+    needs: scan
+    if: needs.scan.outputs.cve_ids != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # for OIDC token to GCP via WIF
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          # Full history so the Claude analysis step can `git log --grep` and `git show`
+          # precedent CVE-fix commits (e.g., to mirror past mitigation patterns exactly).
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download scan results from the scan job
+        uses: actions/download-artifact@v8
+        with:
+          name: trivy-mega-scheduled
+          path: .
+
+      - name: Download conda availability probe from the scan job
+        # The probe fails soft, so its artifact can be missing; the prompt covers that.
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: conda-availability-scan
+          path: .cve-fix-context
+
       - name: Authenticate to GCP via Workload Identity Federation
-        if: steps.triage.outputs.cve_ids != ''
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIP_PROVIDER }}
           service_account: ${{ vars.GCP_SA_EMAIL }}
 
-      - name: Ensure issue labels exist
-        if: steps.triage.outputs.cve_ids != '' && (github.event.inputs.dry_run || 'false') != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Idempotent: gh label create exits non-zero if label exists; ignore that.
-          gh label create security    --color B60205 --description "Security-related issue"            --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
-          gh label create cve         --color B60205 --description "CVE tracked in container scans"    --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
-          gh label create test        --color FBCA04 --description "Test issue (filed by workflow_dispatch test_cve_id)" --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
-
       - name: Claude analysis on Vertex AI
-        if: steps.triage.outputs.cve_ids != ''
-        # Pinned to commit SHA (== v1.0.179 as of 2026-07-21) for supply-chain
-        # safety; bump this SHA when picking up new claude-code-action releases.
+        # Pinned to commit SHA (== v1.0.248, released 2026-10-09) for supply-chain
+        # safety; bump this SHA when picking up new claude-code-action releases. The
+        # action releases near-daily, so pick one that has been out for a week or more.
         # Bumped from 567fe954 (v1, 2026-04-27 / agent-SDK ^0.2.119) because that
         # pin predates Claude Sonnet 5 support: its SDK still emitted the legacy
         # `thinking.type.enabled` request shape, which Vertex rejects with HTTP 400
         # for Sonnet 5 ("Use thinking.type.adaptive and output_config.effort").
         # v1.0.179 ships agent-SDK ^0.3.216, which speaks the adaptive-thinking API.
-        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
+        # v1.0.188 started enforcing --max-turns from claude_args (hitting it fails the
+        # step); before that the limits below were advisory.
+        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc  # v1.0.248
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
@@ -249,11 +262,15 @@ jobs:
         with:
           use_vertex: 'true'
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: '--model claude-sonnet-5 --max-turns 30'
+          # 100 turns: triage spends ~5-6 per advisory (28 for the five in run
+          # 39574405233), so this covers a batch of ~17. A bigger batch fails here
+          # mid-way; file-issues still files the finished reports and the rest are
+          # triaged on the next run.
+          claude_args: '--model claude-sonnet-5-5 --max-turns 100'
           # WebSearch + WebFetch are allowed here: this agent has no Edit permission, its
-          # only output is .md files that a later step files as issues for humans to read,
-          # and it cannot push. Being able to read the actual GHSA/NVD advisory is what
-          # keeps reports from hedging on facts it could simply look up.
+          # only output is .md files that the file-issues job files for humans to read,
+          # and its job's token is read-only. Being able to read the actual GHSA/NVD
+          # advisory is what keeps reports from hedging on facts it could simply look up.
           settings: |
             {
               "permissions": {
@@ -297,12 +314,14 @@ jobs:
 
             ## Your task
 
-            For each CVE ID listed below, write a triage report to `.claude-issues/<CVE-ID>.md`.
+            For each advisory ID listed below, write a triage report to `.claude-issues/<ID>.md`.
             The reports will be filed verbatim as GitHub issues by the next workflow step.
+            IDs are Trivy's `VulnerabilityID`: a CVE ID, or a GHSA ID for a GitHub advisory
+            with no CVE assigned. Use each ID exactly as listed.
 
-            **CVE IDs to analyze:** ${{ steps.triage.outputs.cve_ids }}
+            **Advisory IDs to analyze:** ${{ needs.scan.outputs.cve_ids }}
 
-            **Test mode:** ${{ steps.triage.outputs.test_mode }}
+            **Test mode:** ${{ needs.scan.outputs.test_mode }}
             (If `true`, the CVE was supplied manually via `test_cve_id` and may not appear in
             the current scan's `trivy-results.json`. Use your training knowledge in that case
             and add a `> _Test analysis_` blockquote at the top of the report so reviewers
@@ -315,7 +334,7 @@ jobs:
                file contains ALL vulnerabilities (CRITICAL/HIGH/MEDIUM, fixable and non-fixable)
                for comprehensive analysis. Query it with `jq` before writing any report. Example:
                ```
-               jq '.Results[]?.Vulnerabilities[]? | select(.VulnerabilityID == "<CVE-ID>")' trivy-results.json
+               jq '.Results[]?.Vulnerabilities[]? | select(.VulnerabilityID == "<ID>")' trivy-results.json
                ```
                You MUST cite the exact CVSS score and vector from this file in the
                "Vulnerability details" section — do NOT infer or estimate them from your
@@ -367,9 +386,10 @@ jobs:
 
             ## Required structure for each report
 
-            File path: `.claude-issues/<CVE-ID>.md` (filename MUST match the CVE ID exactly).
+            File path: `.claude-issues/<ID>.md` (filename MUST match the ID exactly).
             **First line MUST be a single H1 used as the issue title:**
-            `# [CVE-YYYY-NNNN] <package>: <one-line description>`
+            `# [<ID>] <package>: <one-line description>`
+            e.g. `# [CVE-2026-112403] pillow: ...` or `# [GHSA-6q48-6c7w-9gw2] certifi: ...`
 
             Then sections (use H2 `##` headers):
 
@@ -394,7 +414,7 @@ jobs:
             8. **Attribution footer** — at the very end of the report, add a horizontal
                rule (`---`) on its own line, then this exact paragraph (italicized):
 
-               *This analysis and report were authored entirely by Claude Sonnet 5 (running on Google Vertex AI via the `container-scan.yml` triage pipeline). Independently verify the CVSS data, dependency chain, recommended fix, and commit SHAs before acting on this report.*
+               *This analysis and report were authored entirely by Claude Sonnet 5.5 (running on Google Vertex AI via the `container-scan.yml` triage pipeline). Independently verify the CVSS data, dependency chain, recommended fix, and commit SHAs before acting on this report.*
 
             ## Constraints
 
@@ -405,17 +425,80 @@ jobs:
               tools when in doubt.
             - If you finish all reports with budget remaining, do NOT pad — stop.
 
-      - name: File GitHub issues
-        if: steps.triage.outputs.cve_ids != '' && (github.event.inputs.dry_run || 'false') != 'true'
+      - name: Upload Claude analysis as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: claude-cve-analysis
+          path: .claude-issues/*.md
+          if-no-files-found: warn
+          include-hidden-files: true
+
+      - name: Summarize CVE discovery
+        # Notice-level only — we do NOT exit 1 here. New CVE discovery is the
+        # expected outcome of a useful scan, not a workflow failure: notifications
+        # are delivered via the filed GitHub issues (security + cve labels), and
+        # PR-time gating is independently enforced by docker.yml's on-build Trivy
+        # scan. Reserving red ✕ for real pipeline breakage (Trivy errored, Claude
+        # over budget, gh API failure, etc.) keeps the Actions page signal honest.
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "::notice::Scheduled scan discovered new fixable HIGH/CRITICAL CVE(s) (dry-run; no issues filed): ${{ needs.scan.outputs.cve_ids }}"
+          else
+            echo "::notice::Scheduled scan triaged new fixable HIGH/CRITICAL CVE(s); the file-issues job files them: ${{ needs.scan.outputs.cve_ids }}"
+          fi
+
+  # ============================================================================
+  # FILE ISSUES — files the triage job's reports. No agent runs in this job.
+  # ============================================================================
+  file-issues:
+    needs: [scan, triage]
+    # Also after a triage failure (e.g. it hit --max-turns mid-batch): each report is
+    # checked on its own, so the finished ones are filed and the rest are new again
+    # tomorrow. Requiring triage success would re-triage the whole batch every day.
+    if: |
+      !cancelled()
+      && needs.scan.result == 'success'
+      && needs.triage.result != 'skipped'
+      && (github.event.inputs.dry_run || 'false') != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write     # for filing CVE issues
+    steps:
+      - name: Checkout repository
+        # For cve_pipeline.py. No agent ran in this job, so the checkout is trusted.
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download triage reports
+        uses: actions/download-artifact@v8
+        with:
+          name: claude-cve-analysis
+          path: .claude-issues
+
+      - name: Ensure issue labels exist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TEST_MODE: ${{ steps.triage.outputs.test_mode }}
+        run: |
+          # Idempotent: gh label create exits non-zero if label exists; ignore that.
+          gh label create security    --color B60205 --description "Security-related issue"            --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          gh label create cve         --color B60205 --description "CVE tracked in container scans"    --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          gh label create test        --color FBCA04 --description "Test issue (filed by workflow_dispatch test_cve_id)" --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+
+      - name: File GitHub issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CVE_IDS: ${{ needs.scan.outputs.cve_ids }}
+          TEST_MODE: ${{ needs.scan.outputs.test_mode }}
         run: |
           set -uo pipefail
           shopt -s nullglob
 
           if [ ! -d .claude-issues ]; then
-            echo "::error::.claude-issues does not exist — Claude analysis step likely failed"
+            echo "::error::.claude-issues does not exist — the triage job's analysis artifact is missing"
             exit 1
           fi
 
@@ -431,10 +514,18 @@ jobs:
             title=$(head -1 "$f" | sed 's/^# *//')
             body=$(tail -n +2 "$f")
 
-            # Dedup-integrity guard: title MUST contain the CVE ID, otherwise the next
-            # scheduled run won't recognize it as already-triaged via title-substring search.
-            if ! echo "$title" | grep -qF "$cve"; then
-              echo "::error::Issue title for $cve does not contain the CVE ID — refusing to file (would break dedup)"
+            # The reports come from the triage job's agent: file only the IDs it was given.
+            if [[ " $CVE_IDS " != *" $cve "* ]]; then
+              echo "::error::$f is not a report for a requested ID ($CVE_IDS) — refusing to file it"
+              failed=$((failed+1))
+              continue
+            fi
+
+            # Dedup-integrity guard: the title MUST name the ID the way dedup matches it
+            # (whole IDs only: CVE-2026-1123 is not named by CVE-2026-11234), or the next
+            # scheduled run won't recognize it as already-triaged and files it again.
+            if ! python3 .github/scripts/cve_pipeline.py names --id "$cve" --text "$title"; then
+              echo "::error::Issue title for $cve does not name that ID — refusing to file (would break dedup)"
               echo "  Title was: $title"
               failed=$((failed+1))
               continue
@@ -461,48 +552,18 @@ jobs:
             exit 1
           fi
 
-      - name: Upload Claude analysis as artifact
-        if: steps.triage.outputs.cve_ids != '' && always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: claude-cve-analysis
-          path: .claude-issues/*.md
-          if-no-files-found: warn
-          include-hidden-files: true
-
-      - name: Upload conda availability probe as artifact
-        if: steps.triage.outputs.cve_ids != '' && always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: conda-availability-scan
-          path: .cve-fix-context/conda-availability.json
-          if-no-files-found: warn
-          include-hidden-files: true
-
-      - name: Summarize CVE discovery
-        # Notice-level only — we do NOT exit 1 here. New CVE discovery is the
-        # expected outcome of a useful scan, not a workflow failure: notifications
-        # are delivered via the filed GitHub issues (security + cve labels), and
-        # PR-time gating is independently enforced by docker.yml's on-build Trivy
-        # scan. Reserving red ✕ for real pipeline breakage (Trivy errored, Claude
-        # over budget, gh API failure, etc.) keeps the Actions page signal honest.
-        if: steps.triage.outputs.cve_ids != ''
-        env:
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-        run: |
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "::notice::Scheduled scan discovered new fixable HIGH/CRITICAL CVE(s) (dry-run; no issues filed): ${{ steps.triage.outputs.cve_ids }}"
-          else
-            echo "::notice::Scheduled scan filed issues for new fixable HIGH/CRITICAL CVE(s): ${{ steps.triage.outputs.cve_ids }}"
-          fi
-
   # ============================================================================
   # CVE AUTO-FIX PR JOB — downstream of `scan`. When the scan job filed new
   # `cve`-labeled issues, hand the full set of currently-open CVE issues to
-  # Claude Sonnet 5 (on Vertex AI) and ask it whether *all* of them can be
+  # Claude Sonnet 5.5 (on Vertex AI) and ask it whether *all* of them can be
   # closed by one clean, precedent-mirroring PR. If yes, the workflow opens a
   # ready-for-review PR. If no, it uploads a decision-log artifact and exits
   # cleanly — no churn on the issues.
+  #
+  # Two jobs: `cve-fix-pr` runs the agent with a read-only token and uploads its
+  # proposal (a patch plus PR body and title) as an artifact; `cve-fix-pr-open`
+  # starts from a fresh checkout, re-validates the patch, and is the only job that
+  # holds the GitHub App token that pushes and opens the PR.
   #
   # Confidence bar (enforced in the prompt):
   #   - version-floor bumps in docker/requirements/*.txt
@@ -512,80 +573,46 @@ jobs:
   # Anything ambiguous, novel, or partial → skip the entire PR.
   # ============================================================================
   cve-fix-pr:
-    needs: scan
+    # After file-issues, so this run's new issues are among the open ones. triage and
+    # file-issues are skipped when the scan found nothing new, which force_fix_pr
+    # allows; a failure in either still stops this job.
+    needs: [scan, triage, file-issues]
     runs-on: ubuntu-latest
     if: |
-      (
-        needs.scan.outputs.cve_ids != ''
-        && needs.scan.outputs.test_mode != 'true'
-        && (github.event.inputs.dry_run    || 'false') != 'true'
-        && (github.event.inputs.skip_fix_pr || 'false') != 'true'
+      !cancelled()
+      && needs.scan.result == 'success'
+      && contains(fromJSON('["success", "skipped"]'), needs.triage.result)
+      && contains(fromJSON('["success", "skipped"]'), needs.file-issues.result)
+      && (
+        (
+          needs.scan.outputs.cve_ids != ''
+          && needs.scan.outputs.test_mode != 'true'
+          && (github.event.inputs.dry_run    || 'false') != 'true'
+          && (github.event.inputs.skip_fix_pr || 'false') != 'true'
+        )
+        || (
+          (github.event.inputs.force_fix_pr || 'false') == 'true'
+          && needs.scan.outputs.test_mode != 'true'
+        )
       )
-      || (
-        (github.event.inputs.force_fix_pr || 'false') == 'true'
-        && needs.scan.outputs.test_mode != 'true'
-      )
+    outputs:
+      decision: ${{ steps.decide.outputs.decision }}
     permissions:
-      contents: write       # push the auto-fix branch
-      pull-requests: write  # open the PR
-      issues: write         # list open `cve` issues + apply labels via gh pr create
-                            # (label application is issue-scoped in the GH API; the
-                            #  `cve-fix` and `security` labels themselves are managed
-                            #  manually in the repo, NOT created by the workflow)
+      contents: read
+      issues: read          # list open `cve` issues
+      pull-requests: read   # list in-flight `cve-fix` PRs
       id-token: write       # OIDC → GCP WIF for Vertex AI
     steps:
-      # Mint a short-lived (1-hour) installation token for a dedicated GitHub
-      # App, instead of using the default GITHUB_TOKEN. The reason: PRs/commits
-      # created with the default GITHUB_TOKEN do not trigger downstream
-      # workflows (a well-known GH limitation), so the on-PR Trivy + Build/Test
-      # required-status-checks would never run on the auto-fix PR, blocking the
-      # merge under the `default branch protection` ruleset. App-token-authored
-      # PRs DO trigger workflows.
-      #
-      # Required repo secrets (set up once, manually — see PR #1074 description):
-      #   AUTOFIX_APP_ID          — numeric App ID
-      #   AUTOFIX_APP_PRIVATE_KEY — full .pem contents (BEGIN/END lines included)
-      #
-      # NOTE: the token is deliberately NOT persisted into .git/config by the
-      # checkout below — see the `persist-credentials: false` comment there. The
-      # authenticated push remote is configured in "Open auto-fix PR" instead,
-      # after the Claude step has finished running.
-      - name: Mint GitHub App installation token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
-        with:
-          app-id: ${{ secrets.AUTOFIX_APP_ID }}
-          private-key: ${{ secrets.AUTOFIX_APP_PRIVATE_KEY }}
-
-      - name: Resolve App bot user ID for git commit attribution
-        id: app-user
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set -euo pipefail
-          user_id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
-          echo "user_id=$user_id" >> "$GITHUB_OUTPUT"
-
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           # Full history so Claude can `git log --grep` and `git show` precedent
           # CVE-fix commits — required to satisfy the moderate confidence bar
           # (mirror an exact precedent or skip).
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-          # Do NOT write the App installation token into .git/config. The Claude
-          # step below can Read any file in the workspace and has WebFetch, so an
-          # on-disk token (contents:write + pull-requests:write, 1h lifetime)
-          # would be both readable and exfiltratable via a crafted URL. The
-          # "Open auto-fix PR" step sets an authenticated push remote instead,
-          # after the agent has finished.
+          # The commit cve-fix-pr-open applies the proposal to.
+          ref: ${{ github.sha }}
           persist-credentials: false
-
-      - name: Configure git author
-        run: |
-          git config user.name  '${{ steps.app-token.outputs.app-slug }}[bot]'
-          git config user.email '${{ steps.app-user.outputs.user_id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
 
       - name: Download scan results from upstream job
         uses: actions/download-artifact@v8
@@ -596,7 +623,7 @@ jobs:
       - name: Gather context for Claude (open issues + in-flight fix PRs)
         id: context
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           mkdir -p .cve-fix-context
@@ -642,7 +669,8 @@ jobs:
         if: steps.context.outputs.issue_count != '0'
         run: |
           set -uo pipefail
-          cve_ids=$(jq -r '[.[].title | scan("CVE-[0-9]{4}-[0-9]+")] | unique | join(" ")' \
+          # CVE and GHSA IDs: an advisory with no CVE yet is filed under its GHSA ID.
+          cve_ids=$(jq -r '[.[].title | scan("CVE-[0-9]{4}-[0-9]+|GHSA(?:-[0-9a-z]{4}){3}")] | unique | join(" ")' \
             .cve-fix-context/open-issues.json)
           echo "::notice::Probing conda availability for: ${cve_ids:-<none>}"
           # Fail soft, loudly — see the matching step in the scan job.
@@ -665,18 +693,19 @@ jobs:
         if: steps.context.outputs.issue_count != '0'
         # Pinned to the same commit SHA as the scan job's Claude step. When
         # bumping, bump both call sites together so they stay aligned.
-        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
+        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc  # v1.0.248
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
           ANTHROPIC_VERTEX_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         with:
           use_vertex: 'true'
-          github_token: ${{ steps.app-token.outputs.token }}
-          # 40 turns, not 30: web lookups cost turns, and an agent that exhausts its
-          # budget writes neither PROCEED.md nor SKIPPED.md, which hard-fails the
-          # "Validate Claude output" step below.
-          claude_args: '--model claude-sonnet-5 --max-turns 40'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 80 turns: an agent that exhausts its budget writes neither PROCEED.md nor
+          # SKIPPED.md and the step fails, so no PR is possible until the open backlog
+          # shrinks. It used 21 turns for five open issues (run 39574405233), and it
+          # reads every open issue, so the budget has to cover a backlog.
+          claude_args: '--model claude-sonnet-5-5 --max-turns 80'
           # Domain-scoped WebFetch only — no WebSearch. Unlike the triage agent, this one
           # has Edit and its output is committed and pushed, so the one channel whose
           # content an attacker can steer (search results) stays closed. Its actual
@@ -724,7 +753,8 @@ jobs:
 
             Read the inputs, decide PROCEED or SKIP, and write exactly one of:
               - `.claude-fix-pr/PROCEED.md` — the PR body (and make the file edits
-                in the working tree). The workflow will commit + push + open the PR.
+                in the working tree), plus `.claude-fix-pr/TITLE.txt` — the PR
+                title. The workflow will commit + push + open the PR.
               - `.claude-fix-pr/SKIPPED.md` — a decision log explaining, per-CVE,
                 what fix would be required and why it didn't meet the bar.
 
@@ -741,7 +771,10 @@ jobs:
                `cve-fix` label (prior auto-fix runs whose PRs haven't merged yet).
             3. `trivy-results.json` — the most recent scan output containing ALL
                vulnerabilities (CRITICAL/HIGH/MEDIUM, fixable and non-fixable). Use `jq`
-               to cross-reference CVSS data or confirm a CVE is still flagged.
+               to cross-reference CVSS data or confirm a CVE is still flagged. An issue
+               filed under a GHSA ID may now be listed there under a CVE, with the GHSA
+               ID in `VendorIDs`; `conda-availability.json` names that CVE in
+               `reported_as`.
             4. `.cve-fix-context/conda-availability.json` — **the authoritative
                answer to "is this fix version installable?"**, pre-computed
                against the conda-forge and bioconda APIs before you started.
@@ -896,7 +929,7 @@ jobs:
 
             ## Per-CVE rationale
 
-            ### [CVE-YYYY-NNNN] (#<issue-number>)
+            ### [<ID>] (#<issue-number>)
             - **Fix:** <one-line description: e.g. "pin urllib3>=2.7.0 in baseimage.txt">
             - **Precedent:** <commit SHA + one-line description, verified with git show>
             - **Confidence:** <one of: version-bump | dockerfile-precedent | trivyignore-precedent>
@@ -914,7 +947,7 @@ jobs:
 
             ---
 
-            *This PR was authored by Claude Sonnet 5 (running on Google Vertex
+            *This PR was authored by Claude Sonnet 5.5 (running on Google Vertex
             AI via the `container-scan.yml` auto-fix pipeline). Review every
             file change, every cited commit SHA, and every justification before
             merging. The CI Trivy scan must pass before merge.*
@@ -924,6 +957,23 @@ jobs:
             anything under `.github/workflows/`, `.trivy-ignore-policy.rego`,
             or the agent's own scratch directories (`.claude-fix-pr/`,
             `.cve-fix-context/`).
+
+            ## TITLE.txt (always alongside PROCEED.md)
+
+            File path: `.claude-fix-pr/TITLE.txt`. One line: the PR title. It
+            becomes this PR's entry in the release notes, so say what changed and
+            name every advisory ID the PR closes, spelled as in the issue titles:
+
+            `<what changed> (<ID>, <ID>, ...)`
+
+            For example:
+
+            `Bump pillow to 13.0.0, floor certifi (CVE-2026-112403, CVE-2026-112404, CVE-2026-112896, CVE-2026-112897, GHSA-6q48-6c7w-9gw2)`
+
+            At most 200 characters of plain text: letters, digits, spaces and
+            `. , : ; ( ) < > = + / _ ' ~ -` only — no `#`, `@`, backticks, links
+            or other markdown. The workflow checks this, and replaces a title that
+            fails the check or leaves out an ID with a generic one listing the IDs.
 
             ## SKIPPED.md structure (when you decide NOT to open a PR)
 
@@ -936,7 +986,7 @@ jobs:
 
             ## Per-CVE reasoning
 
-            ### [CVE-YYYY-NNNN] (#<issue-number>)
+            ### [<ID>] (#<issue-number>)
             - **Fix that would be required:** <description>
             - **Why this didn't meet the bar:** <specific category: e.g. "no
               precedent for inline mitigation of this shape" / "would need
@@ -952,14 +1002,14 @@ jobs:
 
             ---
 
-            *Generated by Claude Sonnet 5 via the auto-fix pipeline.*
+            *Generated by Claude Sonnet 5.5 via the auto-fix pipeline.*
             ```
 
             ## Constraints
 
             - `mkdir -p .claude-fix-pr` first.
             - Write EXACTLY ONE of PROCEED.md / SKIPPED.md (never both, never
-              neither).
+              neither). With PROCEED.md, also write TITLE.txt.
             - Do NOT run git add / git commit / git push / gh — those tools
               are explicitly NOT in your permission set.
             - Do NOT modify files under `.github/workflows/`,
@@ -1000,33 +1050,136 @@ jobs:
             echo "::notice::Claude recommends skipping; decision log will be uploaded as an artifact"
           fi
 
-      - name: Install gitleaks
+      - name: Package the fix proposal
+        # git here obeys whatever the agent wrote under .git/, but this job holds
+        # nothing the agent could not already reach. cve-fix-pr-open re-checks the
+        # patch from a fresh checkout before anything is committed.
         if: steps.decide.outputs.decision == 'proceed'
-        uses: gacts/gitleaks@c9a0338361dc45a01aa7ebaaa5330179f3c62873  # v1.3.2
+        run: |
+          set -euo pipefail
+          # .claude-fix-pr/, .cve-fix-context/ and gha-creds-*.json are gitignored, so
+          # `git add -A` skips them. Do NOT name them in :! pathspecs: `git add` exits 1
+          # when an exclude pathspec matches a gitignored path. trivy-results.json is
+          # not gitignored, so it needs the explicit exclude.
+          git add -A -- ':!trivy-results.json'
+          git diff --cached --binary > .claude-fix-pr/proposal.patch
+
+      - name: Upload conda availability probe as artifact
+        if: always() && steps.context.outputs.issue_count != '0'
+        uses: actions/upload-artifact@v7
         with:
+          name: conda-availability-fix
+          path: .cve-fix-context/conda-availability.json
+          if-no-files-found: warn
+          include-hidden-files: true
+
+      - name: Upload decision log (skip case)
+        if: always() && steps.decide.outputs.decision == 'skip'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cve-fix-decision-log
+          path: .claude-fix-pr/SKIPPED.md
+          if-no-files-found: warn
+
+      - name: Upload fix proposal (proceed case)
+        if: steps.decide.outputs.decision == 'proceed'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cve-fix-proposal
+          path: |
+            .claude-fix-pr/proposal.patch
+            .claude-fix-pr/PROCEED.md
+            .claude-fix-pr/TITLE.txt
+          if-no-files-found: error
+          include-hidden-files: true
+
+  # ============================================================================
+  # CVE AUTO-FIX PR, part 2: apply the proposal and open the PR. A fresh runner,
+  # so nothing the agent wrote reaches this job except the proposal artifact,
+  # which is checked here as untrusted input.
+  # ============================================================================
+  cve-fix-pr-open:
+    needs: cve-fix-pr
+    # Explicit status check: the implicit success() looks at every upstream job, so
+    # on a force_fix_pr run with nothing new (triage and file-issues skipped) it
+    # would skip this job even though cve-fix-pr succeeded.
+    if: |
+      !cancelled()
+      && needs.cve-fix-pr.result == 'success'
+      && needs.cve-fix-pr.outputs.decision == 'proceed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read          # open `cve` issues, for the PR-title check
+    steps:
+      # Mint a short-lived (1-hour) installation token for a dedicated GitHub
+      # App, instead of using the default GITHUB_TOKEN. The reason: PRs/commits
+      # created with the default GITHUB_TOKEN do not trigger downstream
+      # workflows (a well-known GH limitation), so the on-PR Trivy + Build/Test
+      # required-status-checks would never run on the auto-fix PR, blocking the
+      # merge under the `default branch protection` ruleset. App-token-authored
+      # PRs DO trigger workflows.
+      #
+      # Required repo secrets (set up once, manually — see PR #1074 description):
+      #   AUTOFIX_APP_ID          — numeric App ID
+      #   AUTOFIX_APP_PRIVATE_KEY — full .pem contents (BEGIN/END lines included)
+      - name: Mint GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
+        with:
+          app-id: ${{ secrets.AUTOFIX_APP_ID }}
+          private-key: ${{ secrets.AUTOFIX_APP_PRIVATE_KEY }}
+
+      - name: Resolve App bot user ID for git commit attribution
+        id: app-user
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          user_id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)
+          echo "user_id=$user_id" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the commit the agent worked on
+        uses: actions/checkout@v7
+        with:
+          # github.sha, not a cve-fix-pr output: an agent that can run code in its job
+          # should not get to pick the tree this job runs scripts from and pushes.
+          ref: ${{ github.sha }}
+          # The App token is attached to the push remote only in "Open auto-fix PR".
+          persist-credentials: false
+
+      - name: Configure git author
+        run: |
+          git config user.name  '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config user.email '${{ steps.app-user.outputs.user_id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
+
+      - name: Download fix proposal
+        uses: actions/download-artifact@v8
+        with:
+          name: cve-fix-proposal
+          path: ${{ runner.temp }}/proposal
+
+      - name: Install gitleaks
+        uses: gacts/gitleaks@4fd785dcdaf557fda64e05b0ae033b8f7d82fb81  # v1.3.3
+        with:
+          # The binary itself; the action defaults to downloading the latest release.
+          version: '8.30.1'
           # Install the binary onto PATH only; do NOT let the action run its own
           # scan. By default this action scans the entire repo history, which
           # trips on pre-existing historical findings unrelated to the auto-fix
           # diff. We scan just the staged diff ourselves in the next step.
           run: false
 
-      - name: Open auto-fix PR
-        if: steps.decide.outputs.decision == 'proceed'
+      - name: Apply and check the proposal
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          branch="cve-fix/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
-          git checkout -b "$branch"
-          # Stage everything EXCEPT the downloaded trivy-results.json artifact.
-          # .claude-fix-pr/, .cve-fix-context/, and gha-creds-*.json are gitignored,
-          # so `git add -A` skips them silently — do NOT name them in :! pathspecs,
-          # because `git add` exits 1 ("paths are ignored" advisory) when an exclude
-          # pathspec matches a gitignored path, which kills this step under `set -e`.
-          # trivy-results.json is NOT gitignored, so it still needs the explicit exclude.
-          git add -A -- ':!trivy-results.json'
-          # Enforce the change surface. The prompt asks the agent to stay out of
-          # .github/workflows/ etc., but `git add -A` would commit whatever it wrote —
+          proposal="$RUNNER_TEMP/proposal"
+          # git apply refuses paths under .git/ and outside the work tree.
+          # --allow-empty: an empty patch is reported by the no-changes check below.
+          git apply --index --allow-empty "$proposal/proposal.patch"
+          # Enforce the change surface. The prompt asks the agent to stay inside it, but
           # a prompt instruction is a request, not a control. Anything outside the
           # requirements files, the Dockerfiles and .trivyignore.yaml is a hard stop.
           disallowed=$(git diff --cached --name-only \
@@ -1037,19 +1190,52 @@ jobs:
             echo "$disallowed" | sed 's/^/  /'
             exit 1
           fi
-          # Scan staged diff for secrets before committing (defence-in-depth).
-          # gitleaks is installed by the "Install gitleaks" step above (it is NOT
-          # pre-installed on GitHub-hosted ubuntu-latest runners).
-          git diff --cached | gitleaks detect --pipe --redact --exit-code 1
-          if git diff --cached --quiet; then
-            echo "::error::PROCEED.md exists but no file changes were staged — Claude declared a fix without making one"
+          # Content changes to regular files only: no symlinks, executables, mode
+          # changes, renames or copies.
+          odd=$(git diff --cached --summary | grep -vE '^ (create|delete) mode 100644 ' || true)
+          if [ -n "$odd" ]; then
+            echo "::error::Auto-fix diff changes file types or modes — refusing to open a PR"
+            echo "$odd" | sed 's/^/  /'
             exit 1
           fi
-          git commit -m "Auto-fix: address open CVE issues (run ${GITHUB_RUN_ID})"
-          # Checkout ran with persist-credentials:false so the App token was never on
-          # disk while the agent ran. Attach it now, after the agent is done, so the
-          # push is authored by the App (which is what makes downstream required checks
-          # fire on the PR — the default GITHUB_TOKEN would not trigger them).
+          # Text only. Every allowed file is text, and git shows a binary change as
+          # "Binary files differ", which would hide its content from the secret scan.
+          binary=$(git diff --cached --numstat | awk -F'\t' '$1 == "-" {print $3}')
+          if [ -n "$binary" ]; then
+            echo "::error::Auto-fix diff makes binary changes — refusing to open a PR"
+            echo "$binary" | sed 's/^/  /'
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "::error::The agent wrote PROCEED.md but changed no files — it declared a fix without making one"
+            exit 1
+          fi
+          # Secret scan (defence-in-depth) of everything this job publishes: the diff,
+          # and the agent-written PR body and title. gitleaks is installed by the
+          # "Install gitleaks" step above (it is NOT pre-installed on ubuntu-latest).
+          { git diff --cached; cat "$proposal/PROCEED.md"; cat "$proposal/TITLE.txt" 2>/dev/null || true; } \
+            | gitleaks detect --pipe --redact --exit-code 1
+          # The agent's TITLE.txt if it names every advisory the PR closes, otherwise a
+          # title built from the closed issues' titles. Release notes list PRs by title.
+          gh issue list --repo "$GITHUB_REPOSITORY" --label cve --state open \
+            --json number,title --limit 100 > "$RUNNER_TEMP/open-issues.json"
+          python3 .github/scripts/cve_pipeline.py pr-title \
+            --title-file "$proposal/TITLE.txt" \
+            --pr-body "$proposal/PROCEED.md" \
+            --issues-json "$RUNNER_TEMP/open-issues.json" \
+            --out "$RUNNER_TEMP/pr-title.txt"
+
+      - name: Open auto-fix PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          title=$(cat "$RUNNER_TEMP/pr-title.txt")
+          branch="cve-fix/$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          git commit -m "$title" -m "Opened by container-scan.yml run ${GITHUB_RUN_ID}."
+          # Pushed as the App, which is what makes the required checks run on the PR —
+          # pushes made with the default GITHUB_TOKEN do not trigger workflows.
           git remote set-url origin \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push -u origin "$branch"
@@ -1057,31 +1243,6 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --base main \
             --head "$branch" \
-            --title "Auto-fix: address open CVE issues ($(date -u +%Y-%m-%d))" \
-            --body-file .claude-fix-pr/PROCEED.md \
+            --title "$title" \
+            --body-file "$RUNNER_TEMP/proposal/PROCEED.md" \
             --label cve-fix --label security
-
-      - name: Upload conda availability probe as artifact
-        if: always() && steps.context.outputs.issue_count != '0'
-        uses: actions/upload-artifact@v6
-        with:
-          name: conda-availability-fix
-          path: .cve-fix-context/conda-availability.json
-          if-no-files-found: warn
-          include-hidden-files: true
-
-      - name: Upload decision log (skip case)
-        if: always() && steps.decide.outputs.decision == 'skip'
-        uses: actions/upload-artifact@v6
-        with:
-          name: cve-fix-decision-log
-          path: .claude-fix-pr/SKIPPED.md
-          if-no-files-found: warn
-
-      - name: Upload PR body (proceed case, for audit trail)
-        if: always() && steps.decide.outputs.decision == 'proceed'
-        uses: actions/upload-artifact@v6
-        with:
-          name: cve-fix-pr-body
-          path: .claude-fix-pr/PROCEED.md
-          if-no-files-found: warn

@@ -586,8 +586,14 @@ def collect_targets(trivy_path, cve_ids, errors):
     targets = {}
     for result in report.get("Results") or []:
         for vuln in result.get("Vulnerabilities") or []:
-            cve = (vuln.get("VulnerabilityID") or "").upper()
-            if cve not in wanted:
+            # Match aliases too: an issue filed under a GHSA ID keeps that ID after Trivy
+            # starts reporting the finding under its newly assigned CVE, with the GHSA ID
+            # moved to VendorIDs.
+            reported_raw = vuln.get("VulnerabilityID") or ""
+            reported = reported_raw.upper()
+            ids = {reported} | {a.upper() for a in vuln.get("VendorIDs") or []}
+            matched = sorted(ids & wanted)
+            if not matched:
                 continue
             pkg = vuln.get("PkgName")
             if not pkg:
@@ -606,8 +612,14 @@ def collect_targets(trivy_path, cve_ids, errors):
                     "severities": [],
                 },
             )
-            if cve not in entry["cve_ids"]:
-                entry["cve_ids"].append(cve)
+            for cve in matched:
+                if cve not in entry["cve_ids"]:
+                    entry["cve_ids"].append(cve)
+            if reported not in matched:
+                # The ID to look up in trivy-results.json, spelled as Trivy spells it.
+                entry.setdefault("reported_as", [])
+                if reported_raw not in entry["reported_as"]:
+                    entry["reported_as"].append(reported_raw)
             if vuln.get("Severity") and vuln["Severity"] not in entry["severities"]:
                 entry["severities"].append(vuln["Severity"])
             if vuln.get("PkgPath") and vuln["PkgPath"] not in entry["pkg_paths"]:
@@ -636,6 +648,8 @@ def summarize(entry):
     lines = []
     name = entry["trivy_pkg_name"]
     cves = ", ".join(entry["cve_ids"])
+    if entry.get("reported_as"):
+        cves += "; reported in trivy-results.json as " + ", ".join(entry["reported_as"])
     threshold = entry.get("fix_threshold")
 
     if entry["fix_shape"] == "os-package":
