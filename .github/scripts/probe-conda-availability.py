@@ -589,7 +589,8 @@ def collect_targets(trivy_path, cve_ids, errors):
             # Match aliases too: an issue filed under a GHSA ID keeps that ID after Trivy
             # starts reporting the finding under its newly assigned CVE, with the GHSA ID
             # moved to VendorIDs.
-            reported = (vuln.get("VulnerabilityID") or "").upper()
+            reported_raw = vuln.get("VulnerabilityID") or ""
+            reported = reported_raw.upper()
             ids = {reported} | {a.upper() for a in vuln.get("VendorIDs") or []}
             matched = sorted(ids & wanted)
             if not matched:
@@ -615,10 +616,10 @@ def collect_targets(trivy_path, cve_ids, errors):
                 if cve not in entry["cve_ids"]:
                     entry["cve_ids"].append(cve)
             if reported not in matched:
-                # The ID to look up in trivy-results.json.
+                # The ID to look up in trivy-results.json, spelled as Trivy spells it.
                 entry.setdefault("reported_as", [])
-                if reported not in entry["reported_as"]:
-                    entry["reported_as"].append(reported)
+                if reported_raw not in entry["reported_as"]:
+                    entry["reported_as"].append(reported_raw)
             if vuln.get("Severity") and vuln["Severity"] not in entry["severities"]:
                 entry["severities"].append(vuln["Severity"])
             if vuln.get("PkgPath") and vuln["PkgPath"] not in entry["pkg_paths"]:
