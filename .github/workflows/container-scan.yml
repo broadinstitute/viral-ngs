@@ -252,8 +252,8 @@ jobs:
         # `thinking.type.enabled` request shape, which Vertex rejects with HTTP 400
         # for Sonnet 5 ("Use thinking.type.adaptive and output_config.effort").
         # v1.0.179 ships agent-SDK ^0.3.216, which speaks the adaptive-thinking API.
-        # v1.0.188 started enforcing --max-turns from claude_args; before that the
-        # limits below were advisory.
+        # v1.0.188 started enforcing --max-turns from claude_args (hitting it fails the
+        # step); before that the limits below were advisory.
         uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc  # v1.0.248
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
@@ -262,9 +262,11 @@ jobs:
         with:
           use_vertex: 'true'
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # 50 turns: triage spends ~5 per advisory (28 for the five in run 39574405233),
-          # and an agent cut off mid-batch leaves the remaining IDs without a report.
-          claude_args: '--model claude-sonnet-5-5 --max-turns 50'
+          # 100 turns: triage spends ~5-6 per advisory (28 for the five in run
+          # 39574405233), so this covers a batch of ~17. A bigger batch fails here
+          # mid-way; file-issues still files the finished reports and the rest are
+          # triaged on the next run.
+          claude_args: '--model claude-sonnet-5-5 --max-turns 100'
           # WebSearch + WebFetch are allowed here: this agent has no Edit permission, its
           # only output is .md files that the file-issues job files for humans to read,
           # and its job's token is read-only. Being able to read the actual GHSA/NVD
@@ -453,7 +455,14 @@ jobs:
   # ============================================================================
   file-issues:
     needs: [scan, triage]
-    if: (github.event.inputs.dry_run || 'false') != 'true'
+    # Also after a triage failure (e.g. it hit --max-turns mid-batch): each report is
+    # checked on its own, so the finished ones are filed and the rest are new again
+    # tomorrow. Requiring triage success would re-triage the whole batch every day.
+    if: |
+      !cancelled()
+      && needs.scan.result == 'success'
+      && needs.triage.result != 'skipped'
+      && (github.event.inputs.dry_run || 'false') != 'true'
     runs-on: ubuntu-latest
     permissions:
       issues: write     # for filing CVE issues
@@ -696,10 +705,11 @@ jobs:
         with:
           use_vertex: 'true'
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # 40 turns, not 30: web lookups cost turns, and an agent that exhausts its
-          # budget writes neither PROCEED.md nor SKIPPED.md, which hard-fails the
-          # "Validate Claude output" step below.
-          claude_args: '--model claude-sonnet-5-5 --max-turns 40'
+          # 80 turns: an agent that exhausts its budget writes neither PROCEED.md nor
+          # SKIPPED.md and the step fails, so no PR is possible until the open backlog
+          # shrinks. It used 21 turns for five open issues (run 39574405233), and it
+          # reads every open issue, so the budget has to cover a backlog.
+          claude_args: '--model claude-sonnet-5-5 --max-turns 80'
           # Domain-scoped WebFetch only — no WebSearch. Unlike the triage agent, this one
           # has Edit and its output is committed and pushed, so the one channel whose
           # content an attacker can steer (search results) stays closed. Its actual
@@ -1094,7 +1104,13 @@ jobs:
   # ============================================================================
   cve-fix-pr-open:
     needs: cve-fix-pr
-    if: needs.cve-fix-pr.outputs.decision == 'proceed'
+    # Explicit status check: the implicit success() looks at every upstream job, so
+    # on a force_fix_pr run with nothing new (triage and file-issues skipped) it
+    # would skip this job even though cve-fix-pr succeeded.
+    if: |
+      !cancelled()
+      && needs.cve-fix-pr.result == 'success'
+      && needs.cve-fix-pr.outputs.decision == 'proceed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
