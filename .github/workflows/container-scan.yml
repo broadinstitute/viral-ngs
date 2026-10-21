@@ -47,7 +47,7 @@ jobs:
       id-token: write   # for OIDC token to GCP via WIF
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           # Full history so the Claude analysis step can `git log --grep` and `git show`
           # precedent CVE-fix commits (e.g., to mirror past mitigation patterns exactly).
@@ -119,7 +119,7 @@ jobs:
 
       - name: Upload Trivy JSON results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-mega-scheduled
           path: trivy-results.json
@@ -207,14 +207,17 @@ jobs:
 
       - name: Claude analysis on Vertex AI
         if: steps.triage.outputs.cve_ids != ''
-        # Pinned to commit SHA (== v1.0.179 as of 2026-07-21) for supply-chain
-        # safety; bump this SHA when picking up new claude-code-action releases.
+        # Pinned to commit SHA (== v1.0.248, released 2026-10-09) for supply-chain
+        # safety; bump this SHA when picking up new claude-code-action releases. The
+        # action releases near-daily, so pick one that has been out for a week or more.
         # Bumped from 567fe954 (v1, 2026-04-27 / agent-SDK ^0.2.119) because that
         # pin predates Claude Sonnet 5 support: its SDK still emitted the legacy
         # `thinking.type.enabled` request shape, which Vertex rejects with HTTP 400
         # for Sonnet 5 ("Use thinking.type.adaptive and output_config.effort").
         # v1.0.179 ships agent-SDK ^0.3.216, which speaks the adaptive-thinking API.
-        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
+        # v1.0.188 started enforcing --max-turns from claude_args; before that the
+        # limits below were advisory.
+        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc  # v1.0.248
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
@@ -222,7 +225,9 @@ jobs:
         with:
           use_vertex: 'true'
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: '--model claude-sonnet-5 --max-turns 30'
+          # 50 turns: triage spends ~5 per advisory (28 for the five in run 39574405233),
+          # and an agent cut off mid-batch leaves the remaining IDs without a report.
+          claude_args: '--model claude-sonnet-5 --max-turns 50'
           # WebSearch + WebFetch are allowed here: this agent has no Edit permission, its
           # only output is .md files that a later step files as issues for humans to read,
           # and it cannot push. Being able to read the actual GHSA/NVD advisory is what
@@ -439,7 +444,7 @@ jobs:
 
       - name: Upload Claude analysis as artifact
         if: steps.triage.outputs.cve_ids != '' && always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: claude-cve-analysis
           path: .claude-issues/*.md
@@ -448,7 +453,7 @@ jobs:
 
       - name: Upload conda availability probe as artifact
         if: steps.triage.outputs.cve_ids != '' && always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: conda-availability-scan
           path: .cve-fix-context/conda-availability.json
@@ -528,7 +533,7 @@ jobs:
       # after the Claude step has finished running.
       - name: Mint GitHub App installation token
         id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
         with:
           app-id: ${{ secrets.AUTOFIX_APP_ID }}
           private-key: ${{ secrets.AUTOFIX_APP_PRIVATE_KEY }}
@@ -543,7 +548,7 @@ jobs:
           echo "user_id=$user_id" >> "$GITHUB_OUTPUT"
 
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           # Full history so Claude can `git log --grep` and `git show` precedent
           # CVE-fix commits — required to satisfy the moderate confidence bar
@@ -642,7 +647,7 @@ jobs:
         if: steps.context.outputs.issue_count != '0'
         # Pinned to the same commit SHA as the scan job's Claude step. When
         # bumping, bump both call sites together so they stay aligned.
-        uses: anthropics/claude-code-action@b76a0776ae74036e77cd11018083743453d7ad35  # v1.0.179
+        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc  # v1.0.248
         env:
           CLAUDE_CODE_USE_VERTEX: '1'
           CLOUD_ML_REGION: global
@@ -997,7 +1002,7 @@ jobs:
 
       - name: Install gitleaks
         if: steps.decide.outputs.decision == 'proceed'
-        uses: gacts/gitleaks@c9a0338361dc45a01aa7ebaaa5330179f3c62873  # v1.3.2
+        uses: gacts/gitleaks@4fd785dcdaf557fda64e05b0ae033b8f7d82fb81  # v1.3.3
         with:
           # Install the binary onto PATH only; do NOT let the action run its own
           # scan. By default this action scans the entire repo history, which
@@ -1069,7 +1074,7 @@ jobs:
 
       - name: Upload conda availability probe as artifact
         if: always() && steps.context.outputs.issue_count != '0'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: conda-availability-fix
           path: .cve-fix-context/conda-availability.json
@@ -1078,7 +1083,7 @@ jobs:
 
       - name: Upload decision log (skip case)
         if: always() && steps.decide.outputs.decision == 'skip'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: cve-fix-decision-log
           path: .claude-fix-pr/SKIPPED.md
@@ -1086,7 +1091,7 @@ jobs:
 
       - name: Upload PR body (proceed case, for audit trail)
         if: always() && steps.decide.outputs.decision == 'proceed'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: cve-fix-pr-body
           path: |
