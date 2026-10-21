@@ -46,6 +46,15 @@ class CollectTargetsTest(unittest.TestCase):
         self.assertEqual(targets['certifi']['reported_as'], ['CVE-2026-999999'])
         self.assertEqual(errors, [])
 
+    def test_reported_as_keeps_trivys_spelling_for_jq_lookups(self):
+        # Trivy writes GHSA IDs lowercase after the prefix; an uppercased copy would not
+        # match `select(.VulnerabilityID == "...")` in trivy-results.json.
+        targets, _ = self.collect(
+            [{'VulnerabilityID': 'GHSA-abcd-efgh-2345', 'VendorIDs': ['CVE-2026-5555'],
+              'PkgName': 'somepkg', 'FixedVersion': '1.0'}],
+            ['CVE-2026-5555'])
+        self.assertEqual(targets['somepkg']['reported_as'], ['GHSA-abcd-efgh-2345'])
+
     def test_requested_id_absent_from_the_scan_is_reported(self):
         targets, errors = self.collect(
             [{'VulnerabilityID': 'CVE-2026-112403', 'PkgName': 'pillow', 'FixedVersion': '13.0.0'}],

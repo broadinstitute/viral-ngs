@@ -64,6 +64,9 @@ class MentionsTest(unittest.TestCase):
     def test_longer_id_does_not_mention_its_prefix(self):
         self.assertFalse(cp.mentions('[CVE-2026-10011] foo: bar', 'CVE-2026-1001'))
 
+    def test_id_preceded_by_a_letter_is_not_mentioned(self):
+        self.assertFalse(cp.mentions('[NOTCVE-2026-1001] foo: bar', 'CVE-2026-1001'))
+
     def test_match_ignores_case(self):
         self.assertTrue(cp.mentions('[ghsa-6q48-6c7w-9gw2] certifi: x', 'GHSA-6q48-6c7w-9gw2'))
 
@@ -113,6 +116,12 @@ class NewAdvisoriesTest(unittest.TestCase):
         ]}
         new, _ = self.new(scan, [ISSUES_1137[4]])
         self.assertEqual(new, [])
+
+    def test_only_cve_and_ghsa_vendor_ids_count_as_aliases(self):
+        # Distro IDs such as Debian's DSA-* are not how issues are titled.
+        scan = report(finding('CVE-2026-3003', vendor_ids=['DSA-5555-1']))
+        new, _ = self.new(scan, [issue(30, '[DSA-5555-1] tracked under a distro ID')])
+        self.assertEqual(new, ['CVE-2026-3003'])
 
     def test_new_ids_are_sorted_and_unique(self):
         scan = report(finding('CVE-2026-1002'), finding('CVE-2026-1001'), finding('CVE-2026-1002'))
