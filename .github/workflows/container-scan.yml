@@ -597,7 +597,6 @@ jobs:
       )
     outputs:
       decision: ${{ steps.decide.outputs.decision }}
-      base_sha: ${{ steps.base.outputs.sha }}
     permissions:
       contents: read
       issues: read          # list open `cve` issues
@@ -611,12 +610,9 @@ jobs:
           # CVE-fix commits — required to satisfy the moderate confidence bar
           # (mirror an exact precedent or skip).
           fetch-depth: 0
+          # The commit cve-fix-pr-open applies the proposal to.
+          ref: ${{ github.sha }}
           persist-credentials: false
-
-      - name: Record the base commit
-        # Before the agent runs. cve-fix-pr-open applies the proposal to this commit.
-        id: base
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Download scan results from upstream job
         uses: actions/download-artifact@v8
@@ -1146,7 +1142,9 @@ jobs:
       - name: Checkout the commit the agent worked on
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.cve-fix-pr.outputs.base_sha }}
+          # github.sha, not a cve-fix-pr output: an agent that can run code in its job
+          # should not get to pick the tree this job runs scripts from and pushes.
+          ref: ${{ github.sha }}
           # The App token is attached to the push remote only in "Open auto-fix PR".
           persist-credentials: false
 
@@ -1164,6 +1162,8 @@ jobs:
       - name: Install gitleaks
         uses: gacts/gitleaks@4fd785dcdaf557fda64e05b0ae033b8f7d82fb81  # v1.3.3
         with:
+          # The binary itself; the action defaults to downloading the latest release.
+          version: '8.30.1'
           # Install the binary onto PATH only; do NOT let the action run its own
           # scan. By default this action scans the entire repo history, which
           # trips on pre-existing historical findings unrelated to the auto-fix
@@ -1196,6 +1196,14 @@ jobs:
           if [ -n "$odd" ]; then
             echo "::error::Auto-fix diff changes file types or modes — refusing to open a PR"
             echo "$odd" | sed 's/^/  /'
+            exit 1
+          fi
+          # Text only. Every allowed file is text, and git shows a binary change as
+          # "Binary files differ", which would hide its content from the secret scan.
+          binary=$(git diff --cached --numstat | awk -F'\t' '$1 == "-" {print $3}')
+          if [ -n "$binary" ]; then
+            echo "::error::Auto-fix diff makes binary changes — refusing to open a PR"
+            echo "$binary" | sed 's/^/  /'
             exit 1
           fi
           if git diff --cached --quiet; then
