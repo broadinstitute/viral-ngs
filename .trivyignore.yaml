@@ -260,3 +260,47 @@ vulnerabilities:
       proxy with certificate verification disabled for a target (e.g.
       --trusted-host); batch pipeline tasks do not invoke pip. Short expiry so
       this is revisited once pip vendors urllib3 >= 2.8.0 (GHSA-8988-9cw3-xx77).
+
+  # ---------------------------------------------------------------------------
+  # GHSA-6q48-6c7w-9gw2 — certifi bundled emSign root CA chains to compromised
+  #                       intermediate CA keys (pip-vendored copy)
+  # Severity: CRITICAL (GHSA v4.0, AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:H/VA:N, 9.1)
+  # Package: certifi 2026.6.17, vendored inside pip 26.2.1 (pip/_vendor/certifi)
+  #
+  # JUSTIFICATION:
+  #   The certifi installed in the conda env is floored at >=2026.10.19 (the
+  #   fix version) by `certifi>=2026.10.19` in docker/requirements/baseimage.txt,
+  #   and is reported separately and correctly by Trivy. This finding is the
+  #   copy pip vendors: pip 26.2.1's embedded bom.cdx.json declares
+  #   certifi==2026.6.17, synthesized by Trivy's SBOM analyzer ("AnalyzedBy":
+  #   "sbom", no PkgPath). pip 26.2.1 is the newest release on PyPI and
+  #   conda-forge, so no version bump in this repo can update it.
+  #
+  #   Same mechanism as the CVE-2026-97687 urllib3 entry and the
+  #   CVE-2025-47273 setuptools entry above: the vulnerable code IS present
+  #   (pip's vendored certifi bundle backs its own outbound TLS verification),
+  #   but it is reachable only when pip itself runs in the container and
+  #   connects over HTTPS to a host whose certificate chains through one of
+  #   the eight compromised eMudhra intermediates, requiring an on-path
+  #   attacker holding a compromised key. Batch pipeline tasks do not invoke
+  #   pip; dependencies are installed via conda at image build time.
+  #
+  #   Scoped by PURL because SBOM-derived findings have no file path.
+  #
+  # RESOLUTION: Upstream pip must vendor certifi>=2026.10.19.
+  # ADDED: 2026-10-21
+  # REVIEW: Expires 2026-12-31 so the finding resurfaces if pip has not caught up.
+  # ---------------------------------------------------------------------------
+  - id: GHSA-6q48-6c7w-9gw2
+    purls:
+      - "pkg:pypi/certifi@2026.6.17"
+    expired_at: 2026-12-31
+    statement: >-
+      pip 26.2.1 (the latest release) vendors certifi 2026.6.17, reported via
+      pip's embedded SBOM. The installed certifi distribution is floored at
+      >=2026.10.19. Same mechanism as the CVE-2026-97687 urllib3 entry: the
+      vulnerable code is present (pip's own outbound TLS verification uses
+      this bundle) but reachable only when pip itself runs in the container
+      and connects to a host chaining through a compromised eMudhra
+      intermediate; batch pipeline tasks do not invoke pip. Short expiry so
+      this is revisited once pip vendors certifi >= 2026.10.19.
