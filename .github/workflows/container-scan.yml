@@ -724,7 +724,10 @@ jobs:
                `cve-fix` label (prior auto-fix runs whose PRs haven't merged yet).
             3. `trivy-results.json` — the most recent scan output containing ALL
                vulnerabilities (CRITICAL/HIGH/MEDIUM, fixable and non-fixable). Use `jq`
-               to cross-reference CVSS data or confirm a CVE is still flagged.
+               to cross-reference CVSS data or confirm a CVE is still flagged. An issue
+               filed under a GHSA ID may now be listed there under a CVE, with the GHSA
+               ID in `VendorIDs`; `conda-availability.json` names that CVE in
+               `reported_as`.
             4. `.cve-fix-context/conda-availability.json` — **the authoritative
                answer to "is this fix version installable?"**, pre-computed
                against the conda-forge and bioconda APIs before you started.

@@ -152,12 +152,19 @@ def rejection_reason(agent_title, advisory_ids):
 
 
 def fallback_title(advisories):
-    """A title built from the closed issues: IDs grouped by package, shortened to fit."""
+    """A title built from the closed issues: IDs grouped by package, shortened to fit.
+
+    Package names go first when shortening: the IDs are what release notes and
+    `git log --grep CVE-` need.
+    """
     groups = {}
     for advisory_id, package in advisories.items():
         groups.setdefault(package, []).append(advisory_id)
     parts = [' '.join(filter(None, (package, ', '.join(ids)))) for package, ids in groups.items()]
     title = 'Auto-fix: ' + '; '.join(parts)
+    if len(title) <= MAX_TITLE_LENGTH:
+        return title
+    title = 'Auto-fix: ' + ', '.join(advisories)
     if len(title) <= MAX_TITLE_LENGTH:
         return title
     packages = [p for p in groups if p]
