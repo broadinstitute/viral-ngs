@@ -73,6 +73,7 @@ jobs:
               - 'docker/Dockerfile.phylo'
             docker:
               - 'docker/**'
+              - '.dockerignore'
               - '.github/workflows/docker.yml'
 
   # Calculate version from git describe (once, shared by all jobs)

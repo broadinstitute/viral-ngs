@@ -1,5 +1,4 @@
 VERSION
-test/output/
 
 # Sphinx documentation
 docs/_build/
@@ -18,19 +17,20 @@ __pycache__/
 *.bak
 *.bak[0-9]
 
-# Distribution / packaging
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
+# Distribution / packaging. Anchored to the repo root: unanchored, `lib/` or
+# `build/` would also hide any such directory inside src/ or tests/.
+/.Python
+/env/
+/build/
+/develop-eggs/
+/dist/
+/downloads/
+/eggs/
+/lib/
+/lib64/
+/parts/
+/sdist/
+/var/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -52,7 +52,7 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .coverage
-.coverage*
+.coverage.*
 .cache
 .noseids
 nosetests.xml
@@ -60,7 +60,8 @@ pytest.xml
 coverage.xml
 coverage/
 
-test/input/TestVPhaser2/in.bam.bti
+# Index V-Phaser 2 writes next to its input BAM (tests/unit/phylo/test_tools_vphaser2.py)
+tests/input/TestVPhaser2/in.bam.bti
 
 **/.vagrant/
 
@@ -79,6 +80,9 @@ vulnerability-mitigation-status.md
 # GCP credential files written to the workspace by google-github-actions/auth
 # (defence-in-depth: even if git add -A runs in a workflow, these are never staged)
 gha-creds-*.json
+
+# Claude Code per-user settings (shared settings in .claude/ stay tracked)
+.claude/settings.local.json
 
 # GSD planning directory (local-only)
 .planning/*
