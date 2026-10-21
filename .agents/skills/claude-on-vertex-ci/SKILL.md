@@ -124,12 +124,12 @@ steps:
     uses: anthropics/claude-code-action@<FULL_40_CHAR_SHA>  # v1
     env:
       CLAUDE_CODE_USE_VERTEX: '1'
-      CLOUD_ML_REGION: global              # Sonnet 5 supports the global endpoint
+      CLOUD_ML_REGION: global              # Sonnet 5.5 supports the global endpoint
       ANTHROPIC_VERTEX_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
     with:
       use_vertex: 'true'
       github_token: ${{ secrets.GITHUB_TOKEN }}    # avoids needing the Claude Code GitHub App
-      claude_args: '--model claude-sonnet-5 --max-turns 30'
+      claude_args: '--model claude-sonnet-5-5 --max-turns 30'
       settings: |
         {
           "permissions": {
@@ -175,7 +175,7 @@ steps:
   on prompt instructions to constrain output paths.
 
 - **Region `global` (recommended) gives dynamic routing across regions for
-  Sonnet 5.** Pin to a specific region (e.g., `us-east5`, `europe-west1`)
+  Sonnet 5.5.** Pin to a specific region (e.g., `us-east5`, `europe-west1`)
   only if you need data-residency control.
 
 - **`fetch-depth: 0` if Claude needs git history.** Default `actions/checkout`
