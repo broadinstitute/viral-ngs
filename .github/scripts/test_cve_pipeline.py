@@ -209,6 +209,14 @@ class PrTitleTest(unittest.TestCase):
         title, _ = self.title(None, body=body, issues=issues)
         self.assertEqual(title, 'Auto-fix: pillow (15 advisories)')
 
+    def test_fallback_keeps_the_ids_when_only_the_package_names_do_not_fit(self):
+        # IDs outrank package names: release notes and `git log --grep CVE-` both need them.
+        issues = [issue(200 + n, f'[CVE-2026-1000{n:02d}] org.example.very.long.group.name{n}:artifact-{n}: bug')
+                  for n in range(7)]
+        body = '\n'.join(f'Closes #{i["number"]}' for i in issues)
+        title, _ = self.title(None, body=body, issues=issues)
+        self.assertEqual(title, 'Auto-fix: ' + ', '.join(f'CVE-2026-1000{n:02d}' for n in range(7)))
+
     def test_fallback_keeps_maven_coordinates_whole(self):
         issues = [issue(7, '[CVE-2025-68161] org.apache.logging.log4j:log4j-core: socket appender skips TLS hostname check')]
         title, _ = self.title(None, body='Closes #7', issues=issues)
