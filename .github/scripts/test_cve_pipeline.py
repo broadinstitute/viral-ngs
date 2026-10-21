@@ -271,6 +271,17 @@ class CliTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(self.read('pr-title.txt'), GOOD_TITLE + '\n')
 
+    def test_names_matches_whole_ids_only(self):
+        # The file-issues job's title guard: a title dedup won't recognize is refused.
+        cases = [
+            ('CVE-2026-1123', '[CVE-2026-1123] foo: bar', 0),
+            ('CVE-2026-1123', '[CVE-2026-11234] foo: bar', 1),
+            ('GHSA-6q48-6c7w-9gw2', '[ghsa-6q48-6c7w-9gw2] certifi: bar', 0),
+        ]
+        for advisory_id, text, rc in cases:
+            with self.subTest(advisory_id=advisory_id, text=text):
+                self.assertEqual(self.run_main(['names', '--id', advisory_id, '--text', text]), rc)
+
     def test_pr_title_without_a_title_file(self):
         rc = self.run_main([
             'pr-title',
