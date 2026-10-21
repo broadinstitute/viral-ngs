@@ -724,7 +724,8 @@ jobs:
 
             Read the inputs, decide PROCEED or SKIP, and write exactly one of:
               - `.claude-fix-pr/PROCEED.md` — the PR body (and make the file edits
-                in the working tree). The workflow will commit + push + open the PR.
+                in the working tree), plus `.claude-fix-pr/TITLE.txt` — the PR
+                title. The workflow will commit + push + open the PR.
               - `.claude-fix-pr/SKIPPED.md` — a decision log explaining, per-CVE,
                 what fix would be required and why it didn't meet the bar.
 
@@ -925,6 +926,23 @@ jobs:
             or the agent's own scratch directories (`.claude-fix-pr/`,
             `.cve-fix-context/`).
 
+            ## TITLE.txt (always alongside PROCEED.md)
+
+            File path: `.claude-fix-pr/TITLE.txt`. One line: the PR title. It
+            becomes this PR's entry in the release notes, so say what changed and
+            name every advisory ID the PR closes, spelled as in the issue titles:
+
+            `<what changed> (<ID>, <ID>, ...)`
+
+            For example:
+
+            `Bump pillow to 13.0.0, floor certifi (CVE-2026-112403, CVE-2026-112404, CVE-2026-112896, CVE-2026-112897, GHSA-6q48-6c7w-9gw2)`
+
+            At most 200 characters of plain text: letters, digits, spaces and
+            `. , : ; ( ) < > = + / _ ' ~ -` only — no `#`, `@`, backticks, links
+            or other markdown. The workflow checks this, and replaces a title that
+            fails the check or leaves out an ID with a generic one listing the IDs.
+
             ## SKIPPED.md structure (when you decide NOT to open a PR)
 
             File path: `.claude-fix-pr/SKIPPED.md`. Use this structure:
@@ -959,7 +977,7 @@ jobs:
 
             - `mkdir -p .claude-fix-pr` first.
             - Write EXACTLY ONE of PROCEED.md / SKIPPED.md (never both, never
-              neither).
+              neither). With PROCEED.md, also write TITLE.txt.
             - Do NOT run git add / git commit / git push / gh — those tools
               are explicitly NOT in your permission set.
             - Do NOT modify files under `.github/workflows/`,
@@ -1045,7 +1063,18 @@ jobs:
             echo "::error::PROCEED.md exists but no file changes were staged — Claude declared a fix without making one"
             exit 1
           fi
-          git commit -m "Auto-fix: address open CVE issues (run ${GITHUB_RUN_ID})"
+          # The agent's TITLE.txt if it names every advisory the PR closes, otherwise a
+          # title built from the closed issues' titles. Release notes list PRs by title.
+          # Runs after the change-surface check, which aborts if the agent touched this
+          # script; -I keeps anything it planted elsewhere (e.g. a gitignored *.pyc
+          # beside the script) off sys.path.
+          python3 -I .github/scripts/cve_pipeline.py pr-title \
+            --title-file .claude-fix-pr/TITLE.txt \
+            --pr-body .claude-fix-pr/PROCEED.md \
+            --issues-json .cve-fix-context/open-issues.json \
+            --out .claude-fix-pr/pr-title.txt
+          title=$(cat .claude-fix-pr/pr-title.txt)
+          git commit -m "$title" -m "Opened by container-scan.yml run ${GITHUB_RUN_ID}."
           # Checkout ran with persist-credentials:false so the App token was never on
           # disk while the agent ran. Attach it now, after the agent is done, so the
           # push is authored by the App (which is what makes downstream required checks
@@ -1057,7 +1086,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --base main \
             --head "$branch" \
-            --title "Auto-fix: address open CVE issues ($(date -u +%Y-%m-%d))" \
+            --title "$title" \
             --body-file .claude-fix-pr/PROCEED.md \
             --label cve-fix --label security
 
@@ -1083,5 +1112,8 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: cve-fix-pr-body
-          path: .claude-fix-pr/PROCEED.md
+          path: |
+            .claude-fix-pr/PROCEED.md
+            .claude-fix-pr/TITLE.txt
+            .claude-fix-pr/pr-title.txt
           if-no-files-found: warn
