@@ -178,6 +178,16 @@ steps:
   Sonnet 5.5.** Pin to a specific region (e.g., `us-east5`, `europe-west1`)
   only if you need data-residency control.
 
+- **The job's token is the agent's token.** claude-code-action exports its
+  `github_token` input into the agent's environment as `GH_TOKEN`/`GITHUB_TOKEN`,
+  and an agent with Write (plus allowlisted commands like `git grep`, whose
+  `-O<cmd>` runs a program) has to be assumed able to run code in its job,
+  including in later steps via `.git/config` it writes. So give the job that runs
+  the agent read-only permissions, and do anything that writes (file issues, push,
+  open a PR) in a separate job that takes the agent's output as an artifact and
+  re-validates it. `container-scan.yml`'s `triage`/`file-issues` and
+  `cve-fix-pr`/`cve-fix-pr-open` jobs are the pattern.
+
 - **`fetch-depth: 0` if Claude needs git history.** Default `actions/checkout`
   is shallow (depth=1); `git log --all --grep` and `git show <sha>` will
   produce empty results without unshallowing.
