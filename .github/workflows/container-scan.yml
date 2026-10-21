@@ -458,6 +458,12 @@ jobs:
     permissions:
       issues: write     # for filing CVE issues
     steps:
+      - name: Checkout repository
+        # For cve_pipeline.py. No agent ran in this job, so the checkout is trusted.
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Download triage reports
         uses: actions/download-artifact@v8
         with:
@@ -506,10 +512,11 @@ jobs:
               continue
             fi
 
-            # Dedup-integrity guard: title MUST contain the ID, otherwise the next
-            # scheduled run won't recognize it as already-triaged (dedup matches titles).
-            if ! echo "$title" | grep -qF "$cve"; then
-              echo "::error::Issue title for $cve does not contain the CVE ID — refusing to file (would break dedup)"
+            # Dedup-integrity guard: the title MUST name the ID the way dedup matches it
+            # (whole IDs only: CVE-2026-1123 is not named by CVE-2026-11234), or the next
+            # scheduled run won't recognize it as already-triaged and files it again.
+            if ! python3 .github/scripts/cve_pipeline.py names --id "$cve" --text "$title"; then
+              echo "::error::Issue title for $cve does not name that ID — refusing to file (would break dedup)"
               echo "  Title was: $title"
               failed=$((failed+1))
               continue

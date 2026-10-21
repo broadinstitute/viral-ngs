@@ -9,6 +9,8 @@ so the matching rules are unit-tested instead of living in inline bash.
             or one of its CVE/GHSA aliases in VendorIDs. Trivy reports a GitHub advisory
             under its CVE once one is assigned and moves the GHSA ID to VendorIDs, so
             without the alias check a GHSA-titled issue would be filed again under the CVE.
+  names     Exit 0 if --text names --id as a whole ID, 1 if not: the file-issues job's
+            check that an issue title will be recognized by new-ids.
   pr-title  Title for the auto-fix PR. Uses the agent's TITLE.txt when it is one line of
             plain text, at most MAX_TITLE_LENGTH characters, and names every advisory the
             PR closes; otherwise builds one from the closed issues' titles.
@@ -18,12 +20,13 @@ IDs match as whole IDs only: CVE-2026-1123 is not named by a title about CVE-202
 Usage:
     cve_pipeline.py new-ids --trivy-json trivy-results.json \\
         --issues-json all-issues.json --out new-ids.txt
+    cve_pipeline.py names --id CVE-2026-1123 --text "$title"
     cve_pipeline.py pr-title --title-file .claude-fix-pr/TITLE.txt \\
         --pr-body .claude-fix-pr/PROCEED.md \\
         --issues-json .cve-fix-context/open-issues.json --out pr-title.txt
 
-Both write their result to --out and report decisions on stdout, as workflow annotations
-when run under GitHub Actions.
+new-ids and pr-title write their result to --out and report decisions on stdout, as
+workflow annotations when run under GitHub Actions.
 """
 
 import argparse
@@ -197,6 +200,9 @@ def main(argv=None):
     p.add_argument('--trivy-json', required=True)
     p.add_argument('--issues-json', required=True, help='every issue, open and closed: [{number, title}]')
     p.add_argument('--out', required=True, help='written with the new IDs, space-separated')
+    p = commands.add_parser('names', help='exit 0 if --text names --id as a whole ID')
+    p.add_argument('--id', required=True, dest='advisory_id')
+    p.add_argument('--text', required=True)
     p = commands.add_parser('pr-title', help='title for the auto-fix PR')
     p.add_argument('--title-file', required=True, help="the agent's TITLE.txt (may be absent)")
     p.add_argument('--pr-body', required=True)
@@ -204,6 +210,8 @@ def main(argv=None):
     p.add_argument('--out', required=True, help='written with the title')
     args = parser.parse_args(argv)
 
+    if args.command == 'names':
+        return 0 if mentions(args.text, args.advisory_id) else 1
     with open(args.issues_json) as f:
         issues = json.load(f)
     if args.command == 'new-ids':
