@@ -19,8 +19,8 @@ Container images are scanned for vulnerabilities using [Trivy](https://aquasecur
 - Runs daily at 09:00 UTC on published `main-mega-amd64` image
 - **SARIF scan**: CRITICAL/HIGH, fixable-only → uploads to GitHub Security tab
 - **JSON scan**: CRITICAL/HIGH/MEDIUM, all vulnerabilities (fixable + non-fixable), **exit-code: 0** → uploaded as artifact for comprehensive debugging and Claude analysis
-- When new fixable HIGH/CRITICAL CVEs are detected (i.e. CVE IDs not already present in any open or closed GH issue title), the workflow invokes Claude Sonnet 5 on Vertex AI to triage each one and files a GitHub issue per CVE (labels: `security`, `cve`)
-- **Auto-fix PR (`cve-fix-pr` job)**: after new issues are filed, Claude assesses *all* currently-open `cve` issues and either opens a single `cve-fix` + `security` PR — only if every open issue meets the moderate confidence bar (version-floor bump, precedent-mirroring Dockerfile mitigation, or precedent-mirroring `.trivyignore.yaml` entry; all-or-nothing) — or uploads a `SKIPPED.md` decision-log artifact. The PR is authored with a GitHub App token so it triggers the required CI checks.
+- When new fixable HIGH/CRITICAL CVEs are detected (i.e. IDs that no open or closed GH issue title names, directly or by a CVE/GHSA alias — `.github/scripts/cve_pipeline.py new-ids`), the workflow invokes Claude Sonnet 5 on Vertex AI to triage each one and files a GitHub issue per CVE (labels: `security`, `cve`)
+- **Auto-fix PR (`cve-fix-pr` job)**: after new issues are filed, Claude assesses *all* currently-open `cve` issues and either opens a single `cve-fix` + `security` PR — only if every open issue meets the moderate confidence bar (version-floor bump, precedent-mirroring Dockerfile mitigation, or precedent-mirroring `.trivyignore.yaml` entry; all-or-nothing) — or uploads a `SKIPPED.md` decision-log artifact. The PR is authored with a GitHub App token so it triggers the required CI checks. Its title, which is what release notes list, names the advisories it closes: the agent writes `TITLE.txt`, and `cve_pipeline.py pr-title` uses it only if it is plain text naming every closed advisory, otherwise it lists the closed issues' IDs grouped by package.
 - **Recovery / manual re-run**: the auto-fix job only fires when the scan finds a *new* CVE, so once an issue is filed the CVE is no longer "new" and a failed or skipped fix run will not retry on its own. To re-run it on demand against all currently-open `cve` issues, dispatch manually: `gh workflow run container-scan.yml -f force_fix_pr=true`
 - **Conda availability probe**: both Claude steps are preceded by `.github/scripts/probe-conda-availability.py`, which queries the conda-forge and bioconda APIs and writes `.cve-fix-context/conda-availability.json`. Per affected package it reports whether the Trivy `FixedVersion` exists on a channel, whether it is built for **both** `linux-64` and `linux-aarch64` (or is `noarch`), whether a requirements pin can fix the finding at all (`fix_shape` — an Ubuntu `os-package` or a `bundled-jar` cannot), and which other pinned packages carry a constraint that would exclude the fix version (`constrained_by`, e.g. `pyopenssl<50` capping `cryptography`). Uploaded as a workflow artifact. Before this existed the agents had no network tool at all and skipped *every* version-floor bump as unverifiable — the primary category the pipeline was built for.
 - **CI verifies ARM64, so the agent does not have to**: `docker.yml` builds all six tiers for both amd64 and native arm64 on every PR and re-scans each with Trivy, so a solver conflict from a floor bump fails required checks before merge. The auto-fix prompt says so explicitly and instructs the agent to reserve SKIP for "I cannot determine *what* the fix is", not "I cannot prove the fix works". Unproven solvability used to be the standard reason for skipping.
@@ -46,6 +46,13 @@ anywhere in the image, including copies nobody assessed. Every entry must be sco
 
 Scoping means that if the same CVE later appears somewhere unassessed, it is reported
 instead of silently suppressed.
+
+**Key entries by CVE ID when there is one.** Trivy reports a GitHub advisory under its GHSA ID
+only while no CVE is assigned. Once one is, the finding's `VulnerabilityID` becomes the CVE and
+the GHSA ID moves to `VendorIDs`. Ignore entries match `VulnerabilityID` only, so a GHSA-keyed
+entry stops matching and the finding comes back. When the scheduled scan sees a finding whose
+alias is already tracked by an issue, it files no new issue and logs a warning naming both IDs:
+that is the cue to re-key the entry.
 
 ## Rego Policy (`.trivy-ignore-policy.rego`)
 

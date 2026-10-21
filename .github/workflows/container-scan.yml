@@ -127,8 +127,8 @@ jobs:
       # === Claude triage pipeline ===
       # If new fixable HIGH/CRITICAL CVEs are found, hand them to Claude (Sonnet 5
       # on Vertex AI) for analysis, then file GitHub issues. Source of truth for
-      # "new" is GH issues themselves: a CVE is new if no existing issue (open OR
-      # closed) has the CVE ID in its title.
+      # "new" is GH issues themselves: a finding is new if no existing issue (open OR
+      # closed) has its ID, or a CVE/GHSA alias of it, in its title.
 
       - name: Identify new fixable CVEs
         id: triage
@@ -147,51 +147,24 @@ jobs:
             exit 0
           fi
 
-          # Production mode: parse trivy JSON for fixable HIGH/CRITICAL CVEs.
-          # Note: trivy-results.json contains all CRITICAL/HIGH/MEDIUM (fixable + non-fixable)
-          # for comprehensive debugging, but we only auto-triage fixable HIGH/CRITICAL here.
-          all_cves=$(jq -r '
-            [.Results[]?.Vulnerabilities[]?
-              | select((.Severity == "HIGH" or .Severity == "CRITICAL")
-                       and (.FixedVersion // "") != "")
-              | .VulnerabilityID]
-            | unique[]
-          ' trivy-results.json)
-
-          if [ -z "$all_cves" ]; then
-            echo "::notice::No fixable HIGH/CRITICAL CVEs in scan."
-            echo "cve_ids=" >> "$GITHUB_OUTPUT"
-            echo "test_mode=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          # Production mode: fixable HIGH/CRITICAL findings that no issue (open or closed)
+          # names in its title, by VulnerabilityID or by a CVE/GHSA alias in VendorIDs —
+          # see cve_pipeline.py new-ids. trivy-results.json also holds MEDIUM and
+          # non-fixable findings for debugging; only fixable HIGH/CRITICAL are triaged.
+          # One issue listing matched locally, rather than a search per ID: the search
+          # API allows 30 requests a minute, and aliases roughly double the IDs.
+          issues_json="$RUNNER_TEMP/all-issues.json"
+          gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 5000 \
+            --json number,title > "$issues_json"
+          if [ "$(jq length "$issues_json")" -ge 5000 ]; then
+            echo "::error::Issue listing hit its 5000 limit — older issues would be missed by dedup"
+            exit 1
           fi
-
-          # Dedup against existing GH issues (open + closed) by title-substring search.
-          # gh search issues --state only accepts "open" or "closed" (not "all"),
-          # so we query each state separately and sum the counts.
-          new_cves=()
-          for cve in $all_cves; do
-            open=$(gh search issues \
-              --repo "$GITHUB_REPOSITORY" \
-              --state open \
-              "\"$cve\" in:title" \
-              --json url --jq 'length')
-            closed=$(gh search issues \
-              --repo "$GITHUB_REPOSITORY" \
-              --state closed \
-              "\"$cve\" in:title" \
-              --json url --jq 'length')
-            count=$((open + closed))
-            if [ "$count" = "0" ]; then
-              new_cves+=("$cve")
-              echo "  NEW: $cve"
-            else
-              echo "  existing issue for $cve, skipping"
-            fi
-          done
-
-          new_list="${new_cves[*]:-}"
-          echo "::notice::Found ${#new_cves[@]} new fixable CVE(s)"
-          echo "cve_ids=$new_list" >> "$GITHUB_OUTPUT"
+          python3 .github/scripts/cve_pipeline.py new-ids \
+            --trivy-json trivy-results.json \
+            --issues-json "$issues_json" \
+            --out "$RUNNER_TEMP/new-ids.txt"
+          echo "cve_ids=$(cat "$RUNNER_TEMP/new-ids.txt")" >> "$GITHUB_OUTPUT"
           echo "test_mode=false" >> "$GITHUB_OUTPUT"
 
       # Answer "is the fix version actually installable?" deterministically, before
@@ -297,10 +270,12 @@ jobs:
 
             ## Your task
 
-            For each CVE ID listed below, write a triage report to `.claude-issues/<CVE-ID>.md`.
+            For each advisory ID listed below, write a triage report to `.claude-issues/<ID>.md`.
             The reports will be filed verbatim as GitHub issues by the next workflow step.
+            IDs are Trivy's `VulnerabilityID`: a CVE ID, or a GHSA ID for a GitHub advisory
+            with no CVE assigned. Use each ID exactly as listed.
 
-            **CVE IDs to analyze:** ${{ steps.triage.outputs.cve_ids }}
+            **Advisory IDs to analyze:** ${{ steps.triage.outputs.cve_ids }}
 
             **Test mode:** ${{ steps.triage.outputs.test_mode }}
             (If `true`, the CVE was supplied manually via `test_cve_id` and may not appear in
@@ -315,7 +290,7 @@ jobs:
                file contains ALL vulnerabilities (CRITICAL/HIGH/MEDIUM, fixable and non-fixable)
                for comprehensive analysis. Query it with `jq` before writing any report. Example:
                ```
-               jq '.Results[]?.Vulnerabilities[]? | select(.VulnerabilityID == "<CVE-ID>")' trivy-results.json
+               jq '.Results[]?.Vulnerabilities[]? | select(.VulnerabilityID == "<ID>")' trivy-results.json
                ```
                You MUST cite the exact CVSS score and vector from this file in the
                "Vulnerability details" section — do NOT infer or estimate them from your
@@ -367,9 +342,10 @@ jobs:
 
             ## Required structure for each report
 
-            File path: `.claude-issues/<CVE-ID>.md` (filename MUST match the CVE ID exactly).
+            File path: `.claude-issues/<ID>.md` (filename MUST match the ID exactly).
             **First line MUST be a single H1 used as the issue title:**
-            `# [CVE-YYYY-NNNN] <package>: <one-line description>`
+            `# [<ID>] <package>: <one-line description>`
+            e.g. `# [CVE-2026-112403] pillow: ...` or `# [GHSA-6q48-6c7w-9gw2] certifi: ...`
 
             Then sections (use H2 `##` headers):
 
@@ -431,8 +407,8 @@ jobs:
             title=$(head -1 "$f" | sed 's/^# *//')
             body=$(tail -n +2 "$f")
 
-            # Dedup-integrity guard: title MUST contain the CVE ID, otherwise the next
-            # scheduled run won't recognize it as already-triaged via title-substring search.
+            # Dedup-integrity guard: title MUST contain the ID, otherwise the next
+            # scheduled run won't recognize it as already-triaged (dedup matches titles).
             if ! echo "$title" | grep -qF "$cve"; then
               echo "::error::Issue title for $cve does not contain the CVE ID — refusing to file (would break dedup)"
               echo "  Title was: $title"
@@ -642,7 +618,8 @@ jobs:
         if: steps.context.outputs.issue_count != '0'
         run: |
           set -uo pipefail
-          cve_ids=$(jq -r '[.[].title | scan("CVE-[0-9]{4}-[0-9]+")] | unique | join(" ")' \
+          # CVE and GHSA IDs: an advisory with no CVE yet is filed under its GHSA ID.
+          cve_ids=$(jq -r '[.[].title | scan("CVE-[0-9]{4}-[0-9]+|GHSA(?:-[0-9a-z]{4}){3}")] | unique | join(" ")' \
             .cve-fix-context/open-issues.json)
           echo "::notice::Probing conda availability for: ${cve_ids:-<none>}"
           # Fail soft, loudly — see the matching step in the scan job.
@@ -897,7 +874,7 @@ jobs:
 
             ## Per-CVE rationale
 
-            ### [CVE-YYYY-NNNN] (#<issue-number>)
+            ### [<ID>] (#<issue-number>)
             - **Fix:** <one-line description: e.g. "pin urllib3>=2.7.0 in baseimage.txt">
             - **Precedent:** <commit SHA + one-line description, verified with git show>
             - **Confidence:** <one of: version-bump | dockerfile-precedent | trivyignore-precedent>
@@ -954,7 +931,7 @@ jobs:
 
             ## Per-CVE reasoning
 
-            ### [CVE-YYYY-NNNN] (#<issue-number>)
+            ### [<ID>] (#<issue-number>)
             - **Fix that would be required:** <description>
             - **Why this didn't meet the bar:** <specific category: e.g. "no
               precedent for inline mitigation of this shape" / "would need
