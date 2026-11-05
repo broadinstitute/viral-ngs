@@ -19,9 +19,10 @@ so the matching rules are unit-tested instead of living in inline bash.
             Claude) or `none`. A post-rebuild run never routes to `rebuild`, which is what
             keeps the scan -> rebuild -> rescan chain from looping.
   scan-red  What to do with the `scan-red` issue that tracks one rebuild cycle: open it
-            when the daily scan dispatches a rebuild, close it when the rescan finds the
-            rebuild cleared everything or the survivors were filed as `cve` issues, and
-            leave it open, with a comment, when something needs a maintainer. Writes
+            when the daily scan dispatches a rebuild, close it when the rescan's findings
+            show the rebuild cleared everything or every survivor has an issue, and leave it
+            open, with a comment, when something needs a maintainer: the rebuild failed or
+            never reached quay.io, or a survivor is unfiled. Writes
             {action: open|comment|close|none, number, title, body, summary} as JSON.
 
 IDs match as whole IDs only: CVE-2026-1123 is not named by a title about CVE-2026-11234.
@@ -36,7 +37,7 @@ Usage:
     cve_pipeline.py route --cve-ids "$CVE_IDS" --test-mode false --dry-run false \\
         --skip-rebuild false --post-rebuild-run-id "$RUN_ID" --out route.txt
     cve_pipeline.py scan-red --route rebuild --cve-ids "$CVE_IDS" --dispatch dispatched \\
-        --open-issue-json open-scan-red.json --cve-issues-json open-cve-issues.json \\
+        --open-issue-json open-scan-red.json --issues-json all-issues.json \\
         --trivy-json trivy-results.json --repo-url "$REPO_URL" --run-id "$GITHUB_RUN_ID" \\
         --image "$IMAGE_REF" --date 2026-11-05 --out decision.json
 
@@ -89,13 +90,19 @@ def fixable_findings(report):
                 yield vuln
 
 
-def new_advisories(report, issues, out=sys.stdout):
-    """Sorted IDs of fixable HIGH/CRITICAL findings that no issue title names, by ID or alias."""
+def advisory_aliases(report):
+    """{VulnerabilityID: its CVE/GHSA aliases} for the fixable HIGH/CRITICAL findings in a report."""
     aliases = {}
     for vuln in fixable_findings(report):
         vuln_id = vuln['VulnerabilityID']
         aliases.setdefault(vuln_id, set()).update(
             a for a in vuln.get('VendorIDs') or [] if ADVISORY_ID.fullmatch(a) and a != vuln_id)
+    return aliases
+
+
+def new_advisories(report, issues, out=sys.stdout):
+    """Sorted IDs of fixable HIGH/CRITICAL findings that no issue title names, by ID or alias."""
+    aliases = advisory_aliases(report)
     if not aliases:
         annotate(out, 'notice', 'No fixable HIGH/CRITICAL CVEs in scan.')
         return []
@@ -280,7 +287,7 @@ def _advisories(n):
 
 
 def scan_red(*, route, cve_ids, pre_rebuild_ids=(), post_rebuild_run_id='', rebuild_result='',
-             dispatch='', file_issues_result='', open_issue=None, cve_issues=(), report=None,
+             deploy_result='', dispatch='', file_issues_result='', open_issue=None, issues=(), report=None,
              repo_url='', run_id='', image='', date=''):
     """How to update the scan-red issue that tracks one rebuild cycle. See the module doc."""
     ids = sorted(set(cve_ids))
@@ -294,10 +301,6 @@ def scan_red(*, route, cve_ids, pre_rebuild_ids=(), post_rebuild_run_id='', rebu
 
     if post_rebuild_run_id:
         rebuild_link = f'[run {post_rebuild_run_id}]({repo_url}/actions/runs/{post_rebuild_run_id})'
-        cleared = sorted(set(pre_rebuild_ids) - set(ids))
-        cleared_text = (f'Cleared by the rebuild: {", ".join(cleared)}.' if cleared
-                        else 'The rebuild cleared none of the advisories it was dispatched for.')
-
         if rebuild_result != 'success':
             marker = f'rebuild-failed:{post_rebuild_run_id}'
             body = (f'The no-cache rebuild in {rebuild_link} did not succeed (`{rebuild_result or "unknown"}`), '
@@ -311,30 +314,80 @@ def scan_red(*, route, cve_ids, pre_rebuild_ids=(), post_rebuild_run_id='', rebu
                 return decide('none', body) if marker in markers else decide('comment', body)
             return decide('open', body, f'No-cache rebuild of the main images failed (since {date})')
 
-        if not ids:
-            body = (f'The no-cache rebuild in {rebuild_link} cleared every advisory it was dispatched for. '
-                    f'{cleared_text} {run_link} found no new fixable HIGH/CRITICAL advisories in `{image}`.')
-            return decide('close' if open_issue else 'none', body)
+        # What the rebuild cleared comes from the rescan's findings, not from the new IDs: an
+        # advisory that got an issue while the rebuild ran is not new, yet still in the image.
+        if report is None:
+            aliases, present = {}, None
+        else:
+            aliases = advisory_aliases(report)
+            present = {}  # every ID and alias of a finding -> its VulnerabilityID
+            for vuln_id, names in aliases.items():
+                present[vuln_id] = vuln_id
+                for name in names:
+                    present.setdefault(name, vuln_id)
+        if present is None:
+            cleared, survivors = [], ids
+        else:
+            cleared = sorted(i for i in set(pre_rebuild_ids) if i not in present)
+            survivors = sorted(set(ids) | {present[i] for i in pre_rebuild_ids if i in present})
 
-        survivors = []
-        for vuln_id in ids:
-            tracked = tracking_issue(vuln_id, cve_issues)
-            survivors.append(f'- {vuln_id}: ' + (f'#{tracked["number"]}' if tracked else 'no `cve` issue found'))
-        survivors_text = '\n'.join(survivors)
-        if file_issues_result == 'success':
-            body = (f'Rescan after the no-cache rebuild in {rebuild_link}. {cleared_text}\n\n'
-                    f'These survived it, and Claude triage filed them as `cve` issues in {run_link}:\n\n'
-                    f'{survivors_text}\n\nThe `cve` issues track them from here, so this cycle is done.')
+        def tracked_by(vuln_id):
+            for name in [vuln_id, *sorted(aliases.get(vuln_id, ()))]:
+                tracked = tracking_issue(name, issues)
+                if tracked:
+                    return tracked
+            return None
+
+        tracking = {v: tracked_by(v) for v in survivors}
+        untracked = [v for v in survivors if not tracking[v]]
+
+        # Reasons to keep the cycle open: (marker, paragraph, title if this opens the issue).
+        problems = []
+        if deploy_result != 'success':
+            problems.append((
+                f'deploy-failed:{post_rebuild_run_id}',
+                f"The rebuild's `deploy-to-quay` did not succeed (`{deploy_result or 'unknown'}`), so quay.io "
+                f'still serves the previous images, though the GHCR image scanned here was rebuilt. '
+                f'**This needs a maintainer**: see {rebuild_link}. {RERUN_TEXT}',
+                f'No-cache rebuild did not reach quay.io (since {date})'))
+        if untracked:
+            problems.append((
+                f'not-filed:{run_id}',
+                f'{", ".join(untracked)} survived the rebuild but {"has" if len(untracked) == 1 else "have"} '
+                f'no issue yet (`file-issues` in {run_link}: `{file_issues_result or "unknown"}`). Still '
+                f'unfiled, so the next daily scan picks {"it" if len(untracked) == 1 else "them"} up again.\n\n'
+                + findings_table(report, untracked),
+                f'Advisories survived the no-cache rebuild but were not filed (since {date})'))
+        if present is None:
+            problems.append((
+                f'no-report:{run_id}',
+                f"The rescan's Trivy report was not available to this job, so what the rebuild cleared is "
+                f'unknown. The next daily scan closes this issue if nothing new remains.',
+                f'Rescan after a no-cache rebuild could not be checked (since {date})'))
+
+        parts = [f'Rescan of `{image}` after the no-cache rebuild in {rebuild_link}.']
+        if present is not None:
+            if not survivors:
+                parts.append('The rebuild cleared every advisory it was dispatched for. '
+                             + (f'Cleared by the rebuild: {", ".join(cleared)}.' if cleared else ''))
+            else:
+                parts.append(f'Cleared by the rebuild: {", ".join(cleared)}.' if cleared
+                             else 'The rebuild cleared none of the advisories it was dispatched for.')
+        if survivors:
+            parts.append('Still present after the rebuild:\n\n' + '\n'.join(
+                f'- {v}: ' + (f'#{tracking[v]["number"]}' if tracking[v] else 'no issue yet') for v in survivors))
+        parts.extend(paragraph for _, paragraph, _ in problems)
+        if not problems and survivors:
+            parts.append('The issues above track the survivors from here, so this cycle is done.')
+        parts.extend(SCAN_RED_MARKER.format(marker) for marker, _, _ in problems)
+        body = '\n\n'.join(part.strip() for part in parts)
+
+        if not problems:
             return decide('close' if open_issue else 'none', body)
-        marker = f'not-filed:{run_id}'
-        body = (f'Rescan after the no-cache rebuild in {rebuild_link}. {cleared_text}\n\n'
-                f'{_advisories(len(ids)).capitalize()} survived the rebuild, but filing them as `cve` issues '
-                f'did not succeed in {run_link} (`file-issues`: `{file_issues_result or "unknown"}`). They are '
-                f'still unfiled, so the next daily scan picks them up again.\n\n'
-                f'{findings_table(report, ids)}\n\n{SCAN_RED_MARKER.format(marker)}')
         if open_issue:
-            return decide('none', body) if marker in markers else decide('comment', body)
-        return decide('open', body, f'Advisories survived the no-cache rebuild but were not filed (since {date})')
+            news = any(marker not in markers for marker, _, _ in problems)
+            return decide('comment', body) if news else decide('none', body)
+        return decide('open', body, problems[0][2])
 
     if route == 'rebuild':
         marker = 'ids=' + ','.join(ids)
@@ -386,11 +439,12 @@ def main(argv=None):
     p.add_argument('--pre-rebuild-ids', default='', help='the IDs the rebuild was dispatched for')
     p.add_argument('--post-rebuild-run-id', default='')
     p.add_argument('--rebuild-result', default='', help='result of the rebuild\'s build-mega-amd64 job')
+    p.add_argument('--deploy-result', default='', help='result of the rebuild\'s deploy-to-quay job')
     p.add_argument('--dispatch', default='', help='request-rebuild output: dispatched or in-flight')
     p.add_argument('--file-issues-result', default='')
     p.add_argument('--open-issue-json', required=True,
                    help='the lowest-numbered open scan-red issue {number, body, comments: [{body}]}, or null')
-    p.add_argument('--cve-issues-json', required=True, help='open cve issues: [{number, title}]')
+    p.add_argument('--issues-json', required=True, help='every issue, open and closed: [{number, title}]')
     p.add_argument('--trivy-json', required=True, help='may be absent; the table then lists bare IDs')
     p.add_argument('--repo-url', required=True)
     p.add_argument('--run-id', required=True)
@@ -411,8 +465,8 @@ def main(argv=None):
     if args.command == 'scan-red':
         with open(args.open_issue_json) as f:
             open_issue = json.load(f)
-        with open(args.cve_issues_json) as f:
-            cve_issues = json.load(f)
+        with open(args.issues_json) as f:
+            issues = json.load(f)
         try:
             with open(args.trivy_json) as f:
                 trivy = json.load(f)
@@ -422,8 +476,8 @@ def main(argv=None):
         decision = scan_red(
             route=args.route, cve_ids=args.cve_ids.split(), pre_rebuild_ids=args.pre_rebuild_ids.split(),
             post_rebuild_run_id=args.post_rebuild_run_id, rebuild_result=args.rebuild_result,
-            dispatch=args.dispatch, file_issues_result=args.file_issues_result, open_issue=open_issue,
-            cve_issues=cve_issues, report=trivy, repo_url=args.repo_url, run_id=args.run_id,
+            deploy_result=args.deploy_result, dispatch=args.dispatch,
+            file_issues_result=args.file_issues_result, open_issue=open_issue, issues=issues, report=trivy, repo_url=args.repo_url, run_id=args.run_id,
             image=args.image, date=args.date)
         print(f'scan-red: {decision["action"]}' + (f' #{decision["number"]}' if decision['number'] else ''))
         with open(args.out, 'w') as f:
