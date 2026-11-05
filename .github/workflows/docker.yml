@@ -31,6 +31,12 @@ on:
         type: string
         default: ''
 
+# A dispatch with rescan=true (the CVE pipeline's) gets a fixed name, which
+# container-scan.yml's request-rebuild job matches to tell an in-flight CVE rebuild
+# from any other dispatch. Every other run evaluates to a single space, and a
+# whitespace-only run-name keeps GitHub's default (commit message, PR title).
+run-name: ${{ github.event_name == 'workflow_dispatch' && inputs.rescan && 'No-cache rebuild for the CVE pipeline (rescan)' || ' ' }}
+
 env:
   QUAY_REPO: quay.io/broadinstitute/viral-ngs
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
@@ -1684,8 +1690,9 @@ jobs:
   # dispatch container-scan.yml to rescan the mega image this run built, pinned by
   # digest so a concurrent push build can't swap the image out from under it.
   # Waits for deploy-to-quay so quay.io is republished too, and runs even when the
-  # build failed: the rescan then reports the failure on the scan-red issue and
-  # triages the image main-mega-amd64 still points at. GITHUB_TOKEN can dispatch
+  # build or the deploy failed: the rescan reports either on the scan-red issue
+  # (users pull from quay.io, which the scan never looks at) and triages the image
+  # it scanned. GITHUB_TOKEN can dispatch
   # workflows (GitHub's documented exception to "events made with GITHUB_TOKEN
   # don't start workflows"). The rescan never dispatches a rebuild of its own, so
   # the chain can't loop.
@@ -1718,6 +1725,7 @@ jobs:
           gh workflow run container-scan.yml --repo "$GITHUB_REPOSITORY" --ref main \
             -f post_rebuild_run_id="$GITHUB_RUN_ID" \
             -f rebuild_result="$REBUILD_RESULT" \
+            -f deploy_result="$DEPLOY_RESULT" \
             -f image_digest="$IMAGE_DIGEST" \
             -f pre_rebuild_ids="$PRE_REBUILD_IDS"
           {

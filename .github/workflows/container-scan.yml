@@ -31,7 +31,7 @@ on:
         required: false
         type: boolean
         default: false
-      # The four inputs below are set by docker.yml's request-rescan job, which dispatches
+      # The five inputs below are set by docker.yml's request-rescan job, which dispatches
       # this workflow when a no-cache rebuild it was asked for (force_rebuild + rescan)
       # finishes. A run with post_rebuild_run_id set never dispatches another rebuild.
       post_rebuild_run_id:
@@ -41,6 +41,11 @@ on:
         default: ''
       rebuild_result:
         description: "Set by docker.yml: the rebuild's build-mega-amd64 result"
+        required: false
+        type: string
+        default: ''
+      deploy_result:
+        description: "Set by docker.yml: the rebuild's deploy-to-quay result"
         required: false
         type: string
         default: ''
@@ -98,6 +103,7 @@ jobs:
       rebuild_state:       ${{ steps.image.outputs.rebuild_state }}
       post_rebuild_run_id: ${{ steps.image.outputs.post_rebuild_run_id }}
       rebuild_result:      ${{ steps.image.outputs.rebuild_result }}
+      deploy_result:       ${{ steps.image.outputs.deploy_result }}
     permissions:
       contents: read
       packages: read
@@ -123,6 +129,7 @@ jobs:
           IMAGE_DIGEST: ${{ github.event.inputs.image_digest || '' }}
           POST_REBUILD_RUN_ID: ${{ github.event.inputs.post_rebuild_run_id || '' }}
           REBUILD_RESULT: ${{ github.event.inputs.rebuild_result || '' }}
+          DEPLOY_RESULT: ${{ github.event.inputs.deploy_result || '' }}
         run: |
           set -euo pipefail
           # Dispatch inputs reach prompts and issue text, so accept only their expected shapes.
@@ -132,8 +139,8 @@ jobs:
           if [[ ! "$POST_REBUILD_RUN_ID" =~ ^[0-9]*$ ]]; then
             echo "::error::post_rebuild_run_id must be a run ID"; exit 1
           fi
-          if [[ ! "$REBUILD_RESULT" =~ ^[a-z-]*$ ]]; then
-            echo "::error::rebuild_result must be a job result such as success or failure"; exit 1
+          if [[ ! "$REBUILD_RESULT" =~ ^[a-z-]*$ || ! "$DEPLOY_RESULT" =~ ^[a-z-]*$ ]]; then
+            echo "::error::rebuild_result and deploy_result must be job results such as success or failure"; exit 1
           fi
           # A rebuild's rescan scans the image that rebuild pushed, by digest, so a push
           # to main that retags main-mega-amd64 in the meantime can't change what is scanned.
@@ -156,6 +163,7 @@ jobs:
             echo "rebuild_state=$state"
             echo "post_rebuild_run_id=$POST_REBUILD_RUN_ID"
             echo "rebuild_result=$REBUILD_RESULT"
+            echo "deploy_result=$DEPLOY_RESULT"
           } >> "$GITHUB_OUTPUT"
 
       - name: Run Trivy vulnerability scanner
@@ -336,13 +344,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CVE_IDS: ${{ needs.scan.outputs.cve_ids }}
+          # Must match docker.yml's run-name for a rescan=true dispatch.
+          CVE_REBUILD_RUN_NAME: No-cache rebuild for the CVE pipeline (rescan)
         run: |
           set -euo pipefail
-          # One rebuild at a time. A dispatch already in flight dispatches a rescan when it
-          # finishes, and that rescan recomputes new IDs, so it covers these too.
+          # One CVE rebuild at a time. Another CVE-pipeline dispatch still in flight
+          # dispatches a rescan when it finishes, and that rescan recomputes new IDs, so it
+          # covers these too. Only dispatches with rescan=true count: docker.yml names
+          # exactly those runs (its `run-name`), and any other dispatch sends no rescan.
           inflight=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow docker.yml \
-              --event workflow_dispatch --branch main --limit 20 --json status \
-            | jq '[.[] | select(.status != "completed")] | length')
+              --event workflow_dispatch --branch main --limit 20 --json status,displayTitle \
+            | jq --arg name "$CVE_REBUILD_RUN_NAME" \
+                '[.[] | select(.status != "completed" and .displayTitle == $name)] | length')
           if [ "$inflight" != "0" ]; then
             echo "::notice::A docker.yml dispatch is already in flight on main; not dispatching another. Its rescan covers: $CVE_IDS"
             echo "dispatch=in-flight" >> "$GITHUB_OUTPUT"
@@ -736,9 +749,9 @@ jobs:
   # by github-actions[bot], and GitHub emails a run's result only to whoever
   # started it, so without this issue a cycle that cleared everything, or one that
   # needs a maintainer, is noticed by nobody. Opened when this run dispatches a
-  # rebuild; closed by the rescan once the rebuild cleared everything or the
-  # survivors are filed as `cve` issues; left open, with a comment, when the
-  # rebuild failed or filing did not succeed. A later daily scan with nothing new
+  # rebuild; closed by the rescan once its findings show the rebuild cleared
+  # everything or every survivor has an issue; left open, with a comment, when the
+  # rebuild failed, its deploy-to-quay did not succeed, or a survivor is unfiled. A later daily scan with nothing new
   # closes a leftover one. Decisions live in cve_pipeline.py scan-red. No agent
   # runs in this job.
   # ============================================================================
@@ -776,6 +789,7 @@ jobs:
           PRE_REBUILD_IDS: ${{ github.event.inputs.pre_rebuild_ids || '' }}
           POST_REBUILD_RUN_ID: ${{ needs.scan.outputs.post_rebuild_run_id }}
           REBUILD_RESULT: ${{ needs.scan.outputs.rebuild_result }}
+          DEPLOY_RESULT: ${{ needs.scan.outputs.deploy_result }}
           DISPATCH: ${{ needs.request-rebuild.outputs.dispatch }}
           FILE_ISSUES_RESULT: ${{ needs.file-issues.result }}
           IMAGE_REF: ${{ needs.scan.outputs.image_ref }}
@@ -797,8 +811,10 @@ jobs:
           else
             echo null > "$RUNNER_TEMP/open-scan-red.json"
           fi
-          gh issue list --repo "$GITHUB_REPOSITORY" --label cve --state open --limit 200 \
-            --json number,title > "$RUNNER_TEMP/cve-issues.json"
+          # Every issue, open and closed, the same set new-ids matches against: a survivor
+          # counts as tracked if any issue title names it or one of its aliases.
+          gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 5000 \
+            --json number,title > "$RUNNER_TEMP/all-issues.json"
 
           python3 .github/scripts/cve_pipeline.py scan-red \
             --route "$ROUTE" \
@@ -806,10 +822,11 @@ jobs:
             --pre-rebuild-ids "$PRE_REBUILD_IDS" \
             --post-rebuild-run-id "$POST_REBUILD_RUN_ID" \
             --rebuild-result "$REBUILD_RESULT" \
+            --deploy-result "$DEPLOY_RESULT" \
             --dispatch "$DISPATCH" \
             --file-issues-result "$FILE_ISSUES_RESULT" \
             --open-issue-json "$RUNNER_TEMP/open-scan-red.json" \
-            --cve-issues-json "$RUNNER_TEMP/cve-issues.json" \
+            --issues-json "$RUNNER_TEMP/all-issues.json" \
             --trivy-json trivy-results.json \
             --repo-url "$repo_url" \
             --run-id "$GITHUB_RUN_ID" \
