@@ -291,6 +291,17 @@ APT_REPORT = {'Results': [
     {'Target': 'opt/conda/conda-meta/pillow.json', 'Class': 'lang-pkgs', 'Type': 'conda-pkg',
      'Vulnerabilities': [os_finding('CVE-2026-7777', 'pillow', '12.3.0', '13.0.0', severity='CRITICAL')]},
 ]}
+# The rescan of a rebuild that cleared both: only the MEDIUM finding, never triaged, is left.
+REBUILT_CLEAN = {'Results': [
+    {'Target': 'ghcr.io/broadinstitute/viral-ngs@sha256:abc (ubuntu 26.04)', 'Class': 'os-pkgs', 'Type': 'ubuntu',
+     'Vulnerabilities': [os_finding('CVE-2026-5555', 'libpcre2-8-0', '10.46-1build1', '10.46-1ubuntu0.1',
+                                    severity='MEDIUM')]},
+]}
+# The rescan of a rebuild that cleared the apt finding but not the conda one.
+REBUILT_PILLOW = {'Results': [
+    {'Target': 'opt/conda/conda-meta/pillow.json', 'Class': 'lang-pkgs', 'Type': 'conda-pkg',
+     'Vulnerabilities': [os_finding('CVE-2026-7777', 'pillow', '12.3.0', '13.0.0', severity='CRITICAL')]},
+]}
 REPO = 'https://github.com/broadinstitute/viral-ngs'
 
 
@@ -309,8 +320,9 @@ class ScanRedTest(unittest.TestCase):
         return cp.scan_red(**args)
 
     def rescan(self, **kwargs):
-        args = dict(route='triage', post_rebuild_run_id='800', rebuild_result='success',
-                    pre_rebuild_ids=['CVE-2026-109518', 'CVE-2026-7777'], file_issues_result='skipped')
+        args = dict(route='triage', post_rebuild_run_id='800', rebuild_result='success', deploy_result='success',
+                    pre_rebuild_ids=['CVE-2026-109518', 'CVE-2026-7777'], file_issues_result='skipped',
+                    report=REBUILT_CLEAN)
         args.update(kwargs)
         return self.decide(**args)
 
@@ -389,23 +401,85 @@ class ScanRedTest(unittest.TestCase):
 
     def test_survivors_filed_as_cve_issues_close_the_cycle_with_links(self):
         filed = [issue(1151, '[CVE-2026-7777] pillow: out-of-bounds read')]
-        d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result='success', cve_issues=filed,
-                        open_issue=open_issue(1150))
+        d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result='success', issues=filed,
+                        report=REBUILT_PILLOW, open_issue=open_issue(1150))
         self.assertEqual((d['action'], d['number']), ('close', 1150))
         self.assertIn('#1151', d['body'])
-        self.assertRegex(d['body'], r'(?s)[Cc]leared.*CVE-2026-109518')
+        self.assertIn('Cleared by the rebuild: CVE-2026-109518.', d['body'])
 
     def test_survivors_that_were_not_filed_keep_the_issue_open(self):
         for result in ('failure', 'skipped', 'cancelled'):
             with self.subTest(file_issues_result=result):
-                d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result=result, open_issue=open_issue(1150))
+                d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result=result, report=REBUILT_PILLOW,
+                                open_issue=open_issue(1150))
                 self.assertEqual((d['action'], d['number']), ('comment', 1150))
                 self.assertIn('CVE-2026-7777', d['body'])
 
     def test_survivors_that_were_not_filed_open_an_issue_if_none_is_open(self):
         # The rescan was started by github-actions[bot], so a failed run notifies nobody.
-        d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result='failure')
+        d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result='failure', report=REBUILT_PILLOW)
         self.assertEqual(d['action'], 'open')
+
+    def test_a_partly_filed_batch_keeps_the_issue_open(self):
+        # file-issues succeeds when triage stopped mid-batch: it files only the reports it got.
+        scan = report(finding('CVE-2026-7777'), finding('CVE-2026-8888'))
+        filed = [issue(1151, '[CVE-2026-7777] pillow: out-of-bounds read')]
+        d = self.rescan(cve_ids=['CVE-2026-7777', 'CVE-2026-8888'], file_issues_result='success', issues=filed,
+                        report=scan, open_issue=open_issue(1150))
+        self.assertEqual((d['action'], d['number']), ('comment', 1150))
+        self.assertIn('#1151', d['body'])
+        self.assertRegex(d['body'], r'CVE-2026-8888: no issue')
+
+    def test_clearance_comes_from_the_rescan_not_from_the_new_ids(self):
+        # CVE-2026-7777 got an issue while the rebuild ran, so it is no longer "new", but the
+        # rebuilt image still has it: it survived, it was not cleared.
+        filed = [issue(1151, '[CVE-2026-7777] pillow: out-of-bounds read')]
+        d = self.rescan(cve_ids=[], issues=filed, report=REBUILT_PILLOW, open_issue=open_issue(1150))
+        self.assertEqual((d['action'], d['number']), ('close', 1150))
+        self.assertIn('Cleared by the rebuild: CVE-2026-109518.', d['body'])
+        self.assertIn('CVE-2026-7777: #1151', d['body'])
+        self.assertNotIn('cleared every advisory', d['body'])
+
+    def test_a_survivor_reported_under_a_new_alias_is_matched_to_its_issue(self):
+        # Dispatched for the GHSA; the rebuilt image's report lists it as the CVE it was
+        # since assigned, with the GHSA in VendorIDs. Its issue is titled with the GHSA.
+        scan = report(finding('CVE-2026-2002', vendor_ids=['GHSA-6q48-6c7w-9gw2']))
+        d = self.rescan(pre_rebuild_ids=['GHSA-6q48-6c7w-9gw2'], cve_ids=[], issues=[ISSUES_1137[4]],
+                        report=scan, open_issue=open_issue(1150))
+        self.assertEqual((d['action'], d['number']), ('close', 1150))
+        self.assertIn('CVE-2026-2002: #1136', d['body'])
+        self.assertNotIn('Cleared by the rebuild: GHSA', d['body'])
+
+    def test_a_missing_rescan_report_claims_nothing_cleared(self):
+        d = self.rescan(cve_ids=[], report=None, open_issue=open_issue(1150))
+        self.assertEqual((d['action'], d['number']), ('comment', 1150))
+        self.assertNotIn('cleared every advisory', d['body'])
+        self.assertIn('Trivy report', d['body'])
+        self.assertEqual(self.rescan(cve_ids=[], report=None)['action'], 'open')
+
+    def test_a_rebuild_that_did_not_reach_quay_keeps_the_cycle_open(self):
+        # The scan looks at GHCR's mega-amd64; quay.io is what users pull.
+        for result in ('failure', 'skipped', 'cancelled', ''):
+            with self.subTest(deploy_result=result):
+                d = self.rescan(cve_ids=[], deploy_result=result, open_issue=open_issue(1150))
+                self.assertEqual((d['action'], d['number']), ('comment', 1150))
+                self.assertIn('quay.io', d['body'])
+                self.assertIn('<!-- scan-red:deploy-failed:800 -->', d['body'])
+
+    def test_a_rebuild_that_did_not_reach_quay_is_reported_once(self):
+        noted = open_issue(1150, comments=['<!-- scan-red:deploy-failed:800 -->'])
+        self.assertEqual(self.rescan(cve_ids=[], deploy_result='failure', open_issue=noted)['action'], 'none')
+
+    def test_a_rebuild_that_did_not_reach_quay_opens_an_issue_if_none_is_open(self):
+        d = self.rescan(cve_ids=[], deploy_result='failure')
+        self.assertEqual(d['action'], 'open')
+        self.assertIn('quay.io', d['title'])
+
+    def test_filed_survivors_do_not_close_the_cycle_if_quay_was_not_updated(self):
+        filed = [issue(1151, '[CVE-2026-7777] pillow: out-of-bounds read')]
+        d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result='success', issues=filed,
+                        report=REBUILT_PILLOW, deploy_result='failure', open_issue=open_issue(1150))
+        self.assertEqual(d['action'], 'comment')
 
     def test_a_failed_rebuild_needs_a_maintainer(self):
         for result in ('failure', 'cancelled', 'skipped', ''):
@@ -527,11 +601,12 @@ class CliTest(unittest.TestCase):
             '--pre-rebuild-ids', 'CVE-2026-109518 CVE-2026-7777',
             '--post-rebuild-run-id', '800',
             '--rebuild-result', 'success',
+            '--deploy-result', 'success',
             '--dispatch', '',
             '--file-issues-result', 'skipped',
             '--open-issue-json', self.path('open.json', open_issue(1150)),
-            '--cve-issues-json', self.path('cve-issues.json', []),
-            '--trivy-json', self.path('trivy.json', APT_REPORT),
+            '--issues-json', self.path('issues.json', []),
+            '--trivy-json', self.path('trivy.json', REBUILT_CLEAN),
             '--repo-url', REPO,
             '--run-id', '900',
             '--image', 'ghcr.io/broadinstitute/viral-ngs@sha256:abc',
@@ -549,7 +624,7 @@ class CliTest(unittest.TestCase):
             '--cve-ids', 'CVE-2026-1001',
             '--dispatch', 'dispatched',
             '--open-issue-json', self.path('open.json', 'null'),
-            '--cve-issues-json', self.path('cve-issues.json', []),
+            '--issues-json', self.path('issues.json', []),
             '--trivy-json', self.path('missing-trivy.json'),
             '--repo-url', REPO,
             '--run-id', '900',
