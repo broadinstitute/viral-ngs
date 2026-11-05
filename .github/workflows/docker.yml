@@ -10,10 +10,35 @@ on:
   pull_request:
     branches:
       - main
+  # A no-cache rebuild of main's images. The layer cache otherwise keeps the
+  # baseimage's `apt-get upgrade` layer until the upstream micromamba image
+  # changes, so Ubuntu security updates published in between never land.
+  # container-scan.yml dispatches this (force_rebuild + rescan) when its daily
+  # scan finds new fixable CVEs, before any Claude triage. Main only: the
+  # get-version job refuses other refs.
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Build every image without the layer cache (picks up new Ubuntu packages and re-solves conda)'
+        type: boolean
+        default: false
+      rescan:
+        description: 'When done, dispatch container-scan.yml to rescan the rebuilt mega image (the CVE pipeline sets this)'
+        type: boolean
+        default: false
+      pre_rebuild_ids:
+        description: 'Set by container-scan.yml: the new CVE IDs this rebuild was dispatched for, passed back to the rescan'
+        type: string
+        default: ''
 
 env:
   QUAY_REPO: quay.io/broadinstitute/viral-ngs
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
+  # Always 'true' or 'false': build-push-action parses no-cache with
+  # getBooleanInput, which rejects the empty string a bare inputs.force_rebuild
+  # gives on push and pull_request runs. cache-to stays on, so a no-cache build
+  # also replaces the cache-*-main refs that later push builds read.
+  NO_CACHE: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rebuild == true }}
 
 jobs:
   # Determine which paths changed to enable smart test filtering
@@ -32,6 +57,10 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Check changed paths
+        # A dispatch has no push payload to diff against. Skipping leaves every
+        # output empty, which is safe: the x86 test jobs run on main regardless and
+        # the ARM64 ones only run on pull requests.
+        if: github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -85,6 +114,14 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       image-tag-prefix: ${{ steps.image-tag.outputs.prefix }}
     steps:
+      - name: Refuse a dispatch on any ref but main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          # A dispatch on a tag would republish that release's version tags; on a
+          # branch it would publish under the branch's prefix, which nothing scans.
+          echo "::error::Dispatch docker.yml on main only (got ${{ github.ref }})"
+          exit 1
+
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
@@ -171,6 +208,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Build baseimage for ARM64 (native runner)
   build-baseimage-arm64:
@@ -207,6 +245,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Create multi-arch manifest for baseimage
   create-manifest-baseimage:
@@ -313,6 +352,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Build core for ARM64 (depends on baseimage-arm64, not manifest)
   build-core-arm64:
@@ -354,6 +394,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-baseimage-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Create multi-arch manifest for core
   create-manifest-core:
@@ -458,6 +499,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Build assemble for ARM64
   build-assemble-arm64:
@@ -499,6 +541,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-assemble-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Create multi-arch manifest for assemble
   create-manifest-assemble:
@@ -603,6 +646,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Build classify for ARM64
   build-classify-arm64:
@@ -644,6 +688,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-classify-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Create multi-arch manifest for classify
   create-manifest-classify:
@@ -748,6 +793,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Build phylo for ARM64
   build-phylo-arm64:
@@ -789,6 +835,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-phylo-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Create multi-arch manifest for phylo
   create-manifest-phylo:
@@ -893,6 +940,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-amd64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-amd64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Build mega for ARM64
   build-mega-arm64:
@@ -934,6 +982,7 @@ jobs:
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-${{ needs.get-version.outputs.image-tag-prefix }}
             type=registry,ref=${{ env.GHCR_REPO }}:cache-core-arm64-main
           cache-to: type=registry,ref=${{ env.GHCR_REPO }}:cache-mega-arm64-${{ needs.get-version.outputs.image-tag-prefix }},mode=max
+          no-cache: ${{ env.NO_CACHE }}
 
   # Create multi-arch manifest for mega
   create-manifest-mega:
@@ -1626,3 +1675,54 @@ jobs:
             echo "Copying $SRC -> $LATEST_DEST"
             crane copy "$SRC" "$LATEST_DEST"
           fi
+
+  # ============================================================================
+  # RESCAN - hand a no-cache rebuild back to the CVE pipeline
+  # ============================================================================
+
+  # On a rescan=true dispatch (from container-scan.yml's request-rebuild job),
+  # dispatch container-scan.yml to rescan the mega image this run built, pinned by
+  # digest so a concurrent push build can't swap the image out from under it.
+  # Waits for deploy-to-quay so quay.io is republished too, and runs even when the
+  # build failed: the rescan then reports the failure on the scan-red issue and
+  # triages the image main-mega-amd64 still points at. GITHUB_TOKEN can dispatch
+  # workflows (GitHub's documented exception to "events made with GITHUB_TOKEN
+  # don't start workflows"). The rescan never dispatches a rebuild of its own, so
+  # the chain can't loop.
+  request-rescan:
+    needs: [build-mega-amd64, deploy-to-quay]
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.rescan == true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch container-scan.yml on the rebuilt image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REBUILD_RESULT: ${{ needs.build-mega-amd64.result }}
+          IMAGE_DIGEST: ${{ needs.build-mega-amd64.outputs.digest }}
+          DEPLOY_RESULT: ${{ needs.deploy-to-quay.result }}
+          PRE_REBUILD_IDS: ${{ inputs.pre_rebuild_ids }}
+        run: |
+          set -euo pipefail
+          if [ "$REBUILD_RESULT" = "success" ] && [ -z "$IMAGE_DIGEST" ]; then
+            REBUILD_RESULT="no-digest"
+          fi
+          if [ "$REBUILD_RESULT" != "success" ]; then
+            echo "::warning::build-mega-amd64 did not succeed ($REBUILD_RESULT); the rescan scans main-mega-amd64 as it stands and reports the failure"
+            IMAGE_DIGEST=""
+          fi
+          if [ "$DEPLOY_RESULT" != "success" ]; then
+            echo "::warning::deploy-to-quay did not succeed ($DEPLOY_RESULT): quay.io still serves the previous images"
+          fi
+          gh workflow run container-scan.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f post_rebuild_run_id="$GITHUB_RUN_ID" \
+            -f rebuild_result="$REBUILD_RESULT" \
+            -f image_digest="$IMAGE_DIGEST" \
+            -f pre_rebuild_ids="$PRE_REBUILD_IDS"
+          {
+            echo "### Rescan dispatched to container-scan.yml"
+            echo "- build-mega-amd64: \`$REBUILD_RESULT\`, digest \`${IMAGE_DIGEST:-none}\`"
+            echo "- deploy-to-quay: \`$DEPLOY_RESULT\`"
+            echo "- advisories this rebuild was dispatched for: ${PRE_REBUILD_IDS:-none}"
+          } >> "$GITHUB_STEP_SUMMARY"
