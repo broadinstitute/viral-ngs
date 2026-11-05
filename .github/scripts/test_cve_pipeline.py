@@ -4,6 +4,7 @@ Run with: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
 """
 
 import io
+import itertools
 import json
 import os
 import tempfile
@@ -238,6 +239,208 @@ class PrTitleTest(unittest.TestCase):
                 self.assertEqual(title, 'Auto-fix: CVE-2026-1001')
 
 
+class RouteTest(unittest.TestCase):
+    """Where the scan's new IDs go: a no-cache rebuild first, Claude triage, or nowhere."""
+
+    FLAGS = ('test_mode', 'dry_run', 'skip_rebuild', 'post_rebuild')
+
+    def test_new_ids_on_a_plain_run_go_to_a_rebuild_first(self):
+        self.assertEqual(cp.route(['CVE-2026-1001']), 'rebuild')
+
+    def test_no_new_ids_go_nowhere(self):
+        for flag in ('dry_run', 'skip_rebuild', 'post_rebuild'):
+            with self.subTest(flag=flag):
+                self.assertEqual(cp.route([], **{flag: True}), 'none')
+        self.assertEqual(cp.route([]), 'none')
+
+    def test_test_mode_triages_directly(self):
+        self.assertEqual(cp.route(['CVE-2026-1001'], test_mode=True), 'triage')
+
+    def test_dry_run_and_skip_rebuild_triage_directly(self):
+        # A dry run must not set off a real rebuild that republishes main's images.
+        for flag in ('dry_run', 'skip_rebuild'):
+            with self.subTest(flag=flag):
+                self.assertEqual(cp.route(['CVE-2026-1001'], **{flag: True}), 'triage')
+
+    def test_survivors_of_a_rebuild_are_triaged(self):
+        self.assertEqual(cp.route(['CVE-2026-1001'], post_rebuild=True), 'triage')
+
+    def test_a_post_rebuild_run_never_routes_to_another_rebuild(self):
+        # Loop safety: the rebuild's rescan must not dispatch a rebuild of its own.
+        for values in itertools.product((False, True), repeat=len(self.FLAGS)):
+            flags = dict(zip(self.FLAGS, values))
+            if not flags['post_rebuild']:
+                continue
+            for ids in ([], ['CVE-2026-1001']):
+                with self.subTest(ids=ids, **flags):
+                    self.assertNotEqual(cp.route(ids, **flags), 'rebuild')
+
+
+def os_finding(vuln_id, pkg, installed, fixed, severity='HIGH'):
+    return {'VulnerabilityID': vuln_id, 'PkgName': pkg, 'InstalledVersion': installed,
+            'FixedVersion': fixed, 'Severity': severity}
+
+
+APT_REPORT = {'Results': [
+    {'Target': 'ghcr.io/broadinstitute/viral-ngs:main-mega-amd64 (ubuntu 26.04)', 'Class': 'os-pkgs',
+     'Type': 'ubuntu', 'Vulnerabilities': [
+         os_finding('CVE-2026-109518', 'apt', '3.2.0', '3.2.1ubuntu0.1'),
+         os_finding('CVE-2026-109518', 'libapt-pkg7.0', '3.2.0', '3.2.1ubuntu0.1'),
+         os_finding('CVE-2026-5555', 'libpcre2-8-0', '10.46-1build1', '10.46-1ubuntu0.1', severity='MEDIUM'),
+     ]},
+    {'Target': 'opt/conda/conda-meta/pillow.json', 'Class': 'lang-pkgs', 'Type': 'conda-pkg',
+     'Vulnerabilities': [os_finding('CVE-2026-7777', 'pillow', '12.3.0', '13.0.0', severity='CRITICAL')]},
+]}
+REPO = 'https://github.com/broadinstitute/viral-ngs'
+
+
+def open_issue(number, body='', comments=()):
+    return {'number': number, 'body': body, 'comments': [{'body': c} for c in comments]}
+
+
+class ScanRedTest(unittest.TestCase):
+    """The scan-red issue tracks one rebuild cycle: opened when the daily scan dispatches a
+    no-cache rebuild, closed by that rebuild's rescan, left open when something needs a person."""
+
+    def decide(self, **kwargs):
+        args = dict(route='none', cve_ids=[], report=APT_REPORT, repo_url=REPO, run_id='900',
+                    image='ghcr.io/broadinstitute/viral-ngs:main-mega-amd64', date='2026-11-05')
+        args.update(kwargs)
+        return cp.scan_red(**args)
+
+    def rescan(self, **kwargs):
+        args = dict(route='triage', post_rebuild_run_id='800', rebuild_result='success',
+                    pre_rebuild_ids=['CVE-2026-109518', 'CVE-2026-7777'], file_issues_result='skipped')
+        args.update(kwargs)
+        return self.decide(**args)
+
+    # --- the daily scan dispatches a rebuild ---
+
+    def test_a_dispatched_rebuild_opens_an_issue(self):
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-109518', 'CVE-2026-7777'], dispatch='dispatched')
+        self.assertEqual(d['action'], 'open')
+        self.assertIsNone(d['number'])
+        self.assertIn('2026-11-05', d['title'])
+        self.assertIn(f'{REPO}/actions/runs/900', d['body'])
+        self.assertIn('force_rebuild', d['body'])
+        self.assertIn('<!-- scan-red:ids=CVE-2026-109518,CVE-2026-7777 -->', d['body'])
+
+    def test_the_issue_tables_each_new_finding(self):
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-109518', 'CVE-2026-7777'], dispatch='dispatched')
+        self.assertRegex(d['body'], r'\| CVE-2026-109518 \| HIGH \| apt, libapt-pkg7\.0 \| ubuntu \| 3\.2\.0 → 3\.2\.1ubuntu0\.1 \|')
+        self.assertRegex(d['body'], r'\| CVE-2026-7777 \| CRITICAL \| pillow \| conda-pkg \| 12\.3\.0 → 13\.0\.0 \|')
+        # Only this run's new IDs: not the MEDIUM finding, which is never triaged.
+        self.assertNotIn('CVE-2026-5555', d['body'])
+
+    def test_table_cells_cannot_break_the_table(self):
+        scan = report(os_finding('CVE-2026-1001', 'evil|pkg', '1', '2'))
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-1001'], dispatch='dispatched', report=scan)
+        self.assertIn('evil\\|pkg', d['body'])
+
+    def test_a_missing_trivy_report_still_lists_the_ids(self):
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-1001'], dispatch='dispatched', report=None)
+        self.assertEqual(d['action'], 'open')
+        self.assertIn('CVE-2026-1001', d['body'])
+
+    def test_a_rebuild_already_in_flight_is_said_so(self):
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-1001'], dispatch='in-flight')
+        self.assertEqual(d['action'], 'open')
+        self.assertIn('already in flight', d['body'])
+
+    def test_a_failed_dispatch_is_said_so(self):
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-1001'], dispatch='')
+        self.assertEqual(d['action'], 'open')
+        self.assertIn('could not be dispatched', d['body'])
+
+    def test_a_stuck_cycle_gets_a_comment_when_the_ids_change(self):
+        stuck = open_issue(1150, body='<!-- scan-red:ids=CVE-2026-1001 -->')
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-1001', 'CVE-2026-1002'], dispatch='dispatched',
+                        open_issue=stuck)
+        self.assertEqual((d['action'], d['number']), ('comment', 1150))
+        self.assertIn('<!-- scan-red:ids=CVE-2026-1001,CVE-2026-1002 -->', d['body'])
+
+    def test_a_stuck_cycle_is_not_commented_on_daily_for_the_same_ids(self):
+        stuck = open_issue(1150, body='<!-- scan-red:ids=CVE-2026-1001 -->',
+                           comments=['<!-- scan-red:ids=CVE-2026-1001,CVE-2026-1002 -->'])
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-1002', 'CVE-2026-1001'], dispatch='dispatched',
+                        open_issue=stuck)
+        self.assertEqual(d['action'], 'none')
+
+    def test_dedup_compares_against_the_latest_marker(self):
+        # The ID set went back to an earlier one: that is a change from the latest note.
+        stuck = open_issue(1150, body='<!-- scan-red:ids=CVE-2026-1001 -->',
+                           comments=['<!-- scan-red:ids=CVE-2026-1001,CVE-2026-1002 -->'])
+        d = self.decide(route='rebuild', cve_ids=['CVE-2026-1001'], dispatch='dispatched', open_issue=stuck)
+        self.assertEqual(d['action'], 'comment')
+
+    # --- the rebuild's rescan ---
+
+    def test_a_rebuild_that_cleared_everything_closes_the_issue(self):
+        d = self.rescan(cve_ids=[], open_issue=open_issue(1150))
+        self.assertEqual((d['action'], d['number']), ('close', 1150))
+        for expected in ('CVE-2026-109518', 'CVE-2026-7777', f'{REPO}/actions/runs/800'):
+            self.assertIn(expected, d['body'])
+
+    def test_a_rebuild_nobody_was_told_about_closes_nothing(self):
+        # A maintainer's own force_rebuild dispatch: no issue is open, and none is needed.
+        d = self.rescan(cve_ids=[])
+        self.assertEqual(d['action'], 'none')
+        self.assertIn('CVE-2026-109518', d['summary'])
+
+    def test_survivors_filed_as_cve_issues_close_the_cycle_with_links(self):
+        filed = [issue(1151, '[CVE-2026-7777] pillow: out-of-bounds read')]
+        d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result='success', cve_issues=filed,
+                        open_issue=open_issue(1150))
+        self.assertEqual((d['action'], d['number']), ('close', 1150))
+        self.assertIn('#1151', d['body'])
+        self.assertRegex(d['body'], r'(?s)[Cc]leared.*CVE-2026-109518')
+
+    def test_survivors_that_were_not_filed_keep_the_issue_open(self):
+        for result in ('failure', 'skipped', 'cancelled'):
+            with self.subTest(file_issues_result=result):
+                d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result=result, open_issue=open_issue(1150))
+                self.assertEqual((d['action'], d['number']), ('comment', 1150))
+                self.assertIn('CVE-2026-7777', d['body'])
+
+    def test_survivors_that_were_not_filed_open_an_issue_if_none_is_open(self):
+        # The rescan was started by github-actions[bot], so a failed run notifies nobody.
+        d = self.rescan(cve_ids=['CVE-2026-7777'], file_issues_result='failure')
+        self.assertEqual(d['action'], 'open')
+
+    def test_a_failed_rebuild_needs_a_maintainer(self):
+        for result in ('failure', 'cancelled', 'skipped', ''):
+            with self.subTest(rebuild_result=result):
+                d = self.rescan(cve_ids=['CVE-2026-109518'], rebuild_result=result, open_issue=open_issue(1150))
+                self.assertEqual((d['action'], d['number']), ('comment', 1150))
+                self.assertIn('maintainer', d['body'])
+                self.assertIn('<!-- scan-red:rebuild-failed:800 -->', d['body'])
+
+    def test_a_failed_rebuild_is_reported_once(self):
+        noted = open_issue(1150, comments=['<!-- scan-red:rebuild-failed:800 -->'])
+        d = self.rescan(cve_ids=['CVE-2026-109518'], rebuild_result='failure', open_issue=noted)
+        self.assertEqual(d['action'], 'none')
+
+    def test_a_failed_rebuild_opens_an_issue_if_none_is_open(self):
+        d = self.rescan(cve_ids=['CVE-2026-109518'], rebuild_result='failure')
+        self.assertEqual(d['action'], 'open')
+        self.assertIn('maintainer', d['body'])
+
+    # --- the daily scan with nothing new ---
+
+    def test_a_daily_scan_with_nothing_new_closes_a_leftover_issue(self):
+        d = self.decide(route='none', open_issue=open_issue(1150))
+        self.assertEqual((d['action'], d['number']), ('close', 1150))
+        self.assertIn('No new fixable', d['body'])
+
+    def test_a_daily_scan_with_nothing_new_and_nothing_open_does_nothing(self):
+        self.assertEqual(self.decide(route='none')['action'], 'none')
+
+    def test_a_direct_triage_leaves_the_issue_alone(self):
+        # skip_rebuild: a maintainer sent these straight to Claude; no rebuild cycle exists.
+        d = self.decide(route='triage', cve_ids=['CVE-2026-1001'], open_issue=open_issue(1150))
+        self.assertEqual(d['action'], 'none')
+
+
 class CliTest(unittest.TestCase):
 
     def setUp(self):
@@ -301,6 +504,61 @@ class CliTest(unittest.TestCase):
         ])
         self.assertEqual(rc, 0)
         self.assertEqual(self.read('pr-title.txt'), FALLBACK_1137 + '\n')
+
+    def test_route(self):
+        # Workflow booleans arrive as the strings 'true' and 'false'.
+        cases = [
+            (['--cve-ids', 'CVE-2026-1001'], 'rebuild'),
+            (['--cve-ids', ''], 'none'),
+            (['--cve-ids', 'CVE-2026-1001', '--test-mode', 'true'], 'triage'),
+            (['--cve-ids', 'CVE-2026-1001', '--dry-run', 'true', '--skip-rebuild', 'false'], 'triage'),
+            (['--cve-ids', 'CVE-2026-1001 CVE-2026-1002', '--post-rebuild-run-id', '800'], 'triage'),
+        ]
+        for args, expected in cases:
+            with self.subTest(args=args):
+                self.assertEqual(self.run_main(['route', *args, '--out', self.path('route.txt')]), 0)
+                self.assertEqual(self.read('route.txt'), expected + '\n')
+
+    def test_scan_red(self):
+        rc = self.run_main([
+            'scan-red',
+            '--route', 'triage',
+            '--cve-ids', '',
+            '--pre-rebuild-ids', 'CVE-2026-109518 CVE-2026-7777',
+            '--post-rebuild-run-id', '800',
+            '--rebuild-result', 'success',
+            '--dispatch', '',
+            '--file-issues-result', 'skipped',
+            '--open-issue-json', self.path('open.json', open_issue(1150)),
+            '--cve-issues-json', self.path('cve-issues.json', []),
+            '--trivy-json', self.path('trivy.json', APT_REPORT),
+            '--repo-url', REPO,
+            '--run-id', '900',
+            '--image', 'ghcr.io/broadinstitute/viral-ngs@sha256:abc',
+            '--date', '2026-11-05',
+            '--out', self.path('decision.json'),
+        ])
+        self.assertEqual(rc, 0)
+        decision = json.loads(self.read('decision.json'))
+        self.assertEqual((decision['action'], decision['number']), ('close', 1150))
+
+    def test_scan_red_with_no_open_issue_and_no_trivy_report(self):
+        rc = self.run_main([
+            'scan-red',
+            '--route', 'rebuild',
+            '--cve-ids', 'CVE-2026-1001',
+            '--dispatch', 'dispatched',
+            '--open-issue-json', self.path('open.json', 'null'),
+            '--cve-issues-json', self.path('cve-issues.json', []),
+            '--trivy-json', self.path('missing-trivy.json'),
+            '--repo-url', REPO,
+            '--run-id', '900',
+            '--image', 'ghcr.io/broadinstitute/viral-ngs:main-mega-amd64',
+            '--date', '2026-11-05',
+            '--out', self.path('decision.json'),
+        ])
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(self.read('decision.json'))['action'], 'open')
 
 
 if __name__ == '__main__':
