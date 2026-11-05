@@ -431,8 +431,17 @@ build-{assemble,classify,phylo,mega}-amd64  ←→  build-{...}-arm64  (parallel
          ↓
     test-{flavor} + test-{flavor}-arm64 (ARM64 tests only on PRs with docker changes)
          ↓
-    deploy-to-quay (push/tag events only)
+    deploy-to-quay (push/tag events, and dispatches on main)
+         ↓
+    request-rescan (force_rebuild dispatches with rescan=true only)
 ```
+
+**No-cache rebuilds:** `docker.yml` can be dispatched on main with `force_rebuild=true`
+(`gh workflow run docker.yml --ref main -f force_rebuild=true`), which builds every image
+without the layer cache and republishes `main-*` and quay. The cache otherwise keeps the
+baseimage's `apt-get upgrade` layer until the upstream micromamba image changes, so this is
+how new Ubuntu security updates land. The CVE pipeline (`container-scan.yml`) dispatches one,
+with `rescan=true`, before it triages new CVEs; see `.agents/skills/container-vulns/SKILL.md`.
 
 **Test Jobs:**
 - **test-core**: Runs on x86, tests `tests/unit/core/`
@@ -490,7 +499,7 @@ The `docs.yml` workflow builds Sphinx documentation. Key points:
 ### Registry Strategy
 
 - **GHCR (ghcr.io)**: Primary build registry, images pushed during CI for all events including PRs
-- **Quay.io**: Production registry, images copied from GHCR after tests pass (push/tag events only)
+- **Quay.io**: Production registry, images copied from GHCR after tests pass (push/tag events, and dispatches on main)
 - Feature branch images are deleted from Quay.io when the branch is deleted (`cleanup-images.yml`, which runs `.github/scripts/quay_delete_branch_tags.py`). To clean up leftovers, run that workflow by hand with the branch name; it is a dry run unless `execute` is checked. Delete Quay tags by tag, never by digest: a digest delete removes every tag on that manifest, and branch `-baseimage` builds usually share main's and the latest release's digest.
 
 ---
