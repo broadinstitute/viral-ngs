@@ -641,6 +641,7 @@ class BacklogTest(unittest.TestCase):
         scan = {'Results': [{'Target': 'x (ubuntu 26.04)', 'Class': 'os-pkgs', 'Type': 'ubuntu', 'Vulnerabilities': [
             os_finding('CVE-2026-4446', 'evil;touch x', '1.0', '1.1'),
             os_finding('CVE-2026-4446', 'libok1', '1.0', '$(touch x)'),
+            os_finding('CVE-2026-4446', 'libok3', '1.0', '1.1;touch x'),
             os_finding('CVE-2026-4446', 'libok2', '1.0', '1:1.1~rc1+dfsg-2ubuntu0.1'),
         ]}]}
         b = cp.backlog([cve_issue(1191, '[CVE-2026-4446] libok: bug')], scan)

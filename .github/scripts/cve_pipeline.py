@@ -16,14 +16,28 @@ so the matching rules are unit-tested instead of living in inline bash.
             PR closes; otherwise builds one from the closed issues' titles.
   route     Where a scan's new IDs go: `rebuild` (dispatch a no-cache rebuild of the main
             images first; its rescan triages whatever survives), `triage` (straight to
-            Claude) or `none`. A post-rebuild run never routes to `rebuild`, which is what
-            keeps the scan -> rebuild -> rescan chain from looping.
+            Claude) or `none`. A rebuild is also due when Ubuntu has published the fix an
+            open os-package issue is waiting for (backlog's retry IDs). A post-rebuild run
+            never routes to `rebuild`, which is what keeps the scan -> rebuild -> rescan
+            chain from looping.
   scan-red  What to do with the `scan-red` issue that tracks one rebuild cycle: open it
             when the daily scan dispatches a rebuild, close it when the rescan's findings
             show the rebuild cleared everything or every survivor has an issue, and leave it
             open, with a comment, when something needs a maintainer: the rebuild failed or
             never reached quay.io, or a survivor is unfiled. Writes
             {action: open|comment|close|none, number, title, body, summary} as JSON.
+  backlog   What this run's Trivy report says about the open `cve` issues this workflow
+            filed (bot-authored, not labeled `test`): `gone` when no finding has the
+            title's ID or an alias of it, so the issue can be closed (only from a report
+            that scanned the OS); `waiting` when every finding is an Ubuntu package, which
+            no PR fixes, so the fix-PR agent never sees it; `retry` for a waiting issue
+            once the apt probe (--published) shows Ubuntu's archive has a fixed version
+            that no completed rebuild has already failed to install. Writes JSON, and with
+            --waiting-pkgs-out the "<package> <fixed version>" lines the probe checks.
+  backlog-actions
+            The issue updates backlog calls for, as JSON [{action: close|comment, number,
+            body}]: close each gone issue, and after a successful rebuild's rescan, mark
+            each retry as tried (a `cve-retry` marker) and ask for a maintainer.
 
 IDs match as whole IDs only: CVE-2026-1123 is not named by a title about CVE-2026-11234.
 
@@ -40,8 +54,13 @@ Usage:
         --open-issue-json open-scan-red.json --issues-json all-issues.json \\
         --trivy-json trivy-results.json --repo-url "$REPO_URL" --run-id "$GITHUB_RUN_ID" \\
         --image "$IMAGE_REF" --date 2026-11-05 --out decision.json
+    cve_pipeline.py backlog --trivy-json trivy-results.json --issues-json open-cve-issues.json \
+        [--published published.txt] [--waiting-pkgs-out waiting-pkgs.txt] --out backlog.json
+    cve_pipeline.py backlog-actions --backlog backlog.json --rebuild-state rebuilt \
+        --post-rebuild-run-id "$RUN_ID" --repo-url "$REPO_URL" --run-id "$GITHUB_RUN_ID" \
+        --image "$IMAGE_REF" --out actions.json
 
-new-ids, pr-title, route and scan-red write their result to --out and report decisions
+new-ids, pr-title, route, scan-red, backlog and backlog-actions write their result to --out and report decisions
 on stdout, as workflow annotations when run under GitHub Actions.
 """
 
@@ -215,22 +234,24 @@ def pr_title(agent_title, pr_body, issues, out=sys.stdout):
     return title
 
 
-def route(cve_ids, test_mode=False, dry_run=False, skip_rebuild=False, post_rebuild=False):
+def route(cve_ids, test_mode=False, dry_run=False, skip_rebuild=False, post_rebuild=False, retry_ids=()):
     """Where a scan's new IDs go: 'rebuild', 'triage' or 'none'.
 
     A no-cache rebuild runs `apt-get upgrade -y` against today's Ubuntu archive and
     re-solves every conda floor, which clears most new findings without a PR. So new IDs
     go to a rebuild first, except when a rebuild already happened (post_rebuild), when a
     maintainer asked for triage directly (skip_rebuild), and in test or dry runs, which
-    must not republish main's images.
+    must not republish main's images. retry_ids (backlog's) are already filed, so they
+    route to a rebuild under the same conditions and otherwise nowhere.
     """
     if test_mode:
         return 'triage'
-    if not cve_ids:
-        return 'none'
-    if dry_run or skip_rebuild or post_rebuild:
-        return 'triage'
-    return 'rebuild'
+    no_rebuild = dry_run or skip_rebuild or post_rebuild
+    if cve_ids:
+        return 'triage' if no_rebuild else 'rebuild'
+    if retry_ids and not no_rebuild:
+        return 'rebuild'
+    return 'none'
 
 
 SCAN_RED_MARKER = '<!-- scan-red:{} -->'
@@ -286,7 +307,7 @@ def _advisories(n):
     return f'{n} new fixable HIGH/CRITICAL {"advisory" if n == 1 else "advisories"}'
 
 
-def scan_red(*, route, cve_ids, pre_rebuild_ids=(), post_rebuild_run_id='', rebuild_result='',
+def scan_red(*, route, cve_ids, retry_ids=(), pre_rebuild_ids=(), post_rebuild_run_id='', rebuild_result='',
              deploy_result='', dispatch='', file_issues_result='', open_issue=None, issues=(), report=None,
              repo_url='', run_id='', image='', date=''):
     """How to update the scan-red issue that tracks one rebuild cycle. See the module doc."""
@@ -390,20 +411,144 @@ def scan_red(*, route, cve_ids, pre_rebuild_ids=(), post_rebuild_run_id='', rebu
         return decide('open', body, problems[0][2])
 
     if route == 'rebuild':
-        marker = 'ids=' + ','.join(ids)
-        body = (f'{run_link} found {_advisories(len(ids))} in `{image}`:\n\n{findings_table(report, ids)}\n\n'
-                f'{DISPATCH_TEXT.get(dispatch, DISPATCH_FAILED_TEXT)}\n\n{LIFECYCLE_TEXT}\n\n'
-                + SCAN_RED_MARKER.format(marker))
+        retry = sorted(set(retry_ids) - set(ids))
+        marker = 'ids=' + ','.join(sorted(set(ids) | set(retry)))
+        parts = []
+        if ids:
+            parts.append(f'{run_link} found {_advisories(len(ids))} in `{image}`:\n\n{findings_table(report, ids)}')
+        if retry:
+            lead = 'Ubuntu has also published fixes, not yet in the image,' if ids else (
+                f'{run_link} found that Ubuntu has published fixes, not yet in `{image}`,')
+            parts.append(f'{lead} for advisories that open `cve` issues track:\n\n{findings_table(report, retry)}')
+        parts += [DISPATCH_TEXT.get(dispatch, DISPATCH_FAILED_TEXT), LIFECYCLE_TEXT, SCAN_RED_MARKER.format(marker)]
+        body = '\n\n'.join(parts)
         if open_issue:
             latest = next((m for m in reversed(markers) if m.startswith('ids=')), None)
             return decide('none', body) if latest == marker else decide('comment', body)
-        return decide('open', body, f'New fixable advisories in the main images (since {date})')
+        title = (f'New fixable advisories in the main images (since {date})' if ids
+                 else f'Ubuntu published fixes for open CVE issues; rebuilding the main images (since {date})')
+        return decide('open', body, title)
 
     if route == 'none' and open_issue:
         body = (f'No new fixable HIGH/CRITICAL advisories remain in `{image}` as of {run_link}, '
                 f'so this rebuild cycle is over.')
         return decide('close', body)
     return decide('none')
+
+
+# Comment and issue authors as gh prints them: `gh issue list --json author` prefixes apps
+# with "app/", comments do not.
+BOT_LOGINS = frozenset({'github-actions', 'app/github-actions', 'github-actions[bot]'})
+RETRY_MARKER = '<!-- cve-retry:{} -->'
+RETRY_MARKER_RE = re.compile(r'<!-- cve-retry:(\S+?) -->')
+# Debian package names and versions (Debian Policy 5.6.1 and 5.6.12). Anything else is
+# dropped before it reaches the apt probe's shell.
+DEB_NAME = re.compile(r'[a-z0-9][a-z0-9+.-]+')
+DEB_VERSION = re.compile(r'[0-9][A-Za-z0-9.+~:-]*')
+
+
+def _login(author):
+    return author.get('login') if isinstance(author, dict) else author
+
+
+def _filed_by_this_workflow(issue):
+    labels = {label.get('name') if isinstance(label, dict) else label for label in issue.get('labels') or []}
+    return _login(issue.get('author')) in BOT_LOGINS and 'test' not in labels
+
+
+def _retry_markers(issue):
+    """The cve-retry markers in comments this workflow wrote: anyone can comment on a public repo."""
+    return {m for c in issue.get('comments') or [] if _login(c.get('author')) in BOT_LOGINS
+            for m in RETRY_MARKER_RE.findall(c.get('body') or '')}
+
+
+def backlog(issues, report, published=None):
+    """Sort the open `cve` issues this workflow filed by what report says about them. See the module doc.
+
+    published is {Debian package: candidate version} for the packages whose candidate in
+    today's Ubuntu archive is at least one of their fixed versions, or None if the apt probe
+    did not run.
+    """
+    results = (report or {}).get('Results') or []
+    complete = any(r.get('Class') == 'os-pkgs' for r in results)
+    findings = []  # (every ID and alias, upper-cased; is an Ubuntu package; the finding)
+    for result in results:
+        is_os = result.get('Class') == 'os-pkgs'
+        for vuln in result.get('Vulnerabilities') or []:
+            names = {a.upper() for a in [vuln.get('VulnerabilityID') or '', *(vuln.get('VendorIDs') or [])]
+                     if ADVISORY_ID.fullmatch(a)}
+            findings.append((names, is_os, vuln))
+
+    gone, waiting, retry = [], [], []
+    for issue in sorted(issues, key=lambda i: i['number']):
+        ids = list(dict.fromkeys(ADVISORY_ID.findall(issue.get('title') or '')))
+        if not ids or not _filed_by_this_workflow(issue):
+            continue
+        wanted = {i.upper() for i in ids}
+        matched = [(is_os, vuln) for names, is_os, vuln in findings if names & wanted]
+        if not matched:
+            if complete:
+                gone.append({'number': issue['number'], 'ids': ids})
+            continue
+        if not all(is_os for is_os, _ in matched):
+            continue
+        packages = {}
+        for _, vuln in matched:
+            name = vuln.get('PkgName') or ''
+            fixed = [v.strip() for v in (vuln.get('FixedVersion') or '').split(',')]
+            fixed = [v for v in fixed if DEB_VERSION.fullmatch(v)]
+            if DEB_NAME.fullmatch(name) and fixed:
+                versions = packages.setdefault(name, [])
+                versions.extend(v for v in fixed if v not in versions)
+        vuln_ids = sorted({vuln['VulnerabilityID'] for _, vuln in matched})
+        waiting.append({'number': issue['number'], 'ids': ids, 'vuln_ids': vuln_ids,
+                        'packages': [{'name': n, 'fixed': f} for n, f in sorted(packages.items())]})
+        if published:
+            tried = _retry_markers(issue)
+            markers = [f'{n}={published[n]}' for n in sorted(packages) if n in published]
+            untried = [m for m in markers if m not in tried]
+            if untried:
+                retry.append({'number': issue['number'], 'ids': ids, 'vuln_ids': vuln_ids, 'markers': untried})
+    return {'complete': complete, 'gone': gone, 'waiting': waiting, 'retry': retry,
+            'retry_ids': sorted({v for r in retry for v in r['vuln_ids']})}
+
+
+def backlog_actions(backlog, *, rebuild_state, post_rebuild_run_id='', repo_url='', run_id='', image=''):
+    """The issue updates a backlog calls for: [{action: close|comment, number, body}]. See the module doc."""
+    run_link = f'[run {run_id}]({repo_url}/actions/runs/{run_id})'
+    actions = []
+    for entry in backlog.get('gone') or []:
+        body = (f'{run_link} scanned `{image}` and no longer finds {", ".join(entry["ids"])}: whatever cleared '
+                f'it (a newer upstream image, a no-cache rebuild, a fix PR or a `.trivyignore.yaml` entry) is in '
+                f'main\'s images now, so this issue is done.\n\nIf the advisory comes back, reopen this issue: the '
+                f'scan never files an advisory again once any issue, open or closed, names it.')
+        actions.append({'action': 'close', 'number': entry['number'], 'body': body})
+    if rebuild_state != 'rebuilt':
+        # Before a rebuild the route dispatches one; after a failed one, apt never ran.
+        return actions
+    rebuild_link = f'[run {post_rebuild_run_id}]({repo_url}/actions/runs/{post_rebuild_run_id})'
+    for entry in backlog.get('retry') or []:
+        versions = ', '.join('`{}` {}'.format(*m.split('=', 1)) for m in entry['markers'])
+        body = (f'The no-cache rebuild in {rebuild_link} ran `apt-get upgrade -y` while Ubuntu\'s archive had '
+                f'{versions}, at or above the fixed version, yet {run_link} still finds '
+                f'{", ".join(entry["vuln_ids"])} in `{image}`. apt did not install the fix: it may be holding the '
+                f'package back (an upgrade that needs a new dependency), or Ubuntu published it after the rebuild '
+                f'started.\n\n**This needs a maintainer.** The scan dispatches no further rebuild for these '
+                f'versions. {RERUN_TEXT}\n\n' + '\n'.join(RETRY_MARKER.format(m) for m in entry['markers']))
+        actions.append({'action': 'comment', 'number': entry['number'], 'body': body})
+    return actions
+
+
+def parse_published(text, out):
+    """{package: candidate} from the apt probe's "<package> <candidate>" lines."""
+    published = {}
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) == 2 and DEB_NAME.fullmatch(fields[0]) and DEB_VERSION.fullmatch(fields[1]):
+            published[fields[0]] = fields[1]
+        elif fields:
+            annotate(out, 'warning', f'Ignoring a malformed apt probe line: {line!r}')
+    return published
 
 
 def parse_bool(value):
@@ -432,10 +577,12 @@ def main(argv=None):
     for flag in ('--test-mode', '--dry-run', '--skip-rebuild'):
         p.add_argument(flag, type=parse_bool, default=False, metavar='true|false')
     p.add_argument('--post-rebuild-run-id', default='', help='set when this run is a rebuild\'s rescan')
+    p.add_argument('--retry-ids', default='', help='space-separated retry IDs from backlog')
     p.add_argument('--out', required=True, help='written with the route')
     p = commands.add_parser('scan-red', help='how to update the scan-red issue')
     p.add_argument('--route', required=True, choices=('rebuild', 'triage', 'none'))
     p.add_argument('--cve-ids', required=True, help='space-separated new IDs from this run\'s scan')
+    p.add_argument('--retry-ids', default='', help='space-separated retry IDs from backlog')
     p.add_argument('--pre-rebuild-ids', default='', help='the IDs the rebuild was dispatched for')
     p.add_argument('--post-rebuild-run-id', default='')
     p.add_argument('--rebuild-result', default='', help='result of the rebuild\'s build-mega-amd64 job')
@@ -451,14 +598,31 @@ def main(argv=None):
     p.add_argument('--image', required=True, help='the image ref this run scanned')
     p.add_argument('--date', required=True)
     p.add_argument('--out', required=True, help='written with the decision as JSON')
+    p = commands.add_parser('backlog', help='what the scan says about the open cve issues')
+    p.add_argument('--trivy-json', required=True)
+    p.add_argument('--issues-json', required=True,
+                   help='open cve issues: [{number, title, author: {login}, labels: [{name}], '
+                        'comments: [{author: {login}, body}]}]')
+    p.add_argument('--published', help='the apt probe\'s "<package> <candidate>" lines; omit if it did not run')
+    p.add_argument('--waiting-pkgs-out', help='written with the "<package> <fixed version>" lines to probe')
+    p.add_argument('--out', required=True, help='written with the backlog as JSON')
+    p = commands.add_parser('backlog-actions', help='the issue updates a backlog calls for')
+    p.add_argument('--backlog', required=True, help='backlog\'s JSON')
+    p.add_argument('--rebuild-state', required=True, choices=('not-rebuilt', 'rebuilt', 'rebuild-failed'))
+    p.add_argument('--post-rebuild-run-id', default='')
+    p.add_argument('--repo-url', required=True)
+    p.add_argument('--run-id', required=True)
+    p.add_argument('--image', required=True, help='the image ref this run scanned')
+    p.add_argument('--out', required=True, help='written with the actions as JSON')
     args = parser.parse_args(argv)
 
     if args.command == 'names':
         return 0 if mentions(args.text, args.advisory_id) else 1
     if args.command == 'route':
         result = route(args.cve_ids.split(), args.test_mode, args.dry_run, args.skip_rebuild,
-                       bool(args.post_rebuild_run_id))
-        annotate(sys.stdout, 'notice', f'route={result} for new IDs: {args.cve_ids or "(none)"}')
+                       bool(args.post_rebuild_run_id), args.retry_ids.split())
+        annotate(sys.stdout, 'notice', f'route={result} for new IDs: {args.cve_ids or "(none)"}'
+                 + (f'; Ubuntu fixes published for: {args.retry_ids}' if args.retry_ids else ''))
         with open(args.out, 'w') as f:
             f.write(result + '\n')
         return 0
@@ -474,14 +638,48 @@ def main(argv=None):
             annotate(sys.stdout, 'warning', f'{args.trivy_json} is missing; the scan-red table lists bare IDs')
             trivy = None
         decision = scan_red(
-            route=args.route, cve_ids=args.cve_ids.split(), pre_rebuild_ids=args.pre_rebuild_ids.split(),
+            route=args.route, cve_ids=args.cve_ids.split(), retry_ids=args.retry_ids.split(),
+            pre_rebuild_ids=args.pre_rebuild_ids.split(),
             post_rebuild_run_id=args.post_rebuild_run_id, rebuild_result=args.rebuild_result,
             deploy_result=args.deploy_result, dispatch=args.dispatch,
-            file_issues_result=args.file_issues_result, open_issue=open_issue, issues=issues, report=trivy, repo_url=args.repo_url, run_id=args.run_id,
-            image=args.image, date=args.date)
+            file_issues_result=args.file_issues_result, open_issue=open_issue, issues=issues, report=trivy,
+            repo_url=args.repo_url, run_id=args.run_id, image=args.image, date=args.date)
         print(f'scan-red: {decision["action"]}' + (f' #{decision["number"]}' if decision['number'] else ''))
         with open(args.out, 'w') as f:
             json.dump(decision, f)
+        return 0
+    if args.command == 'backlog':
+        with open(args.trivy_json) as f:
+            trivy = json.load(f)
+        with open(args.issues_json) as f:
+            issues = json.load(f)
+        published = None
+        if args.published:
+            with open(args.published) as f:
+                published = parse_published(f.read(), sys.stdout)
+        result = backlog(issues, trivy, published)
+        if not result['complete']:
+            annotate(sys.stdout, 'warning', 'The Trivy report has no Ubuntu (os-pkgs) result, so no issue counts as gone')
+        annotate(sys.stdout, 'notice', 'Open cve issues: '
+                 f'gone {[e["number"] for e in result["gone"]]}, '
+                 f'waiting on Ubuntu {[e["number"] for e in result["waiting"]]}, '
+                 f'Ubuntu fix published {[e["number"] for e in result["retry"]]}')
+        if args.waiting_pkgs_out:
+            lines = dict.fromkeys(f'{p["name"]} {v}' for e in result['waiting'] for p in e['packages']
+                                  for v in p['fixed'])
+            with open(args.waiting_pkgs_out, 'w') as f:
+                f.write(''.join(line + '\n' for line in lines))
+        with open(args.out, 'w') as f:
+            json.dump(result, f)
+        return 0
+    if args.command == 'backlog-actions':
+        with open(args.backlog) as f:
+            result = backlog_actions(
+                json.load(f), rebuild_state=args.rebuild_state, post_rebuild_run_id=args.post_rebuild_run_id,
+                repo_url=args.repo_url, run_id=args.run_id, image=args.image)
+        print('backlog actions: ' + (', '.join(f'{a["action"]} #{a["number"]}' for a in result) or 'none'))
+        with open(args.out, 'w') as f:
+            json.dump(result, f)
         return 0
     with open(args.issues_json) as f:
         issues = json.load(f)
