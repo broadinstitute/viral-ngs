@@ -433,7 +433,7 @@ build-{assemble,classify,phylo,mega}-amd64  ←→  build-{...}-arm64  (parallel
          ↓
     deploy-to-quay (push/tag events, and dispatches on main)
          ↓
-    request-rescan (force_rebuild dispatches with rescan=true only)
+    request-rescan (dispatches on main with rescan=true only)
 ```
 
 **No-cache rebuilds:** `docker.yml` can be dispatched on main with `force_rebuild=true`

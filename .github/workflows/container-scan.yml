@@ -83,7 +83,7 @@ jobs:
   #
   # Every run also checks the open `cve` issues this workflow filed against its scan
   # (cve_pipeline.py backlog). The update-cve-issues job closes the ones the scan no
-  # longer reports. Issues whose findings are all Ubuntu packages wait on Ubuntu, not on
+  # longer reports, and reopens them if the advisory comes back. Issues whose findings are all Ubuntu packages wait on Ubuntu, not on
   # a PR, so cve-fix-pr leaves them out; once Ubuntu's archive has the fixed version
   # (an apt probe in the scan job), the route is `rebuild` for them too. A rebuild that
   # still doesn't install it gets a marker on the issue, and no more retries for that
@@ -116,6 +116,7 @@ jobs:
       post_rebuild_run_id: ${{ steps.image.outputs.post_rebuild_run_id }}
       rebuild_result:      ${{ steps.image.outputs.rebuild_result }}
       deploy_result:       ${{ steps.image.outputs.deploy_result }}
+      pre_rebuild_ids:     ${{ steps.image.outputs.pre_rebuild_ids }}
     permissions:
       contents: read
       packages: read
@@ -142,9 +143,13 @@ jobs:
           POST_REBUILD_RUN_ID: ${{ github.event.inputs.post_rebuild_run_id || '' }}
           REBUILD_RESULT: ${{ github.event.inputs.rebuild_result || '' }}
           DEPLOY_RESULT: ${{ github.event.inputs.deploy_result || '' }}
+          PRE_REBUILD_IDS: ${{ github.event.inputs.pre_rebuild_ids || '' }}
         run: |
           set -euo pipefail
           # Dispatch inputs reach prompts and issue text, so accept only their expected shapes.
+          if [[ ! "$PRE_REBUILD_IDS" =~ ^[A-Za-z0-9\ -]*$ ]]; then
+            echo "::error::pre_rebuild_ids must be space-separated CVE/GHSA IDs"; exit 1
+          fi
           if [[ -n "$IMAGE_DIGEST" && ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::image_digest must be sha256:<64 hex digits>"; exit 1
           fi
@@ -176,6 +181,7 @@ jobs:
             echo "post_rebuild_run_id=$POST_REBUILD_RUN_ID"
             echo "rebuild_result=$REBUILD_RESULT"
             echo "deploy_result=$DEPLOY_RESULT"
+            echo "pre_rebuild_ids=$PRE_REBUILD_IDS"
           } >> "$GITHUB_OUTPUT"
 
       - name: Run Trivy vulnerability scanner
@@ -295,17 +301,22 @@ jobs:
         run: |
           set -euo pipefail
           issues="$RUNNER_TEMP/open-cve-issues.json"
+          closed="$RUNNER_TEMP/closed-cve-issues.json"
           gh issue list --repo "$GITHUB_REPOSITORY" --label cve --state open --limit 200 \
             --json number,title,author,labels,comments > "$issues"
+          # The most recently updated closed ones, for an advisory that comes back after the
+          # scan closed its issue as gone.
+          gh issue list --repo "$GITHUB_REPOSITORY" --label cve --state closed --limit 100 \
+            --json number,title,author,labels,comments > "$closed"
           mkdir -p cve-backlog
           python3 .github/scripts/cve_pipeline.py backlog \
-            --trivy-json trivy-results.json --issues-json "$issues" \
+            --trivy-json trivy-results.json --issues-json "$issues" --closed-issues-json "$closed" \
             --waiting-pkgs-out "$RUNNER_TEMP/waiting-pkgs.txt" --out cve-backlog/backlog.json
 
           # Is each waiting package's fix in Ubuntu's archive yet? Ask apt in the image the
           # baseimage builds FROM, which is what a no-cache rebuild runs `apt-get upgrade`
-          # in. The probe prints "<package> <candidate>" when the candidate is at least
-          # the fixed version. Package names and versions were validated by backlog.
+          # in. The probe prints "<package> <fixed> <candidate>" when the candidate is at
+          # least that fixed version. Package names and versions were validated by backlog.
           if [ -s "$RUNNER_TEMP/waiting-pkgs.txt" ]; then
             base=$(awk 'toupper($1) == "FROM" { print $2; exit }' docker/Dockerfile.baseimage)
             echo "::notice::Asking apt in $base whether Ubuntu has published fixes for:"
@@ -316,10 +327,10 @@ jobs:
                 while read -r name fixed; do
                   candidate=$(apt-cache policy "$name" 2>/dev/null | sed -n "s/^ *Candidate: *//p")
                   case "$candidate" in ""|"(none)") continue ;; esac
-                  if dpkg --compare-versions "$candidate" ge "$fixed"; then echo "$name $candidate"; fi
+                  if dpkg --compare-versions "$candidate" ge "$fixed"; then echo "$name $fixed $candidate"; fi
                 done' < "$RUNNER_TEMP/waiting-pkgs.txt" > "$RUNNER_TEMP/published.txt"; then
               python3 .github/scripts/cve_pipeline.py backlog \
-                --trivy-json trivy-results.json --issues-json "$issues" \
+                --trivy-json trivy-results.json --issues-json "$issues" --closed-issues-json "$closed" \
                 --published "$RUNNER_TEMP/published.txt" --out cve-backlog/backlog.json
             else
               echo "::warning::The apt probe failed, so no rebuild is retried for open os-package issues this run"
@@ -433,7 +444,13 @@ jobs:
               | jq --arg name "$CVE_REBUILD_RUN_NAME" \
                   '[.[] | select(.status != "completed" and .displayTitle == $name)] | length'
           }
-          if [ "$(count_inflight)" != "0" ]; then
+          # Assigned first, so a failed `gh run list` fails this step (scan-red then says the
+          # dispatch failed and the next daily scan tries again) instead of reading as in flight.
+          inflight=$(count_inflight)
+          if [[ ! "$inflight" =~ ^[0-9]+$ ]]; then
+            echo "::error::Could not count in-flight docker.yml runs (got '$inflight')"; exit 1
+          fi
+          if [ "$inflight" != "0" ]; then
             echo "::notice::A docker.yml dispatch is already in flight on main; not dispatching another. Its rescan covers: $ids"
             echo "dispatch=in-flight" >> "$GITHUB_OUTPUT"
             exit 0
@@ -445,7 +462,7 @@ jobs:
           # `gh workflow run` returns before the run exists. Wait until it is listed, so
           # the next request-rebuild in this concurrency group counts it as in flight.
           for _ in $(seq 24); do
-            [ "$(count_inflight)" != "0" ] && exit 0
+            if n=$(count_inflight) && [[ "$n" =~ ^[1-9][0-9]*$ ]]; then exit 0; fi
             sleep 5
           done
           echo "::warning::The dispatched docker.yml run was not listed within 2 minutes; a concurrent scan could dispatch a second rebuild"
@@ -585,8 +602,9 @@ jobs:
               image. "Rebuild the image" is never the answer, so explain why a rebuild was
               not enough and what would be. For an `os-package` finding, compare Trivy's
               `FixedVersion` with the installed version: usually Ubuntu has not published
-              the fix to the archive the image uses yet, and the fix is to wait and dispatch
-              `gh workflow run docker.yml --ref main -f force_rebuild=true` once it ships.
+              the fix to the archive the image uses yet, and the fix is to wait. Nobody has
+              to act: each daily scan asks apt whether the archive has the fixed version and
+              dispatches another no-cache rebuild once it does.
             - `rebuild-failed`: the rebuild did not succeed, so this run scanned the image
               main already had. A rebuild may still clear `os-package` findings and
               findings an existing `>=` floor allows; say so.
@@ -679,7 +697,7 @@ jobs:
                   never an edit to an `apt-get` line, see "Rebuild state" above)
                 - For an `os-package` finding: "a no-cache rebuild clears it" (state
                   `not-rebuilt` or `rebuild-failed`), or "wait for Ubuntu to publish
-                  <FixedVersion>, then dispatch `force_rebuild`" (state `rebuilt`)
+                  <FixedVersion>; the daily scan rebuilds once it does" (state `rebuilt`)
                 - `.trivyignore.yaml` entry (scoped by `paths` or `purls`, with
                   justification matching the existing style)
                Cite historical precedent when applicable: `(mirror the fix in commit <sha>)`.
@@ -875,7 +893,7 @@ jobs:
           ROUTE: ${{ needs.scan.outputs.route }}
           CVE_IDS: ${{ needs.scan.outputs.cve_ids }}
           RETRY_IDS: ${{ needs.scan.outputs.retry_ids }}
-          PRE_REBUILD_IDS: ${{ github.event.inputs.pre_rebuild_ids || '' }}
+          PRE_REBUILD_IDS: ${{ needs.scan.outputs.pre_rebuild_ids }}
           POST_REBUILD_RUN_ID: ${{ needs.scan.outputs.post_rebuild_run_id }}
           REBUILD_RESULT: ${{ needs.scan.outputs.rebuild_result }}
           DEPLOY_RESULT: ${{ needs.scan.outputs.deploy_result }}
@@ -951,9 +969,10 @@ jobs:
   # ============================================================================
   # UPDATE CVE ISSUES — acts on the scan job's backlog (cve_pipeline.py backlog and
   # backlog-actions): closes each open `cve` issue this workflow filed that the scan
-  # no longer reports, and, in a successful rebuild's rescan, marks each published
-  # Ubuntu fix the rebuild still did not install, so the scan stops retrying it and
-  # a maintainer is asked to look. No agent runs in this job.
+  # no longer reports, reopens one it closed that way once the advisory is back,
+  # and, in a successful rebuild's rescan, marks each published Ubuntu fix that
+  # rebuild was dispatched for but still did not install, so the scan stops
+  # retrying it and a maintainer is asked to look. No agent runs in this job.
   # ============================================================================
   update-cve-issues:
     needs: scan
@@ -987,6 +1006,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REBUILD_STATE: ${{ needs.scan.outputs.rebuild_state }}
           POST_REBUILD_RUN_ID: ${{ needs.scan.outputs.post_rebuild_run_id }}
+          PRE_REBUILD_IDS: ${{ needs.scan.outputs.pre_rebuild_ids }}
           IMAGE_REF: ${{ needs.scan.outputs.image_ref }}
         run: |
           set -euo pipefail
@@ -995,6 +1015,7 @@ jobs:
             --backlog cve-backlog/backlog.json \
             --rebuild-state "$REBUILD_STATE" \
             --post-rebuild-run-id "$POST_REBUILD_RUN_ID" \
+            --pre-rebuild-ids "$PRE_REBUILD_IDS" \
             --repo-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             --run-id "$GITHUB_RUN_ID" \
             --image "$IMAGE_REF" \
@@ -1008,6 +1029,10 @@ jobs:
               close)
                 gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md" \
                   && gh issue close "$number" --repo "$GITHUB_REPOSITORY" --reason completed \
+                  || failed=$((failed+1)) ;;
+              reopen)
+                gh issue reopen "$number" --repo "$GITHUB_REPOSITORY" \
+                  && gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md" \
                   || failed=$((failed+1)) ;;
               comment)
                 gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md" \
@@ -1342,7 +1367,9 @@ jobs:
 
             ## Confidence bar (MODERATE) — you must PROCEED only if ALL open CVE
             ## issues can be closed by changes that fall into one of these
-            ## categories:
+            ## categories (an issue that also has an `os-package` finding counts
+            ## once its other findings are fixed: see "Never edit an `apt-get`
+            ## line" below):
 
             **(a) Version-floor bump in `docker/requirements/*.txt`.** Direct
             edit to a requirements file pinning the affected package to a
@@ -1708,12 +1735,14 @@ jobs:
           # the build cache, which the no-cache rebuild before triage has already done. A
           # hunk is refused if it changes anything within 3 lines of an apt-get line, so a
           # package added on a continuation line of the same RUN is caught too.
+          # apt-get, apt, aptitude or dpkg as a word: `libapt-pkg7.0` or `apt-transport-https` is not one.
           apt_hunks=$(git diff --cached -U3 -- 'docker/Dockerfile.*' | awk '
+            BEGIN { aptcmd = "(^|[^A-Za-z0-9_.-])(apt-get|apt|aptitude|dpkg)([^A-Za-z0-9_.-]|$)" }
             function flush() { if (changed && apt) bad = bad hunk "\n"; changed = 0; apt = 0 }
             /^diff --git/    { flush(); hunk = ""; next }
             /^(\+\+\+|---) / { next }
             /^@@/            { flush(); hunk = $0; next }
-                             { if ($0 ~ /^[+-]/) changed = 1; if (index($0, "apt-get")) apt = 1 }
+                             { if ($0 ~ /^[+-]/) changed = 1; if ($0 ~ aptcmd) apt = 1 }
             END              { flush(); printf "%s", bad }')
           if [ -n "$apt_hunks" ]; then
             echo "::error::Auto-fix diff edits a Dockerfile apt-get command — refusing to open a PR"

@@ -1711,7 +1711,9 @@ jobs:
   # the chain can't loop.
   request-rescan:
     needs: [build-mega-amd64, deploy-to-quay]
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.rescan == true
+    # Main only: a dispatch on another ref fails in get-version and builds nothing, so
+    # there is no rebuild to rescan.
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.rescan == true && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       actions: write
