@@ -654,8 +654,10 @@ def summarize(entry):
 
     if entry["fix_shape"] == "os-package":
         return [
-            "%s (%s): Ubuntu OS package (%s -> %s). Fixed by a base-image / apt update, "
-            "NOT by a docker/requirements pin -- conda channels were not queried."
+            "%s (%s): Ubuntu OS package (%s -> %s). Cleared by a no-cache rebuild "
+            "(docker.yml force_rebuild) once Ubuntu publishes the fix -- NOT by a "
+            "docker/requirements pin, and never by editing an apt-get line. Conda "
+            "channels were not queried."
             % (name, cves, entry.get("installed_version"), ", ".join(entry["fixed_versions"]))
         ]
 

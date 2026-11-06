@@ -26,6 +26,44 @@ on:
         required: false
         type: boolean
         default: false
+      skip_rebuild:
+        description: 'Send new CVEs straight to Claude triage instead of dispatching a no-cache rebuild first'
+        required: false
+        type: boolean
+        default: false
+      # The six inputs below are set by docker.yml's request-rescan job, which dispatches
+      # this workflow when a no-cache rebuild it was asked for (force_rebuild + rescan)
+      # finishes. A run with post_rebuild_run_id set never dispatches another rebuild.
+      post_rebuild_run_id:
+        description: 'Set by docker.yml: the run ID of the no-cache rebuild this run rescans'
+        required: false
+        type: string
+        default: ''
+      rebuild_result:
+        description: "Set by docker.yml: the rebuild's build-mega-amd64 result"
+        required: false
+        type: string
+        default: ''
+      deploy_result:
+        description: "Set by docker.yml: the rebuild's deploy-to-quay result"
+        required: false
+        type: string
+        default: ''
+      image_digest:
+        description: 'Set by docker.yml: digest (sha256:...) of the rebuilt mega amd64 image to scan instead of main-mega-amd64'
+        required: false
+        type: string
+        default: ''
+      pre_rebuild_ids:
+        description: 'Set by docker.yml: the new CVE IDs the rebuild was dispatched for'
+        required: false
+        type: string
+        default: ''
+      pre_rebuild_versions:
+        description: 'Set by docker.yml: the published Ubuntu fixes (package=version) the rebuild was dispatched for'
+        required: false
+        type: string
+        default: ''
 
 permissions: {}
 
@@ -33,6 +71,30 @@ env:
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs
 
 jobs:
+  # Routing. The scan job's `route` output (cve_pipeline.py route) sends new fixable
+  # IDs one of three ways:
+  #   rebuild  request-rebuild dispatches a no-cache rebuild of main's images (docker.yml
+  #            force_rebuild). Its request-rescan job dispatches this workflow again with
+  #            post_rebuild_run_id set, to scan the image it built. Most new findings are
+  #            fixed by an Ubuntu package or conda build that a rebuild picks up, so they
+  #            never reach Claude.
+  #   triage   triage -> file-issues -> cve-fix-pr -> cve-fix-pr-open, below. Taken by a
+  #            rebuild's rescan (for what survived it), test mode, dry runs and
+  #            skip_rebuild.
+  #   none     nothing new.
+  # A rescan never routes to rebuild, so the chain can't loop. The scan-red job tracks
+  # each rebuild cycle in one issue (opened on dispatch, closed by the rescan): runs
+  # started by github-actions[bot] email nobody, so this is how a cycle gets noticed.
+  #
+  # Every run also checks the open `cve` issues this workflow filed against its scan
+  # (cve_pipeline.py backlog). The update-cve-issues job closes the ones the scan no
+  # longer reports, and reopens them if the advisory comes back, while main-mega-amd64
+  # is still the image scanned. Issues whose findings are all Ubuntu packages wait on Ubuntu, not on
+  # a PR, so cve-fix-pr leaves them out; once Ubuntu's archive has the fixed version
+  # (an apt probe in the scan job), the route is `rebuild` for them too. A rebuild that
+  # still doesn't install a version it was dispatched for (pre_rebuild_versions) gets a
+  # marker on the issue, and no more retries for that version.
+  #
   # The two agents run in jobs of their own (`triage`, `cve-fix-pr`) whose
   # GITHUB_TOKEN is read-only and that hold no other credential except the Vertex
   # one they need. Everything that writes (SARIF upload, filing issues, pushing and
@@ -49,6 +111,22 @@ jobs:
       # Exposed so the downstream jobs can gate on them.
       cve_ids:   ${{ steps.triage.outputs.cve_ids }}
       test_mode: ${{ steps.triage.outputs.test_mode }}
+      route:     ${{ steps.route.outputs.route }}
+      # Open os-package issues whose Ubuntu fix is published (cve_pipeline.py backlog),
+      # and whether the backlog check ran (its artifact `cve-backlog` exists).
+      retry_ids: ${{ steps.backlog.outputs.retry_ids }}
+      # The same fixes as "<package>=<version>", which request-rebuild passes through the
+      # rebuild so its rescan marks only what that rebuild could have installed.
+      retry_versions: ${{ steps.backlog.outputs.retry_versions }}
+      backlog:   ${{ steps.backlog.outputs.ok }}
+      # The image scanned and the rebuild context, validated (see "Resolve the image").
+      image_ref:           ${{ steps.image.outputs.ref }}
+      rebuild_state:       ${{ steps.image.outputs.rebuild_state }}
+      post_rebuild_run_id: ${{ steps.image.outputs.post_rebuild_run_id }}
+      rebuild_result:      ${{ steps.image.outputs.rebuild_result }}
+      deploy_result:       ${{ steps.image.outputs.deploy_result }}
+      pre_rebuild_ids:     ${{ steps.image.outputs.pre_rebuild_ids }}
+      pre_rebuild_versions: ${{ steps.image.outputs.pre_rebuild_versions }}
     permissions:
       contents: read
       packages: read
@@ -68,6 +146,59 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve the image to scan and this run's rebuild context
+        id: image
+        env:
+          IMAGE_DIGEST: ${{ github.event.inputs.image_digest || '' }}
+          POST_REBUILD_RUN_ID: ${{ github.event.inputs.post_rebuild_run_id || '' }}
+          REBUILD_RESULT: ${{ github.event.inputs.rebuild_result || '' }}
+          DEPLOY_RESULT: ${{ github.event.inputs.deploy_result || '' }}
+          PRE_REBUILD_IDS: ${{ github.event.inputs.pre_rebuild_ids || '' }}
+          PRE_REBUILD_VERSIONS: ${{ github.event.inputs.pre_rebuild_versions || '' }}
+        run: |
+          set -euo pipefail
+          # Dispatch inputs reach prompts and issue text, so accept only their expected shapes.
+          if [[ ! "$PRE_REBUILD_IDS" =~ ^[A-Za-z0-9\ -]*$ ]]; then
+            echo "::error::pre_rebuild_ids must be space-separated CVE/GHSA IDs"; exit 1
+          fi
+          if [[ ! "$PRE_REBUILD_VERSIONS" =~ ^[A-Za-z0-9.+~:=\ -]*$ ]]; then
+            echo "::error::pre_rebuild_versions must be space-separated <package>=<version> pairs"; exit 1
+          fi
+          if [[ -n "$IMAGE_DIGEST" && ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::image_digest must be sha256:<64 hex digits>"; exit 1
+          fi
+          if [[ ! "$POST_REBUILD_RUN_ID" =~ ^[0-9]*$ ]]; then
+            echo "::error::post_rebuild_run_id must be a run ID"; exit 1
+          fi
+          if [[ ! "$REBUILD_RESULT" =~ ^[a-z-]*$ || ! "$DEPLOY_RESULT" =~ ^[a-z-]*$ ]]; then
+            echo "::error::rebuild_result and deploy_result must be job results such as success or failure"; exit 1
+          fi
+          # A rebuild's rescan scans the image that rebuild pushed, by digest, so a push
+          # to main that retags main-mega-amd64 in the meantime can't change what is scanned.
+          if [ -n "$IMAGE_DIGEST" ]; then
+            ref="$GHCR_REPO@$IMAGE_DIGEST"
+          else
+            ref="$GHCR_REPO:main-mega-amd64"
+          fi
+          if [ -z "$POST_REBUILD_RUN_ID" ]; then
+            state=not-rebuilt
+          elif [ "$REBUILD_RESULT" = success ]; then
+            state=rebuilt
+          else
+            state=rebuild-failed
+            echo "::warning::The no-cache rebuild in run $POST_REBUILD_RUN_ID did not succeed (${REBUILD_RESULT:-unknown}); scanning $ref as it stands"
+          fi
+          echo "::notice::Scanning $ref (rebuild state: $state)"
+          {
+            echo "ref=$ref"
+            echo "rebuild_state=$state"
+            echo "post_rebuild_run_id=$POST_REBUILD_RUN_ID"
+            echo "rebuild_result=$REBUILD_RESULT"
+            echo "deploy_result=$DEPLOY_RESULT"
+            echo "pre_rebuild_ids=$PRE_REBUILD_IDS"
+            echo "pre_rebuild_versions=$PRE_REBUILD_VERSIONS"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Run Trivy vulnerability scanner
         # Pinned to commit SHA, NOT a floating tag, because aquasecurity/trivy-action
         # was compromised in March 2026 (all version tags force-pushed to malicious
@@ -80,7 +211,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           version: 'v0.72.0'
-          image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
+          image-ref: '${{ steps.image.outputs.ref }}'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
@@ -96,7 +227,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
         with:
           version: 'v0.72.0'
-          image-ref: '${{ env.GHCR_REPO }}:main-mega-amd64'
+          image-ref: '${{ steps.image.outputs.ref }}'
           format: 'json'
           output: 'trivy-results.json'
           severity: 'CRITICAL,HIGH,MEDIUM'  # Include MEDIUM for debugging context
@@ -130,9 +261,10 @@ jobs:
           path: trivy-results.json
 
       # === Claude triage pipeline ===
-      # If new fixable HIGH/CRITICAL CVEs are found, the triage job hands them to
-      # Claude (Sonnet 5.5 on Vertex AI) for analysis and the file-issues job files
-      # the reports as GitHub issues. Source of truth for "new" is GH issues
+      # If new fixable HIGH/CRITICAL CVEs are found, the route step sends them to a
+      # no-cache rebuild first (see the routing note at the top of `jobs:`); those that
+      # survive it, the triage job hands to Claude (Sonnet 5.5 on Vertex AI) for
+      # analysis and the file-issues job files the reports as GitHub issues. Source of truth for "new" is GH issues
       # themselves: a finding is new if no existing issue (open OR closed) has its ID,
       # or a CVE/GHSA alias of it, in its title.
 
@@ -173,12 +305,94 @@ jobs:
           echo "cve_ids=$(cat "$RUNNER_TEMP/new-ids.txt")" >> "$GITHUB_OUTPUT"
           echo "test_mode=false" >> "$GITHUB_OUTPUT"
 
+      # What this scan says about the open `cve` issues: see the note at the top of
+      # `jobs:`. Fails soft: without it nothing is closed or retried, and the new IDs
+      # route as before.
+      - name: Check the open cve issues against this scan
+        id: backlog
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          issues="$RUNNER_TEMP/open-cve-issues.json"
+          closed="$RUNNER_TEMP/closed-cve-issues.json"
+          gh issue list --repo "$GITHUB_REPOSITORY" --label cve --state open --limit 200 \
+            --json number,title,author,labels,comments > "$issues"
+          # The most recently updated closed ones, for an advisory that comes back after the
+          # scan closed its issue as gone. closedAt tells the scan's close from a later one.
+          gh issue list --repo "$GITHUB_REPOSITORY" --label cve --state closed --limit 100 \
+            --json number,title,author,labels,comments,closedAt > "$closed"
+          mkdir -p cve-backlog
+          python3 .github/scripts/cve_pipeline.py backlog \
+            --trivy-json trivy-results.json --issues-json "$issues" --closed-issues-json "$closed" \
+            --waiting-pkgs-out "$RUNNER_TEMP/waiting-pkgs.txt" --out cve-backlog/backlog.json
+
+          # Is each waiting package's fix in Ubuntu's archive yet? Ask apt in the image the
+          # baseimage builds FROM, which is what a no-cache rebuild runs `apt-get upgrade`
+          # in. The probe prints "<package> <fixed> <candidate>" when the candidate is at
+          # least that fixed version. Package names and versions were validated by backlog.
+          if [ -s "$RUNNER_TEMP/waiting-pkgs.txt" ]; then
+            base=$(awk 'toupper($1) == "FROM" { print $2; exit }' docker/Dockerfile.baseimage)
+            echo "::notice::Asking apt in $base whether Ubuntu has published fixes for:"
+            cat "$RUNNER_TEMP/waiting-pkgs.txt"
+            if docker run --rm -i --user root --entrypoint /bin/bash "$base" -c '
+                set -eu
+                apt-get update -qq >/dev/null
+                while read -r name fixed; do
+                  candidate=$(apt-cache policy "$name" 2>/dev/null | sed -n "s/^ *Candidate: *//p")
+                  case "$candidate" in ""|"(none)") continue ;; esac
+                  if dpkg --compare-versions "$candidate" ge "$fixed"; then echo "$name $fixed $candidate"; fi
+                done' < "$RUNNER_TEMP/waiting-pkgs.txt" > "$RUNNER_TEMP/published.txt"; then
+              python3 .github/scripts/cve_pipeline.py backlog \
+                --trivy-json trivy-results.json --issues-json "$issues" --closed-issues-json "$closed" \
+                --published "$RUNNER_TEMP/published.txt" --out cve-backlog/backlog.json
+            else
+              echo "::warning::The apt probe failed, so no rebuild is retried for open os-package issues this run"
+            fi
+          fi
+          {
+            echo "retry_ids=$(jq -r '.retry_ids | join(" ")' cve-backlog/backlog.json)"
+            echo "retry_versions=$(jq -r '.retry_versions | join(" ")' cve-backlog/backlog.json)"
+            echo "ok=true"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload the cve issue backlog
+        if: steps.backlog.outputs.ok == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cve-backlog
+          path: cve-backlog/backlog.json
+
+      # Rebuild first, triage, or nothing: see the routing note at the top of `jobs:`.
+      - name: Route new IDs
+        id: route
+        env:
+          CVE_IDS: ${{ steps.triage.outputs.cve_ids }}
+          RETRY_IDS: ${{ steps.backlog.outputs.retry_ids }}
+          TEST_MODE: ${{ steps.triage.outputs.test_mode }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          SKIP_REBUILD: ${{ github.event.inputs.skip_rebuild || 'false' }}
+          POST_REBUILD_RUN_ID: ${{ steps.image.outputs.post_rebuild_run_id }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/cve_pipeline.py route \
+            --cve-ids "$CVE_IDS" \
+            --retry-ids "$RETRY_IDS" \
+            --test-mode "$TEST_MODE" \
+            --dry-run "$DRY_RUN" \
+            --skip-rebuild "$SKIP_REBUILD" \
+            --post-rebuild-run-id "$POST_REBUILD_RUN_ID" \
+            --out "$RUNNER_TEMP/route.txt"
+          echo "route=$(cat "$RUNNER_TEMP/route.txt")" >> "$GITHUB_OUTPUT"
+
       # Answer "is the fix version actually installable?" deterministically, before
       # Claude runs. Claude has web access below and could look this up itself, but doing
       # it here makes the answer identical run-to-run, costs the agent no turns, and
       # archives it as an artifact for audit.
       - name: Probe conda channel availability for fix versions
-        if: steps.triage.outputs.cve_ids != ''
+        # Only triage reads this; on route=rebuild the rescan probes what survives.
+        if: steps.route.outputs.route == 'triage'
         env:
           CVE_IDS: ${{ steps.triage.outputs.cve_ids }}
         run: |
@@ -195,7 +409,7 @@ jobs:
           fi
 
       - name: Upload conda availability probe as artifact
-        if: steps.triage.outputs.cve_ids != '' && always()
+        if: always() && steps.route.outputs.route == 'triage'
         uses: actions/upload-artifact@v7
         with:
           name: conda-availability-scan
@@ -204,12 +418,81 @@ jobs:
           include-hidden-files: true
 
   # ============================================================================
+  # REQUEST REBUILD — route=rebuild: instead of triaging, dispatch a no-cache
+  # rebuild of main's images. docker.yml's request-rescan job dispatches this
+  # workflow again when the rebuild is done, and that run triages whatever survived.
+  # No agent runs in this job. GITHUB_TOKEN can dispatch workflows (GitHub's
+  # documented exception to "events made with GITHUB_TOKEN don't start workflows").
+  # ============================================================================
+  request-rebuild:
+    needs: scan
+    if: needs.scan.outputs.route == 'rebuild'
+    runs-on: ubuntu-latest
+    # Two scans at once (the daily one and a manual one) would both see nothing in
+    # flight and both dispatch. This group makes the second wait for the first, which
+    # does not finish until its dispatched run is listed. GitHub replaces a pending job
+    # with a newer one, but never cancels the running one.
+    concurrency:
+      group: cve-request-rebuild
+      cancel-in-progress: false
+    outputs:
+      dispatch: ${{ steps.dispatch.outputs.dispatch }}
+    permissions:
+      actions: write    # dispatch docker.yml, and list its runs for the in-flight check
+    steps:
+      - name: Dispatch a no-cache rebuild of main's images
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CVE_IDS: ${{ needs.scan.outputs.cve_ids }}
+          RETRY_IDS: ${{ needs.scan.outputs.retry_ids }}
+          RETRY_VERSIONS: ${{ needs.scan.outputs.retry_versions }}
+          # Must match docker.yml's run-name for a rescan=true dispatch.
+          CVE_REBUILD_RUN_NAME: No-cache rebuild for the CVE pipeline (rescan)
+        run: |
+          set -euo pipefail
+          read -ra all_ids <<< "$CVE_IDS $RETRY_IDS"
+          ids="${all_ids[*]}"
+          # One CVE rebuild at a time. Another CVE-pipeline dispatch still in flight
+          # dispatches a rescan when it finishes, and that rescan recomputes new IDs, so it
+          # covers these too. Only dispatches with rescan=true count: docker.yml names
+          # exactly those runs (its `run-name`), and any other dispatch sends no rescan.
+          count_inflight() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow docker.yml \
+                --event workflow_dispatch --branch main --limit 20 --json status,displayTitle \
+              | jq --arg name "$CVE_REBUILD_RUN_NAME" \
+                  '[.[] | select(.status != "completed" and .displayTitle == $name)] | length'
+          }
+          # Assigned first, so a failed `gh run list` fails this step (scan-red then says the
+          # dispatch failed and the next daily scan tries again) instead of reading as in flight.
+          inflight=$(count_inflight)
+          if [[ ! "$inflight" =~ ^[0-9]+$ ]]; then
+            echo "::error::Could not count in-flight docker.yml runs (got '$inflight')"; exit 1
+          fi
+          if [ "$inflight" != "0" ]; then
+            echo "::notice::A docker.yml dispatch is already in flight on main; not dispatching another. Its rescan covers: $ids"
+            echo "dispatch=in-flight" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh workflow run docker.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f force_rebuild=true -f rescan=true -f pre_rebuild_ids="$ids" -f pre_rebuild_versions="$RETRY_VERSIONS"
+          echo "::notice::Dispatched a no-cache rebuild of main's images for: $ids. Its rescan triages whatever new advisory survives."
+          echo "dispatch=dispatched" >> "$GITHUB_OUTPUT"
+          # `gh workflow run` returns before the run exists. Wait until it is listed, so
+          # the next request-rebuild in this concurrency group counts it as in flight.
+          for _ in $(seq 24); do
+            if n=$(count_inflight) && [[ "$n" =~ ^[1-9][0-9]*$ ]]; then exit 0; fi
+            sleep 5
+          done
+          echo "::warning::The dispatched docker.yml run was not listed within 2 minutes; a concurrent scan could dispatch a second rebuild"
+
+  # ============================================================================
   # TRIAGE — the agent writes one report per new ID. Read-only token: see the note
   # at the top of `jobs:`.
   # ============================================================================
   triage:
     needs: scan
-    if: needs.scan.outputs.cve_ids != ''
+    if: needs.scan.outputs.route == 'triage'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -327,6 +610,32 @@ jobs:
             and add a `> _Test analysis_` blockquote at the top of the report so reviewers
             know it was generated for pipeline validation, not from a real scan finding.)
 
+            **Rebuild state:** ${{ needs.scan.outputs.rebuild_state }}
+
+            Before anything is triaged, this pipeline dispatches a no-cache rebuild of the
+            main images (`docker.yml` with `force_rebuild=true`). That rebuild runs
+            `apt-get upgrade -y`, which upgrades EVERY installed Ubuntu package to the
+            current archive, and re-solves every conda requirement, so it picks up any fix
+            that a newer Ubuntu package or an existing `>=` floor already allows.
+            - `rebuilt`: every ID above SURVIVED that rebuild; this run scanned the rebuilt
+              image. "Rebuild the image" is never the answer, so explain why a rebuild was
+              not enough and what would be. For an `os-package` finding, compare Trivy's
+              `FixedVersion` with the installed version: usually Ubuntu has not published
+              the fix to the archive the image uses yet, and the fix is to wait. Nobody has
+              to act: each daily scan asks apt whether the archive has the fixed version and
+              dispatches another no-cache rebuild once it does.
+            - `rebuild-failed`: the rebuild did not succeed, so this run scanned the image
+              main already had. A rebuild may still clear `os-package` findings and
+              findings an existing `>=` floor allows; say so.
+            - `not-rebuilt`: test mode, a dry run or a maintainer's `skip_rebuild` sent these
+              straight here. For an `os-package` finding, recommend that no-cache rebuild first.
+
+            Never recommend appending a package name to the `apt-get upgrade -y` line in
+            `docker/Dockerfile.baseimage`. It is a deprecated anti-pattern:
+            `apt-get upgrade <names>` upgrades every package anyway, and the commits that did
+            it (423d1625, fbab14c4, a1dfe313, 2823b591, 3cf00139) only worked because
+            changing the line's text invalidated the build cache. Do not cite them as precedent.
+
             ## Required reading (do this BEFORE writing reports)
 
             1. `trivy-results.json` (in the workspace root) — **the authoritative source for
@@ -403,7 +712,11 @@ jobs:
                vector classes the policy filters and why this CVE's vector doesn't match.
             5. **Recommended fix** — concrete and actionable. Options:
                 - Version bump (which file, which floor)
-                - Inline Dockerfile mitigation (which Dockerfile, what RUN-block addition)
+                - Inline Dockerfile mitigation (which Dockerfile, what RUN-block addition;
+                  never an edit to an `apt-get` line, see "Rebuild state" above)
+                - For an `os-package` finding: "a no-cache rebuild clears it" (state
+                  `not-rebuilt` or `rebuild-failed`), or "wait for Ubuntu to publish
+                  <FixedVersion>; the daily scan rebuilds once it does" (state `rebuilt`)
                 - `.trivyignore.yaml` entry (scoped by `paths` or `purls`, with
                   justification matching the existing style)
                Cite historical precedent when applicable: `(mirror the fix in commit <sha>)`.
@@ -553,6 +866,236 @@ jobs:
           fi
 
   # ============================================================================
+  # SCAN-RED — one issue per rebuild cycle. The rebuild and its rescan are started
+  # by github-actions[bot], and GitHub emails a run's result only to whoever
+  # started it, so without this issue a cycle that cleared everything, or one that
+  # needs a maintainer, is noticed by nobody. Opened when this run dispatches a
+  # rebuild; closed by the rescan once its findings show the rebuild cleared
+  # everything or every survivor has an issue; left open, with a comment, when the
+  # rebuild failed, its deploy-to-quay did not succeed, a survivor is unfiled, or the
+  # rescan's own scan job failed (it runs then too, and never closes anything). A later
+  # daily scan with nothing new closes a leftover one. Decisions live in
+  # cve_pipeline.py scan-red. No agent runs in this job.
+  # ============================================================================
+  scan-red:
+    needs: [scan, request-rebuild, triage, file-issues]
+    if: |
+      always()
+      && (needs.scan.result == 'success'
+          || (needs.scan.result == 'failure' && (github.event.inputs.post_rebuild_run_id || '') != ''))
+      && needs.scan.outputs.test_mode != 'true'
+      && (github.event.inputs.dry_run || 'false') != 'true'
+    runs-on: ubuntu-latest
+    # Two runs at once could both find no open scan-red issue and both open one.
+    concurrency:
+      group: cve-scan-red
+      cancel-in-progress: false
+    permissions:
+      contents: read    # checkout for cve_pipeline.py
+      issues: write     # open, comment on and close the scan-red issue
+    steps:
+      - name: Checkout repository
+        # For cve_pipeline.py. No agent ran in this job, so the checkout is trusted.
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download Trivy JSON results
+        # For the findings table. Without it the table lists bare IDs.
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: trivy-mega-scheduled
+          path: .
+
+      - name: Open, comment on or close the scan-red issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SCAN_RESULT: ${{ needs.scan.result }}
+          ROUTE: ${{ needs.scan.outputs.route }}
+          CVE_IDS: ${{ needs.scan.outputs.cve_ids }}
+          RETRY_IDS: ${{ needs.scan.outputs.retry_ids }}
+          PRE_REBUILD_IDS: ${{ needs.scan.outputs.pre_rebuild_ids }}
+          # A scan job that failed early set none of its outputs; the raw dispatch inputs
+          # stand in, validated below as the scan job validates them.
+          POST_REBUILD_RUN_ID: ${{ needs.scan.outputs.post_rebuild_run_id || github.event.inputs.post_rebuild_run_id }}
+          REBUILD_RESULT: ${{ needs.scan.outputs.rebuild_result || github.event.inputs.rebuild_result }}
+          DEPLOY_RESULT: ${{ needs.scan.outputs.deploy_result || github.event.inputs.deploy_result }}
+          DISPATCH: ${{ needs.request-rebuild.outputs.dispatch }}
+          FILE_ISSUES_RESULT: ${{ needs.file-issues.result }}
+          IMAGE_REF: ${{ needs.scan.outputs.image_ref || 'main-mega-amd64' }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$POST_REBUILD_RUN_ID" =~ ^[0-9]*$ || ! "$REBUILD_RESULT" =~ ^[a-z-]*$ || ! "$DEPLOY_RESULT" =~ ^[a-z-]*$ ]]; then
+            echo "::error::post_rebuild_run_id, rebuild_result or deploy_result is malformed"; exit 1
+          fi
+          repo_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          gh label create scan-red --color B60205 --repo "$GITHUB_REPOSITORY" \
+            --description "A CVE rebuild cycle (container-scan.yml) is in progress or needs a maintainer" \
+            2>/dev/null || true
+
+          # The lowest-numbered open scan-red issue. Its dedup markers count only in the
+          # body and in comments this workflow wrote: anyone can comment on a public repo.
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label scan-red --state open \
+            --limit 50 --json number --jq 'map(.number) | sort | first // empty')
+          if [ -n "$open" ]; then
+            gh issue view "$open" --repo "$GITHUB_REPOSITORY" --json number,body,comments \
+              --jq '{number, body, comments: [.comments[] | select(.author.login == "github-actions") | {body}]}' \
+              > "$RUNNER_TEMP/open-scan-red.json"
+          else
+            echo null > "$RUNNER_TEMP/open-scan-red.json"
+          fi
+          # Every issue, open and closed, the same set new-ids matches against: a survivor
+          # counts as tracked if any issue title names it or one of its aliases.
+          gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 5000 \
+            --json number,title > "$RUNNER_TEMP/all-issues.json"
+
+          python3 .github/scripts/cve_pipeline.py scan-red \
+            --route "${ROUTE:-none}" \
+            --scan-result "$SCAN_RESULT" \
+            --cve-ids "$CVE_IDS" \
+            --retry-ids "$RETRY_IDS" \
+            --pre-rebuild-ids "$PRE_REBUILD_IDS" \
+            --post-rebuild-run-id "$POST_REBUILD_RUN_ID" \
+            --rebuild-result "$REBUILD_RESULT" \
+            --deploy-result "$DEPLOY_RESULT" \
+            --dispatch "$DISPATCH" \
+            --file-issues-result "$FILE_ISSUES_RESULT" \
+            --open-issue-json "$RUNNER_TEMP/open-scan-red.json" \
+            --issues-json "$RUNNER_TEMP/all-issues.json" \
+            --trivy-json trivy-results.json \
+            --repo-url "$repo_url" \
+            --run-id "$GITHUB_RUN_ID" \
+            --image "$IMAGE_REF" \
+            --date "$(date -u +%Y-%m-%d)" \
+            --out "$RUNNER_TEMP/decision.json"
+
+          decision="$RUNNER_TEMP/decision.json"
+          action=$(jq -r .action "$decision")
+          number=$(jq -r '.number // empty' "$decision")
+          jq -j .body "$decision" > "$RUNNER_TEMP/body.md"   # -j: an empty body leaves an empty file
+          case "$action" in
+            open)
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$(jq -r .title "$decision")" \
+                --body-file "$RUNNER_TEMP/body.md" --label scan-red --label security ;;
+            comment)
+              gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md" ;;
+            close)
+              gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY" --reason completed ;;
+            none) ;;
+            *) echo "::error::unknown scan-red action: $action"; exit 1 ;;
+          esac
+          if [ -s "$RUNNER_TEMP/body.md" ]; then
+            {
+              echo "### scan-red: $action${number:+ #$number}"
+              echo
+              cat "$RUNNER_TEMP/body.md"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ============================================================================
+  # UPDATE CVE ISSUES — acts on the scan job's backlog (cve_pipeline.py backlog and
+  # backlog-actions): closes each open `cve` issue this workflow filed that the scan
+  # no longer reports, reopens one it closed that way once the advisory is back
+  # (both only while main-mega-amd64 is still the image scanned), and, in a
+  # successful rebuild's rescan, marks each published Ubuntu fix that rebuild was
+  # dispatched for but still did not install, so the scan stops retrying it and a
+  # maintainer is asked to look. No agent runs in this job.
+  # ============================================================================
+  update-cve-issues:
+    needs: scan
+    if: |
+      needs.scan.result == 'success'
+      && needs.scan.outputs.backlog == 'true'
+      && needs.scan.outputs.test_mode != 'true'
+      && (github.event.inputs.dry_run || 'false') != 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cve-update-issues
+      cancel-in-progress: false
+    permissions:
+      contents: read    # checkout for cve_pipeline.py
+      issues: write     # close and comment on cve issues
+      packages: read    # resolve main-mega-amd64's current digest
+    steps:
+      - name: Checkout repository
+        # For cve_pipeline.py. No agent ran in this job, so the checkout is trusted.
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download the cve issue backlog
+        uses: actions/download-artifact@v8
+        with:
+          name: cve-backlog
+          path: cve-backlog
+
+      - name: Close cleared issues and mark fixes a rebuild missed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REBUILD_STATE: ${{ needs.scan.outputs.rebuild_state }}
+          POST_REBUILD_RUN_ID: ${{ needs.scan.outputs.post_rebuild_run_id }}
+          PRE_REBUILD_VERSIONS: ${{ needs.scan.outputs.pre_rebuild_versions }}
+          IMAGE_REF: ${{ needs.scan.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          actions="$RUNNER_TEMP/actions.json"
+          # What main-mega-amd64 points at now, checked just before acting: a push since the
+          # scan (or since the rebuild a rescan pinned) may have published an image the scan
+          # never saw. Unresolved means nothing is closed or reopened this run.
+          main_digest=$(docker buildx imagetools inspect "$GHCR_REPO:main-mega-amd64" --format '{{json .Manifest}}' \
+            | jq -r '.digest // empty') || main_digest=""
+          [[ "$main_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || main_digest=""
+          python3 .github/scripts/cve_pipeline.py backlog-actions \
+            --backlog cve-backlog/backlog.json \
+            --rebuild-state "$REBUILD_STATE" \
+            --post-rebuild-run-id "$POST_REBUILD_RUN_ID" \
+            --pre-rebuild-versions "$PRE_REBUILD_VERSIONS" \
+            --main-digest "$main_digest" \
+            --repo-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --image "$IMAGE_REF" \
+            --out "$actions"
+          failed=0
+          for i in $(seq 0 $(( $(jq length "$actions") - 1 ))); do
+            action=$(jq -r ".[$i].action" "$actions")
+            number=$(jq -r ".[$i].number" "$actions")
+            jq -j ".[$i].body" "$actions" > "$RUNNER_TEMP/body.md"
+            case "$action" in
+              close)
+                gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md" \
+                  && gh issue close "$number" --repo "$GITHUB_REPOSITORY" --reason completed \
+                  || failed=$((failed+1)) ;;
+              reopen)
+                gh issue reopen "$number" --repo "$GITHUB_REPOSITORY" \
+                  && gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md" \
+                  || failed=$((failed+1)) ;;
+              comment)
+                gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md" \
+                  || failed=$((failed+1)) ;;
+              *) echo "::error::unknown backlog action: $action"; failed=$((failed+1)); continue ;;
+            esac
+            {
+              echo "### $action #$number"
+              echo
+              cat "$RUNNER_TEMP/body.md"
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed cve issue update(s) failed"
+            exit 1
+          fi
+
+  # ============================================================================
   # CVE AUTO-FIX PR JOB — downstream of `scan`. When the scan job filed new
   # `cve`-labeled issues, hand the full set of currently-open CVE issues to
   # Claude Sonnet 5.5 (on Vertex AI) and ask it whether *all* of them can be
@@ -585,7 +1128,8 @@ jobs:
       && contains(fromJSON('["success", "skipped"]'), needs.file-issues.result)
       && (
         (
-          needs.scan.outputs.cve_ids != ''
+          needs.scan.outputs.route == 'triage'
+          && needs.scan.outputs.cve_ids != ''
           && needs.scan.outputs.test_mode != 'true'
           && (github.event.inputs.dry_run    || 'false') != 'true'
           && (github.event.inputs.skip_fix_pr || 'false') != 'true'
@@ -636,14 +1180,33 @@ jobs:
           # `.comments[]` on null would abort this step under `set -e`).
           gh issue list --repo "$GITHUB_REPOSITORY" \
             --label cve --state open \
-            --json number,title,body,labels,comments --limit 100 \
+            --json number,title,body,labels,comments,author --limit 100 \
           | jq '[ .[]
                   | .comments = [ (.comments // [])[]
                       | select(.authorAssociation == "OWNER"
                                or .authorAssociation == "MEMBER"
                                or .authorAssociation == "COLLABORATOR")
                       | {author: .author.login, authorAssociation, createdAt, body} ] ]' \
-            > .cve-fix-context/open-issues.json
+            > "$RUNNER_TEMP/open-cve-issues.json"
+          # Leave out what no PR can fix: issues whose findings are all Ubuntu packages
+          # (a no-cache rebuild clears them, which the scan job dispatches once Ubuntu
+          # publishes the fix) and issues the scan no longer reports (update-cve-issues
+          # closes those). Otherwise the agent's all-or-nothing rule would skip every PR
+          # while one of them is open. If the check fails, fall back to every open issue.
+          if python3 .github/scripts/cve_pipeline.py backlog \
+              --trivy-json trivy-results.json --issues-json "$RUNNER_TEMP/open-cve-issues.json" \
+              --out "$RUNNER_TEMP/backlog.json"; then
+            jq --slurpfile b "$RUNNER_TEMP/backlog.json" \
+              '($b[0].gone + $b[0].waiting | map(.number)) as $out | map(select(.number as $n | $out | index($n) | not))' \
+              "$RUNNER_TEMP/open-cve-issues.json" > .cve-fix-context/open-issues.json
+            left_out=$(jq -r '[(.gone + .waiting)[].number | "#\(.)"] | join(" ")' "$RUNNER_TEMP/backlog.json")
+            if [ -n "$left_out" ]; then
+              echo "::notice::Left out of the fix-PR assessment (Ubuntu-only or no longer reported): $left_out"
+            fi
+          else
+            echo "::warning::cve_pipeline.py backlog failed; the agent sees every open cve issue"
+            cp "$RUNNER_TEMP/open-cve-issues.json" .cve-fix-context/open-issues.json
+          fi
           # Log what the filter kept vs dropped. Maintainer comments now steer the fix, so
           # silently losing them would be worse than the crash the guard above prevents.
           kept=$(jq '[.[].comments | length] | add // 0' .cve-fix-context/open-issues.json)
@@ -763,10 +1326,14 @@ jobs:
 
             ## Inputs
 
-            1. `.cve-fix-context/open-issues.json` — every open issue with the
-               `cve` label. Each entry has `number`, `title`, `body`, `labels`,
-               `comments`. The `body` contains the original triage report (CVSS,
-               dependency chain, recommended fix, etc.).
+            1. `.cve-fix-context/open-issues.json` — the open issues with the
+               `cve` label, except two kinds no PR acts on, which the workflow
+               leaves out: issues whose findings are all Ubuntu packages (a no-cache
+               rebuild clears them; the scan dispatches one once Ubuntu publishes
+               the fix) and issues the scan no longer reports (the scan closes
+               them). Each entry has `number`, `title`, `body`, `labels`,
+               `comments`, `author`. The `body` contains the original triage report
+               (CVSS, dependency chain, recommended fix, etc.).
             2. `.cve-fix-context/open-fix-prs.json` — every open PR with the
                `cve-fix` label (prior auto-fix runs whose PRs haven't merged yet).
             3. `trivy-results.json` — the most recent scan output containing ALL
@@ -784,6 +1351,8 @@ jobs:
                    `noarch`). This is the floor to pin.
                  - `fix_shape` — whether a requirements pin can fix this finding
                    at all. `os-package` (Ubuntu/apt) and `bundled-jar` cannot.
+                   An `os-package` finding cannot be fixed in this PR at all: see
+                   (b) below.
                  - `constrained_by` — other packages pinned in
                    `docker/requirements/*.txt` whose own dependency constraints
                    would exclude the fix version. Where `floor_needs_raise` is
@@ -842,7 +1411,9 @@ jobs:
 
             ## Confidence bar (MODERATE) — you must PROCEED only if ALL open CVE
             ## issues can be closed by changes that fall into one of these
-            ## categories:
+            ## categories (an issue that also has an `os-package` finding counts
+            ## once its other findings are fixed: see "Never edit an `apt-get`
+            ## line" below):
 
             **(a) Version-floor bump in `docker/requirements/*.txt`.** Direct
             edit to a requirements file pinning the affected package to a
@@ -861,6 +1432,19 @@ jobs:
             commit.** You must cite the precedent SHA in your PR body. The
             mitigation pattern (the RUN-block additions) must match the
             precedent pattern; do not invent new mitigation shapes.
+
+            **Never edit an `apt-get` line; the workflow rejects any patch that
+            does.** New advisories reach triage only after a no-cache rebuild of
+            the main images, which runs `apt-get upgrade -y` (every installed
+            Ubuntu package) and re-solves conda. An `os-package` finding is never
+            a reason to SKIP: issues with only those findings never reach you, and
+            when an issue has findings you can fix besides an `os-package` one, fix
+            those and leave the issue out of the PR's `Closes` lines. Once your PR
+            merges, only the Ubuntu findings remain, and the scan retries the
+            rebuild and closes the issue when they clear. The commits that
+            appended package names to the `apt-get upgrade` line (423d1625,
+            fbab14c4, a1dfe313, 2823b591, 3cf00139) are a deprecated anti-pattern
+            that only worked by busting the build cache. They are not precedent.
 
             **(c) `.trivyignore.yaml` entry, correctly scoped, whose justification
             mirrors an existing entry's wording and rationale.** Acceptable when (i) the CVE is
@@ -1188,6 +1772,25 @@ jobs:
           if [ -n "$disallowed" ]; then
             echo "::error::Auto-fix diff touches files outside the allowed change surface — refusing to open a PR"
             echo "$disallowed" | sed 's/^/  /'
+            exit 1
+          fi
+          # No edits in or next to an apt-get command. Appending package names to
+          # `apt-get upgrade` fixes nothing (it upgrades everything already) and only busts
+          # the build cache, which the no-cache rebuild before triage has already done. A
+          # hunk is refused if it changes anything within 3 lines of an apt-get line, so a
+          # package added on a continuation line of the same RUN is caught too.
+          # apt-get, apt, aptitude or dpkg as a word: `libapt-pkg7.0` or `apt-transport-https` is not one.
+          apt_hunks=$(git diff --cached -U3 -- 'docker/Dockerfile.*' | awk '
+            BEGIN { aptcmd = "(^|[^A-Za-z0-9_.-])(apt-get|apt|aptitude|dpkg)([^A-Za-z0-9_.-]|$)" }
+            function flush() { if (changed && apt) bad = bad hunk "\n"; changed = 0; apt = 0 }
+            /^diff --git/    { flush(); hunk = ""; next }
+            /^(\+\+\+|---) / { next }
+            /^@@/            { flush(); hunk = $0; next }
+                             { if ($0 ~ /^[+-]/) changed = 1; if ($0 ~ aptcmd) apt = 1 }
+            END              { flush(); printf "%s", bad }')
+          if [ -n "$apt_hunks" ]; then
+            echo "::error::Auto-fix diff edits a Dockerfile apt-get command — refusing to open a PR"
+            echo "$apt_hunks" | sed 's/^/  /'
             exit 1
           fi
           # Content changes to regular files only: no symlinks, executables, mode
