@@ -32,12 +32,15 @@ so the matching rules are unit-tested instead of living in inline bash.
             that scanned the OS); `waiting` when every finding is an Ubuntu package, which
             no PR fixes, so the fix-PR agent never sees it; `retry` for a waiting issue
             once the apt probe (--published) shows Ubuntu's archive has a fixed version
-            that no completed rebuild has already failed to install. Writes JSON, and with
-            --waiting-pkgs-out the "<package> <fixed version>" lines the probe checks.
+            that no completed rebuild has already failed to install; `reopen` for a closed
+            issue (--closed-issues-json) that the scan itself closed as gone, once its
+            advisory is back. Writes JSON, and with --waiting-pkgs-out the
+            "<package> <fixed version>" lines the probe checks.
   backlog-actions
-            The issue updates backlog calls for, as JSON [{action: close|comment, number,
-            body}]: close each gone issue, and after a successful rebuild's rescan, mark
-            each retry as tried (a `cve-retry` marker) and ask for a maintainer.
+            The issue updates backlog calls for, as JSON [{action: close|reopen|comment,
+            number, body}]: close each gone issue, reopen each returning one, and after a
+            successful rebuild's rescan, mark each retry that rebuild was dispatched for as
+            tried (a `cve-retry` marker) and ask for a maintainer.
 
 IDs match as whole IDs only: CVE-2026-1123 is not named by a title about CVE-2026-11234.
 
@@ -55,9 +58,11 @@ Usage:
         --trivy-json trivy-results.json --repo-url "$REPO_URL" --run-id "$GITHUB_RUN_ID" \\
         --image "$IMAGE_REF" --date 2026-11-05 --out decision.json
     cve_pipeline.py backlog --trivy-json trivy-results.json --issues-json open-cve-issues.json \
-        [--published published.txt] [--waiting-pkgs-out waiting-pkgs.txt] --out backlog.json
+        [--closed-issues-json closed-cve-issues.json] [--published published.txt] \
+        [--waiting-pkgs-out waiting-pkgs.txt] --out backlog.json
     cve_pipeline.py backlog-actions --backlog backlog.json --rebuild-state rebuilt \
-        --post-rebuild-run-id "$RUN_ID" --repo-url "$REPO_URL" --run-id "$GITHUB_RUN_ID" \
+        --post-rebuild-run-id "$RUN_ID" --pre-rebuild-ids "$PRE_REBUILD_IDS" \
+        --repo-url "$REPO_URL" --run-id "$GITHUB_RUN_ID" \
         --image "$IMAGE_REF" --out actions.json
 
 new-ids, pr-title, route, scan-red, backlog and backlog-actions write their result to --out and report decisions
@@ -347,9 +352,13 @@ def scan_red(*, route, cve_ids, retry_ids=(), pre_rebuild_ids=(), post_rebuild_r
                 for name in names:
                     present.setdefault(name, vuln_id)
         if present is None:
-            cleared, survivors = [], ids
+            cleared, lingering, survivors = [], [], ids
         else:
-            cleared = sorted(i for i in set(pre_rebuild_ids) if i not in present)
+            # Gone from the report altogether, or still in it but no longer fixable HIGH/CRITICAL.
+            anywhere = _advisory_names(report)
+            gone = [i for i in sorted(set(pre_rebuild_ids)) if i not in present]
+            cleared = [i for i in gone if i.upper() not in anywhere]
+            lingering = [i for i in gone if i.upper() in anywhere]
             survivors = sorted(set(ids) | {present[i] for i in pre_rebuild_ids if i in present})
 
         def tracked_by(vuln_id):
@@ -388,12 +397,15 @@ def scan_red(*, route, cve_ids, retry_ids=(), pre_rebuild_ids=(), post_rebuild_r
 
         parts = [f'Rescan of `{image}` after the no-cache rebuild in {rebuild_link}.']
         if present is not None:
-            if not survivors:
+            if not survivors and not lingering:
                 parts.append('The rebuild cleared every advisory it was dispatched for. '
                              + (f'Cleared by the rebuild: {", ".join(cleared)}.' if cleared else ''))
             else:
                 parts.append(f'Cleared by the rebuild: {", ".join(cleared)}.' if cleared
                              else 'The rebuild cleared none of the advisories it was dispatched for.')
+            if lingering:
+                parts.append(f'Still in the image, but no longer a fixable HIGH/CRITICAL finding: '
+                             f'{", ".join(lingering)}.')
         if survivors:
             parts.append('Still present after the rebuild:\n\n' + '\n'.join(
                 f'- {v}: ' + (f'#{tracking[v]["number"]}' if tracking[v] else 'no issue yet') for v in survivors))
@@ -430,6 +442,16 @@ def scan_red(*, route, cve_ids, retry_ids=(), pre_rebuild_ids=(), post_rebuild_r
         return decide('open', body, title)
 
     if route == 'none' and open_issue:
+        if retry_ids:
+            return decide('none', f'Nothing new as of {run_link}, but Ubuntu has published fixes for '
+                                  f'{", ".join(sorted(retry_ids))} that this run could not rebuild for, so this '
+                                  f'cycle stays open.')
+        # A problem the current cycle reported (after its latest `ids=` marker) is still there.
+        latest = max((n for n, m in enumerate(markers) if m.startswith('ids=')), default=-1)
+        held = [m for m in markers[latest + 1:] if m.startswith(('rebuild-failed:', 'deploy-failed:'))]
+        if held:
+            return decide('none', f'Nothing new as of {run_link}, but this cycle still needs a maintainer '
+                                  f'({", ".join(held)}), so it stays open.')
         body = (f'No new fixable HIGH/CRITICAL advisories remain in `{image}` as of {run_link}, '
                 f'so this rebuild cycle is over.')
         return decide('close', body)
@@ -441,6 +463,9 @@ def scan_red(*, route, cve_ids, retry_ids=(), pre_rebuild_ids=(), post_rebuild_r
 BOT_LOGINS = frozenset({'github-actions', 'app/github-actions', 'github-actions[bot]'})
 RETRY_MARKER = '<!-- cve-retry:{} -->'
 RETRY_MARKER_RE = re.compile(r'<!-- cve-retry:(\S+?) -->')
+# On the comments that close an issue as gone and that reopen it.
+BACKLOG_MARKER = '<!-- cve-backlog:{} -->'
+BACKLOG_MARKER_RE = re.compile(r'<!-- cve-backlog:(\S+?) -->')
 # Debian package names and versions (Debian Policy 5.6.1 and 5.6.12). Anything else is
 # dropped before it reaches the apt probe's shell.
 DEB_NAME = re.compile(r'[a-z0-9][a-z0-9+.-]+')
@@ -456,18 +481,25 @@ def _filed_by_this_workflow(issue):
     return _login(issue.get('author')) in BOT_LOGINS and 'test' not in labels
 
 
-def _retry_markers(issue):
-    """The cve-retry markers in comments this workflow wrote: anyone can comment on a public repo."""
-    return {m for c in issue.get('comments') or [] if _login(c.get('author')) in BOT_LOGINS
-            for m in RETRY_MARKER_RE.findall(c.get('body') or '')}
+def _bot_markers(issue, marker_re):
+    """Markers in the comments this workflow wrote, oldest first: anyone can comment on a public repo."""
+    return [m for c in issue.get('comments') or [] if _login(c.get('author')) in BOT_LOGINS
+            for m in marker_re.findall(c.get('body') or '')]
 
 
-def backlog(issues, report, published=None):
-    """Sort the open `cve` issues this workflow filed by what report says about them. See the module doc.
+def _advisory_names(report):
+    """Every ID and CVE/GHSA alias of every finding in a report, upper-cased."""
+    return {a.upper() for result in (report or {}).get('Results') or []
+            for vuln in result.get('Vulnerabilities') or []
+            for a in [vuln.get('VulnerabilityID') or '', *(vuln.get('VendorIDs') or [])] if ADVISORY_ID.fullmatch(a)}
 
-    published is {Debian package: candidate version} for the packages whose candidate in
-    today's Ubuntu archive is at least one of their fixed versions, or None if the apt probe
-    did not run.
+
+def backlog(issues, report, published=None, closed_issues=()):
+    """Sort the `cve` issues this workflow filed by what report says about them. See the module doc.
+
+    published is {(Debian package, fixed version): candidate} for each fixed version that
+    today's Ubuntu archive has a candidate at least as new as, or None if the apt probe did
+    not run.
     """
     results = (report or {}).get('Results') or []
     complete = any(r.get('Class') == 'os-pkgs' for r in results)
@@ -504,30 +536,56 @@ def backlog(issues, report, published=None):
         waiting.append({'number': issue['number'], 'ids': ids, 'vuln_ids': vuln_ids,
                         'packages': [{'name': n, 'fixed': f} for n, f in sorted(packages.items())]})
         if published:
-            tried = _retry_markers(issue)
-            markers = [f'{n}={published[n]}' for n in sorted(packages) if n in published]
+            tried = set(_bot_markers(issue, RETRY_MARKER_RE))
+            markers = []
+            for name, fixed in sorted(packages.items()):
+                candidate = next((published[(name, f)] for f in fixed if (name, f) in published), None)
+                if candidate:
+                    markers.append(f'{name}={candidate}')
             untried = [m for m in markers if m not in tried]
             if untried:
                 retry.append({'number': issue['number'], 'ids': ids, 'vuln_ids': vuln_ids, 'markers': untried})
-    return {'complete': complete, 'gone': gone, 'waiting': waiting, 'retry': retry,
+
+    # A closed issue comes back only if this workflow closed it as gone and nobody closed it
+    # again after a reopen: a fix PR's or a maintainer's close stands.
+    reopen = []
+    for issue in sorted(closed_issues, key=lambda i: i['number']):
+        ids = list(dict.fromkeys(ADVISORY_ID.findall(issue.get('title') or '')))
+        if not ids or not _filed_by_this_workflow(issue):
+            continue
+        states = [m for m in _bot_markers(issue, BACKLOG_MARKER_RE) if m in ('gone', 'reopened')]
+        wanted = {i.upper() for i in ids}
+        if states and states[-1] == 'gone' and any(names & wanted for names, _, _ in findings):
+            reopen.append({'number': issue['number'], 'ids': ids})
+    return {'complete': complete, 'gone': gone, 'waiting': waiting, 'retry': retry, 'reopen': reopen,
             'retry_ids': sorted({v for r in retry for v in r['vuln_ids']})}
 
 
-def backlog_actions(backlog, *, rebuild_state, post_rebuild_run_id='', repo_url='', run_id='', image=''):
+def backlog_actions(backlog, *, rebuild_state, post_rebuild_run_id='', pre_rebuild_ids=(), repo_url='', run_id='',
+                    image=''):
     """The issue updates a backlog calls for: [{action: close|comment, number, body}]. See the module doc."""
     run_link = f'[run {run_id}]({repo_url}/actions/runs/{run_id})'
     actions = []
     for entry in backlog.get('gone') or []:
         body = (f'{run_link} scanned `{image}` and no longer finds {", ".join(entry["ids"])}: whatever cleared '
                 f'it (a newer upstream image, a no-cache rebuild, a fix PR or a `.trivyignore.yaml` entry) is in '
-                f'main\'s images now, so this issue is done.\n\nIf the advisory comes back, reopen this issue: the '
-                f'scan never files an advisory again once any issue, open or closed, names it.')
+                f'main\'s images now, so this issue is done. If the advisory comes back, the scan reopens this '
+                f'issue.\n\n' + BACKLOG_MARKER.format('gone'))
         actions.append({'action': 'close', 'number': entry['number'], 'body': body})
+    for entry in backlog.get('reopen') or []:
+        body = (f'{run_link} finds {", ".join(entry["ids"])} in `{image}` again. The scan closed this issue when '
+                f'the advisory was gone, and it never files an advisory twice, so it reopens this one '
+                f'instead.\n\n' + BACKLOG_MARKER.format('reopened'))
+        actions.append({'action': 'reopen', 'number': entry['number'], 'body': body})
     if rebuild_state != 'rebuilt':
         # Before a rebuild the route dispatches one; after a failed one, apt never ran.
         return actions
     rebuild_link = f'[run {post_rebuild_run_id}]({repo_url}/actions/runs/{post_rebuild_run_id})'
+    dispatched_for = {i.upper() for i in pre_rebuild_ids}
     for entry in backlog.get('retry') or []:
+        if not dispatched_for & {i.upper() for i in [*entry['vuln_ids'], *entry['ids']]}:
+            # This rebuild ran for other advisories, maybe before Ubuntu published this fix.
+            continue
         versions = ', '.join('`{}` {}'.format(*m.split('=', 1)) for m in entry['markers'])
         body = (f'The no-cache rebuild in {rebuild_link} ran `apt-get upgrade -y` while Ubuntu\'s archive had '
                 f'{versions}, at or above the fixed version, yet {run_link} still finds '
@@ -540,12 +598,13 @@ def backlog_actions(backlog, *, rebuild_state, post_rebuild_run_id='', repo_url=
 
 
 def parse_published(text, out):
-    """{package: candidate} from the apt probe's "<package> <candidate>" lines."""
+    """{(package, fixed version): candidate} from the apt probe's "<package> <fixed> <candidate>" lines."""
     published = {}
     for line in text.splitlines():
         fields = line.split()
-        if len(fields) == 2 and DEB_NAME.fullmatch(fields[0]) and DEB_VERSION.fullmatch(fields[1]):
-            published[fields[0]] = fields[1]
+        if (len(fields) == 3 and DEB_NAME.fullmatch(fields[0])
+                and DEB_VERSION.fullmatch(fields[1]) and DEB_VERSION.fullmatch(fields[2])):
+            published[(fields[0], fields[1])] = fields[2]
         elif fields:
             annotate(out, 'warning', f'Ignoring a malformed apt probe line: {line!r}')
     return published
@@ -603,13 +662,16 @@ def main(argv=None):
     p.add_argument('--issues-json', required=True,
                    help='open cve issues: [{number, title, author: {login}, labels: [{name}], '
                         'comments: [{author: {login}, body}]}]')
-    p.add_argument('--published', help='the apt probe\'s "<package> <candidate>" lines; omit if it did not run')
+    p.add_argument('--closed-issues-json', help='closed cve issues, in the same shape, to check for reopening')
+    p.add_argument('--published',
+                   help='the apt probe\'s "<package> <fixed> <candidate>" lines; omit if it did not run')
     p.add_argument('--waiting-pkgs-out', help='written with the "<package> <fixed version>" lines to probe')
     p.add_argument('--out', required=True, help='written with the backlog as JSON')
     p = commands.add_parser('backlog-actions', help='the issue updates a backlog calls for')
     p.add_argument('--backlog', required=True, help='backlog\'s JSON')
     p.add_argument('--rebuild-state', required=True, choices=('not-rebuilt', 'rebuilt', 'rebuild-failed'))
     p.add_argument('--post-rebuild-run-id', default='')
+    p.add_argument('--pre-rebuild-ids', default='', help='the IDs the rebuild was dispatched for')
     p.add_argument('--repo-url', required=True)
     p.add_argument('--run-id', required=True)
     p.add_argument('--image', required=True, help='the image ref this run scanned')
@@ -657,13 +719,18 @@ def main(argv=None):
         if args.published:
             with open(args.published) as f:
                 published = parse_published(f.read(), sys.stdout)
-        result = backlog(issues, trivy, published)
+        closed = []
+        if args.closed_issues_json:
+            with open(args.closed_issues_json) as f:
+                closed = json.load(f)
+        result = backlog(issues, trivy, published, closed)
         if not result['complete']:
             annotate(sys.stdout, 'warning', 'The Trivy report has no Ubuntu (os-pkgs) result, so no issue counts as gone')
         annotate(sys.stdout, 'notice', 'Open cve issues: '
                  f'gone {[e["number"] for e in result["gone"]]}, '
                  f'waiting on Ubuntu {[e["number"] for e in result["waiting"]]}, '
-                 f'Ubuntu fix published {[e["number"] for e in result["retry"]]}')
+                 f'Ubuntu fix published {[e["number"] for e in result["retry"]]}, '
+                 f'back again {[e["number"] for e in result["reopen"]]}')
         if args.waiting_pkgs_out:
             lines = dict.fromkeys(f'{p["name"]} {v}' for e in result['waiting'] for p in e['packages']
                                   for v in p['fixed'])
@@ -676,7 +743,8 @@ def main(argv=None):
         with open(args.backlog) as f:
             result = backlog_actions(
                 json.load(f), rebuild_state=args.rebuild_state, post_rebuild_run_id=args.post_rebuild_run_id,
-                repo_url=args.repo_url, run_id=args.run_id, image=args.image)
+                pre_rebuild_ids=args.pre_rebuild_ids.split(), repo_url=args.repo_url, run_id=args.run_id,
+                image=args.image)
         print('backlog actions: ' + (', '.join(f'{a["action"]} #{a["number"]}' for a in result) or 'none'))
         with open(args.out, 'w') as f:
             json.dump(result, f)
