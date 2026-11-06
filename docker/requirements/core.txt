@@ -29,7 +29,12 @@ seaborn>=0.12.0
 zstandard>=0.23.0
 
 # Bioinformatics tools
-bbmap>=39.10
+# Cap <40.04: BBMap 40.04 and 40.05 (bioconda, Oct 2026) can livelock while building an
+# alignment index. The IndexMaker4 CountThreads spin in Object.wait() on a shared lock and
+# bbmap.sh never exits. It hung tests/unit/core/test_tools_bbmap.py::test_align in about
+# half the test-core-arm64 runs from 2026-10-15; 40.02 never did. Revisit when a newer
+# BBMap release fixes it.
+bbmap>=39.10,<40.04
 bcftools>=1.10
 bedtools>=2.31.1
 bwa>=0.7.19
