@@ -788,6 +788,10 @@ class BacklogTest(unittest.TestCase):
                                          ('dpark01', 'Accepted risk, closing.', '2026-11-07T10:00:00Z')],
                                closed_at='2026-11-07T10:00:01Z')
         self.assertEqual(self.reopened(reclosed), [])
+        # Even within minutes of the scan's gone comment.
+        quick = self.closed(comments=[GONE, ('github-actions', '<!-- cve-backlog:reopened -->', '2026-11-06T09:11:00Z')],
+                            closed_at='2026-11-06T09:12:00Z')
+        self.assertEqual(self.reopened(quick), [])
 
     def test_a_maintainer_who_reopens_and_closes_again_is_not_overruled(self):
         # Reopened and closed again by hand, with no comment at all: the latest close is the
@@ -1098,7 +1102,8 @@ class CliTest(unittest.TestCase):
         return [(a['action'], a['number']) for a in json.loads(self.read('actions.json'))], out.getvalue()
 
     def test_backlog_actions(self):
-        # Malformed versions are dropped, not passed into issue text.
+        # Only versions equal to the backlog's own validated markers count, so nothing else
+        # reaches issue text.
         actions, _ = self.backlog_actions('--pre-rebuild-versions', ' '.join(APT_FIX_VERSIONS) + ' x;y=1 apt=1;id',
                                           '--main-digest', MAIN_DIGEST)
         self.assertEqual(actions, [('close', 1142), ('comment', 1144)])
@@ -1110,7 +1115,7 @@ class CliTest(unittest.TestCase):
         actions, out = self.backlog_actions('--pre-rebuild-versions', ' '.join(APT_FIX_VERSIONS),
                                             '--main-digest', '')
         self.assertEqual(actions, [('comment', 1144)])
-        self.assertIn('::warning::', out)
+        self.assertIn('main-mega-amd64 is unresolved', out)
         self.assertIn('#1142', out)
 
     def test_scan_red_for_a_failed_rescan(self):

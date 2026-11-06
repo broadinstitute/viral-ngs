@@ -30,6 +30,10 @@ on:
         description: 'Set by container-scan.yml: the new CVE IDs this rebuild was dispatched for, passed back to the rescan'
         type: string
         default: ''
+      pre_rebuild_versions:
+        description: 'Set by container-scan.yml: the published Ubuntu fixes (package=version) this rebuild was dispatched for, passed back to the rescan'
+        type: string
+        default: ''
 
 # A dispatch with rescan=true (the CVE pipeline's) gets a fixed name, which
 # container-scan.yml's request-rebuild job matches to tell an in-flight CVE rebuild
@@ -1725,6 +1729,7 @@ jobs:
           IMAGE_DIGEST: ${{ needs.build-mega-amd64.outputs.digest }}
           DEPLOY_RESULT: ${{ needs.deploy-to-quay.result }}
           PRE_REBUILD_IDS: ${{ inputs.pre_rebuild_ids }}
+          PRE_REBUILD_VERSIONS: ${{ inputs.pre_rebuild_versions }}
         run: |
           set -euo pipefail
           if [ "$REBUILD_RESULT" = "success" ] && [ -z "$IMAGE_DIGEST" ]; then
@@ -1742,10 +1747,12 @@ jobs:
             -f rebuild_result="$REBUILD_RESULT" \
             -f deploy_result="$DEPLOY_RESULT" \
             -f image_digest="$IMAGE_DIGEST" \
-            -f pre_rebuild_ids="$PRE_REBUILD_IDS"
+            -f pre_rebuild_ids="$PRE_REBUILD_IDS" \
+            -f pre_rebuild_versions="$PRE_REBUILD_VERSIONS"
           {
             echo "### Rescan dispatched to container-scan.yml"
             echo "- build-mega-amd64: \`$REBUILD_RESULT\`, digest \`${IMAGE_DIGEST:-none}\`"
             echo "- deploy-to-quay: \`$DEPLOY_RESULT\`"
             echo "- advisories this rebuild was dispatched for: ${PRE_REBUILD_IDS:-none}"
+            echo "- published Ubuntu fixes it was dispatched for: ${PRE_REBUILD_VERSIONS:-none}"
           } >> "$GITHUB_STEP_SUMMARY"

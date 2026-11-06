@@ -24,7 +24,8 @@ so the matching rules are unit-tested instead of living in inline bash.
             when the daily scan dispatches a rebuild, close it when the rescan's findings
             show the rebuild cleared everything or every survivor has an issue, and leave it
             open, with a comment, when something needs a maintainer: the rebuild failed or
-            never reached quay.io, or a survivor is unfiled. Writes
+            never reached quay.io, a survivor is unfiled, or the rescan itself failed
+            (--scan-result; an incomplete scan never closes anything). Writes
             {action: open|comment|close|none, number, title, body, summary} as JSON.
   backlog   What this run's Trivy report says about the open `cve` issues this workflow
             filed (bot-authored, not labeled `test`): `gone` when no finding has the
@@ -33,14 +34,18 @@ so the matching rules are unit-tested instead of living in inline bash.
             no PR fixes, so the fix-PR agent never sees it; `retry` for a waiting issue
             once the apt probe (--published) shows Ubuntu's archive has a fixed version
             that no completed rebuild has already failed to install; `reopen` for a closed
-            issue (--closed-issues-json) that the scan itself closed as gone, once its
-            advisory is back. Writes JSON, and with --waiting-pkgs-out the
+            issue (--closed-issues-json) whose latest close was the scan's own close as gone,
+            once its advisory is back. Also records the digest the report scanned and the
+            retries' "<package>=<version>" pairs, which request-rebuild passes through the
+            rebuild to its rescan. Writes JSON, and with --waiting-pkgs-out the
             "<package> <fixed version>" lines the probe checks.
   backlog-actions
             The issue updates backlog calls for, as JSON [{action: close|reopen|comment,
-            number, body}]: close each gone issue, reopen each returning one, and after a
-            successful rebuild's rescan, mark each retry that rebuild was dispatched for as
-            tried (a `cve-retry` marker) and ask for a maintainer.
+            number, body}]: close each gone issue and reopen each returning one, but only
+            while main-mega-amd64 (--main-digest) is still the image the scan saw; and after
+            a successful rebuild's rescan, mark each published version that rebuild was
+            dispatched for (--pre-rebuild-versions) but did not install as tried (a
+            `cve-retry` marker) and ask for a maintainer.
 
 IDs match as whole IDs only: CVE-2026-1123 is not named by a title about CVE-2026-11234.
 
@@ -61,8 +66,8 @@ Usage:
         [--closed-issues-json closed-cve-issues.json] [--published published.txt] \
         [--waiting-pkgs-out waiting-pkgs.txt] --out backlog.json
     cve_pipeline.py backlog-actions --backlog backlog.json --rebuild-state rebuilt \
-        --post-rebuild-run-id "$RUN_ID" --pre-rebuild-ids "$PRE_REBUILD_IDS" \
-        --repo-url "$REPO_URL" --run-id "$GITHUB_RUN_ID" \
+        --post-rebuild-run-id "$RUN_ID" --pre-rebuild-versions "$PRE_REBUILD_VERSIONS" \
+        --main-digest "$MAIN_DIGEST" --repo-url "$REPO_URL" --run-id "$GITHUB_RUN_ID" \
         --image "$IMAGE_REF" --out actions.json
 
 new-ids, pr-title, route, scan-red, backlog and backlog-actions write their result to --out and report decisions
@@ -70,6 +75,7 @@ on stdout, as workflow annotations when run under GitHub Actions.
 """
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -314,7 +320,7 @@ def _advisories(n):
 
 def scan_red(*, route, cve_ids, retry_ids=(), pre_rebuild_ids=(), post_rebuild_run_id='', rebuild_result='',
              deploy_result='', dispatch='', file_issues_result='', open_issue=None, issues=(), report=None,
-             repo_url='', run_id='', image='', date=''):
+             repo_url='', run_id='', image='', date='', scan_result='success'):
     """How to update the scan-red issue that tracks one rebuild cycle. See the module doc."""
     ids = sorted(set(cve_ids))
     number = open_issue['number'] if open_issue else None
@@ -324,6 +330,24 @@ def scan_red(*, route, cve_ids, retry_ids=(), pre_rebuild_ids=(), post_rebuild_r
     def decide(action, body='', title=None):
         return {'action': action, 'number': number if action in ('comment', 'close') else None,
                 'title': title, 'body': body, 'summary': body}
+
+    if scan_result != 'success':
+        # An incomplete scan says nothing about the image, so it never closes a cycle. A failed
+        # daily scan leaves everything to the next one; a failed rescan would otherwise leave
+        # the cycle's issue claiming a rebuild is in progress, and nobody gets its run's email.
+        if not post_rebuild_run_id:
+            return decide('none')
+        rebuild_link = f'[run {post_rebuild_run_id}]({repo_url}/actions/runs/{post_rebuild_run_id})'
+        marker = f'rescan-failed:{run_id}'
+        body = (f'The rescan in {run_link}, after the no-cache rebuild in {rebuild_link}, did not complete '
+                f'(`{scan_result or "unknown"}`), so nothing was triaged or filed, and whether the rebuild fixed '
+                f'anything is unknown. The rebuild itself: build `{rebuild_result or "unknown"}`, deploy to '
+                f'quay.io `{deploy_result or "unknown"}`. The next daily scan checks main\'s image again.\n\n'
+                f'To retry the rescan now: `gh run rerun {run_id}`. **If it fails again, this needs a '
+                f'maintainer.**\n\n' + SCAN_RED_MARKER.format(marker))
+        if open_issue:
+            return decide('none', body) if marker in markers else decide('comment', body)
+        return decide('open', body, f'Rescan after a no-cache rebuild failed (since {date})')
 
     if post_rebuild_run_id:
         rebuild_link = f'[run {post_rebuild_run_id}]({repo_url}/actions/runs/{post_rebuild_run_id})'
@@ -470,6 +494,9 @@ BACKLOG_MARKER_RE = re.compile(r'<!-- cve-backlog:(\S+?) -->')
 # dropped before it reaches the apt probe's shell.
 DEB_NAME = re.compile(r'[a-z0-9][a-z0-9+.-]+')
 DEB_VERSION = re.compile(r'[0-9][A-Za-z0-9.+~:-]*')
+IMAGE_DIGEST = re.compile(r'sha256:[0-9a-f]{64}')
+# update-cve-issues comments, then closes, seconds apart. A later close is someone else's.
+GONE_CLOSE_WINDOW = datetime.timedelta(minutes=10)
 
 
 def _login(author):
@@ -483,8 +510,30 @@ def _filed_by_this_workflow(issue):
 
 def _bot_markers(issue, marker_re):
     """Markers in the comments this workflow wrote, oldest first: anyone can comment on a public repo."""
-    return [m for c in issue.get('comments') or [] if _login(c.get('author')) in BOT_LOGINS
+    return [m for m, _ in _bot_marker_comments(issue, marker_re)]
+
+
+def _bot_marker_comments(issue, marker_re):
+    """(marker, the comment's createdAt) for each marker in a comment this workflow wrote, oldest first."""
+    return [(m, c.get('createdAt')) for c in issue.get('comments') or [] if _login(c.get('author')) in BOT_LOGINS
             for m in marker_re.findall(c.get('body') or '')]
+
+
+def _time(value):
+    """A GitHub API timestamp ("2026-11-06T09:10:02Z") as a datetime, or None."""
+    try:
+        return datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except (AttributeError, ValueError):
+        return None
+
+
+def _scanned_digest(report):
+    """The digest of the image a Trivy report scanned (Metadata.RepoDigests), or None."""
+    for ref in ((report or {}).get('Metadata') or {}).get('RepoDigests') or []:
+        digest = ref.rpartition('@')[2]
+        if IMAGE_DIGEST.fullmatch(digest):
+            return digest
+    return None
 
 
 def _advisory_names(report):
@@ -546,33 +595,43 @@ def backlog(issues, report, published=None, closed_issues=()):
             if untried:
                 retry.append({'number': issue['number'], 'ids': ids, 'vuln_ids': vuln_ids, 'markers': untried})
 
-    # A closed issue comes back only if this workflow closed it as gone and nobody closed it
-    # again after a reopen: a fix PR's or a maintainer's close stands.
+    # A closed issue comes back only if its latest close was this workflow's close as gone,
+    # which follows the gone comment within seconds: a fix PR's or a maintainer's close
+    # stands, including one after reopening by hand, which leaves no marker.
     reopen = []
     for issue in sorted(closed_issues, key=lambda i: i['number']):
         ids = list(dict.fromkeys(ADVISORY_ID.findall(issue.get('title') or '')))
         if not ids or not _filed_by_this_workflow(issue):
             continue
-        states = [m for m in _bot_markers(issue, BACKLOG_MARKER_RE) if m in ('gone', 'reopened')]
+        states = [(m, at) for m, at in _bot_marker_comments(issue, BACKLOG_MARKER_RE) if m in ('gone', 'reopened')]
+        if not states or states[-1][0] != 'gone':
+            continue
+        gone_at, closed_at = _time(states[-1][1]), _time(issue.get('closedAt'))
+        if gone_at is None or closed_at is None or not gone_at <= closed_at <= gone_at + GONE_CLOSE_WINDOW:
+            continue
         wanted = {i.upper() for i in ids}
-        if states and states[-1] == 'gone' and any(names & wanted for names, _, _ in findings):
+        if any(names & wanted for names, _, _ in findings):
             reopen.append({'number': issue['number'], 'ids': ids})
-    return {'complete': complete, 'gone': gone, 'waiting': waiting, 'retry': retry, 'reopen': reopen,
-            'retry_ids': sorted({v for r in retry for v in r['vuln_ids']})}
+    return {'complete': complete, 'scanned_digest': _scanned_digest(report), 'gone': gone, 'waiting': waiting,
+            'retry': retry, 'reopen': reopen, 'retry_ids': sorted({v for r in retry for v in r['vuln_ids']}),
+            'retry_versions': sorted({m for r in retry for m in r['markers']})}
 
 
-def backlog_actions(backlog, *, rebuild_state, post_rebuild_run_id='', pre_rebuild_ids=(), repo_url='', run_id='',
-                    image=''):
-    """The issue updates a backlog calls for: [{action: close|comment, number, body}]. See the module doc."""
+def backlog_actions(backlog, *, rebuild_state, post_rebuild_run_id='', pre_rebuild_versions=(), main_digest='',
+                    repo_url='', run_id='', image=''):
+    """The issue updates a backlog calls for: [{action: close|reopen|comment, number, body}]. See the module doc."""
     run_link = f'[run {run_id}]({repo_url}/actions/runs/{run_id})'
     actions = []
-    for entry in backlog.get('gone') or []:
+    # Gone or back is what the scanned image says. Once main-mega-amd64 points elsewhere (a
+    # push since the scan, or since the rebuild a rescan pinned), the next daily scan decides.
+    current = main_digest == backlog.get('scanned_digest')  # an unknown digest (None) never matches
+    for entry in (backlog.get('gone') or []) if current else []:
         body = (f'{run_link} scanned `{image}` and no longer finds {", ".join(entry["ids"])}: whatever cleared '
                 f'it (a newer upstream image, a no-cache rebuild, a fix PR or a `.trivyignore.yaml` entry) is in '
                 f'main\'s images now, so this issue is done. If the advisory comes back, the scan reopens this '
                 f'issue.\n\n' + BACKLOG_MARKER.format('gone'))
         actions.append({'action': 'close', 'number': entry['number'], 'body': body})
-    for entry in backlog.get('reopen') or []:
+    for entry in (backlog.get('reopen') or []) if current else []:
         body = (f'{run_link} finds {", ".join(entry["ids"])} in `{image}` again. The scan closed this issue when '
                 f'the advisory was gone, and it never files an advisory twice, so it reopens this one '
                 f'instead.\n\n' + BACKLOG_MARKER.format('reopened'))
@@ -581,18 +640,20 @@ def backlog_actions(backlog, *, rebuild_state, post_rebuild_run_id='', pre_rebui
         # Before a rebuild the route dispatches one; after a failed one, apt never ran.
         return actions
     rebuild_link = f'[run {post_rebuild_run_id}]({repo_url}/actions/runs/{post_rebuild_run_id})'
-    dispatched_for = {i.upper() for i in pre_rebuild_ids}
+    dispatched = set(pre_rebuild_versions)
     for entry in backlog.get('retry') or []:
-        if not dispatched_for & {i.upper() for i in [*entry['vuln_ids'], *entry['ids']]}:
-            # This rebuild ran for other advisories, maybe before Ubuntu published this fix.
+        # Only the versions the dispatching scan saw published, so the rebuild could install
+        # them: one Ubuntu published while it ran, or a rebuild run for other fixes, proves nothing.
+        tried = [m for m in entry['markers'] if m in dispatched]
+        if not tried:
             continue
-        versions = ', '.join('`{}` {}'.format(*m.split('=', 1)) for m in entry['markers'])
-        body = (f'The no-cache rebuild in {rebuild_link} ran `apt-get upgrade -y` while Ubuntu\'s archive had '
-                f'{versions}, at or above the fixed version, yet {run_link} still finds '
+        versions = ', '.join('`{}` {}'.format(*m.split('=', 1)) for m in tried)
+        body = (f'The no-cache rebuild in {rebuild_link} was dispatched once Ubuntu\'s archive had {versions}, at '
+                f'or above the fixed version, and ran `apt-get upgrade -y`, yet {run_link} still finds '
                 f'{", ".join(entry["vuln_ids"])} in `{image}`. apt did not install the fix: it may be holding the '
-                f'package back (an upgrade that needs a new dependency), or Ubuntu published it after the rebuild '
-                f'started.\n\n**This needs a maintainer.** The scan dispatches no further rebuild for these '
-                f'versions. {RERUN_TEXT}\n\n' + '\n'.join(RETRY_MARKER.format(m) for m in entry['markers']))
+                f'package back (an upgrade that needs a new dependency).\n\n**This needs a maintainer.** The '
+                f'scan dispatches no further rebuild for these versions, only for a newer one Ubuntu publishes. '
+                f'{RERUN_TEXT}\n\n' + '\n'.join(RETRY_MARKER.format(m) for m in tried))
         actions.append({'action': 'comment', 'number': entry['number'], 'body': body})
     return actions
 
@@ -640,6 +701,8 @@ def main(argv=None):
     p.add_argument('--out', required=True, help='written with the route')
     p = commands.add_parser('scan-red', help='how to update the scan-red issue')
     p.add_argument('--route', required=True, choices=('rebuild', 'triage', 'none'))
+    p.add_argument('--scan-result', default='success',
+                   help='the scan job\'s result; only a rescan\'s failure is reported')
     p.add_argument('--cve-ids', required=True, help='space-separated new IDs from this run\'s scan')
     p.add_argument('--retry-ids', default='', help='space-separated retry IDs from backlog')
     p.add_argument('--pre-rebuild-ids', default='', help='the IDs the rebuild was dispatched for')
@@ -671,7 +734,10 @@ def main(argv=None):
     p.add_argument('--backlog', required=True, help='backlog\'s JSON')
     p.add_argument('--rebuild-state', required=True, choices=('not-rebuilt', 'rebuilt', 'rebuild-failed'))
     p.add_argument('--post-rebuild-run-id', default='')
-    p.add_argument('--pre-rebuild-ids', default='', help='the IDs the rebuild was dispatched for')
+    p.add_argument('--pre-rebuild-versions', default='',
+                   help='the "<package>=<version>" fixes the rebuild was dispatched for (backlog\'s retry_versions)')
+    p.add_argument('--main-digest', default='',
+                   help='what main-mega-amd64 points at now; empty if it could not be resolved')
     p.add_argument('--repo-url', required=True)
     p.add_argument('--run-id', required=True)
     p.add_argument('--image', required=True, help='the image ref this run scanned')
@@ -705,7 +771,8 @@ def main(argv=None):
             post_rebuild_run_id=args.post_rebuild_run_id, rebuild_result=args.rebuild_result,
             deploy_result=args.deploy_result, dispatch=args.dispatch,
             file_issues_result=args.file_issues_result, open_issue=open_issue, issues=issues, report=trivy,
-            repo_url=args.repo_url, run_id=args.run_id, image=args.image, date=args.date)
+            repo_url=args.repo_url, run_id=args.run_id, image=args.image, date=args.date,
+            scan_result=args.scan_result)
         print(f'scan-red: {decision["action"]}' + (f' #{decision["number"]}' if decision['number'] else ''))
         with open(args.out, 'w') as f:
             json.dump(decision, f)
@@ -741,10 +808,18 @@ def main(argv=None):
         return 0
     if args.command == 'backlog-actions':
         with open(args.backlog) as f:
-            result = backlog_actions(
-                json.load(f), rebuild_state=args.rebuild_state, post_rebuild_run_id=args.post_rebuild_run_id,
-                pre_rebuild_ids=args.pre_rebuild_ids.split(), repo_url=args.repo_url, run_id=args.run_id,
-                image=args.image)
+            data = json.load(f)
+        # A dispatched version counts only where it equals one of backlog's validated markers.
+        result = backlog_actions(
+            data, rebuild_state=args.rebuild_state, post_rebuild_run_id=args.post_rebuild_run_id,
+            pre_rebuild_versions=args.pre_rebuild_versions.split(), main_digest=args.main_digest,
+            repo_url=args.repo_url, run_id=args.run_id, image=args.image)
+        held = [e['number'] for key in ('gone', 'reopen') for e in data.get(key) or []]
+        if held and args.main_digest != data.get('scanned_digest'):
+            annotate(sys.stdout, 'warning',
+                     f'main-mega-amd64 is {args.main_digest or "unresolved"}, not the scanned '
+                     f'{data.get("scanned_digest") or "(unknown digest)"}, so this run leaves '
+                     f'{", ".join(f"#{n}" for n in held)} for the next daily scan to close or reopen')
         print('backlog actions: ' + (', '.join(f'{a["action"]} #{a["number"]}' for a in result) or 'none'))
         with open(args.out, 'w') as f:
             json.dump(result, f)
