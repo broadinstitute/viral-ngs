@@ -37,6 +37,19 @@ on:
 # whitespace-only run-name keeps GitHub's default (commit message, PR title).
 run-name: ${{ github.event_name == 'workflow_dispatch' && inputs.rescan && 'No-cache rebuild for the CVE pipeline (rescan)' || ' ' }}
 
+# Main's runs share mutable tags: each tier builds FROM its parent's
+# main-<tier>-<arch> tag, and the manifests and the quay.io copy read main-* tags.
+# Two main runs at once (a push during a no-cache rebuild, or two merges in a row)
+# would interleave: the rebuild could build on the push run's cached parent, and
+# quay.io could get a mix of the two. So main's runs queue. A running build is never
+# cancelled. GitHub keeps one pending run per group and cancels it when a newer run
+# arrives, which is safe: the newer run builds main's newest commit, and a CVE
+# rebuild cancelled that way leaves its scan-red issue open until the next daily
+# scan dispatches another. Every other ref's run is a group of its own.
+concurrency:
+  group: ${{ github.ref == 'refs/heads/main' && 'docker-main' || format('docker-run-{0}', github.run_id) }}
+  cancel-in-progress: false
+
 env:
   QUAY_REPO: quay.io/broadinstitute/viral-ngs
   GHCR_REPO: ghcr.io/broadinstitute/viral-ngs

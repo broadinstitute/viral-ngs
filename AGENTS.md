@@ -442,6 +442,9 @@ without the layer cache and republishes `main-*` and quay. The cache otherwise k
 baseimage's `apt-get upgrade` layer until the upstream micromamba image changes, so this is
 how new Ubuntu security updates land. The CVE pipeline (`container-scan.yml`) dispatches one,
 with `rescan=true`, before it triages new CVEs; see `.agents/skills/container-vulns/SKILL.md`.
+Main's runs queue in one concurrency group (`docker-main`), because every tier builds
+FROM its parent's mutable `main-*` tag: a running build is never cancelled, and a pending
+one is replaced by a newer run. Other refs never wait.
 
 **Test Jobs:**
 - **test-core**: Runs on x86, tests `tests/unit/core/`
