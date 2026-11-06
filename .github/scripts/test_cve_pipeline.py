@@ -520,6 +520,36 @@ class ScanRedTest(unittest.TestCase):
     def test_a_daily_scan_with_nothing_new_and_nothing_open_does_nothing(self):
         self.assertEqual(self.decide(route='none')['action'], 'none')
 
+    def test_a_daily_scan_with_nothing_new_leaves_open_an_issue_that_needs_a_maintainer(self):
+        # A failed rebuild or a missed quay.io deploy is still there the next day.
+        for marker in ('rebuild-failed:800', 'deploy-failed:800'):
+            with self.subTest(marker=marker):
+                stuck = open_issue(1150, body='<!-- scan-red:ids=CVE-2026-1001 -->',
+                                   comments=[f'<!-- scan-red:{marker} -->'])
+                d = self.decide(route='none', open_issue=stuck)
+                self.assertEqual(d['action'], 'none')
+                self.assertIn('maintainer', d['summary'])
+
+    def test_a_failure_from_an_earlier_cycle_does_not_hold_a_later_one_open(self):
+        later = open_issue(1150, body='<!-- scan-red:ids=CVE-2026-1001 -->',
+                           comments=['<!-- scan-red:rebuild-failed:800 -->', '<!-- scan-red:ids=CVE-2026-1002 -->'])
+        self.assertEqual(self.decide(route='none', open_issue=later)['action'], 'close')
+
+    def test_nothing_new_but_a_retry_due_leaves_the_cycle_open(self):
+        # e.g. a skip_rebuild run while Ubuntu's fix for an open issue is waiting for a rebuild.
+        d = self.decide(route='none', retry_ids=['CVE-2026-109518'], open_issue=open_issue(1150))
+        self.assertEqual(d['action'], 'none')
+
+    def test_a_dispatched_id_still_in_the_image_below_high_is_not_called_cleared(self):
+        # CVE-2026-5555 is still in the rebuilt image, as a MEDIUM finding.
+        d = self.rescan(cve_ids=[], pre_rebuild_ids=['CVE-2026-109518', 'CVE-2026-5555'],
+                        open_issue=open_issue(1150))
+        self.assertEqual((d['action'], d['number']), ('close', 1150))
+        self.assertIn('Cleared by the rebuild: CVE-2026-109518.', d['body'])
+        self.assertNotIn('cleared every advisory', d['body'])
+        self.assertIn('CVE-2026-5555', d['body'])
+        self.assertIn('no longer a fixable HIGH/CRITICAL', d['body'])
+
     def test_a_direct_triage_leaves_the_issue_alone(self):
         # skip_rebuild: a maintainer sent these straight to Claude; no rebuild cycle exists.
         d = self.decide(route='triage', cve_ids=['CVE-2026-1001'], open_issue=open_issue(1150))
@@ -558,7 +588,8 @@ def cve_issue(number, title, author=BOT, labels=('security', 'cve'), comments=()
 APT_ISSUE = cve_issue(1144, '[CVE-2026-109518] apt: unverified package installed as root via hard-link reuse')
 PILLOW_ISSUE = cve_issue(1151, '[CVE-2026-7777] pillow: out-of-bounds read')
 BROTLI_ISSUE = cve_issue(1142, '[CVE-2026-111497] libbrotli1: Out-of-bounds write in Brotli decoder')
-APT_FIX = {'apt': '3.2.1ubuntu0.1', 'libapt-pkg7.0': '3.2.1ubuntu0.1'}
+# The apt probe's answer: {(package, fixed version): archive candidate at least that version}.
+APT_FIX = {('apt', '3.2.1ubuntu0.1'): '3.2.1ubuntu0.1', ('libapt-pkg7.0', '3.2.1ubuntu0.1'): '3.2.1ubuntu0.1'}
 
 
 class BacklogTest(unittest.TestCase):
@@ -679,29 +710,86 @@ class BacklogTest(unittest.TestCase):
     def test_a_newer_published_version_is_retried(self):
         tried = cve_issue(1144, APT_ISSUE['title'], comments=[
             ('github-actions', '<!-- cve-retry:apt=3.2.1ubuntu0.1 -->')])
-        b = cp.backlog([tried], APT_REPORT, published={'apt': '3.2.1ubuntu0.2'})
+        b = cp.backlog([tried], APT_REPORT, published={('apt', '3.2.1ubuntu0.1'): '3.2.1ubuntu0.2'})
         self.assertEqual(b['retry'][0]['markers'], ['apt=3.2.1ubuntu0.2'])
 
+    def test_a_published_version_counts_only_for_the_issues_it_fixes(self):
+        # Two issues in one package: Ubuntu has published the first one's fix, not the second's.
+        scan = {'Results': [{'Target': 'x (ubuntu 26.04)', 'Class': 'os-pkgs', 'Type': 'ubuntu', 'Vulnerabilities': [
+            os_finding('CVE-2026-4447', 'libssl3t64', '3.5.0-1', '3.5.0-1ubuntu0.1'),
+            os_finding('CVE-2026-4448', 'libssl3t64', '3.5.0-1', '3.5.0-1ubuntu0.2')]}]}
+        issues = [cve_issue(1192, '[CVE-2026-4447] libssl3t64: bug'), cve_issue(1193, '[CVE-2026-4448] libssl3t64: bug')]
+        b = cp.backlog(issues, scan, published={('libssl3t64', '3.5.0-1ubuntu0.1'): '3.5.0-1ubuntu0.1'})
+        self.assertEqual(self.numbers(b['retry']), [1192])
+        self.assertEqual(b['retry_ids'], ['CVE-2026-4447'])
+
+    # --- reopening what the scan closed, when the advisory comes back ---
+
+    def closed(self, title='[CVE-2026-7777] pillow: out-of-bounds read', comments=(), **kwargs):
+        return cve_issue(1151, title, comments=comments, **kwargs)
+
+    def test_an_issue_the_scan_closed_is_reopened_when_its_advisory_returns(self):
+        # e.g. a .trivyignore.yaml entry expired, or a Trivy DB gap closed it for a day.
+        gone = self.closed(comments=[('github-actions', 'No longer found.\n\n<!-- cve-backlog:gone -->')])
+        b = cp.backlog([], APT_REPORT, closed_issues=[gone])
+        self.assertEqual(b['reopen'], [{'number': 1151, 'ids': ['CVE-2026-7777']}])
+
+    def test_an_issue_closed_any_other_way_stays_closed(self):
+        # A fix PR or a maintainer closed it: the scan does not second-guess that.
+        for comments in ((), [('dpark01', 'Fixed by #1137')]):
+            with self.subTest(comments=comments):
+                self.assertEqual(cp.backlog([], APT_REPORT, closed_issues=[self.closed(comments=comments)])['reopen'], [])
+
+    def test_an_issue_closed_again_after_a_reopen_stays_closed(self):
+        reclosed = self.closed(comments=[('github-actions', '<!-- cve-backlog:gone -->'),
+                                         ('github-actions', '<!-- cve-backlog:reopened -->'),
+                                         ('dpark01', 'Accepted risk, closing.')])
+        self.assertEqual(cp.backlog([], APT_REPORT, closed_issues=[reclosed])['reopen'], [])
+
+    def test_a_gone_marker_from_anyone_else_is_ignored(self):
+        spoofed = self.closed(comments=[('mallory', '<!-- cve-backlog:gone -->')])
+        self.assertEqual(cp.backlog([], APT_REPORT, closed_issues=[spoofed])['reopen'], [])
+
+    def test_an_advisory_still_gone_stays_closed(self):
+        gone = self.closed(title='[CVE-2026-111497] libbrotli1: bug',
+                           comments=[('github-actions', '<!-- cve-backlog:gone -->')])
+        self.assertEqual(cp.backlog([], APT_REPORT, closed_issues=[gone])['reopen'], [])
+
+    def test_only_issues_this_workflow_filed_are_reopened(self):
+        for kwargs in ({'author': {'login': 'dpark01'}}, {'labels': ('security', 'cve', 'test')}):
+            with self.subTest(**kwargs):
+                issue = self.closed(comments=[('github-actions', '<!-- cve-backlog:gone -->')], **kwargs)
+                self.assertEqual(cp.backlog([], APT_REPORT, closed_issues=[issue])['reopen'], [])
+
     def test_only_waiting_issues_are_retried(self):
-        b = cp.backlog([PILLOW_ISSUE], APT_REPORT, published={'pillow': '13.0.0'})
+        b = cp.backlog([PILLOW_ISSUE], APT_REPORT, published={('pillow', '13.0.0'): '13.0.0'})
         self.assertEqual(b['retry'], [])
 
 
 class BacklogActionsTest(unittest.TestCase):
 
-    def actions(self, backlog, rebuild_state='not-rebuilt', post_rebuild_run_id=''):
+    def actions(self, backlog, rebuild_state='not-rebuilt', post_rebuild_run_id='', pre_rebuild_ids=()):
         return cp.backlog_actions(backlog, rebuild_state=rebuild_state, post_rebuild_run_id=post_rebuild_run_id,
-                                  repo_url=REPO, run_id='900', image='ghcr.io/broadinstitute/viral-ngs@sha256:abc')
+                                  pre_rebuild_ids=pre_rebuild_ids, repo_url=REPO, run_id='900',
+                                  image='ghcr.io/broadinstitute/viral-ngs@sha256:abc')
 
     def test_a_gone_issue_is_closed_with_the_run_that_saw_it_gone(self):
         [action] = self.actions(cp.backlog([BROTLI_ISSUE, PILLOW_ISSUE], APT_REPORT))
         self.assertEqual((action['action'], action['number']), ('close', 1142))
-        for expected in ('CVE-2026-111497', f'{REPO}/actions/runs/900', 'sha256:abc', 'reopen'):
+        for expected in ('CVE-2026-111497', f'{REPO}/actions/runs/900', 'sha256:abc', '<!-- cve-backlog:gone -->'):
+            self.assertIn(expected, action['body'])
+
+    def test_a_returning_advisory_reopens_its_issue(self):
+        gone = cve_issue(1151, PILLOW_ISSUE['title'], comments=[('github-actions', '<!-- cve-backlog:gone -->')])
+        [action] = self.actions(cp.backlog([], APT_REPORT, closed_issues=[gone]))
+        self.assertEqual((action['action'], action['number']), ('reopen', 1151))
+        for expected in ('CVE-2026-7777', f'{REPO}/actions/runs/900', '<!-- cve-backlog:reopened -->'):
             self.assertIn(expected, action['body'])
 
     def test_a_rescan_marks_a_published_fix_its_rebuild_did_not_install(self):
         b = cp.backlog([APT_ISSUE], APT_REPORT, published=APT_FIX)
-        [action] = self.actions(b, rebuild_state='rebuilt', post_rebuild_run_id='800')
+        [action] = self.actions(b, rebuild_state='rebuilt', post_rebuild_run_id='800',
+                                pre_rebuild_ids=['CVE-2026-109518'])
         self.assertEqual((action['action'], action['number']), ('comment', 1144))
         for expected in (f'{REPO}/actions/runs/800', 'maintainer', '3.2.1ubuntu0.1',
                          '<!-- cve-retry:apt=3.2.1ubuntu0.1 -->', '<!-- cve-retry:libapt-pkg7.0=3.2.1ubuntu0.1 -->'):
@@ -712,7 +800,14 @@ class BacklogActionsTest(unittest.TestCase):
         b = cp.backlog([APT_ISSUE], APT_REPORT, published=APT_FIX)
         for state in ('not-rebuilt', 'rebuild-failed'):
             with self.subTest(rebuild_state=state):
-                self.assertEqual(self.actions(b, rebuild_state=state, post_rebuild_run_id='800'), [])
+                self.assertEqual(self.actions(b, rebuild_state=state, post_rebuild_run_id='800',
+                                              pre_rebuild_ids=['CVE-2026-109518']), [])
+
+    def test_only_the_fixes_the_rebuild_was_dispatched_for_are_marked(self):
+        # The rebuild ran for other IDs; Ubuntu may have published this fix after its apt ran.
+        b = cp.backlog([APT_ISSUE], APT_REPORT, published=APT_FIX)
+        self.assertEqual(self.actions(b, rebuild_state='rebuilt', post_rebuild_run_id='800',
+                                      pre_rebuild_ids=['CVE-2026-7777']), [])
 
     def test_nothing_to_do(self):
         self.assertEqual(self.actions(cp.backlog([PILLOW_ISSUE], APT_REPORT)), [])
@@ -870,9 +965,10 @@ class CliTest(unittest.TestCase):
         self.assertEqual(self.read('waiting.txt'), 'apt 3.2.1ubuntu0.1\nlibapt-pkg7.0 3.2.1ubuntu0.1\n')
         self.assertEqual(json.loads(self.read('backlog.json'))['retry_ids'], [])
 
-        # The probe prints "<package> <candidate>" for each package whose fix is published;
+        # The probe prints "<package> <fixed> <candidate>" for each fixed version that is published;
         # a malformed line is dropped.
-        published = self.path('published.txt', 'apt 3.2.1ubuntu0.1\nlibapt-pkg7.0 3.2.1ubuntu0.1\nbad line here\n')
+        published = self.path('published.txt', 'apt 3.2.1ubuntu0.1 3.2.1ubuntu0.1\n'
+                              'libapt-pkg7.0 3.2.1ubuntu0.1 3.2.1ubuntu0.1\nbad line\n')
         rc = self.run_main(['backlog', '--trivy-json', trivy, '--issues-json', issues, '--published', published,
                             '--out', self.path('backlog.json')])
         self.assertEqual(rc, 0)
@@ -880,10 +976,17 @@ class CliTest(unittest.TestCase):
         self.assertEqual(b['retry_ids'], ['CVE-2026-109518'])
         self.assertEqual([g['number'] for g in b['gone']], [1142])
 
+        gone = cve_issue(1151, PILLOW_ISSUE['title'], comments=[('github-actions', '<!-- cve-backlog:gone -->')])
+        rc = self.run_main(['backlog', '--trivy-json', trivy, '--issues-json', issues,
+                            '--closed-issues-json', self.path('closed.json', [gone]), '--out', self.path('backlog.json')])
+        self.assertEqual(rc, 0)
+        self.assertEqual([r['number'] for r in json.loads(self.read('backlog.json'))['reopen']], [1151])
+
     def test_backlog_actions(self):
         backlog = self.path('backlog.json', cp.backlog([BROTLI_ISSUE, APT_ISSUE], APT_REPORT, published=APT_FIX))
         rc = self.run_main(['backlog-actions', '--backlog', backlog, '--rebuild-state', 'rebuilt',
-                            '--post-rebuild-run-id', '800', '--repo-url', REPO, '--run-id', '900',
+                            '--post-rebuild-run-id', '800', '--pre-rebuild-ids', 'CVE-2026-109518',
+                            '--repo-url', REPO, '--run-id', '900',
                             '--image', 'ghcr.io/broadinstitute/viral-ngs@sha256:abc',
                             '--out', self.path('actions.json')])
         self.assertEqual(rc, 0)
