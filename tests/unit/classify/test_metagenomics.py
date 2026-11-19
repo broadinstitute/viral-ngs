@@ -122,7 +122,7 @@ def test_centrifuger_parser_trims_by_default(centrifuger_input_bam):
         ])
         args.func_main(args)
 
-        mock_trim.assert_called_once_with(centrifuger_input_bam, mock.ANY, threads=_CPUS)
+        mock_trim.assert_called_once_with(centrifuger_input_bam, mock.ANY, trim_clip_db=None, threads=_CPUS)
         trimmed_bam = mock_trim.call_args.args[1]
         assert trimmed_bam != centrifuger_input_bam
         mock_centrifuger.return_value.classify.assert_called_once_with(
@@ -175,6 +175,39 @@ def test_centrifuger_trim_failure_does_not_classify(centrifuger_input_bam):
         mock_centrifuger.return_value.classify.assert_not_called()
 
 
+def test_centrifuger_parser_passes_trim_clip_db(centrifuger_input_bam, tmp_path):
+    clip = tmp_path / 'clip.fasta'
+    clip.write_text('>custom\nTTGACCTAGCAATCGTACCGATTCTAAGCATCGAT\n')
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger, \
+         patch('viral_ngs.metagenomics._trim_centrifuger_bam', autospec=True) as mock_trim:
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args([
+            'db', centrifuger_input_bam, 'out.tsv', '--trim_clip_db', str(clip),
+        ])
+        args.func_main(args)
+
+        mock_trim.assert_called_once_with(centrifuger_input_bam, mock.ANY, trim_clip_db=str(clip), threads=_CPUS)
+        assert mock_centrifuger.return_value.classify.call_args.args[0] == mock_trim.call_args.args[1]
+
+
+def test_centrifuger_parser_rejects_no_trim_with_trim_clip_db():
+    parser = metagenomics.parser_centrifuger(argparse.ArgumentParser())
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(['db', 'input.bam', 'out.tsv', '--no_trim', '--trim_clip_db', 'clip.fasta'])
+    assert excinfo.value.code == 2
+
+
+def test_centrifuger_missing_trim_clip_db_fails_before_trimming(centrifuger_input_bam, tmp_path):
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger, \
+         patch('viral_ngs.metagenomics._trim_centrifuger_bam', autospec=True) as mock_trim:
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args([
+            'db', centrifuger_input_bam, 'out.tsv', '--trim_clip_db', str(tmp_path / 'missing.fasta'),
+        ])
+        with pytest.raises(FileNotFoundError):
+            args.func_main(args)
+        mock_trim.assert_not_called()
+        mock_centrifuger.return_value.classify.assert_not_called()
+
+
 @pytest.mark.parametrize(('r2_bytes', 's_bytes', 'expect_paired'), [
     (100, 10, True),
     (10, 100, False),
@@ -214,6 +247,44 @@ def test_trim_centrifuger_bam_selects_layout_before_trimming(r2_bytes, s_bytes, 
             trim1, trim2, 'input', 'out.bam',
             picardOptions=['QUALITY_FORMAT=Standard', 'READ_GROUP_NAME=centrifuger_trim'],
         )
+
+
+@pytest.mark.parametrize('suffix', ['.fasta', '.fasta.gz', '.fasta.zst'])
+def test_trim_centrifuger_bam_uses_trim_clip_db(tmp_path, suffix):
+    fasta_text = '>custom\nTTGACCTAGCAATCGTACCGATTCTAAGCATCGAT\n'
+    path = str(tmp_path / ('clip' + suffix))
+    with util_file.open_or_gzopen(path, 'wt') as outf:
+        outf.write(fasta_text)
+
+    def sam_to_fastq(in_bam, raw1, raw2, outFastq0, **kwargs):
+        for fastq, size in ((raw1, 100), (raw2, 100), (outFastq0, 10)):
+            with open(fastq, 'wb') as outf:
+                outf.write(b'x' * size)
+
+    refs = []
+
+    def record_ref(*args, **kwargs):
+        ref = kwargs['ref']
+        with open(ref, 'rt') as inf:
+            refs.append((os.path.basename(ref), inf.read()))
+
+    with patch('viral_ngs.metagenomics.picard.SamToFastqTool', autospec=True) as mock_sam_to_fastq, \
+         patch('viral_ngs.metagenomics.bbmap.BBMapTool', autospec=True) as mock_bbmap, \
+         patch('viral_ngs.metagenomics.picard.FastqToSamTool', autospec=True):
+        mock_sam_to_fastq.return_value.execute.side_effect = sam_to_fastq
+        mock_bbmap.return_value.bbduk.side_effect = record_ref
+        metagenomics._trim_centrifuger_bam('input.bam', 'out.bam', trim_clip_db=path, threads=1)
+
+    assert refs == [('trim_clip_db.fasta', fasta_text)]
+
+
+def test_trim_centrifuger_bam_rejects_empty_trim_clip_db(tmp_path):
+    clip = tmp_path / 'empty.fasta'
+    clip.write_text('')
+    with patch('viral_ngs.metagenomics.picard.SamToFastqTool', autospec=True) as mock_sam_to_fastq:
+        with pytest.raises(ValueError, match='no FASTA records'):
+            metagenomics._trim_centrifuger_bam('input.bam', 'out.bam', trim_clip_db=str(clip), threads=1)
+        mock_sam_to_fastq.return_value.execute.assert_not_called()
 
 
 def test_centrifuger_build_parser_invokes_tool():

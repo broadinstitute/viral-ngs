@@ -472,7 +472,7 @@ def main_kma_build(ref_fasta, db_prefix, threads=None):
 __commands__.append(('kma_build', parser_kma_build))
 
 
-def _trim_centrifuger_bam(in_bam, out_bam, threads=None):
+def _trim_centrifuger_bam(in_bam, out_bam, trim_clip_db=None, threads=None):
     """Apply XT clipping, adapter trimming, and poly-G trimming before classification."""
     with file.tmp_dir(suffix='_centrifuger_trim') as tmpdir:
         raw1 = os.path.join(tmpdir, 'raw.1.fastq')
@@ -480,6 +480,18 @@ def _trim_centrifuger_bam(in_bam, out_bam, threads=None):
         raw_s = os.path.join(tmpdir, 'raw.s.fastq')
         trim1 = os.path.join(tmpdir, 'trim.1.fastq')
         trim2 = os.path.join(tmpdir, 'trim.2.fastq')
+
+        ref = 'adapters'
+        if trim_clip_db is not None:
+            # BBDuk cannot read .zst and splits ref= on commas, so give it a plain copy.
+            ref = os.path.join(tmpdir, 'trim_clip_db.fasta')
+            n_records = 0
+            with file.open_or_gzopen(trim_clip_db, 'rt') as inf, open(ref, 'wt') as outf:
+                for line in inf:
+                    n_records += line.startswith('>')
+                    outf.write(line)
+            if not n_records:
+                raise ValueError('trim_clip_db contains no FASTA records: {}'.format(trim_clip_db))
 
         picard_tool = picard.SamToFastqTool()
         picard_tool.execute(in_bam, raw1, raw2, outFastq0=raw_s, illuminaClipping=True,
@@ -490,7 +502,7 @@ def _trim_centrifuger_bam(in_bam, out_bam, threads=None):
         bb = bbmap.BBMapTool()
         # BBDuk leaves one base when trimming would otherwise remove the whole read.
         trim_opts = dict(
-            ref='adapters', ktrim='r', k=23, mink=11, hdist=1,
+            ref=ref, ktrim='r', k=23, mink=11, hdist=1,
             trimpolyg=10, minlength=2, removeifeitherbad=True, ordered=True,
             interleaved=False, qin=33, qout=33, threads=misc.sanitize_thread_count(threads),
         )
@@ -519,9 +531,14 @@ def parser_centrifuger(parser=argparse.ArgumentParser()):
     parser.add_argument('--min_hitlen', type=int, help='Minimum total length of matched segments.')
     parser.add_argument('--hitk_factor', type=int, help='Centrifuger hit-k factor.')
     parser.add_argument('--merge_readpair', action='store_true', help='Merge paired reads before classification.')
-    parser.add_argument('--no_trim', dest='trim_reads', action='store_false', default=True,
-                        help="Skip BBDuk adapter and poly-G trimming before classification "
-                             "(Picard XT-tag adapter clipping is still applied).")
+    trim_group = parser.add_mutually_exclusive_group()
+    trim_group.add_argument('--no_trim', dest='trim_reads', action='store_false', default=True,
+                            help="Skip BBDuk adapter and poly-G trimming before classification "
+                                 "(Picard XT-tag adapter clipping is still applied).")
+    trim_group.add_argument('--trim_clip_db',
+                            help="FASTA of adapter sequences for BBDuk to trim (plain, .gz or .zst). "
+                                 "Replaces BBDuk's bundled adapter set; poly-G trimming still applies. "
+                                 "Without it, BBDuk's bundled adapters are used.")
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     cmd.attach_main(parser, main_centrifuger, split_args=True)
     return parser
@@ -530,10 +547,20 @@ def parser_centrifuger(parser=argparse.ArgumentParser()):
 def main_centrifuger(db, in_bam, out_classification, k=1,
                     unclassified_prefix=None, classified_prefix=None,
                     min_hitlen=None, hitk_factor=None,
-                    merge_readpair=False, threads=None, trim_reads=True):
+                    merge_readpair=False, threads=None, trim_reads=True, trim_clip_db=None):
     '''
-        Classify reads by taxon using Centrifuger.
+        Classify reads by taxon using Centrifuger. Reads are first trimmed with
+        BBDuk: right-end adapter k-mer trimming (k=23, mink=11, hdist=1) against
+        BBDuk's bundled adapter set or --trim_clip_db, trimming of 5' and 3'
+        poly-G runs of 10 or more, and removal of reads shorter than 2 bp (a pair
+        is removed if either mate is). These settings are fixed to keep the command
+        simple and runs comparable; only the adapter set is configurable. Removed
+        reads are absent from the classification output and kreport totals. Use
+        --no_trim to classify untrimmed reads, e.g. to compare with Kraken2, which
+        does not trim.
     '''
+    if trim_clip_db is not None and not os.path.isfile(trim_clip_db):
+        raise FileNotFoundError(trim_clip_db)
     centrifuger_tool = centrifuger.Centrifuger()
     kwargs = dict(
         k=k,
@@ -546,7 +573,7 @@ def main_centrifuger(db, in_bam, out_classification, k=1,
     )
     if trim_reads and os.path.isfile(in_bam) and not samtools.SamtoolsTool().isEmpty(in_bam):
         with file.tempfname('.centrifuger_trim.bam') as trimmed_bam:
-            _trim_centrifuger_bam(in_bam, trimmed_bam, threads=threads)
+            _trim_centrifuger_bam(in_bam, trimmed_bam, trim_clip_db=trim_clip_db, threads=threads)
             centrifuger_tool.classify(trimmed_bam, db, out_classification, **kwargs)
     else:
         centrifuger_tool.classify(in_bam, db, out_classification, **kwargs)

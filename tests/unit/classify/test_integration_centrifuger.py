@@ -3,6 +3,7 @@ import argparse
 import csv
 import glob
 import os
+import re
 import shutil
 
 import pysam
@@ -22,6 +23,7 @@ pytestmark = pytest.mark.skipif(
 
 
 ADAPTER = "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+CUSTOM_ADAPTER = "TTGACCTAGCAATCGTACCGATTCTAAGCATCGAT"
 
 
 def _derive_bam(src, dst, transform):
@@ -274,6 +276,37 @@ def test_centrifuger_default_trimming_preserves_xt_clipping(tmp_path, centrifuge
     _classify_bam(centrifuger_db, xt_bam, xt_tsv)
 
     assert _classifications_by_read(xt_tsv) == _classifications_by_read(clean_tsv)
+
+
+def test_centrifuger_trim_clip_db_replaces_bundled_adapters(tmp_path, centrifuger_db, metagenomics_simple):
+    custom_fasta = tmp_path / 'custom.fasta'
+    custom_fasta.write_text('>custom\n' + CUSTOM_ADAPTER + '\n')
+    clean_bam = tmp_path / 'clean.bam'
+    tailed_bam = tmp_path / 'tailed.bam'
+    name_indices = {}
+
+    def add_adapter(rec):
+        index = name_indices.setdefault(rec.query_name, len(name_indices))
+        tail = CUSTOM_ADAPTER if index % 2 else ADAPTER
+        return rec.query_sequence + tail, list(rec.query_qualities) + [30] * len(tail)
+
+    src = metagenomics_simple['bam']
+    _derive_bam(src, clean_bam, lambda rec: (rec.query_sequence, rec.query_qualities))
+    _derive_bam(src, tailed_bam, add_adapter)
+    clean_tsv = tmp_path / 'clean.tsv'
+    tailed_tsv = tmp_path / 'tailed.tsv'
+    _classify_bam(centrifuger_db, clean_bam, clean_tsv, '--trim_clip_db', str(custom_fasta))
+    _classify_bam(centrifuger_db, tailed_bam, tailed_tsv, '--trim_clip_db', str(custom_fasta))
+
+    clean = _classifications_by_read(clean_tsv)
+    tailed = _classifications_by_read(tailed_tsv)
+    assert clean
+    assert tailed.keys() == clean.keys()
+    for read_id in clean:
+        if name_indices[re.sub(r'/[12]$', '', read_id)] % 2:
+            assert tailed[read_id] == clean[read_id]
+        else:
+            assert tailed[read_id][1] > clean[read_id][1]
 
 
 def test_centrifuger_default_trimming_to_zero_reads_writes_header_only(
