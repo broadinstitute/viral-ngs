@@ -12,6 +12,29 @@ import pysam
 from tests import TestCaseWithTmp, assert_md5_equal_to_line_in_file
 
 
+P1 = "ATTTGCTATGTAAAGAAGTCTCATAGAAATTAGGAGGTACTATATGTGCAACTTTGAAGT"
+P2 = "ACTTTCCGGTACCACCACATGATTCGCAACTCGCATATGACTCATGAATCGGTATGTCCT"
+P3 = "TCACTACGGTGATCGTTTCCGGCGCTTTCTTGTCACGTCTACGATTCTGATTAATATTGC"
+P4 = "CAGCTGACATACTAATTACACCACCTGTCCTGATGAACGCGAAGCCACAACGTGTCAATA"
+P5 = "AAATTTTCTTCATTCAGTAATTGTACACCTTGCGTCAGTTCTACTCAGCGCGCTACCTTC"
+ADAPTER = "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+
+
+def _qual(n):
+    return ''.join(chr(33 + 20 + i % 20) for i in range(n))
+
+
+def _write_fastq(path, reads):
+    with open(path, 'wt') as outf:
+        for name, seq in reads:
+            outf.write(f'@{name}\n{seq}\n+\n{_qual(len(seq))}\n')
+
+
+def _read_fastq(path):
+    with pysam.FastxFile(path) as reads:
+        return [(read.name, read.sequence, read.quality) for read in reads]
+
+
 class TestToolBBMap(TestCaseWithTmp):
 
     def setUp(self):
@@ -244,3 +267,65 @@ class TestToolBBMap(TestCaseWithTmp):
         self.assertGreater(strict_reads, 0)
         self.assertGreater(loose_reads, 0)
         self.assertLessEqual(loose_reads, strict_reads)
+
+    def test_bbduk_single_end_trims_adapter_and_polyg(self):
+        with viral_ngs.core.file.tmp_dir('_bbduk_test') as tmpdir:
+            in_fq = os.path.join(tmpdir, 'in.fastq')
+            out_fq = os.path.join(tmpdir, 'out.fastq')
+            _write_fastq(in_fq, [
+                ('adapt', P1 + ADAPTER),
+                ('polyg', P2 + 'G' * 12),
+                ('g5', 'G' * 12 + P3),
+                ('clean', P4),
+                ('dimer', ADAPTER),
+            ])
+
+            self.bbmap.bbduk(
+                in_fq, out_fq, ref='adapters', ktrim='r', k=23, mink=11, hdist=1,
+                trimpolyg=10, minlength=2, removeifeitherbad=True, ordered=True,
+                interleaved=False, qin=33, qout=33, threads=1, memory='1g',
+            )
+
+            self.assertEqual(_read_fastq(out_fq), [
+                ('adapt', P1, _qual(len(P1 + ADAPTER))[:60]),
+                ('polyg', P2, _qual(len(P2) + 12)[:60]),
+                ('g5', P3, _qual(12 + len(P3))[12:]),
+                ('clean', P4, _qual(len(P4))),
+            ])
+
+    def test_bbduk_paired_keeps_mates_synchronized(self):
+        with viral_ngs.core.file.tmp_dir('_bbduk_test') as tmpdir:
+            in1 = os.path.join(tmpdir, 'in.1.fastq')
+            in2 = os.path.join(tmpdir, 'in.2.fastq')
+            out1 = os.path.join(tmpdir, 'out.1.fastq')
+            out2 = os.path.join(tmpdir, 'out.2.fastq')
+            _write_fastq(in1, [('pair1/1', P1 + ADAPTER), ('pair2/1', ADAPTER), ('pair3/1', P4)])
+            _write_fastq(in2, [('pair1/2', P2), ('pair2/2', P3), ('pair3/2', P5 + 'G' * 12)])
+
+            self.bbmap.bbduk(
+                in1, out1, inFastq2=in2, outFastq2=out2, ref='adapters', ktrim='r',
+                k=23, mink=11, hdist=1, trimpolyg=10, minlength=2, removeifeitherbad=True,
+                ordered=True, interleaved=False, qin=33, qout=33, threads=1, memory='1g',
+            )
+
+            self.assertEqual([(name, seq) for name, seq, _ in _read_fastq(out1)],
+                             [('pair1/1', P1), ('pair3/1', P4)])
+            self.assertEqual([(name, seq) for name, seq, _ in _read_fastq(out2)],
+                             [('pair1/2', P2), ('pair3/2', P5)])
+
+    def test_bbduk_kfilter_mcf(self):
+        with viral_ngs.core.file.tmp_dir('_bbduk_test') as tmpdir:
+            in_fq = os.path.join(tmpdir, 'in.fastq')
+            out_fq = os.path.join(tmpdir, 'out.fastq')
+            out_m = os.path.join(tmpdir, 'matched.fastq')
+            high_cov = P1[:20] + ADAPTER
+            low_cov = P1 + P2[:20] + ADAPTER
+            _write_fastq(in_fq, [('high_cov', high_cov), ('low_cov', low_cov)])
+
+            self.bbmap.bbduk(
+                in_fq, out_fq, outm=out_m, literal=ADAPTER, k=23, mcf=0.5,
+                ordered=True, interleaved=False, qin=33, qout=33, threads=1, memory='1g',
+            )
+
+            self.assertEqual([(name, seq) for name, seq, _ in _read_fastq(out_fq)], [('low_cov', low_cov)])
+            self.assertEqual([(name, seq) for name, seq, _ in _read_fastq(out_m)], [('high_cov', high_cov)])

@@ -29,6 +29,7 @@ from Bio.SeqRecord import SeqRecord
 import anndata
 import pysam
 
+from .core import bbmap, picard, samtools
 from .core import cmd
 from .core import file
 from .core import misc
@@ -471,6 +472,42 @@ def main_kma_build(ref_fasta, db_prefix, threads=None):
 __commands__.append(('kma_build', parser_kma_build))
 
 
+def _trim_centrifuger_bam(in_bam, out_bam, threads=None):
+    """Apply XT clipping, adapter trimming, and poly-G trimming before classification."""
+    with file.tmp_dir(suffix='_centrifuger_trim') as tmpdir:
+        raw1 = os.path.join(tmpdir, 'raw.1.fastq')
+        raw2 = os.path.join(tmpdir, 'raw.2.fastq')
+        raw_s = os.path.join(tmpdir, 'raw.s.fastq')
+        trim1 = os.path.join(tmpdir, 'trim.1.fastq')
+        trim2 = os.path.join(tmpdir, 'trim.2.fastq')
+
+        picard_tool = picard.SamToFastqTool()
+        picard_tool.execute(in_bam, raw1, raw2, outFastq0=raw_s, illuminaClipping=True,
+                            JVMmemory=picard_tool.jvmMemDefault)
+
+        # Match Centrifuger's existing layout selection before trimming changes file sizes.
+        paired = os.path.getsize(raw2) >= os.path.getsize(raw_s)
+        bb = bbmap.BBMapTool()
+        # BBDuk leaves one base when trimming would otherwise remove the whole read.
+        trim_opts = dict(
+            ref='adapters', ktrim='r', k=23, mink=11, hdist=1,
+            trimpolyg=10, minlength=2, removeifeitherbad=True, ordered=True,
+            interleaved=False, qin=33, qout=33, threads=misc.sanitize_thread_count(threads),
+        )
+        if paired:
+            bb.bbduk(raw1, trim1, inFastq2=raw2, outFastq2=trim2, **trim_opts)
+        else:
+            bb.bbduk(raw_s, trim1, **trim_opts)
+
+        # Rebuilding the BAM keeps trimmed sequences and drops the already-applied XT tag.
+        sample_name = os.path.splitext(os.path.basename(in_bam))[0]
+        picard.FastqToSamTool().execute(
+            trim1, trim2 if paired else None, sample_name, out_bam,
+            picardOptions=['QUALITY_FORMAT=Standard', 'READ_GROUP_NAME=centrifuger_trim'],
+        )
+    log.info('BBDuk-trimmed reads for Centrifuger written to %s', out_bam)
+
+
 def parser_centrifuger(parser=argparse.ArgumentParser()):
     parser.add_argument('db', help='Centrifuger database prefix.')
     parser.add_argument('in_bam', help='Input unaligned reads, BAM format.')
@@ -482,6 +519,9 @@ def parser_centrifuger(parser=argparse.ArgumentParser()):
     parser.add_argument('--min_hitlen', type=int, help='Minimum total length of matched segments.')
     parser.add_argument('--hitk_factor', type=int, help='Centrifuger hit-k factor.')
     parser.add_argument('--merge_readpair', action='store_true', help='Merge paired reads before classification.')
+    parser.add_argument('--no_trim', dest='trim_reads', action='store_false', default=True,
+                        help="Skip BBDuk adapter and poly-G trimming before classification "
+                             "(Picard XT-tag adapter clipping is still applied).")
     cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     cmd.attach_main(parser, main_centrifuger, split_args=True)
     return parser
@@ -490,15 +530,12 @@ def parser_centrifuger(parser=argparse.ArgumentParser()):
 def main_centrifuger(db, in_bam, out_classification, k=1,
                     unclassified_prefix=None, classified_prefix=None,
                     min_hitlen=None, hitk_factor=None,
-                    merge_readpair=False, threads=None):
+                    merge_readpair=False, threads=None, trim_reads=True):
     '''
         Classify reads by taxon using Centrifuger.
     '''
     centrifuger_tool = centrifuger.Centrifuger()
-    centrifuger_tool.classify(
-        in_bam,
-        db,
-        out_classification,
+    kwargs = dict(
         k=k,
         unclassified_prefix=unclassified_prefix,
         classified_prefix=classified_prefix,
@@ -507,6 +544,12 @@ def main_centrifuger(db, in_bam, out_classification, k=1,
         merge_readpair=merge_readpair,
         num_threads=threads,
     )
+    if trim_reads and os.path.isfile(in_bam) and not samtools.SamtoolsTool().isEmpty(in_bam):
+        with file.tempfname('.centrifuger_trim.bam') as trimmed_bam:
+            _trim_centrifuger_bam(in_bam, trimmed_bam, threads=threads)
+            centrifuger_tool.classify(trimmed_bam, db, out_classification, **kwargs)
+    else:
+        centrifuger_tool.classify(in_bam, db, out_classification, **kwargs)
 
 
 __commands__.append(('centrifuger', parser_centrifuger))

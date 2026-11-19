@@ -6,6 +6,7 @@ from collections import Counter
 import copy
 import os.path
 from os.path import join
+import subprocess
 import tempfile
 import textwrap
 import unittest
@@ -105,6 +106,113 @@ def test_centrifuger_parser_defaults_to_k_one():
             hitk_factor=None,
             merge_readpair=False,
             num_threads=_CPUS,
+        )
+
+
+@pytest.fixture
+def centrifuger_input_bam():
+    return os.path.join(util_file.get_test_input_path(), 'TestMetagenomicsSimple', 'test-reads.bam')
+
+
+def test_centrifuger_parser_trims_by_default(centrifuger_input_bam):
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger, \
+         patch('viral_ngs.metagenomics._trim_centrifuger_bam', autospec=True) as mock_trim:
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args([
+            'db', centrifuger_input_bam, 'out.tsv',
+        ])
+        args.func_main(args)
+
+        mock_trim.assert_called_once_with(centrifuger_input_bam, mock.ANY, threads=_CPUS)
+        trimmed_bam = mock_trim.call_args.args[1]
+        assert trimmed_bam != centrifuger_input_bam
+        mock_centrifuger.return_value.classify.assert_called_once_with(
+            trimmed_bam,
+            'db',
+            'out.tsv',
+            k=1,
+            unclassified_prefix=None,
+            classified_prefix=None,
+            min_hitlen=None,
+            hitk_factor=None,
+            merge_readpair=False,
+            num_threads=_CPUS,
+        )
+
+
+def test_centrifuger_parser_no_trim_skips_trimming(centrifuger_input_bam):
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger, \
+         patch('viral_ngs.metagenomics._trim_centrifuger_bam', autospec=True) as mock_trim:
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args([
+            'db', centrifuger_input_bam, 'out.tsv', '--no_trim',
+        ])
+        args.func_main(args)
+
+        mock_trim.assert_not_called()
+        mock_centrifuger.return_value.classify.assert_called_once_with(
+            centrifuger_input_bam,
+            'db',
+            'out.tsv',
+            k=1,
+            unclassified_prefix=None,
+            classified_prefix=None,
+            min_hitlen=None,
+            hitk_factor=None,
+            merge_readpair=False,
+            num_threads=_CPUS,
+        )
+
+
+def test_centrifuger_trim_failure_does_not_classify(centrifuger_input_bam):
+    with patch('viral_ngs.metagenomics.centrifuger.Centrifuger', autospec=True) as mock_centrifuger, \
+         patch('viral_ngs.metagenomics._trim_centrifuger_bam',
+               side_effect=subprocess.CalledProcessError(1, 'bbduk.sh')):
+        args = metagenomics.parser_centrifuger(argparse.ArgumentParser()).parse_args([
+            'db', centrifuger_input_bam, 'out.tsv',
+        ])
+        with pytest.raises(subprocess.CalledProcessError):
+            args.func_main(args)
+
+        mock_centrifuger.return_value.classify.assert_not_called()
+
+
+@pytest.mark.parametrize(('r2_bytes', 's_bytes', 'expect_paired'), [
+    (100, 10, True),
+    (10, 100, False),
+    (50, 50, True),
+])
+def test_trim_centrifuger_bam_selects_layout_before_trimming(r2_bytes, s_bytes, expect_paired):
+    def sam_to_fastq(in_bam, raw1, raw2, outFastq0, **kwargs):
+        for path, size in ((raw1, 100), (raw2, r2_bytes), (outFastq0, s_bytes)):
+            with open(path, 'wb') as outf:
+                outf.write(b'x' * size)
+
+    with patch('viral_ngs.metagenomics.picard.SamToFastqTool', autospec=True) as mock_sam_to_fastq, \
+         patch('viral_ngs.metagenomics.bbmap.BBMapTool', autospec=True) as mock_bbmap, \
+         patch('viral_ngs.metagenomics.picard.FastqToSamTool', autospec=True) as mock_fastq_to_sam:
+        extract = mock_sam_to_fastq.return_value.execute
+        extract.side_effect = sam_to_fastq
+        metagenomics._trim_centrifuger_bam('input.bam', 'out.bam', threads=1)
+
+        _, raw1, raw2 = extract.call_args.args
+        raw_s = extract.call_args.kwargs['outFastq0']
+        trim = mock_bbmap.return_value.bbduk
+        trim.assert_called_once()
+        trim1 = trim.call_args.args[1]
+        opts = dict(
+            ref='adapters', ktrim='r', k=23, mink=11, hdist=1,
+            trimpolyg=10, minlength=2, removeifeitherbad=True, ordered=True,
+            interleaved=False, qin=33, qout=33, threads=1,
+        )
+        if expect_paired:
+            trim2 = trim.call_args.kwargs['outFastq2']
+            assert trim2 is not None
+            trim.assert_called_once_with(raw1, trim1, inFastq2=raw2, outFastq2=trim2, **opts)
+        else:
+            trim2 = None
+            trim.assert_called_once_with(raw_s, trim1, **opts)
+        mock_fastq_to_sam.return_value.execute.assert_called_once_with(
+            trim1, trim2, 'input', 'out.bam',
+            picardOptions=['QUALITY_FORMAT=Standard', 'READ_GROUP_NAME=centrifuger_trim'],
         )
 
 

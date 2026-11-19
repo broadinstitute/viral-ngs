@@ -183,3 +183,74 @@ class BBMapTool(Tool):
 
         _log.debug('Running clumpify: %s', ' '.join(tool_cmd))
         subprocess.check_call(tool_cmd)
+
+    def bbduk(self, inFastq, outFastq, inFastq2=None, outFastq2=None,
+              outm=None, ref=None, literal=None, ktrim=None, k=None, mink=None,
+              hdist=None, mcf=None, trimpolyg=None, minlength=None,
+              interleaved=None, threads=None, memory=None, **kwargs):
+        """Run BBDuk for read trimming or filtering.
+
+        Args:
+            inFastq: Input FASTQ (read 1, or interleaved/single-end).
+            outFastq: Output FASTQ corresponding to inFastq.
+            inFastq2: Optional read 2 input for split paired-end FASTQs.
+            outFastq2: Optional read 2 output; give together with inFastq2.
+            outm: Output FASTQ for reads rejected by filtering.
+            ref: Reference FASTA path or bundled reference name (e.g. adapters),
+                 or a list or tuple of references.
+            literal: Reference sequence, or a list or tuple of sequences.
+            ktrim: K-mer trimming direction (e.g. 'r' for right trimming).
+            k: Reference k-mer length.
+            mink: Minimum k-mer length to match at read ends when trimming.
+            hdist: Maximum Hamming distance for reference k-mer matching.
+            mcf: Minimum fraction of read bases covered by matching k-mers
+                 for filtering (BBDuk's mincovfraction).
+            trimpolyg: Minimum length of poly-G runs to trim at either end.
+            minlength: Minimum read length to keep after trimming.
+            interleaved: Force or disable interleaved single-file input.
+            threads: Number of worker threads.
+            memory: Java heap size (e.g. '4g'); defaults to self.memDefault
+                    ('2g') to avoid BBTools container heap misdetection.
+            **kwargs: Additional BBDuk key=value flags such as qtrim, trimq,
+                      tbo, tpe, trimpolygleft, trimpolygright, ordered,
+                      removeifeitherbad, qin, qout, stats, and outs.
+        """
+        if (inFastq2 is None) != (outFastq2 is None):
+            raise ValueError('inFastq2 and outFastq2 must be given together')
+
+        reserved = kwargs.keys() & {'in', 'in_', 'in1', 'in2', 'out', 'out1', 'out2', 'threads', 'memory'}
+        if reserved:
+            raise ValueError('Reserved BBDuk options: {}'.format(', '.join(sorted(reserved))))
+
+        tool_dir = os.path.dirname(self.install_and_get_path())
+        tool_cmd = [os.path.join(tool_dir, 'bbduk.sh'), '-eoom', '-Xmx{}'.format(memory or self.memDefault)]
+        if inFastq2 is not None:
+            tool_cmd.extend(('in1={}'.format(inFastq), 'in2={}'.format(inFastq2),
+                             'out1={}'.format(outFastq), 'out2={}'.format(outFastq2)))
+        else:
+            tool_cmd.extend(('in={}'.format(inFastq), 'out={}'.format(outFastq)))
+
+        options = {
+            'outm': outm,
+            'ref': ','.join(ref) if isinstance(ref, (list, tuple)) else ref,
+            'literal': ','.join(literal) if isinstance(literal, (list, tuple)) else literal,
+            'ktrim': ktrim,
+            'k': k,
+            'mink': mink,
+            'hdist': hdist,
+            'mcf': mcf,
+            'trimpolyg': trimpolyg,
+            'minlength': minlength,
+            'interleaved': interleaved,
+            **kwargs,
+        }
+        for key, val in options.items():
+            if val is not None:
+                if isinstance(val, bool):
+                    val = 't' if val else 'f'
+                tool_cmd.append('{}={}'.format(key, val))
+        if threads is not None:
+            tool_cmd.append('threads={}'.format(threads))
+
+        _log.debug('Running bbduk: %s', ' '.join(tool_cmd))
+        subprocess.check_call(tool_cmd)

@@ -1,9 +1,11 @@
 # Integration tests for Centrifuger
 import argparse
+import csv
 import glob
 import os
 import shutil
 
+import pysam
 import pytest
 
 from viral_ngs import metagenomics
@@ -13,10 +15,44 @@ from viral_ngs.core import file as util_file
 
 pytestmark = pytest.mark.skipif(
     not all(shutil.which(cmd) for cmd in (
-        'centrifuger', 'centrifuger-build', 'centrifuger-quant', 'centrifuger-kreport',
+        'centrifuger', 'centrifuger-build', 'centrifuger-quant', 'centrifuger-kreport', 'bbduk.sh',
     )),
-    reason='Centrifuger executables are not installed',
+    reason='Centrifuger executables are not installed or bbduk.sh is missing',
 )
+
+
+ADAPTER = "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+
+
+def _derive_bam(src, dst, transform):
+    """Write the first 20 read names and their mates with transformed read data."""
+    names = set()
+    with pysam.AlignmentFile(src, 'rb', check_sq=False) as source, \
+         pysam.AlignmentFile(dst, 'wb', template=source) as output:
+        for rec in source:
+            if len(names) < 20:
+                names.add(rec.query_name)
+            if rec.query_name not in names:
+                continue
+            rec.set_tags([])
+            seq, quals = transform(rec)
+            rec.query_sequence = seq
+            rec.query_qualities = quals
+            output.write(rec)
+
+
+def _classify_bam(db, in_bam, out_classification, *options):
+    parser = metagenomics.parser_centrifuger(argparse.ArgumentParser())
+    args = parser.parse_args([db, str(in_bam), str(out_classification), '--threads', '2', *options])
+    args.func_main(args)
+
+
+def _classifications_by_read(path):
+    with open(path, 'rt') as inf:
+        return {
+            row['readID']: (row['taxID'], int(row['queryLength']))
+            for row in csv.DictReader(inf, delimiter='\t')
+        }
 
 
 @pytest.fixture(scope='module')
@@ -182,3 +218,83 @@ def test_centrifuger_classify_then_kreport_on_empty_bam(centrifuger_db):
     assert os.path.exists(out_kreport)
     assert os.path.getsize(out_kreport) == 0, \
         'kreport on header-only classification should produce an empty report'
+
+
+def test_centrifuger_default_trimming_matches_clean_reads(tmp_path, centrifuger_db, metagenomics_simple):
+    src = metagenomics_simple['bam']
+    clean_bam = tmp_path / 'clean.bam'
+    raw_bam = tmp_path / 'raw.bam'
+    name_indices = {}
+
+    def clean_payload(rec):
+        index = name_indices.setdefault(rec.query_name, len(name_indices))
+        seq = rec.query_sequence
+        # Do not let an added poly-G tail absorb Gs already at the end of the payload.
+        if index % 2 == 0:
+            seq = seq.rstrip('G')
+        return seq, rec.query_qualities[:len(seq)]
+
+    def add_contaminant(rec):
+        seq, quals = clean_payload(rec)
+        suffix = ADAPTER if name_indices[rec.query_name] % 2 else 'G' * 15
+        return seq + suffix, list(quals) + [30] * len(suffix)
+
+    _derive_bam(src, clean_bam, clean_payload)
+    _derive_bam(src, raw_bam, add_contaminant)
+    clean_tsv = tmp_path / 'clean.tsv'
+    trimmed_tsv = tmp_path / 'trimmed.tsv'
+    untrimmed_tsv = tmp_path / 'untrimmed.tsv'
+    _classify_bam(centrifuger_db, clean_bam, clean_tsv)
+    _classify_bam(centrifuger_db, raw_bam, trimmed_tsv)
+    _classify_bam(centrifuger_db, raw_bam, untrimmed_tsv, '--no_trim')
+
+    trimmed = _classifications_by_read(trimmed_tsv)
+    untrimmed = _classifications_by_read(untrimmed_tsv)
+    assert trimmed == _classifications_by_read(clean_tsv)
+    assert any(taxid == '186538' for taxid, _ in trimmed.values())
+    assert untrimmed.keys() == trimmed.keys()
+    assert all(untrimmed[read_id][1] > length for read_id, (_, length) in trimmed.items())
+
+
+def test_centrifuger_default_trimming_preserves_xt_clipping(tmp_path, centrifuger_db, metagenomics_simple):
+    src = metagenomics_simple['bam']
+    clean_bam = tmp_path / 'clean.bam'
+    xt_bam = tmp_path / 'xt.bam'
+
+    def add_xt_clipped_adapter(rec):
+        seq = rec.query_sequence
+        rec.set_tag('XT', len(seq) + 1, value_type='i')
+        return seq + ADAPTER, list(rec.query_qualities) + [30] * len(ADAPTER)
+
+    _derive_bam(src, clean_bam, lambda rec: (rec.query_sequence, rec.query_qualities))
+    _derive_bam(src, xt_bam, add_xt_clipped_adapter)
+    clean_tsv = tmp_path / 'clean.tsv'
+    xt_tsv = tmp_path / 'xt.tsv'
+    _classify_bam(centrifuger_db, clean_bam, clean_tsv)
+    _classify_bam(centrifuger_db, xt_bam, xt_tsv)
+
+    assert _classifications_by_read(xt_tsv) == _classifications_by_read(clean_tsv)
+
+
+def test_centrifuger_default_trimming_to_zero_reads_writes_header_only(
+        tmp_path, centrifuger_db, metagenomics_simple):
+    raw_bam = tmp_path / 'all_contaminant.bam'
+    name_indices = {}
+
+    def replace_with_contaminant(rec):
+        index = name_indices.setdefault(rec.query_name, len(name_indices))
+        seq = ADAPTER if index % 2 else 'G' * 40
+        return seq, [30] * len(seq)
+
+    _derive_bam(metagenomics_simple['bam'], raw_bam, replace_with_contaminant)
+    out_classification = tmp_path / 'classification.tsv'
+    out_kreport = tmp_path / 'kreport.tsv'
+    _classify_bam(centrifuger_db, raw_bam, out_classification)
+    parser = metagenomics.parser_centrifuger_kreport(argparse.ArgumentParser())
+    args = parser.parse_args([centrifuger_db, str(out_classification), str(out_kreport)])
+    args.func_main(args)
+
+    assert out_classification.read_text().splitlines() == [
+        'readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches'
+    ]
+    assert out_kreport.stat().st_size == 0
