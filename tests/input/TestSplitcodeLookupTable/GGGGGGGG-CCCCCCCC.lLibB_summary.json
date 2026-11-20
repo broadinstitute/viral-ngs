@@ -1,6 +1,7 @@
 {
   "n_processed": 60000,
   "n_assigned": 58500,
+  "num_reads_unassigned": 1500,
   "tag_qc": [
     {
       "tag": "PoolB_S1.lLibB_R1",

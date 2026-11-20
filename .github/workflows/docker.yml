@@ -73,6 +73,7 @@ jobs:
               - 'docker/Dockerfile.phylo'
             docker:
               - 'docker/**'
+              - '.dockerignore'
               - '.github/workflows/docker.yml'
 
   # Calculate version from git describe (once, shared by all jobs)
@@ -122,6 +123,7 @@ jobs:
             PREFIX="pr-${PR_NUMBER}"
           else
             # For branches/tags, replace "/" with "-" to create valid Docker tags
+            # (keep in sync with tag_prefix() in .github/scripts/quay_delete_branch_tags.py)
             PREFIX=$(echo "${{ github.ref_name }}" | sed 's|/|-|g')
             # Strip leading 'v' for version tags (e.g., v3.0.1 -> 3.0.1)
             PREFIX=${PREFIX#v}
@@ -156,7 +158,7 @@ jobs:
 
       - name: Build and push (amd64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.baseimage
@@ -192,7 +194,7 @@ jobs:
 
       - name: Build and push (arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.baseimage
@@ -293,7 +295,7 @@ jobs:
 
       - name: Build and push (amd64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.core
@@ -334,7 +336,7 @@ jobs:
 
       - name: Build and push (arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.core
@@ -438,7 +440,7 @@ jobs:
 
       - name: Build and push (amd64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.assemble
@@ -479,7 +481,7 @@ jobs:
 
       - name: Build and push (arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.assemble
@@ -583,7 +585,7 @@ jobs:
 
       - name: Build and push (amd64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.classify
@@ -624,7 +626,7 @@ jobs:
 
       - name: Build and push (arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.classify
@@ -728,7 +730,7 @@ jobs:
 
       - name: Build and push (amd64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.phylo
@@ -769,7 +771,7 @@ jobs:
 
       - name: Build and push (arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.phylo
@@ -873,7 +875,7 @@ jobs:
 
       - name: Build and push (amd64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.mega
@@ -914,7 +916,7 @@ jobs:
 
       - name: Build and push (arm64)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile.mega
@@ -1027,8 +1029,12 @@ jobs:
         # commits). This SHA is the vetted v0.36.0 release per broadinstitute/py3-bio#12;
         # do NOT blindly bump to whatever the upstream v0.36.0 tag currently points to —
         # the tag has been moved since. Verify any new SHA against multiple sources.
+        # `version:` pins the Trivy scanner binary itself (independent of the action
+        # wrapper's SHA above) so it doesn't silently drift if the action's own
+        # default changes; bump explicitly rather than relying on the wrapper default.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
+          version: 'v0.72.0'
           image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
           format: 'sarif'
           output: 'trivy-results.sarif'
@@ -1036,7 +1042,7 @@ jobs:
           limit-severities-for-sarif: true
           exit-code: '0'
           ignore-unfixed: true
-          trivyignores: '.trivyignore'
+          trivyignores: '.trivyignore.yaml'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning disabled to reduce disk usage
           timeout: '20m0s'  # Increase timeout for large images (mega takes ~10min)
@@ -1044,13 +1050,14 @@ jobs:
       - name: Run Trivy vulnerability scanner (JSON)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see note above
         with:
+          version: 'v0.72.0'
           image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-${{ matrix.flavor }}-amd64'
           format: 'json'
           output: 'trivy-results.json'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true
-          trivyignores: '.trivyignore'
+          trivyignores: '.trivyignore.yaml'
           ignore-policy: '.trivy-ignore-policy.rego'
           scanners: 'vuln'  # vuln only - secret scanning disabled to reduce disk usage
           timeout: '20m0s'  # Increase timeout for large images (mega takes ~10min)
@@ -1112,6 +1119,7 @@ jobs:
       - name: Run Trivy secret scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 — see vuln scanner note
         with:
+          version: 'v0.72.0'
           image-ref: '${{ env.GHCR_REPO }}:${{ needs.get-version.outputs.image-tag-prefix }}-mega-${{ matrix.arch }}'
           format: 'sarif'
           output: 'trivy-secrets.sarif'
@@ -1532,6 +1540,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Keep in sync with FLAVOR_SUFFIXES in .github/scripts/quay_delete_branch_tags.py,
+        # which deletes these tags when a branch is deleted
         include:
           - flavor: baseimage
           - flavor: core

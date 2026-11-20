@@ -10,13 +10,18 @@ import tempfile
 import argparse
 import filecmp
 import shutil
+import io
 import json
 import gzip
+import glob
 import pytest
+import pysam
+import pandas as pd
 import viral_ngs.core
 import viral_ngs.illumina
 import viral_ngs.core.samtools
 import viral_ngs.core.picard
+import viral_ngs.core.splitcode
 from tests import TestCaseWithTmp, assert_equal_bam_reads
 
 
@@ -86,14 +91,14 @@ class TestSampleSheet(TestCaseWithTmp):
                                       )
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(samples.duplicate_rows_collapsed, False)
-        self.assertEqual(samples.can_be_collapsed, True)
+        self.assertEqual(samples.has_collapsible_duplicates, True)
         self.assertEqual(samples.num_samples, 96)
 
         samples.collapse_sample_index_duplicates()
 
         self.assertEqual(samples.num_indexes(), 2)
         self.assertEqual(samples.duplicate_rows_collapsed, True)
-        self.assertEqual(samples.can_be_collapsed, False)
+        self.assertEqual(samples.has_collapsible_duplicates, False)
         self.assertEqual(len(samples.get_rows()), 4)
 
         # check that unique values in grouped rows are preserved
@@ -109,6 +114,28 @@ class TestSampleSheet(TestCaseWithTmp):
         # check that the collapsed output is what we expect
         self.assertEqual(tuple(r["barcode_1"] for r in samples.get_rows()), ("CTGATCGT","ACTCTCGA","TGAGCTAG","GAGACGAT"))
         self.assertEqual(tuple(r["barcode_2"] for r in samples.get_rows()), ("GCGCATAT","CTGTACCA","GAACGGTT","ACCGGTTA"))
+
+    def test_has_collapsible_duplicates_single_row(self):
+        """A one-row sheet has nothing to collapse, and that is not an error.
+
+        The predicate is "two or more rows share an index pair", so one row is
+        always False. Guards the N==1 boundary that the 96-row fixture above
+        never reaches, and that issue #1115 tripped over by reading this
+        property (and an inline copy of it) as "these rows form one pool".
+        """
+        with tempfile.TemporaryDirectory() as sheet_dir:
+            sheet = os.path.join(sheet_dir, 'SampleSheet-one-row.tsv')
+            with open(sheet, 'wt') as outf:
+                outf.write("sample\tbarcode_1\tbarcode_2\tbarcode_3\tlibrary_id_per_sample\n")
+                outf.write("TestSampleSolo\tATCGATCG\tGCTAGCTA\tAAAAAAAA\tL1\n")
+
+            samples = viral_ngs.illumina.SampleSheet(sheet, allow_non_unique=True)
+
+            self.assertEqual(samples.num_samples, 1)
+            self.assertEqual(samples.has_collapsible_duplicates, False)
+            # and the inner demux map builds fine from it -- nothing here needs N>1
+            self.assertEqual(len(samples.inner_demux_mapper()), 1)
+
 
     def test_tabfile_win_endings(self):
         inDir = viral_ngs.core.file.get_test_input_path(self)
@@ -593,6 +620,56 @@ class TestMiseqToBam(TestCaseWithTmp):
         self.assertRaises(Exception, viral_ngs.illumina.miseq_fastq_to_bam, outBam, sampleSheet, fastq[0], fastq2=fastq[1], runInfo=runInfo)
 
 
+class TestBarcodeGroupForRow(unittest.TestCase):
+    """Pool identity is the outer barcodes, with a missing barcode_2 read as absent.
+
+    Callers hand rows in from dicts, from pd.read_csv(dtype=str), and from
+    frames that have been through .astype(str), so an empty barcode_2 arrives
+    as "", as NaN, or as the literal string "nan". All three mean single-index.
+    """
+
+    def test_dual_index(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row(
+                {'barcode_1': 'ATCGATCG', 'barcode_2': 'GCTAGCTA'}),
+            'ATCGATCG-GCTAGCTA')
+
+    def test_single_index_shapes_of_missing_barcode_2(self):
+        """Every shape an absent barcode_2 arrives in yields the bare barcode_1."""
+        for barcode_2 in ('', '   ', None, float('nan'), 'nan'):
+            row = {'barcode_1': 'ATCGATCG'}
+            if barcode_2 is not None:
+                row['barcode_2'] = barcode_2
+            self.assertEqual(
+                viral_ngs.core.splitcode.barcode_group_for_row(row), 'ATCGATCG',
+                f"barcode_2={barcode_2!r} should read as absent")
+
+    def test_column_absent_entirely(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row({'barcode_1': 'ATCGATCG'}),
+            'ATCGATCG')
+
+    def test_single_index_frame_from_read_csv(self):
+        """The shape that actually reaches the metrics and plot code.
+
+        Those three consumers read the LUT with pd.read_csv(dtype=str), which
+        turns an empty barcode_2 cell into NaN. Before this was handled, a
+        single-index run was grouped under the pool id "ATCGATCG-nan".
+        """
+        df = pd.read_csv(io.StringIO(
+            "barcode_1,barcode_2,inline_barcode\n"
+            "ATCGATCG,,AAAAAAAA\n"
+            "ATCGATCG,,CCCCCCCC\n"), dtype=str)
+        pools = df.apply(viral_ngs.core.splitcode.barcode_group_for_row, axis=1)
+        self.assertEqual(list(pools), ['ATCGATCG', 'ATCGATCG'])
+
+    def test_barcodes_are_stripped(self):
+        self.assertEqual(
+            viral_ngs.core.splitcode.barcode_group_for_row(
+                {'barcode_1': ' ATCGATCG ', 'barcode_2': ' GCTAGCTA '}),
+            'ATCGATCG-GCTAGCTA')
+
+
 class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
     """
     End-to-end integration test for splitcode_demux command.
@@ -823,12 +900,325 @@ class TestSplitcodeDemuxIntegration(TestCaseWithTmp):
                     assert_equal_bam_reads(self, actual_sample1_bam, expected_sample1_bam)
                     assert_equal_bam_reads(self, actual_sample2_bam, expected_sample2_bam)
 
+    def test_splitcode_demux_singleton_pools(self):
+        """
+        Test splitcode_demux on a samplesheet where every pool holds one sample.
+
+        Regression test for GitHub issue #1115. The collapsibility check asks
+        whether any outer-barcode pair is duplicated; when each pool carries a
+        single library nothing is, so inner_demux_barcode_map_df was left None
+        and then dereferenced -- an AttributeError, not a clean diagnostic.
+
+        This is the shape of the samplesheet that failed in production: 7 rows,
+        each with distinct outer barcodes.
+
+        The pool BAM names are derived rather than written out: a pool of one
+        never collapses, so the outer demux names its BAM after the *sample*
+        ("TestSampleA.lL1.TESTFLOW.1.bam"), not after the barcode group. This
+        test originally hard-coded barcode-group names, which no demux would
+        produce, so it passed without exercising that lookup at all.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-singleton-pools.tsv')
+        pool_bams = self._pool_bam_names(samplesheet, "TESTFLOW.1")
+
+        sample_a_pairs = 100
+        sample_b_pairs = 50
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                # One pool BAM per singleton pool
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bams['ATCGATCG-GCTAGCTA']),
+                    {"AAAAAAAA": sample_a_pairs},
+                )
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bams['CTGATCGT-TAGATCGC']),
+                    {"CCCCCCCC": sample_b_pairs},
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                for sample, expected_pairs in (('TestSampleA', sample_a_pairs),
+                                               ('TestSampleB', sample_b_pairs)):
+                    bam = os.path.join(outDir, f'{sample}.lL1.TESTFLOW.1.bam')
+                    self.assertTrue(os.path.exists(bam),
+                                    f"Expected output BAM not found: {bam}; "
+                                    f"got {sorted(os.listdir(outDir))}")
+                    # samtools.count() reports records (R1+R2); the helper above
+                    # takes pairs
+                    self.assertEqual(self.samtools.count(bam) // 2, expected_pairs,
+                                     f"{sample} read pair count mismatch")
+
+
+    def test_splitcode_demux_mixed_collapsed_and_singleton_pools(self):
+        """Demux a sheet where one pool collapsed and another did not.
+
+        Scenario unsupported before this fix, and the realistic shape for this
+        entry point: splitcode_demux only runs when *something* collapsed, so a
+        run routinely carries both kinds of pool at once. The two are named by
+        different rules --
+
+            pool of 3 (collapses)  ATCGATCG-GCTAGCTA.l1_2_muxed.TESTFLOW.1.bam
+            pool of 1 (singleton)  TestSampleC.l1.TESTFLOW.1.bam
+
+        -- so no single filename pattern finds both. Globbing the barcode group
+        locates the collapsed pool but never the singleton one, and the
+        muxed_run pattern it replaced found neither, so either way the run dies
+        with FileNotFoundError on the singleton rows.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-mixed-pools.tsv')
+        pool_bams = self._pool_bam_names(samplesheet, "TESTFLOW.1")
+
+        # the collapsed pool is named after its barcodes, the singleton after its sample
+        self.assertIn('_muxed', pool_bams['ATCGATCG-GCTAGCTA'])
+        self.assertTrue(pool_bams['CTGATCGT-TAGATCGC'].startswith('TestSampleC.'),
+                        f"expected a sample-named singleton pool BAM, got {pool_bams['CTGATCGT-TAGATCGC']}")
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bams['ATCGATCG-GCTAGCTA']),
+                    {"AAAAAAAA": 100, "CCCCCCCC": 75},
+                )
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bams['CTGATCGT-TAGATCGC']),
+                    {"GGGGTTTT": 50},
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                for run_id, expected_pairs in (('TestSampleA.l1', 100),
+                                               ('TestSampleA.l2', 75),
+                                               ('TestSampleC.l1', 50)):
+                    bam = os.path.join(outDir, f'{run_id}.TESTFLOW.1.bam')
+                    self.assertTrue(os.path.exists(bam),
+                                    f"Expected output BAM not found: {bam}; "
+                                    f"got {sorted(os.listdir(outDir))}")
+                    self.assertEqual(self.samtools.count(bam) // 2, expected_pairs,
+                                     f"{run_id} read pair count mismatch")
+
+    # ------------------------------------------------------------------
+    # Pools holding more than one library_id_per_sample (issue #1117)
+    #
+    # A pool is its outer barcode pair. library_id_per_sample is per-sample --
+    # "independent libraries from the same original sample" -- so two preps of
+    # one sample legitimately share a pool. The outer Picard demux collapses
+    # such a pool into ONE BAM whose name folds the differing library ids
+    # together (ATCGATCG-GCTAGCTA.l1_2_muxed.TESTFLOW.1.bam), while this
+    # function rebuilds the name per row from that row's own library id.
+    # ------------------------------------------------------------------
+
+    def _pool_bam_names(self, samplesheet, run_id):
+        """Map each pool (outer barcodes) to the BAM basename the OUTER demux writes.
+
+        Derived rather than hard-coded, because the naming rule is not uniform:
+        the outer demux names every pool after row["run"] of the *collapsed*
+        samplesheet, and a pool that collapsed is named after its barcode group
+        with the differing columns folded together
+        ("ATCGATCG-GCTAGCTA.l1_2_muxed.RUNID.bam"), while a pool that never
+        collapsed -- a single sample on its own barcode pair -- keeps that
+        sample's own name ("TestSampleC.l1.RUNID.bam"). Reproducing the collapse
+        here keeps the fixtures honest and documents that the two are coupled.
+        """
+        samples = viral_ngs.illumina.SampleSheet(
+            samplesheet, allow_non_unique=True, append_run_id=run_id)
+        return dict(
+            (viral_ngs.core.splitcode.barcode_group_for_row(row), row["run"] + ".bam")
+            for row in samples.collapse_sample_index_duplicates(overwrite_instance_data=False))
+
+    def test_splitcode_demux_pool_with_mixed_library_ids(self):
+        """Demux a pool that holds two library preps of the same sample.
+
+        Scenario unsupported before this fix: SampleSheet-multilib.tsv puts
+        TestSampleA library 1, TestSampleA library 2 and TestSampleB library 1
+        on one outer barcode pair. Because the library ids differ, the outer
+        demux collapses them and names the single pool BAM
+        "ATCGATCG-GCTAGCTA.l1_2_muxed.TESTFLOW.1.bam". splitcode_demux rebuilt
+        that name per row as "...l1.TESTFLOW.1" / "...l2.TESTFLOW.1" and
+        globbed for it; the run id sits after the library id, so the glob's
+        trailing wildcard cannot absorb the "_2_muxed" in the middle and no
+        row matched. The task died with FileNotFoundError before demuxing a
+        single read -- every sample in the pool lost, not just the odd one.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-multilib.tsv')
+        expected = (('TestSampleA.l1', 'AAAAAAAA', 100),
+                    ('TestSampleA.l2', 'CCCCCCCC', 75),
+                    ('TestSampleB.l1', 'GGGGTTTT', 50))
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                pool_bam = self._pool_bam_names(samplesheet, "TESTFLOW.1")['ATCGATCG-GCTAGCTA']
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bam),
+                    dict((barcode, pairs) for _run, barcode, pairs in expected),
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                for run_id, _barcode, expected_pairs in expected:
+                    bam = os.path.join(outDir, f'{run_id}.TESTFLOW.1.bam')
+                    self.assertTrue(os.path.exists(bam),
+                                    f"Expected output BAM not found: {bam}; "
+                                    f"got {sorted(os.listdir(outDir))}")
+                    self.assertEqual(self.samtools.count(bam) // 2, expected_pairs,
+                                     f"{run_id} read pair count mismatch")
+
+    def test_splitcode_demux_runs_once_per_pool(self):
+        """One physical pool must be demultiplexed exactly once.
+
+        Scenario unsupported before this fix: the pool dictionaries were keyed
+        by the per-row name "{bc1}-{bc2}.l{library_id}.{run_id}", so a pool
+        whose samples carry two library ids looked like two pools sharing one
+        BAM. splitcode would then be invoked twice over the same input, each
+        pass given only the inline barcodes of its own library id and quietly
+        writing the other library's reads out as unassigned. Nothing raised,
+        so the only visible trace was one splitcode summary JSON per phantom
+        pool -- which is what this test counts.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-multilib.tsv')
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                pool_bam = self._pool_bam_names(samplesheet, "TESTFLOW.1")['ATCGATCG-GCTAGCTA']
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bam),
+                    {"AAAAAAAA": 100, "CCCCCCCC": 75, "GGGGTTTT": 50},
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                summaries = sorted(os.path.basename(p)
+                                   for p in glob.glob(os.path.join(outDir, '*_summary.json')))
+                self.assertEqual(len(summaries), 1,
+                                 f"one pool should produce one splitcode run; got {summaries}")
+
+    def test_splitcode_demux_metrics_group_by_pool(self):
+        """Metrics must report a mixed-library pool as one pool.
+
+        Scenario unsupported before this fix: the metrics and plots identify a
+        pool by library_id rather than by its barcodes, so the pool above was
+        reported as two pools -- one per library id -- each with a denominator
+        covering only part of the pool's reads, giving per-barcode percentages
+        that do not add up over the real pool.
+        """
+        inDir = viral_ngs.core.file.get_test_input_path(self)
+        samplesheet = os.path.join(inDir, 'SampleSheet-multilib.tsv')
+
+        with tempfile.TemporaryDirectory() as input_bams_dir:
+            with tempfile.TemporaryDirectory() as outDir:
+                pool_bam = self._pool_bam_names(samplesheet, "TESTFLOW.1")['ATCGATCG-GCTAGCTA']
+                self.create_test_bam_with_inline_barcodes(
+                    os.path.join(input_bams_dir, pool_bam),
+                    {"AAAAAAAA": 100, "CCCCCCCC": 75, "GGGGTTTT": 50},
+                )
+
+                viral_ngs.illumina.splitcode_demux(
+                    inDir=input_bams_dir,
+                    lane="1",
+                    outDir=outDir,
+                    sampleSheet=samplesheet,
+                    runinfo=os.path.join(inDir, 'RunInfo.xml'),
+                    flowcell="TESTFLOW",
+                    run_id="TESTFLOW.1",
+                    run_date="2025-01-01",
+                    read_structure="50T8B8B50T",
+                    platform_name="ILLUMINA",
+                    sequencing_center="TEST",
+                    unmatched_name="Unmatched",
+                    max_hamming_dist=1,
+                    threads=1,
+                )
+
+                lut = pd.read_csv(os.path.join(outDir, 'bc2sample_lut.csv'), dtype=str)
+                sample_rows = lut[lut['run'].isin(
+                    ['TestSampleA.l1.TESTFLOW.1', 'TestSampleA.l2.TESTFLOW.1',
+                     'TestSampleB.l1.TESTFLOW.1'])]
+                self.assertEqual(len(sample_rows), 3,
+                                 f"all three libraries should appear in the LUT; got {list(lut['run'])}")
+                self.assertEqual(sample_rows['muxed_pool'].nunique(), 1,
+                                 "the three libraries share one pool, so one muxed_pool value: "
+                                 f"got {sorted(sample_rows['muxed_pool'].unique())}")
+
+                # reads_per_bc.csv emits one set of columns per pool
+                per_bc = pd.read_csv(os.path.join(outDir, 'reads_per_bc.csv'), dtype=str)
+                pool_pct_cols = [c for c in per_bc.columns if c.endswith('_reads_pool_pct')]
+                self.assertEqual(len(pool_pct_cols), 1,
+                                 f"one pool should yield one set of pool columns; got {pool_pct_cols}")
+
 
 class TestParseIlluminaFastqFilename(unittest.TestCase):
     """Test parsing of Illumina DRAGEN FASTQ filename patterns.
 
     DRAGEN format: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq.gz
     Example: 22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
+
+    Simple format:  {sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq.gz
+    No-lane format: {sample_name}_{S#}_{R#}_{chunk}.fastq.gz  (DRAGEN with no
+    lane splitting; see issue #1113)
     """
 
     def test_standard_dragen_format_r1(self):
@@ -980,6 +1370,164 @@ class TestParseIlluminaFastqFilename(unittest.TestCase):
         # If DRAGEN produces index files, they might follow a different pattern
         # For now, test that we handle them gracefully or raise appropriate errors
         pass
+
+    # ------------------------------------------------------------------
+    # No-lane-splitting names (issue #1113)
+    #
+    # DRAGEN on-instrument demux omits the _L00N_ token entirely when the run
+    # is not lane-split (single-lane flowcells always are). These names carry
+    # no lane at all, so the parser reports lane=None and leaves it to the
+    # caller to decide what an absent lane means.
+    # ------------------------------------------------------------------
+
+    def test_nolane_format_r1(self):
+        """Test no-lane-splitting DRAGEN format: {sample}_{S#}_{R#}_{chunk}."""
+        filename = "NTC_S1_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        # 'lane' must be present (callers index it directly, not via .get())
+        self.assertIn('lane', result)
+        self.assertIsNone(result['lane'])
+        self.assertEqual(result['sample_name'], 'NTC')
+        self.assertEqual(result['sample_number'], 1)
+        self.assertEqual(result['read'], 1)
+        self.assertEqual(result['chunk'], 1)
+        self.assertFalse(result['is_index'])
+        self.assertIsNone(result.get('flowcell'))
+
+    def test_nolane_format_r2(self):
+        """Test no-lane-splitting format for R2.
+
+        Guards against a group-index off-by-one: the no-lane pattern has one
+        fewer capture group than the lane-split one, so a copy-pasted return
+        dict silently reports chunk as the read number.
+        """
+        filename = "NTC_S1_R2_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['read'], 2)
+        self.assertEqual(result['chunk'], 1)
+        self.assertIsNone(result['lane'])
+
+    def test_nolane_sample_name_with_underscores(self):
+        """Test no-lane-splitting name whose sample name spans underscores.
+
+        This is the literal filename from issue #1113.
+        """
+        filename = "RU_01_rep_S5_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'RU_01_rep')
+        self.assertEqual(result['sample_number'], 5)
+        self.assertEqual(result['read'], 1)
+        self.assertIsNone(result['lane'])
+
+    def test_nolane_index_read(self):
+        """Test that index reads are flagged in no-lane-splitting names."""
+        filename = "NTC_S1_I1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertTrue(result['is_index'])
+        self.assertEqual(result['read'], 1)
+        self.assertIsNone(result['lane'])
+
+    def test_nolane_with_full_path(self):
+        """Test no-lane-splitting name with a full directory path."""
+        filename = "/path/to/data/NTC_S1_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'NTC')
+        self.assertIsNone(result['lane'])
+
+    def test_nolane_without_gz_extension(self):
+        """Test no-lane-splitting name without the .gz extension."""
+        filename = "NTC_S1_R1_001.fastq"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'NTC')
+        self.assertEqual(result['chunk'], 1)
+
+    def test_nolane_chunk_number(self):
+        """Test chunk numbers other than 001 in no-lane-splitting names."""
+        filename = "NTC_S1_R1_002.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['chunk'], 2)
+        self.assertEqual(result['read'], 1)
+
+    def test_lane_pattern_takes_precedence_over_nolane(self):
+        """Test that a lane-split name still reports its lane.
+
+        Regression guard on pattern ordering: the no-lane pattern would also
+        match if it were tried first, silently dropping the lane from every
+        lane-split run.
+        """
+        result = viral_ngs.illumina.parse_illumina_fastq_filename("Sample1_S1_L001_R1_001.fastq.gz")
+        self.assertEqual(result['lane'], 1)
+
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(
+            "22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz")
+        self.assertEqual(result['lane'], 6)
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+
+    def test_nolane_does_not_shadow_malformed(self):
+        """Test that the no-lane pattern does not accept malformed names."""
+        for filename in (
+            'Sample_S1_L006_001.fastq.gz',       # no read token
+            'Sample_R1_001.fastq.gz',            # no sample number
+            'Sample_S1_R1.fastq.gz',             # no chunk
+            'Sample_S1_R1_0011.fastq.gz',        # 4-digit chunk
+            'Sample_S1_R1_001_extra.fastq.gz',   # trailing junk
+            'random_file.fastq.gz',
+        ):
+            with self.assertRaises(ValueError, msg=f"should not have parsed: {filename}"):
+                viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+    def test_multi_digit_lane(self):
+        """Test that lane tokens beyond L009 parse."""
+        filename = "mebv-48-5_S17_L010_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['sample_name'], 'mebv-48-5')
+        self.assertEqual(result['lane'], 10)
+
+    def test_multi_digit_lane_short_dragen(self):
+        """Test that a DRAGEN name with a multi-digit lane prefix stays DRAGEN.
+
+        Without a multi-digit lane_short group this falls through to the simple
+        pattern and silently swallows the flowcell prefix into the sample name.
+        """
+        filename = "22J5GLLT4_10_0420593812_B13Pool1a_S1_L010_R1_001.fastq.gz"
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(filename)
+
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['lane_short'], 10)
+        self.assertEqual(result['numeric_id'], '0420593812')
+        self.assertEqual(result['sample_name'], 'B13Pool1a')
+        self.assertEqual(result['lane'], 10)
+
+        # single-digit lane token, two-digit lane prefix: this one parses today,
+        # but silently as the simple format with the prefix eaten by sample_name
+        result = viral_ngs.illumina.parse_illumina_fastq_filename(
+            "22J5GLLT4_11_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz")
+        self.assertEqual(result['flowcell'], '22J5GLLT4')
+        self.assertEqual(result['lane_short'], 11)
+        self.assertEqual(result['sample_name'], 'B13Pool1a')
+        self.assertEqual(result['lane'], 6)
+
+    def test_error_message_lists_all_three_formats(self):
+        """Test that the error message documents every accepted format."""
+        with self.assertRaises(ValueError) as context:
+            viral_ngs.illumina.parse_illumina_fastq_filename("random_file.fastq.gz")
+
+        message = str(context.exception)
+        self.assertIn("DRAGEN", message)
+        self.assertIn("Simple", message)
+        # the no-lane form must be discoverable from the error itself
+        self.assertIn("S#_R#", message)
+        # ...and the lane-split forms must not still advertise a 3-padded,
+        # single-digit lane token, which the patterns no longer require
+        self.assertNotIn("L00#", message)
 
 
 class TestNormalizeBarcode(unittest.TestCase):
@@ -2832,8 +3380,9 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         Test that collapsibility is checked only on the filtered pool, not the entire samplesheet.
 
         This is a regression test for GitHub Copilot comment #2510390315.
-        The bug: can_be_collapsed was checking the entire samplesheet instead of just
-        the filtered samples for the current pool.
+        The bug: the collapsibility check (then SampleSheet.can_be_collapsed, now
+        has_collapsible_duplicates) was applied to the entire samplesheet instead
+        of just the filtered samples for the current pool.
 
         Scenario:
         - Samplesheet contains multiple pools:
@@ -2843,7 +3392,7 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         - FASTQ file contains only Pool 1 data (ATCGATCG+GCTAGCTA)
         - Should succeed even though Pool 3 exists with unique outer barcodes
 
-        Before fix: Would fail because can_be_collapsed checked entire samplesheet
+        Before fix: Would fail because the check covered the entire samplesheet
         After fix: Succeeds because collapsibility is checked only on Pool 1
         """
         out_dir = tempfile.mkdtemp()
@@ -2890,6 +3439,259 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
         for bam in pool2_bams + pool3_bams:
             self.assertFalse(os.path.exists(bam),
                            f"BAM from different pool should not be created: {bam}")
+
+    # ------------------------------------------------------------------
+    # Single-sample 3-barcode pools (issue #1115)
+    #
+    # The collapsibility guard asked whether any outer-barcode pair occurred
+    # more than once, rather than whether the filtered rows all shared one
+    # pair. A pool holding a single library never has a "duplicate", so it
+    # always failed -- even though one sample trivially satisfies the
+    # condition the error message states.
+    # ------------------------------------------------------------------
+
+    def test_single_sample_3bc_pool(self):
+        """A 3-barcode pool with exactly one sample demuxes normally.
+
+        samples_3bc_single.tsv holds one row on Pool 1's outer barcodes with
+        inline barcode AAAAAAAA, which is 100 of the 250 read pairs in the
+        TestPool1 FASTQs; the other 125 are left unassigned.
+        """
+        out_dir = tempfile.mkdtemp()
+        samples_single = os.path.join(self.input_dir, 'samples_3bc_single.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samples_single,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            bam = os.path.join(out_dir, 'TestSampleSolo.lL1.bam')
+            self.assertTrue(os.path.exists(bam),
+                            f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            self.assertEqual(samtools.count(bam) // 2, 100,
+                             "TestSampleSolo should have 100 read pairs")
+
+            with open(os.path.join(out_dir, 'demux_metrics.json'), 'rt') as f:
+                metrics = json.load(f)
+            self.assertIn('TestSampleSolo.lL1', metrics['samples'])
+            self.assertEqual(metrics['samples']['TestSampleSolo.lL1']['sample'], 'TestSampleSolo')
+            self.assertEqual(metrics['samples']['TestSampleSolo.lL1']['read_count'], 100)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_single_sample_3bc_pool_with_append_run_id(self):
+        """Single-sample 3-barcode pool through the append_run_id naming path.
+
+        Exercises pool_id / muxed_run derivation on a one-row frame, which is
+        where a singleton pool would break if anything downstream still
+        assumed more than one sample.
+        """
+        out_dir = tempfile.mkdtemp()
+        samples_single = os.path.join(self.input_dir, 'samples_3bc_single.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samples_single,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            bam = os.path.join(out_dir, 'TestSampleSolo.lL1.TESTFC01.1.bam')
+            self.assertTrue(os.path.exists(bam),
+                            f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            self.assertEqual(samtools.count(bam) // 2, 100)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_multi_sample_3bc_pool_still_works(self):
+        """A pool of several samples sharing outer barcodes keeps working.
+
+        Green before and after the #1115 fix -- a regression guard that
+        correcting the N==1 case does not loosen the N>1 one.
+        """
+        out_dir = tempfile.mkdtemp()
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            for sample, expected_pairs in (('TestSample1', 100), ('TestSample2', 75), ('TestSample3', 50)):
+                bam = os.path.join(out_dir, f'{sample}.lL1.bam')
+                self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+                self.assertEqual(samtools.count(bam) // 2, expected_pairs)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    # ------------------------------------------------------------------
+    # Pools whose samples carry different library_id_per_sample
+    #
+    # A pool is defined by its outer barcodes; library_id_per_sample is
+    # per-sample ("independent libraries from the same original sample"), so
+    # two preps of one sample can legitimately sit in one pool. But the pool
+    # was identified by the *name* muxed_run = "{bc1}-{bc2}.l{library_id}",
+    # which is a filename, not a key -- grouping on it silently splits one
+    # physical pool in two and demuxes only the first.
+    #
+    # samples_3bc_multilib.tsv is one pool (ATCGATCG+GCTAGCTA) holding
+    # TestSampleA libraries 1 and 2 plus TestSampleB library 1, matching the
+    # 100 / 75 / 50 read pairs in the TestPool1 FASTQs.
+    # ------------------------------------------------------------------
+
+    EXPECTED_MULTILIB = (
+        # run id,          inline barcode, read pairs
+        ('TestSampleA.l1', 'AAAAAAAA', 100),
+        ('TestSampleA.l2', 'CCCCCCCC', 75),
+        ('TestSampleB.l1', 'GGGGTTTT', 50),
+    )
+
+    def test_pool_with_mixed_library_ids(self):
+        """Every library in a pool is demuxed, not just the first library id."""
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.bam')
+                self.assertTrue(os.path.exists(bam),
+                                f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+                self.assertEqual(samtools.count(bam) // 2, expected_pairs,
+                                 f"{run_id} read pair count mismatch")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_platform_units(self):
+        """Each library gets its own inline barcode in the read-group PU.
+
+        Guards a second consequence of the same confusion: the barcode is
+        looked up by sample name, which is not unique across libraries of one
+        sample, so the wrong barcode_3 can be attached (or the lookup returns
+        several rows at once).
+        """
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                threads=1
+            )
+
+            for run_id, inline, _pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.bam')
+                self.assertTrue(os.path.exists(bam), f"Expected output BAM missing: {bam}")
+                with pysam.AlignmentFile(bam, 'rb', check_sq=False) as samfile:
+                    read_groups = samfile.header.to_dict()['RG']
+                self.assertEqual(read_groups[0]['PU'],
+                                 f'TESTFC01.1.ATCGATCG-GCTAGCTA-{inline}',
+                                 f"{run_id} carries the wrong inline barcode in its PU")
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_metadata(self):
+        """Metadata and metrics account for every library, not just the first.
+
+        meta_by_filename and demux_metrics are keyed by the library id, which
+        is unique; the bare sample name is not, and would collapse the two
+        TestSampleA libraries into one entry.
+        """
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                out_meta_by_filename=out_meta_by_filename,
+                threads=1
+            )
+
+            with open(out_meta_by_filename, 'rt') as f:
+                meta_by_filename = json.load(f)
+            with open(os.path.join(out_dir, 'demux_metrics.json'), 'rt') as f:
+                metrics = json.load(f)
+
+            expected_runs = sorted(r for r, _i, _p in self.EXPECTED_MULTILIB)
+            self.assertEqual(sorted(meta_by_filename), expected_runs)
+            for run_id in expected_runs:
+                self.assertTrue(os.path.exists(os.path.join(out_dir, run_id + '.bam')),
+                                f"no BAM matching metadata key {run_id}")
+
+            self.assertEqual(sorted(metrics['samples']), expected_runs)
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                self.assertEqual(metrics['samples'][run_id]['read_count'], expected_pairs)
+
+        finally:
+            shutil.rmtree(out_dir)
+
+    def test_pool_with_mixed_library_ids_append_run_id(self):
+        """Mixed-library pool through the append_run_id naming path."""
+        out_dir = tempfile.mkdtemp()
+        samplesheet = os.path.join(self.input_dir, 'samples_3bc_multilib.tsv')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=self.r1_fastq,
+                fastq_r2=self.r2_fastq,
+                samplesheet=samplesheet,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            for run_id, _inline, expected_pairs in self.EXPECTED_MULTILIB:
+                bam = os.path.join(out_dir, f'{run_id}.TESTFC01.1.bam')
+                self.assertTrue(os.path.exists(bam),
+                                f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+                self.assertEqual(samtools.count(bam) // 2, expected_pairs)
+
+        finally:
+            shutil.rmtree(out_dir)
 
     def test_fastq_filename_parsing(self):
         """
@@ -3016,6 +3818,69 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
         finally:
             shutil.rmtree(out_dir)
+
+    def test_splitcode_demux_fastqs_parser_trim_hamming_args(self):
+        """
+        CLI parser round-trip for the trim/hamming knobs added in GH #1095.
+
+        Verifies that parser_splitcode_demux_fastqs() exposes:
+          --max_hamming_dist (default 1)
+          --predemux_trim_r1_5prime  (dest: predemux_r1_trim_5prime_num_bp, const 18)
+          --predemux_trim_r1_3prime  (dest: predemux_r1_trim_3prime_num_bp, const 18)
+          --predemux_trim_r2_5prime  (dest: predemux_r2_trim_5prime_num_bp, const 18)
+          --predemux_trim_r2_3prime  (dest: predemux_r2_trim_3prime_num_bp, const 18)
+          --trim_r1_right_of_barcode (dest: r1_trim_bp_right_of_barcode,    const 10)
+          --trim_r2_left_of_barcode  (dest: r2_trim_bp_left_of_barcode,     const 10)
+        """
+        parser = viral_ngs.illumina.parser_splitcode_demux_fastqs(argparse.ArgumentParser())
+        required_args = ['--fastq_r1', 'R1.fastq.gz',
+                         '--fastq_r2', 'R2.fastq.gz',
+                         '--samplesheet', 'samples.tsv',
+                         '--outdir', '/tmp/out']
+
+        # ---- defaults (flags absent) ----
+        args = parser.parse_args(required_args)
+        self.assertEqual(args.max_hamming_dist, 1, "--max_hamming_dist default should be 1")
+        self.assertIsNone(args.predemux_r1_trim_5prime_num_bp,  "--predemux_trim_r1_5prime default should be None")
+        self.assertIsNone(args.predemux_r1_trim_3prime_num_bp,  "--predemux_trim_r1_3prime default should be None")
+        self.assertIsNone(args.predemux_r2_trim_5prime_num_bp,  "--predemux_trim_r2_5prime default should be None")
+        self.assertIsNone(args.predemux_r2_trim_3prime_num_bp,  "--predemux_trim_r2_3prime default should be None")
+        self.assertIsNone(args.r1_trim_bp_right_of_barcode,     "--trim_r1_right_of_barcode default should be None")
+        self.assertIsNone(args.r2_trim_bp_left_of_barcode,      "--trim_r2_left_of_barcode default should be None")
+
+        # ---- explicit int values ----
+        args2 = parser.parse_args(required_args + [
+            '--max_hamming_dist', '2',
+            '--predemux_trim_r1_5prime', '12',
+            '--predemux_trim_r1_3prime', '14',
+            '--predemux_trim_r2_5prime', '16',
+            '--predemux_trim_r2_3prime', '20',
+            '--trim_r1_right_of_barcode', '8',
+            '--trim_r2_left_of_barcode', '6',
+        ])
+        self.assertEqual(args2.max_hamming_dist,                2)
+        self.assertEqual(args2.predemux_r1_trim_5prime_num_bp, 12)
+        self.assertEqual(args2.predemux_r1_trim_3prime_num_bp, 14)
+        self.assertEqual(args2.predemux_r2_trim_5prime_num_bp, 16)
+        self.assertEqual(args2.predemux_r2_trim_3prime_num_bp, 20)
+        self.assertEqual(args2.r1_trim_bp_right_of_barcode,    8)
+        self.assertEqual(args2.r2_trim_bp_left_of_barcode,     6)
+
+        # ---- bare flags → const values ----
+        args3 = parser.parse_args(required_args + [
+            '--predemux_trim_r1_5prime',
+            '--predemux_trim_r1_3prime',
+            '--predemux_trim_r2_5prime',
+            '--predemux_trim_r2_3prime',
+            '--trim_r1_right_of_barcode',
+            '--trim_r2_left_of_barcode',
+        ])
+        self.assertEqual(args3.predemux_r1_trim_5prime_num_bp, 18)
+        self.assertEqual(args3.predemux_r1_trim_3prime_num_bp, 18)
+        self.assertEqual(args3.predemux_r2_trim_5prime_num_bp, 18)
+        self.assertEqual(args3.predemux_r2_trim_3prime_num_bp, 18)
+        self.assertEqual(args3.r1_trim_bp_right_of_barcode,    10)
+        self.assertEqual(args3.r2_trim_bp_left_of_barcode,     10)
 
     def test_i5_reverse_complement_3bc_demux(self):
         """
@@ -3365,6 +4230,353 @@ class TestSplitcodeDemuxFastqs(TestCaseWithTmp):
 
         finally:
             shutil.rmtree(out_dir)
+
+    # ------------------------------------------------------------------
+    # No-lane-splitting FASTQ names (issue #1113)
+    #
+    # DRAGEN omits the _L00N_ token when the run is not lane-split, which is
+    # always the case on a single-lane flowcell. The fixture RunInfo.xml here
+    # already declares LaneCount="1", so it is exactly that situation; only the
+    # filenames differ. The fixtures are copied under new names rather than
+    # committed twice, since the name is the only thing under test.
+    # ------------------------------------------------------------------
+
+    def _stage_fastqs(self, r1_name, r2_name, src_r1=None, src_r2=None):
+        """Copy the fixture FASTQ pair into a fresh temp dir under new names.
+
+        Returns (staged_dir, r1_path, r2_path); the caller removes staged_dir.
+        """
+        staged_dir = tempfile.mkdtemp()
+        r1 = os.path.join(staged_dir, r1_name)
+        r2 = os.path.join(staged_dir, r2_name)
+        shutil.copy(src_r1 or self.r1_fastq, r1)
+        shutil.copy(src_r2 or self.r2_fastq, r2)
+        return staged_dir, r1, r2
+
+    def _runinfo_with_lane_count(self, dest_dir, lane_count):
+        """Write a copy of the fixture RunInfo.xml with a different LaneCount."""
+        with open(self.runinfo_xml, 'rt') as inf:
+            xml_text = inf.read()
+        self.assertIn('LaneCount="1"', xml_text)
+        path = os.path.join(dest_dir, f'RunInfo_lanecount{lane_count}.xml')
+        with open(path, 'wt') as outf:
+            outf.write(xml_text.replace('LaneCount="1"', f'LaneCount="{lane_count}"'))
+        return path
+
+    def test_lane_from_filename_wins_over_runinfo(self):
+        """Test that a lane in the filename is used verbatim, not inferred.
+
+        The fixture RunInfo says LaneCount=1, so an implementation that derives
+        the lane from RunInfo instead of only falling back to it would produce
+        lane 1 here and be wrong. Every other fixture in this class is L001,
+        which makes that mistake invisible.
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_L002_R1_001.fastq.gz', 'TestPool1_S1_L002_R2_001.fastq.gz')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.2.bam')),
+                            f"lane 2 from the filename should win; got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_names_with_runinfo(self):
+        """Test lane-less FASTQ names on a single-lane flowcell.
+
+        Output must be indistinguishable from the lane-split run of the same
+        flowcell (compare test_append_run_id_3bc).
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            expected_bams = [
+                os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.1.bam'),
+                os.path.join(out_dir, 'TestSample2.lL1.TESTFC01.1.bam'),
+                os.path.join(out_dir, 'TestSample3.lL1.TESTFC01.1.bam'),
+            ]
+            for bam in expected_bams:
+                self.assertTrue(os.path.exists(bam),
+                                f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            self.assertEqual(samtools.count(expected_bams[0]) // 2, 100)
+            self.assertEqual(samtools.count(expected_bams[1]) // 2, 75)
+            self.assertEqual(samtools.count(expected_bams[2]) // 2, 50)
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_names_without_runinfo(self):
+        """Test lane-less names with no RunInfo to prove the lane count.
+
+        Without RunInfo the lane is genuinely unknown, so it falls back to the
+        0 sentinel this codebase already uses for an unspecified lane.
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                # no runinfo: flowcell supplied directly, lane unknowable
+                flowcell_id='TESTFC01',
+                append_run_id=True,
+                threads=1
+            )
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.0.bam')),
+                            f"expected lane 0 fallback; got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_multilane_runinfo_resolves_to_zero(self):
+        """Test lane-less names on a multi-lane flowcell.
+
+        No lane splitting on a 4-lane flowcell means the FASTQ spans all of
+        them, so no single lane number is correct and 0 means "all/unknown".
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            runinfo_4lane = self._runinfo_with_lane_count(staged_dir, 4)
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=runinfo_4lane,
+                append_run_id=True,
+                threads=1
+            )
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.0.bam')),
+                            f"expected lane 0 on a 4-lane flowcell; got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_runinfo_missing_flowcell_layout(self):
+        """Test lane-less names against a RunInfo.xml with no FlowcellLayout.
+
+        Hand-rolled minimal RunInfo.xml files are common (the --runinfo help
+        calls it optional metadata), and they work today because this command
+        never reads FlowcellLayout. Resolving a missing lane must not turn that
+        into a crash.
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            minimal_runinfo = os.path.join(staged_dir, 'RunInfo_minimal.xml')
+            with open(minimal_runinfo, 'wt') as outf:
+                outf.write(
+                    '<?xml version="1.0"?>\n'
+                    '<RunInfo Version="6">\n'
+                    '  <Run Id="250101_TEST_0001_BTESTFC01" Number="1">\n'
+                    '    <Flowcell>TESTFC01</Flowcell>\n'
+                    '    <Instrument>TEST001</Instrument>\n'
+                    '    <Date>2025-01-01T10:00:00Z</Date>\n'
+                    '    <Reads>\n'
+                    '      <Read Number="1" NumCycles="50" IsIndexedRead="N" IsReverseComplement="N"/>\n'
+                    '      <Read Number="2" NumCycles="8" IsIndexedRead="Y" IsReverseComplement="N"/>\n'
+                    '      <Read Number="3" NumCycles="8" IsIndexedRead="Y" IsReverseComplement="Y"/>\n'
+                    '      <Read Number="4" NumCycles="50" IsIndexedRead="N" IsReverseComplement="N"/>\n'
+                    '    </Reads>\n'
+                    '  </Run>\n'
+                    '</RunInfo>\n'
+                )
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=minimal_runinfo,
+                append_run_id=True,
+                threads=1
+            )
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.0.bam')),
+                            f"expected lane 0 fallback; got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_metadata_lane_field(self):
+        """Test the lane field in metadata JSON for lane-less FASTQ names."""
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            out_meta_by_sample = os.path.join(out_dir, 'meta_by_sample.json')
+            out_meta_by_filename = os.path.join(out_dir, 'meta_by_filename.json')
+
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                out_meta_by_sample=out_meta_by_sample,
+                out_meta_by_filename=out_meta_by_filename,
+                threads=1
+            )
+
+            with open(out_meta_by_sample, 'rt') as f:
+                meta_by_sample = json.load(f)
+            with open(out_meta_by_filename, 'rt') as f:
+                meta_by_filename = json.load(f)
+
+            self.assertTrue(meta_by_sample)
+            for sample_name, metadata in meta_by_sample.items():
+                self.assertEqual(metadata['lane'], '1',
+                                 f"{sample_name} lane should be resolved to '1' on a single-lane flowcell")
+
+            # the meta_by_filename keys must still match the BAM basenames
+            for run_id in meta_by_filename:
+                self.assertTrue(os.path.exists(os.path.join(out_dir, run_id + '.bam')),
+                                f"no BAM matching metadata key {run_id}")
+
+            # an unresolved lane would show up as the literal string 'None' somewhere
+            self.assertNotIn('None', json.dumps(meta_by_sample))
+            self.assertNotIn('None', json.dumps(meta_by_filename))
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_platform_unit_in_bam_header(self):
+        """Test the read-group PLATFORM_UNIT for lane-less names (3-barcode path)."""
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            bam = os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.1.bam')
+            self.assertTrue(os.path.exists(bam))
+
+            with pysam.AlignmentFile(bam, 'rb', check_sq=False) as samfile:
+                read_groups = samfile.header.to_dict()['RG']
+            self.assertEqual(read_groups[0]['PU'], 'TESTFC01.1.ATCGATCG-GCTAGCTA-AAAAAAAA')
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_2bc_bypass(self):
+        """Test lane-less names through the 2-barcode direct-conversion path.
+
+        The 2-barcode branch bypasses splitcode entirely and builds its own
+        read group, so it needs the resolved lane independently of the
+        3-barcode path.
+        """
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool3_S3_R1_001.fastq.gz', 'TestPool3_S3_R2_001.fastq.gz',
+            src_r1=os.path.join(self.input_dir, 'TestPool3_S3_L001_R1_001.fastq.gz'),
+            src_r2=os.path.join(self.input_dir, 'TestPool3_S3_L001_R2_001.fastq.gz'))
+
+        try:
+            viral_ngs.illumina.splitcode_demux_fastqs(
+                fastq_r1=r1,
+                fastq_r2=r2,
+                samplesheet=self.samples_3bc,
+                outdir=out_dir,
+                runinfo=self.runinfo_xml,
+                append_run_id=True,
+                threads=1
+            )
+
+            bam = os.path.join(out_dir, 'TestSampleNoSplitcode.lL3.TESTFC01.1.bam')
+            self.assertTrue(os.path.exists(bam),
+                            f"Expected output BAM missing: {bam}; got {sorted(os.listdir(out_dir))}")
+
+            samtools = viral_ngs.core.samtools.SamtoolsTool()
+            self.assertEqual(samtools.count(bam) // 2, 80)
+
+            with pysam.AlignmentFile(bam, 'rb', check_sq=False) as samfile:
+                read_groups = samfile.header.to_dict()['RG']
+            self.assertEqual(read_groups[0]['PU'], 'TESTFC01.1.GGAATTCC-CCGGAATT')
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
+    def test_nolane_via_parser(self):
+        """CLI round-trip for lane-less FASTQ names (the path real users hit)."""
+        out_dir = tempfile.mkdtemp()
+        staged_dir, r1, r2 = self._stage_fastqs(
+            'TestPool1_S1_R1_001.fastq.gz', 'TestPool1_S1_R2_001.fastq.gz')
+
+        try:
+            parser = viral_ngs.illumina.parser_splitcode_demux_fastqs(argparse.ArgumentParser())
+            args = parser.parse_args([
+                '--fastq_r1', r1,
+                '--fastq_r2', r2,
+                '--samplesheet', self.samples_3bc,
+                '--runinfo', self.runinfo_xml,
+                '--outdir', out_dir,
+                '--append_run_id',
+            ])
+            args.func_main(args)
+
+            self.assertTrue(os.path.exists(os.path.join(out_dir, 'TestSample1.lL1.TESTFC01.1.bam')),
+                            f"got {sorted(os.listdir(out_dir))}")
+
+        finally:
+            shutil.rmtree(out_dir)
+            shutil.rmtree(staged_dir)
+
 
     def test_splitcode_demux_fastqs_metadata_output(self):
         """

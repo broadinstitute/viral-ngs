@@ -521,7 +521,7 @@ class SampleSheet(object):
             columns_to_revcomp += barcode_columns_to_revcomp
             self.rev_comp_barcode_values(barcode_columns_to_revcomp=columns_to_revcomp, inplace=True)
 
-        if self.can_be_collapsed:
+        if self.has_collapsible_duplicates:
             if not allow_non_unique:
                 raise SampleSheetError("Duplicate indices found in sample sheet", infile)
             else:
@@ -672,8 +672,15 @@ class SampleSheet(object):
             self.indexes = 1
 
     @property
-    def can_be_collapsed(self) -> bool:
-        """Return True if duplicate barcodes exist that could be collapsed."""
+    def has_collapsible_duplicates(self) -> bool:
+        """Return True if two or more rows share an index (barcode pair).
+
+        This is a "are there duplicates to collapse?" question, not "do these
+        rows form a single pool?" -- the two diverge at one row, which is never
+        a duplicate of anything. Reading it as the latter is what broke
+        single-library pools in both splitcode entry points (issue #1115); if
+        you want "all rows share one index", count distinct keys instead.
+        """
         assert len(self.rows) > 0, "No sample sheet rows to collapse"
         df = pd.json_normalize(self.rows).astype(str).fillna("")
         grouping_cols = ["barcode_1"]

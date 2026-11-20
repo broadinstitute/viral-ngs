@@ -195,7 +195,6 @@ from . import bwa
 from . import cdhit
 from . import fastqc
 from . import minimap2
-from . import mvicuna
 from . import novoalign
 from . import picard
 from . import prinseq

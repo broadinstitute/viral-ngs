@@ -1,5 +1,6 @@
 {
   "n_processed": 0,
   "n_assigned": 0,
+  "num_reads_unassigned": 0,
   "tag_qc": []
 }

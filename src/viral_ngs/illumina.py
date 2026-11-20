@@ -49,14 +49,21 @@ log = logging.getLogger(__name__)
 def parse_illumina_fastq_filename(filename):
     """Parse Illumina FASTQ filename to extract metadata.
 
-    Supports two filename formats:
+    Supports three filename formats:
     1. DRAGEN format (with flowcell ID):
-       {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
+       {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L#}_{R#}_{chunk}.fastq[.gz]
        Example: 22J5GLLT4_6_0420593812_B13Pool1a_S1_L006_R1_001.fastq.gz
 
     2. Simple bcl2fastq format (without flowcell ID):
-       {sample_name}_{S#}_{L00#}_{R#}_{chunk}.fastq[.gz]
+       {sample_name}_{S#}_{L#}_{R#}_{chunk}.fastq[.gz]
        Example: mebv-48-5_S17_L001_R1_001.fastq.gz
+
+    3. No-lane-splitting format (DRAGEN run without lane splitting, which is
+       always the case on a single-lane flowcell):
+       {sample_name}_{S#}_{R#}_{chunk}.fastq[.gz]
+       Example: NTC_S1_R1_001.fastq.gz
+       These names carry no lane at all, so 'lane' is returned as None and it
+       is up to the caller to decide what an absent lane means.
 
     Args:
         filename (str): FASTQ filename (with or without path)
@@ -69,15 +76,17 @@ def parse_illumina_fastq_filename(filename):
                 - numeric_id (str): Numeric identifier
                 - sample_name (str): Sample name (may contain underscores)
                 - sample_number (int): Sample number (from S#)
-                - lane (int): Full lane number (from L00#)
+                - lane (int): Full lane number (from L#)
                 - read (int): Read number (1 or 2)
                 - chunk (int): Chunk number (typically 001)
             For simple format:
                 - sample_name (str): Sample name
                 - sample_number (int): Sample number (from S#)
-                - lane (int): Lane number (from L00#)
+                - lane (int): Lane number (from L#)
                 - read (int): Read number (1 or 2)
                 - chunk (int): Chunk number (typically 001)
+            For no-lane-splitting format: same keys as the simple format, with
+                - lane (None): no lane token in the filename
 
     Raises:
         ValueError: If filename doesn't match expected format
@@ -90,14 +99,14 @@ def parse_illumina_fastq_filename(filename):
     basename = basename.replace('.fastq.gz', '').replace('.fastq', '')
 
     # Try DRAGEN format first (with flowcell ID)
-    # Pattern: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L00#}_{R#}_{chunk}
+    # Pattern: {flowcell}_{lane}_{numeric_id}_{sample_name}_{S#}_{L#}_{R#}_{chunk}
     # The tricky part: sample_name can contain underscores!
     # Strategy: Match from both ends and extract the middle as sample_name
 
-    # DRAGEN pattern: we know the last 4 fields are always S#_L00#_R#_chunk
+    # DRAGEN pattern: we know the last 4 fields are always S#_L#_R#_chunk
     # and the first 3 fields are flowcell_lane_numeric_id
     # Everything in between is the sample name
-    dragen_pattern = r'^([A-Z0-9]{5,15})_(\d)_(\d{10})_(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    dragen_pattern = r'^([A-Z0-9]{5,15})_(\d+)_(\d{10})_(.+)_S(\d+)_L(\d+)_(R|I)(\d)_(\d{3})$'
     match = re.match(dragen_pattern, basename)
 
     if match:
@@ -114,9 +123,9 @@ def parse_illumina_fastq_filename(filename):
         }
 
     # Try simple bcl2fastq format (without flowcell ID)
-    # Pattern: {sample_name}_{S#}_{L00#}_{R#}_{chunk}
+    # Pattern: {sample_name}_{S#}_{L#}_{R#}_{chunk}
     # Sample name cannot contain underscores followed by S# pattern
-    simple_pattern = r'^(.+)_S(\d+)_L00(\d)_(R|I)(\d)_(\d{3})$'
+    simple_pattern = r'^(.+)_S(\d+)_L(\d+)_(R|I)(\d)_(\d{3})$'
     match = re.match(simple_pattern, basename)
 
     if match:
@@ -129,12 +138,34 @@ def parse_illumina_fastq_filename(filename):
             'is_index': match.group(4) == 'I'
         }
 
-    # If neither pattern matches, raise an error
+    # Finally, try the no-lane-splitting format (DRAGEN emits no lane token when
+    # the run is not lane-split; a single-lane flowcell never is).
+    # Pattern: {sample_name}_{S#}_{R#}_{chunk}
+    # This must be tried LAST. Both patterns above require an L token, so the
+    # only names that reach here are those with no lane token at all -- that
+    # ordering is what stops lane-split names from silently losing their lane.
+    # Note the group numbers differ from the simple pattern: there is no lane
+    # group, so R|I/read/chunk all shift down by one.
+    nolane_pattern = r'^(.+)_S(\d+)_(R|I)(\d)_(\d{3})$'
+    match = re.match(nolane_pattern, basename)
+
+    if match:
+        return {
+            'sample_name': match.group(1),
+            'sample_number': int(match.group(2)),
+            'lane': None,
+            'read': int(match.group(4)),
+            'chunk': int(match.group(5)),
+            'is_index': match.group(3) == 'I'
+        }
+
+    # If no pattern matches, raise an error
     raise ValueError(
         f"Filename '{basename}' does not match expected Illumina FASTQ format. "
         f"Expected formats:\n"
-        f"  DRAGEN: {{flowcell}}_{{lane}}_{{numeric_id}}_{{sample_name}}_S#_L00#_R#_###.fastq[.gz]\n"
-        f"  Simple: {{sample_name}}_S#_L00#_R#_###.fastq[.gz]"
+        f"  DRAGEN: {{flowcell}}_{{lane}}_{{numeric_id}}_{{sample_name}}_S#_L#_R#_###.fastq[.gz]\n"
+        f"  Simple: {{sample_name}}_S#_L#_R#_###.fastq[.gz]\n"
+        f"  No lane splitting: {{sample_name}}_S#_R#_###.fastq[.gz]"
     )
 
 
@@ -1085,6 +1116,21 @@ def splitcode_demux_fastqs(
     pool_name = fastq_metadata['sample_name']
     lane = fastq_metadata['lane']
 
+    if lane is None:
+        # DRAGEN omits the lane token when the run is not lane-split. A single-lane
+        # flowcell has exactly one lane, so the lane is unambiguous; otherwise this
+        # FASTQ spans every lane and 0 means "all/unknown", matching illumina_metadata.
+        # Read LaneCount lazily and tolerantly: lane-split inputs never reach here, and
+        # hand-rolled minimal RunInfo.xml files (no FlowcellLayout) must not start failing.
+        lane_count = None
+        if runinfo_obj is not None:
+            try:
+                lane_count = runinfo_obj.get_lane_count()
+            except Exception as e:
+                log.warning(f"Could not read LaneCount from RunInfo.xml: {e}")
+        lane = 1 if lane_count == 1 else 0
+        log.info(f"FASTQ filename carries no lane token; using lane {lane}")
+
     log.info(f"Processing pool: {pool_name}, lane: {lane}")
 
     # Build run_id for BAM filenames if requested
@@ -1270,7 +1316,9 @@ def splitcode_demux_fastqs(
         metrics = {
             'demux_type': '2-barcode (no splitcode)',
             'samples': {
-                sample_name: {
+                # keyed by library id, matching the 3-barcode branch
+                sample_library_id: {
+                    'sample': sample_name,
                     'sample_library_id': sample_library_id,
                     'read_count': read_pairs
                 }
@@ -1330,12 +1378,13 @@ def splitcode_demux_fastqs(
 
         # Generate sample metadata JSONs if requested
         # The sample_rows already have 'run' field set from SampleSheet with append_run_id
-        # We just need to update the 'lane' field to use actual lane from FASTQ filename
+        # We just need to update the 'lane' field to use the lane resolved above
+        # (from the FASTQ filename, or from RunInfo when the filename has no lane token)
         if out_meta_by_sample or out_meta_by_filename:
             sample_meta = []
             for row in sample_rows:
                 meta_row = dict(row)  # Copy all samplesheet columns
-                meta_row['lane'] = str(lane)  # Use actual lane from FASTQ filename (critical fix)
+                meta_row['lane'] = str(lane)
                 sample_meta.append(meta_row)
 
             if out_meta_by_sample:
@@ -1352,22 +1401,33 @@ def splitcode_demux_fastqs(
         # 3-barcode samples → run splitcode demux
         log.info("3-barcode samples detected - running splitcode demultiplexing")
 
-        # Check if the FILTERED samples can be collapsed (outer barcodes are collapsible)
-        # We need to check only the filtered sample_rows, not the entire samplesheet
-        # Create a temporary dataframe from filtered sample_rows to check collapsibility
-        sample_rows_df = pd.DataFrame(sample_rows)
-
-        # Group by outer barcodes to verify all samples in this pool share the same outer barcodes
+        # For 3-barcode demux every sample in this pool must carry the same outer
+        # barcodes. Check the FILTERED sample_rows, not the whole samplesheet.
+        #
+        # Ask how many distinct outer-barcode pairs are present, NOT whether any pair
+        # is duplicated: one sample is never a "duplicate" of anything, so the latter
+        # rejects a single-library pool that trivially satisfies the condition (#1115).
+        #
+        # Compare normalized values, the way match_barcodes_with_orientation did when
+        # it selected these rows, so a difference in case alone cannot read as two pools.
         grouping_cols = ["barcode_1"]
-        if "barcode_2" in sample_rows_df.columns:
+        if any("barcode_2" in row for row in sample_rows):
             grouping_cols.append("barcode_2")
 
-        # For 3-barcode demux, all samples must share the same outer barcodes (be collapsible)
-        duplicated_mask = sample_rows_df.duplicated(subset=grouping_cols, keep=False)
-        if not duplicated_mask.any():
+        outer_barcodes = set(
+            tuple(normalize_barcode(row.get(col, '')) for col in grouping_cols)
+            for row in sample_rows
+        )
+        if len(outer_barcodes) != 1:
+            # Note: unreachable via this entry point -- match_barcodes_with_orientation
+            # already returns no rows with skipped_reason='ambiguous' when the matches
+            # span more than one outer pair, and we return early above on empty. Kept as
+            # defense in depth for internal callers; don't try to write an end-to-end
+            # test for it.
             raise ValueError(
-                "The outer (barcode_1, barcode_2) sequences in the filtered sample rows do not appear to be collapsible. "
-                "For 3-barcode demux, all samples in a pool must share the same outer barcodes."
+                f"The outer ({', '.join(grouping_cols)}) sequences in the filtered sample rows do not appear "
+                "to be collapsible. For 3-barcode demux, all samples in a pool must share the same outer "
+                f"barcodes. Found {len(outer_barcodes)} distinct combinations: {sorted(outer_barcodes)}"
             )
 
         # Create the inner demux barcode map using SampleSheet method
@@ -1453,11 +1513,26 @@ def splitcode_demux_fastqs(
 
         log.info(f"Filtered to {len(samples_with_bc3)} samples with 3-barcode scheme")
 
-        # Use the filtered dataframe
-        inner_demux_barcode_map_df = filtered_df
+        # This pool is exactly the rows matching the FASTQ's outer barcodes, which is
+        # what filtered_df already holds, so identify it by those barcodes.
+        #
+        # Do NOT identify it by muxed_run ("{bc1}-{bc2}.l{library_id_per_sample}").
+        # That string is a filename -- it reproduces the pool BAM that the outer demux
+        # writes -- not a grouping key. inner_demux_mapper() groups on
+        # [barcode_1, barcode_2] and only then builds the name per row, so selecting a
+        # pool by the name means grouping on (bc1, bc2, library_id_per_sample).
+        # library_id_per_sample is per-sample, so two libraries of one sample in the
+        # same pool give it two values and one physical pool silently splits in two.
+        pool_id = f"{auth_bc1}-{auth_bc2}" if auth_bc2 else str(auth_bc1)
+        if run_id_str:
+            pool_id += f".{run_id_str}"
 
-        # The pool_id is the unique muxed_run for this outer barcode pair
-        pool_id = filtered_df['muxed_run'].iloc[0]
+        # generate_splitcode_config_and_keep_files() and create_splitcode_lookup_table()
+        # both select a pool by matching muxed_run, so give every row of this pool the
+        # same value and they see the whole pool. The BAM-input path (splitcode_demux)
+        # still needs the per-row filename form to locate its pool BAM on disk, so those
+        # shared helpers are left alone.
+        inner_demux_barcode_map_df = filtered_df.assign(muxed_run=pool_id)
 
         # Generate splitcode config and keep files using existing helper function
         splitcode_config, splitcode_keep_file, sample_library_ids = splitcode.generate_splitcode_config_and_keep_files(
@@ -1504,21 +1579,28 @@ def splitcode_demux_fastqs(
             keep_r1_r2_suffixes=True,
             splitcode_opts=[f"--output={dummy_output_r1},{dummy_output_r2}"]
         )
+        # Patch the summary JSON with the ground-truth unassigned read-pair count
+        # so create_splitcode_lookup_table() can use it directly (see GH #1091).
+        splitcode.record_unassigned_count_in_summary(summary_stats, unassigned_r1)
 
         # Convert splitcode FASTQs to BAMs in parallel
         # Build mapping from sample_library_id to sample name
         # Note: inner_demux_barcode_map_df is already filtered to this pool, so no need to check pool_id
-        sample_library_to_sample = {}
+        # Key by 'run' (the library id), which is unique per row. The dataframe is
+        # indexed by sample name, which is not: libraries of one sample share it, and
+        # .loc on a repeated index returns every matching row rather than one.
+        sample_library_to_row = {}
         for sample_name, row in inner_demux_barcode_map_df.iterrows():
-            sample_library_to_sample[row['run']] = sample_name
+            sample_library_to_row[row['run']] = (sample_name, row)
 
         # Build list of conversion jobs with all metadata
         conversion_jobs = []
         for sample_library_id in sample_library_ids:
-            sample_name = sample_library_to_sample.get(sample_library_id)
-            if not sample_name:
+            entry = sample_library_to_row.get(sample_library_id)
+            if entry is None:
                 log.warning(f"No sample name found for library ID: {sample_library_id}")
                 continue
+            sample_name, sample_row = entry
 
             # Find splitcode output FASTQs for this sample
             # With keep_r1_r2_suffixes=True, splitcode outputs: {outdir}/{sample_library_id}_R1.fastq.gz and _R2.fastq.gz
@@ -1530,8 +1612,7 @@ def splitcode_demux_fastqs(
                 log.warning(f"Splitcode output FASTQs not found for {sample_library_id}: {bc_r1}, {bc_r2}")
                 continue
 
-            # Get inline barcode for this sample from the dataframe
-            sample_row = inner_demux_barcode_map_df.loc[sample_name]
+            # Inline barcode for this library (sample_row came from the run-keyed map above)
             inline_barcode = sample_row.get('barcode_3', '')
 
             # Build Picard options dict with richer metadata
@@ -1605,8 +1686,10 @@ def splitcode_demux_fastqs(
                     log.info(f"Conversion complete: {sample_name} -> {output_bam} "
                            f"({read_pairs} read pairs)")
 
-                    # Store metrics
-                    sample_metrics[sample_name] = {
+                    # Store metrics, keyed by the library id rather than the sample
+                    # name: two libraries of one sample would collapse into one entry.
+                    sample_metrics[sample_library_id] = {
+                        'sample': sample_name,
                         'sample_library_id': sample_library_id,
                         'read_count': read_pairs
                     }
@@ -1659,12 +1742,13 @@ def splitcode_demux_fastqs(
 
         # Generate sample metadata JSONs if requested
         # The sample_rows already have 'run' field set from SampleSheet with append_run_id
-        # We just need to update the 'lane' field to use actual lane from FASTQ filename
+        # We just need to update the 'lane' field to use the lane resolved above
+        # (from the FASTQ filename, or from RunInfo when the filename has no lane token)
         if out_meta_by_sample or out_meta_by_filename:
             sample_meta = []
             for row in sample_rows:
                 meta_row = dict(row)  # Copy all samplesheet columns
-                meta_row['lane'] = str(lane)  # Use actual lane from FASTQ filename (critical fix)
+                meta_row['lane'] = str(lane)
                 sample_meta.append(meta_row)
 
             if out_meta_by_sample:
@@ -1760,6 +1844,60 @@ def parser_splitcode_demux_fastqs(parser=argparse.ArgumentParser()):
         help='Number of reads to examine from the FASTQ to form a consensus barcode sequence. '
              'Using multiple reads avoids relying on a single read that may have a mismatched '
              'index. (default: %(default)s)'
+    )
+    parser.add_argument(
+        "--max_hamming_dist",
+        type=int,
+        default=1,
+        help="Max allowed Hamming distance for inline barcode matching. Default: 1.",
+    )
+    parser.add_argument(
+        "--predemux_trim_r1_5prime",
+        dest="predemux_r1_trim_5prime_num_bp",
+        const=18,
+        nargs="?",
+        help="number of bases to trim from the 5' end of read 1 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r1_3prime",
+        dest="predemux_r1_trim_3prime_num_bp",
+        const=18,
+        nargs="?",
+        help="number of bases to trim from the 3' end of read 1 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r2_5prime",
+        dest="predemux_r2_trim_5prime_num_bp",
+        const=18,
+        nargs="?",
+        help="number of bases to trim from the 5' end of read 2 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--predemux_trim_r2_3prime",
+        dest="predemux_r2_trim_3prime_num_bp",
+        const=18,
+        nargs="?",
+        help="number of bases to trim from the 3' end of read 2 (before demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--trim_r1_right_of_barcode",
+        dest="r1_trim_bp_right_of_barcode",
+        const=10,
+        nargs="?",
+        help="number of bases to trim after the barcode on the right (3') side of read 1 (after demux)",
+        type=int,
+    )
+    parser.add_argument(
+        "--trim_r2_left_of_barcode",
+        dest="r2_trim_bp_left_of_barcode",
+        const=10,
+        nargs="?",
+        help="number of bases to trim after the barcode on the left (5') side of read 2 (after demux)",
+        type=int,
     )
     util_cmd.common_args(parser, (('threads', None), ('loglevel', None), ('version', None), ('tmp_dir', None)))
     util_cmd.attach_main(parser, splitcode_demux_fastqs, split_args=True)
@@ -1977,7 +2115,7 @@ def main_illumina_demux(args):
         )
 
     collapse_requested = (args.collapse_duplicated_barcodes is not False)
-    if not samples.can_be_collapsed:
+    if not samples.has_collapsible_duplicates:
         if collapse_requested:
             log.warning(
                 "'--collapse_duplicated_barcodes' specified, but no duplicated barcodes "
@@ -2953,11 +3091,14 @@ def write_barcode_metrics_for_pools(input_csv_path,
     Process sequencing data to calculate read metrics for each inline barcode across library pools
     and write results to a file.
     
-    For each (library_id, inline_barcode) pair, calculates:
-    - {library_id}_reads: Total reads for the pair
-    - {library_id}_reads_pool_pct: Reads as fraction of total reads in that library
-    - {library_id}_reads_all_pct: Reads as fraction of total reads across all libraries
-    - {library_id}_barcode_reads_vs_all_reads_for_barcode_pct: Reads as fraction of total reads for that barcode across all libraries
+    For each (pool, inline_barcode) pair, calculates:
+    - {pool}_reads: Total reads for the pair
+    - {pool}_reads_pool_pct: Reads as fraction of total reads in that pool
+    - {pool}_reads_all_pct: Reads as fraction of total reads across all pools
+    - {pool}_barcode_reads_vs_all_reads_for_barcode_pct: Reads as fraction of total reads for that barcode across all pools
+
+    A pool is identified by its outer barcodes (barcode_1[-barcode_2]), not by
+    library_id_per_sample, which is per-sample and may vary within one pool.
     
     Parameters:
     -----------
@@ -2992,15 +3133,21 @@ def write_barcode_metrics_for_pools(input_csv_path,
     # This handles variable numbers of N's (e.g., "N", "NN", "NNNNNNNNN", etc.)
     df_filtered = df[~df['inline_barcode'].str.match(r'^N+$', na=False)].copy()
 
-    # Get unique inline barcodes and library IDs
-    unique_barcodes  = df_filtered['inline_barcode'].unique()
-    unique_libraries = df_filtered['library_id'].unique()
+    # Group by the pool (outer barcodes), not by library_id: library_id_per_sample
+    # is per-sample, so a pool holding two library preps of one sample would
+    # otherwise be reported as two pools, each with a denominator covering only
+    # part of the pool's reads (issue #1117).
+    df_filtered['pool'] = df_filtered.apply(splitcode.barcode_group_for_row, axis=1)
 
-    # Calculate total reads across all libraries for percentage calculations
+    # Get unique inline barcodes and pools
+    unique_barcodes  = df_filtered['inline_barcode'].unique()
+    unique_pools     = df_filtered['pool'].unique()
+
+    # Calculate total reads across all pools for percentage calculations
     total_reads_all = df_filtered['num_reads_total'].sum()
-    
-    # Calculate total reads per library for pool percentage calculations
-    library_totals = df_filtered.groupby('library_id')['num_reads_total'].sum()
+
+    # Calculate total reads per pool for pool percentage calculations
+    pool_totals = df_filtered.groupby('pool')['num_reads_total'].sum()
     
     # Calculate total reads per barcode across all libraries for barcode-specific percentages
     barcode_totals = df_filtered.groupby('inline_barcode')['num_reads_total'].sum()
@@ -3009,18 +3156,18 @@ def write_barcode_metrics_for_pools(input_csv_path,
     result_df = pd.DataFrame(index=unique_barcodes, dtype=str)
     result_df.index.name = 'inline_barcode'
     
-    # For each library, calculate metrics
-    for library_id in unique_libraries:
-        library_data = df_filtered[df_filtered['library_id'] == library_id]
-        
-        # Group by inline_barcode and sum reads for this library
-        barcode_reads = library_data.groupby('inline_barcode')['num_reads_total'].sum()
-        
-        # Add columns for this library
-        reads_col       = f"{library_id}_reads"
-        pool_pct_col    = f"{library_id}_reads_pool_pct"
-        all_pct_col     = f"{library_id}_reads_all_pct"
-        barcode_pct_col = f"{library_id}_barcode_reads_vs_all_reads_for_barcode_pct"
+    # For each pool, calculate metrics
+    for pool in unique_pools:
+        pool_data = df_filtered[df_filtered['pool'] == pool]
+
+        # Group by inline_barcode and sum reads for this pool
+        barcode_reads = pool_data.groupby('inline_barcode')['num_reads_total'].sum()
+
+        # Add columns for this pool
+        reads_col       = f"{pool}_reads"
+        pool_pct_col    = f"{pool}_reads_pool_pct"
+        all_pct_col     = f"{pool}_reads_all_pct"
+        barcode_pct_col = f"{pool}_barcode_reads_vs_all_reads_for_barcode_pct"
         
         # Initialize columns with 0
         result_df[reads_col]       = 0
@@ -3032,7 +3179,7 @@ def write_barcode_metrics_for_pools(input_csv_path,
         for barcode in barcode_reads.index:
             reads = barcode_reads[barcode]
             result_df.loc[barcode, reads_col]       = reads
-            result_df.loc[barcode, pool_pct_col]    = reads / library_totals[library_id] if library_totals[library_id] > 0 else 0.0
+            result_df.loc[barcode, pool_pct_col]    = reads / pool_totals[pool] if pool_totals[pool] > 0 else 0.0
             result_df.loc[barcode, all_pct_col]     = reads / total_reads_all if total_reads_all > 0 else 0.0
             result_df.loc[barcode, barcode_pct_col] = reads / barcode_totals[barcode] if barcode_totals[barcode] > 0 else 0.0
     
@@ -3248,13 +3395,11 @@ def splitcode_demux(
     # Load samplesheet into dataframe
     barcodes_df = pd.json_normalize(samples.get_rows()).astype(str).fillna("")
 
-    inner_demux_barcode_map_df = None
-    if samples.can_be_collapsed:
-        #samples.collapse_sample_index_duplicates()
-        #collapsed_barcodes_df = pd.json_normalize(samples.get_rows()).fillna("")
-        inner_demux_barcode_map_df = samples.inner_demux_mapper()
-    else:
-        log.error("The outer (barcode_1,barcode_2) sequences in the sample sheet do not appear to be collapsible.")
+    # No collapsibility precondition here: inner_demux_mapper() groups by outer
+    # barcodes and is correct for any number of pools and any pool size. Gating it
+    # on "the sheet has duplicate barcode pairs" left this None for a sheet whose
+    # pools are all single-library, and it is dereferenced unguarded below (#1115).
+    inner_demux_barcode_map_df = samples.inner_demux_mapper()
 
     # TODO: guardrails around missing barcode_3 values or a mixture of rows with it present/absent
 
@@ -3273,27 +3418,72 @@ def splitcode_demux(
     sample_library_id_to_fastqs                 = {}
     pool_ids_successfully_demuxed_via_splitcode = []
 
+    # A pool is its outer barcode pair, so that is the pool key here. Do NOT use
+    # muxed_run ("{bc1}-{bc2}.l{library_id_per_sample}[.{run_id}]"): that string
+    # is the pool BAM's *filename*, and the outer demux built it by collapsing
+    # the whole barcode group (collapse_sample_index_duplicates folds differing
+    # library ids into e.g. "1_2_muxed"), so it cannot be rebuilt from a single
+    # row. Using it as a key also split one physical pool into one pool per
+    # library id, which ran splitcode twice over the same BAM (issue #1117).
+    inner_demux_barcode_map_df = inner_demux_barcode_map_df.copy()
+    inner_demux_barcode_map_df["barcode_group"] = inner_demux_barcode_map_df.apply(
+        splitcode.barcode_group_for_row, axis=1)
+    inner_demux_barcode_map_df["muxed_run"] = inner_demux_barcode_map_df["barcode_group"].map(
+        lambda group: f"{group}.{run_id}" if run_id else group)
+
+    # Which BAM holds each pool is a separate question from the pool's identity,
+    # and it has only one reliable answer: reproduce the naming. The outer Picard
+    # demux named every pool BAM after row["run"] of the *collapsed* samplesheet
+    # (illumina_utils.make_params_file), and that rule is not uniform --
+    #
+    #   pool that collapsed  ATCGATCG-GCTAGCTA.l1_2_muxed.RUNID.bam  (barcode group)
+    #   pool of one sample   TestSampleC.l1.RUNID.bam                (sample name)
+    #
+    # -- so no single filename pattern finds both. Running the same collapse here
+    # gives the exact basename per pool. overwrite_instance_data=False leaves
+    # `samples` alone; the only state it touches is the duplicate_rows_collapsed
+    # flag, which nothing on this path reads.
+    pool_bam_basename_by_group = dict(
+        (splitcode.barcode_group_for_row(row), row["run"])
+        for row in samples.collapse_sample_index_duplicates(overwrite_instance_data=False))
+
+    # NOTE (known, pre-dating #1117): several locals below are built and never
+    # read again -- demux_bams_to_sample_library_id_map, sample_to_demux_bam_map,
+    # inline_barcodes, samtools_tool, lane_count. Left in place deliberately;
+    # removing dead code belongs in its own change, not in a bug fix.
+
     # Iterate over rows
     for sample_name, sample_row in inner_demux_barcode_map_df.iterrows():
         log.debug(f"Looking for input pool bam files for '{sample_name}'")
-        #b1              = sample_row["barcode_1"]
-        #b3              = sample_row["barcode_3"]
-        #inline_index_id = sample_row["Inline_Index_ID"]
-        #run_str         = sample_row["run"]
-        muxed_pool_str = sample_row["muxed_run"]
+        pool_id = sample_row["muxed_run"]
 
-        bam_to_glob_for = f"{sample_row['muxed_run']}*.bam"
-        found_bam_files = glob.glob(f"{inDir}/{bam_to_glob_for}".replace("//","/"))
+        # Look up the basename the outer demux gave this pool, then allow a
+        # trailing wildcard for any decoration added downstream. The basename
+        # already carries the run id, so this cannot pull in another run's BAM.
+        expected_pool_bam = pool_bam_basename_by_group.get(sample_row["barcode_group"])
+        if expected_pool_bam is None:
+            raise FileNotFoundError(
+                f"Samplesheet defines no pool for barcode group "
+                f"'{sample_row['barcode_group']}' (sample '{sample_name}')"
+            )
+
+        bam_to_glob_for = f"{expected_pool_bam}*.bam"
+        found_bam_files = sorted(set(glob.glob(f"{inDir}/{bam_to_glob_for}".replace("//","/"))))
+        if len(found_bam_files) > 1:
+            raise ValueError(
+                f"Multiple pool bam files match '{bam_to_glob_for}' in {inDir}: {found_bam_files}. "
+                "Cannot determine which one holds this pool; expected exactly one."
+            )
         found_bam_file = found_bam_files[0] if found_bam_files else None
-        
+
         if found_bam_file:
-            if muxed_pool_str not in pool_id_to_pool_bam:
-                pool_id_to_pool_bam[muxed_pool_str] = found_bam_file
-                log.info(f"Found input pool bam file for {muxed_pool_str}: {found_bam_file}")
+            if pool_id not in pool_id_to_pool_bam:
+                pool_id_to_pool_bam[pool_id] = found_bam_file
+                log.info(f"Found input pool bam file for {pool_id}: {found_bam_file}")
 
             demux_bams_to_sample_library_id_map[found_bam_file].append(sample_row["run"])
             sample_to_demux_bam_map[sample_name] = found_bam_file
-            pool_id_to_sample_library_id_map[sample_row["muxed_run"]].append(sample_row["run"])
+            pool_id_to_sample_library_id_map[pool_id].append(sample_row["run"])
         else:
             raise FileNotFoundError(f"No bam file found: for {bam_to_glob_for}")
 
@@ -3382,6 +3572,16 @@ def splitcode_demux(
             ]
 
         # Add unmatched reads to the mapping
+        #
+        # NOTE (known, pre-dates #1117): the unmatched BAM is never actually
+        # emitted. This builds "{unmatched_name}.{pool_id}", but the metrics LUT
+        # keys its unmatched row "{unmatched_name}.{barcode_group}" (no run id --
+        # see splitcode.create_splitcode_lookup_table), so the lookup below always
+        # misses and logs "not found in the samplesheet data". Separately,
+        # run_splitcode_on_pool writes the file as lowercase "unmatched.*" because
+        # this call site never forwards unmatched_name. Both must be fixed
+        # together, and doing so adds an output file no downstream workflow has
+        # seen, so it is deliberately left alone here.
         unmatched_sample_name = f"{unmatched_name}.{pool_id}"
         unmatched_output_prefix = f"{splitcode_out_tmp_dir}/{unmatched_sample_name}"
         sample_library_id_to_fastqs[unmatched_sample_name] = [
@@ -3444,7 +3644,7 @@ def splitcode_demux(
 
     splitcode_demux_failures = list(set(pool_id_to_sample_library_id_map.keys()) - set(pool_ids_successfully_demuxed_via_splitcode))
     if len(splitcode_demux_failures)>0:
-        log.warning("splitcode demux failed for: %s", )
+        log.warning("splitcode demux failed for: %s", splitcode_demux_failures)
 
     # gather metrics and create output plots
     log.info("gathering splitcode demux metrics...")
@@ -3457,6 +3657,8 @@ def splitcode_demux(
         inner_demux_barcode_map_df,  # Pass DataFrame directly (not file path)
         splitcode_csv_metrics_out,
         unmatched_name,
+        # NOTE: create_splitcode_lookup_table binds pool_ids and never reads it,
+        # so passing it is inert. Left alone rather than churn a shared signature.
         pool_ids_successfully_demuxed_via_splitcode
         # Note: append_run_id not needed when passing DataFrame (it's already in the DataFrame)
     )
@@ -3578,6 +3780,11 @@ def splitcode_demux(
         row["lane"] = str(lane)
     if out_meta_by_sample:
         with open(out_meta_by_sample, "wt") as outf:
+            # NOTE (known, pre-dates #1117): keyed by sample name, which repeats
+            # across libraries of one sample, so all but the last are dropped.
+            # 44e3d18c fixed the same defect in demux_metrics.json on the FASTQ
+            # path, but unlike that file this one is consumed by the WDL, so
+            # re-keying it needs its own compatibility assessment.
             json.dump(dict((r["sample"], r) for r in sample_meta), outf, indent=2)
     if out_meta_by_filename:
         with open(out_meta_by_filename, "wt") as outf:

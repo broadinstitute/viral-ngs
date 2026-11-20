@@ -70,8 +70,13 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             self.assertEqual(len(unmatched_rows), 1)
             unmatched_row = unmatched_rows.iloc[0]
             self.assertTrue(unmatched_row['inline_barcode'].replace('N', '') == '')
-            # Unmatched count should be n_processed - n_assigned = 100000 - 95000 = 5000
+            # Unmatched count comes from num_reads_unassigned in the summary JSON (GH #1091).
+            # The true inflation mechanism was dtype=str string concatenation:
+            # pd.DataFrame.from_dict([unmatched_dict], dtype=str) coerced count to "5000",
+            # so num_reads_total = "5000" + "0" = "50000" (×10). Fixed by dropping dtype=str.
             self.assertEqual(int(unmatched_row['num_reads_hdistance0']), 5000)
+            # Regression guard: if dtype=str crept back, total would be "50000" not 5000.
+            self.assertEqual(int(unmatched_row['num_reads_total']), 5000)
 
             # Verify read counts for Sample2 (should have highest count)
             sample2_row = df[df['sample'] == 'Sample2'].iloc[0]
@@ -155,11 +160,13 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             unmatched_rows = df[df['sample'].str.contains('Unmatched')]
             self.assertEqual(len(unmatched_rows), 2)
 
-            # Verify LibA unmatched count: 50000 - 48000 = 2000
+            # Verify LibA unmatched count: num_reads_unassigned=2000 from the summary JSON (GH #1091).
             # Unmatched rows use the barcode group (outer barcodes only) as muxed_pool
             liba_unmatched = df[df['muxed_pool'] == 'AAAAAAAA-TTTTTTTT']
             liba_unmatched = liba_unmatched[liba_unmatched['sample'].str.contains('Unmatched')].iloc[0]
             self.assertEqual(int(liba_unmatched['num_reads_hdistance0']), 2000)
+            # Regression guard for dtype=str concat bug: total must be int 2000, not "20000"
+            self.assertEqual(int(liba_unmatched['num_reads_total']), 2000)
 
     def test_append_run_id(self):
         """Test append_run_id parameter."""
@@ -237,7 +244,7 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             unmatched_rows = df[df['sample'].str.contains('Unmatched')]
             self.assertEqual(len(unmatched_rows), 1)
             unmatched_row = unmatched_rows.iloc[0]
-            # Unmatched count should be n_processed - n_assigned = 100000 - 95000 = 5000
+            # Unmatched count comes from num_reads_unassigned in the summary JSON (GH #1091).
             self.assertEqual(int(unmatched_row['num_reads_hdistance0']), 5000)
 
             # Verify read counts for Sample2 (should have highest count)
@@ -250,6 +257,73 @@ class TestSplitcodeLookupTable(TestCaseWithTmp):
             self.assertEqual(sample2_row['barcode_1'], 'ATCGATCG')
             self.assertEqual(sample2_row['barcode_2'], 'GCTAGCTA')
             self.assertEqual(sample2_row['inline_barcode'], 'GGGGTTTT')
+
+
+class TestRecordUnassignedCountInSummary(TestCaseWithTmp):
+    """Tests for record_unassigned_count_in_summary() (GH #1091)."""
+
+    def _write_summary_json(self, path, extra=None):
+        """Write a minimal splitcode --summary JSON to path."""
+        data = {"n_processed": 1000000, "n_assigned": 950000, "tag_qc": []}
+        if extra:
+            data.update(extra)
+        with open(path, 'w') as f:
+            json.dump(data, f)
+
+    def _write_fastq(self, path, num_reads):
+        """Write a plain FASTQ file with the given number of reads."""
+        with open(path, 'w') as f:
+            for i in range(num_reads):
+                f.write(f"@read{i}\nACGT\n+\nIIII\n")
+
+    def test_counts_reads_correctly(self):
+        """Helper records the exact number of read pairs from the unassigned R1 FASTQ."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            summary_path = os.path.join(tmpdir, 'pool_summary.json')
+            fastq_path   = os.path.join(tmpdir, 'unassigned_R1.fastq')
+            self._write_summary_json(summary_path)
+            self._write_fastq(fastq_path, num_reads=42)
+
+            n = viral_ngs.core.splitcode.record_unassigned_count_in_summary(summary_path, fastq_path)
+
+            self.assertEqual(n, 42)
+            with open(summary_path) as f:
+                saved = json.load(f)
+            self.assertEqual(saved['num_reads_unassigned'], 42)
+            # Old (inflated) fields are still present, just unused now
+            self.assertIn('n_processed', saved)
+
+    def test_missing_fastq_records_zero(self):
+        """When the unassigned FASTQ is absent (all reads matched), count is 0."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            summary_path = os.path.join(tmpdir, 'pool_summary.json')
+            self._write_summary_json(summary_path)
+            missing_fastq = os.path.join(tmpdir, 'nonexistent_R1.fastq')
+
+            n = viral_ngs.core.splitcode.record_unassigned_count_in_summary(summary_path, missing_fastq)
+
+            self.assertEqual(n, 0)
+            with open(summary_path) as f:
+                saved = json.load(f)
+            self.assertEqual(saved['num_reads_unassigned'], 0)
+
+    def test_new_key_overwrites_old_inflated_formula(self):
+        """The recorded num_reads_unassigned differs from n_processed - n_assigned
+        when the binary's counters are inflated (the real-world case from GH #1091)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            summary_path = os.path.join(tmpdir, 'pool_summary.json')
+            fastq_path   = os.path.join(tmpdir, 'unassigned_R1.fastq')
+            # 10 × inflation: n_processed - n_assigned = 500000, real unmatched = 50000
+            self._write_summary_json(summary_path, {'n_processed': 1000000, 'n_assigned': 500000})
+            self._write_fastq(fastq_path, num_reads=50000)
+
+            viral_ngs.core.splitcode.record_unassigned_count_in_summary(summary_path, fastq_path)
+
+            with open(summary_path) as f:
+                saved = json.load(f)
+            old_formula = saved['n_processed'] - saved['n_assigned']  # 500000 — inflated
+            self.assertEqual(saved['num_reads_unassigned'], 50000)
+            self.assertNotEqual(saved['num_reads_unassigned'], old_formula)
 
 
 class TestSplitcodeIntegration(TestCaseWithTmp):
@@ -384,6 +458,30 @@ class TestSplitcodeIntegration(TestCaseWithTmp):
         # Check that we have at least one entry with count > 0
         total_count = sum(item['count'] for item in matching_entries)
         self.assertGreater(total_count, 0, f"{sample_id} should have matched some reads across all distance levels")
+
+        # --- GH #1091 invariant assertions ---
+        # After run_splitcode_on_pool(), the summary JSON must contain num_reads_unassigned
+        # (patched in by record_unassigned_count_in_summary) so the LUT builder can use it
+        # directly instead of the inflated n_processed - n_assigned formula.
+        self.assertIn('num_reads_unassigned', summary,
+                      "summary JSON must contain num_reads_unassigned after run_splitcode_on_pool (GH #1091)")
+
+        # Count actual reads in the unassigned R1 FASTQ (ground truth)
+        import viral_ngs.core.file as util_file
+        unassigned_r1 = os.path.join(self.temp_dir, f'unmatched.{pool_id}_R1.fastq')
+        if os.path.exists(unassigned_r1):
+            unassigned_count_from_file = util_file.count_fastq_reads(unassigned_r1)
+        else:
+            unassigned_count_from_file = 0
+        self.assertEqual(summary['num_reads_unassigned'], unassigned_count_from_file,
+                         "num_reads_unassigned must equal the actual read count in the unassigned R1 FASTQ")
+
+        # Verify the conservation invariant: matched + unmatched == total input reads.
+        # We created 5 reads with 100% matching barcode, so all should be matched.
+        matched_count = sum(item['count'] for item in summary['tag_qc'] if item['distance'] == 0)
+        total_reads = 5  # as created above by create_test_bam_with_inline_barcodes(num_reads=5)
+        self.assertEqual(matched_count + summary['num_reads_unassigned'], total_reads,
+                         "matched + unmatched must equal total input reads (conservation invariant)")
 
     def test_run_splitcode_on_pool_empty_output(self):
         """

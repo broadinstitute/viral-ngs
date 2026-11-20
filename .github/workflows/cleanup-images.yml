@@ -1,61 +1,52 @@
 name: Cleanup Feature Branch Images
 
+# Deletes a branch's quay.io image tags when the branch is deleted. The logic and its
+# safety rails live in .github/scripts/quay_delete_branch_tags.py (see issue #1125).
+# Run it by hand (Run workflow, with a branch name) to clean up tags left behind, e.g.
+# when a branch is deleted while its docker.yml build is still pushing. Manual runs are
+# dry runs unless "execute" is checked.
+
 on:
   delete:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch whose quay.io tags to delete, as pushed (e.g. feature/foo)'
+        required: true
+        type: string
+      execute:
+        description: 'Delete the tags (unchecked = dry run)'
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
 
 jobs:
   cleanup-quay-images:
-    # Only run for branch deletions (not tags), and skip main
-    if: github.event.ref_type == 'branch' && github.event.ref != 'main'
+    # Branch deletions only (not tags), and skip main
+    if: github.event_name == 'workflow_dispatch' || (github.event.ref_type == 'branch' && github.event.ref != 'main')
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      contents: read
 
     steps:
-      - name: Compute tag prefix
-        id: tag-prefix
-        run: |
-          # Apply the same sanitization as docker.yml's "Compute Docker image tag prefix":
-          # replace "/" with "-" and strip leading "v"
-          RAW="${{ github.event.ref }}"
-          PREFIX=$(echo "$RAW" | sed 's|/|-|g')
-          PREFIX=${PREFIX#v}
-          echo "prefix=${PREFIX}" >> $GITHUB_OUTPUT
-          echo "Tag prefix: ${PREFIX} (from branch: ${RAW})"
-
-      - name: Safety check - refuse version-like branch names
-        run: |
-          PREFIX="${{ steps.tag-prefix.outputs.prefix }}"
-          if [[ "$PREFIX" =~ ^[0-9]+\.[0-9]+ ]]; then
-            echo "::error::Refusing to delete tags for version-like branch: $PREFIX"
-            exit 1
-          fi
-
-      - name: Install crane
-        uses: imjasonh/setup-crane@v0.4
-
-      - name: Log in to Quay.io
-        uses: docker/login-action@v4
+      - uses: actions/checkout@v5
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
+          sparse-checkout: .github/scripts
+          persist-credentials: false
 
-      - name: Delete feature branch tags from Quay
+      - name: Delete branch tags from Quay
+        env:
+          # Passed through env rather than interpolated into the script, so a branch
+          # name can't inject shell commands.
+          BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.ref }}
+          EXECUTE: ${{ github.event_name == 'delete' || inputs.execute }}
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
         run: |
-          TAG_PREFIX="${{ steps.tag-prefix.outputs.prefix }}"
-          QUAY_REPO="quay.io/broadinstitute/viral-ngs"
-
-          # Image tag suffixes - must be kept in sync with deploy-to-quay in docker.yml
-          # See: .github/workflows/docker.yml deploy-to-quay job matrix
-          SUFFIXES=("-baseimage" "-core" "-assemble" "-classify" "-phylo" "")
-
-          for SUFFIX in "${SUFFIXES[@]}"; do
-            TAG="${TAG_PREFIX}${SUFFIX}"
-            echo "Deleting ${QUAY_REPO}:${TAG}..."
-            # Use crane delete instead of skopeo delete. crane removes only the tag
-            # reference, not the underlying manifest. This prevents cascade deletion
-            # of other tags sharing the same digest (which caused the 3.0.10-baseimage
-            # incident: skopeo deleted the manifest by digest, expiring all tags
-            # pointing to it).
-            crane delete "${QUAY_REPO}:${TAG}" 2>&1 || echo "  Tag ${TAG} not found or already deleted"
-          done
+          if [[ "$EXECUTE" == "true" ]]; then
+            python3 .github/scripts/quay_delete_branch_tags.py --execute
+          else
+            python3 .github/scripts/quay_delete_branch_tags.py
+          fi

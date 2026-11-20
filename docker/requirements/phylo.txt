@@ -6,3 +6,7 @@ mummer4>=4.0.1
 muscle>=3.8,<4
 snpeff>=5.2
 vphaser2>=2.0
+# Not a direct dependency (mummer4 → yaggo → ruby). Floor keeps the solver off
+# ruby 3.4.x, whose bundled uri 1.0.2 gem has CVE-2025-61594; it picked 3.4.2
+# when it had to downgrade perl for mummer4 (pl5321) on a fresh baseimage solve.
+ruby>=4.0

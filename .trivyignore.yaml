@@ -1,0 +1,306 @@
+# Trivy ignore file — per-CVE exceptions with justifications
+#
+# This file documents individual CVE exceptions that cannot be addressed by
+# version bumps or by the Rego policy (.trivy-ignore-policy.rego). Each entry
+# MUST include a justification explaining why the CVE is accepted.
+#
+# FORMAT: YAML, not the one-CVE-per-line plain text format. The reason is
+# scoping. A plain `.trivyignore` line matches a CVE ID *globally* — it
+# suppresses that CVE anywhere in the image, including places we never
+# reviewed. The YAML format lets each entry be pinned to what was actually
+# assessed:
+#
+#   paths: [...]   match by file location (supports globs). Use for findings
+#                  that carry a PkgPath, e.g. a dependency inside a fat JAR.
+#   purls: [...]   match by package identity + version. Use for findings with
+#                  no PkgPath — notably anything Trivy derives from an embedded
+#                  SBOM ("AnalyzedBy": "sbom"), where there is no file to match.
+#
+# Either way, if the same CVE later turns up somewhere we did NOT assess, it is
+# reported instead of silently suppressed. That is the point: an un-scoped
+# ignore hides the finding we would most want to see.
+#
+# See: https://trivy.dev/latest/docs/configuration/filtering/#by-finding-ids
+#
+# Review cadence: Re-evaluate all entries quarterly or when the affected
+# package is upgraded. Remove entries once the underlying package ships a fix.
+#
+# =============================================================================
+
+vulnerabilities:
+  # ---------------------------------------------------------------------------
+  # CVE-2020-25649 — jackson-databind XXE in DOMDeserializer
+  # Severity: HIGH (AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N)
+  # Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
+  #
+  # JUSTIFICATION:
+  #   The vulnerable code path is DOMDeserializer, which is invoked when
+  #   jackson-databind deserializes XML input into DOM objects without
+  #   disabling external entity resolution. This enables XXE attacks
+  #   (SSRF, local file read) when processing attacker-controlled XML.
+  #
+  #   jackson-databind is not a direct snpEff dependency. It is bundled
+  #   transitively through biojava's MMTF (binary protein-structure) support:
+  #   biojava-structure 6.0.4 -> mmtf-serialization -> jackson-dataformat-msgpack
+  #   0.8.24 -> jackson-databind 2.10.5. snpEff's own source never imports
+  #   com.fasterxml.jackson, and it uses biojava-structure only to parse
+  #   PDB-format text files (PDBFileReader/PDBFileParser) in its `pdb`
+  #   subcommand, never the MMTF reader. mmtf-serialization's only ObjectMapper
+  #   is a plain msgpack mapper. viral-ngs runs only snpEff `build`,
+  #   `databases`, `download` and `ann` (src/viral_ngs/phylo/snpeff.py), never
+  #   `pdb`. (`ann` may read a database's protein-interaction file, but as
+  #   plain text, not through biojava's structure parsers.)
+  #   Nothing in the image routes XML through Jackson's DOMDeserializer; the
+  #   vulnerable code is present in the fat JAR but never traversed.
+  #
+  #   Scoped by path to snpEff's bundled copy. The glob covers snpeff version
+  #   bumps (the jar has moved between snpeff-5.1-0, 5.2-3 and 5.4.0c-0), but
+  #   the same CVE in any other JAR — picard, gatk, fgbio, fastqc — is still
+  #   reported, because those copies have not been assessed.
+  #
+  # RESOLUTION: Upstream snpEff must bump biojava or override the transitive
+  #   jackson-databind it bundles.
+  # ADDED: 2026-03-20
+  # REVIEWED: 2026-10-16 — still reported in snpeff 5.4.0c (latest on bioconda)
+  # ---------------------------------------------------------------------------
+  - id: CVE-2020-25649
+    paths:
+      - "opt/conda/share/snpeff-*/snpEff.jar"
+    statement: >-
+      jackson-databind is in snpEff's jar only as a transitive dependency of
+      biojava's MMTF support. snpEff never imports it or reads MMTF, and
+      viral-ngs never runs `pdb`, the only subcommand that parses structures
+      with biojava, so nothing routes XML through DOMDeserializer. Scoped to
+      snpEff's bundled jar.
+
+  # ---------------------------------------------------------------------------
+  # CVE-2026-54512 — jackson-databind PolymorphicTypeValidator bypass via
+  #                  generic type parameters allows arbitrary class instantiation
+  # Severity: HIGH (AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H)
+  # Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
+  #
+  # JUSTIFICATION:
+  #   The vulnerable code path is DatabindContext._resolveAndValidateGeneric(),
+  #   which is invoked only when polymorphic typing is enabled (via
+  #   enableDefaultTyping() or @JsonTypeInfo) AND the type ID string contains
+  #   a generic parameter delimiter (<). When triggered, only the raw container
+  #   class is validated against the PTV allowlist; the nested type argument
+  #   is instantiated without further PTV checks.
+  #
+  #   jackson-databind reaches snpEff's jar only transitively, via biojava's
+  #   MMTF support (see CVE-2020-25649 above). Polymorphic typing is enabled by
+  #   whoever configures the ObjectMapper: snpEff never imports Jackson, and
+  #   mmtf-serialization builds a plain msgpack ObjectMapper with no default
+  #   typing and no @JsonTypeInfo. Without polymorphic typing,
+  #   _resolveAndValidateGeneric() and the entire PTV code path are never
+  #   invoked, making this bypass architecturally unreachable regardless of
+  #   pipeline input content.
+  #
+  #   No pipeline input reaches Jackson at all: viral-ngs runs only snpEff
+  #   `build`, `databases`, `download` and `ann`, never `pdb`, the only
+  #   subcommand that parses structures with biojava.
+  #
+  #   Scoped by path to snpEff's bundled copy; the same CVE in any other JAR is
+  #   still reported.
+  #
+  # RESOLUTION: Upstream snpEff must bump biojava or override the transitive
+  #   jackson-databind it bundles to >=2.18.8.
+  # ADDED: 2026-06-24
+  # REVIEW: Remove once snpeff on bioconda bundles jackson-databind>=2.18.8
+  # REVIEWED: 2026-10-16 — still reported in snpeff 5.4.0c (latest on bioconda)
+  # ---------------------------------------------------------------------------
+  - id: CVE-2026-54512
+    paths:
+      - "opt/conda/share/snpeff-*/snpEff.jar"
+    statement: >-
+      Neither snpEff nor the MMTF library that pulls in jackson-databind enables
+      polymorphic typing, so the PolymorphicTypeValidator code path this
+      bypasses is never invoked. Scoped to snpEff's bundled jar.
+
+  # ---------------------------------------------------------------------------
+  # CVE-2026-54513 — jackson-databind array subtype allowlist bypass in
+  #                  BasicPolymorphicTypeValidator (allowIfSubTypeIsArray)
+  # Severity: HIGH (AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H)
+  # Package: com.fasterxml.jackson.core:jackson-databind 2.10.5
+  #
+  # JUSTIFICATION:
+  #   The vulnerable code path is BasicPolymorphicTypeValidator built with
+  #   allowIfSubTypeIsArray(), which whitelists any array type on clazz.isArray()
+  #   alone without inspecting the component (element) type. This enables
+  #   instantiation of EvilType[] even when EvilType is not in the allowlist.
+  #   The exploit requires polymorphic typing to be ENABLED in the consuming
+  #   application AND a PTV built with allowIfSubTypeIsArray().
+  #
+  #   jackson-databind reaches snpEff's jar only transitively, via biojava's
+  #   MMTF support (see CVE-2020-25649 above). Polymorphic typing is enabled by
+  #   whoever configures the ObjectMapper: snpEff never imports Jackson, and
+  #   mmtf-serialization builds a plain msgpack ObjectMapper with no default
+  #   typing and no @JsonTypeInfo. Without polymorphic typing,
+  #   BasicPolymorphicTypeValidator and allowIfSubTypeIsArray() are never
+  #   invoked, making this bypass architecturally unreachable regardless of
+  #   pipeline input content.
+  #
+  #   No pipeline input reaches Jackson at all: viral-ngs runs only snpEff
+  #   `build`, `databases`, `download` and `ann`, never `pdb`, the only
+  #   subcommand that parses structures with biojava.
+  #
+  #   Scoped by path to snpEff's bundled copy; the same CVE in any other JAR is
+  #   still reported.
+  #
+  # RESOLUTION: Upstream snpEff must bump biojava or override the transitive
+  #   jackson-databind it bundles to >=2.18.8.
+  # ADDED: 2026-06-24
+  # REVIEW: Remove once snpeff on bioconda bundles jackson-databind>=2.18.8
+  # REVIEWED: 2026-10-16 — still reported in snpeff 5.4.0c (latest on bioconda)
+  # ---------------------------------------------------------------------------
+  - id: CVE-2026-54513
+    paths:
+      - "opt/conda/share/snpeff-*/snpEff.jar"
+    statement: >-
+      Neither snpEff nor the MMTF library that pulls in jackson-databind enables
+      polymorphic typing, so allowIfSubTypeIsArray() and the validator it
+      bypasses are never invoked. Scoped to snpEff's bundled jar.
+
+  # ---------------------------------------------------------------------------
+  # CVE-2025-47273 — setuptools path traversal in PackageIndex
+  # Severity: HIGH (CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H, 8.8 per NVD)
+  # Package: setuptools 70.3.0 — reported, but NOT installed at that version
+  #
+  # JUSTIFICATION:
+  #   This finding does not come from an installed package. pip 26.2 ships a
+  #   CycloneDX SBOM of its vendored dependencies at pip/_vendor/bom.cdx.json,
+  #   which declares "setuptools 70.3.0". Trivy's SBOM analyzer reads that
+  #   manifest and synthesizes a package entry from it — the record carries
+  #   "AnalyzedBy": "sbom" and no FilePath, and no .dist-info or .egg-info for
+  #   setuptools 70.3.0 exists anywhere in any image layer (verified by
+  #   extracting and grepping every METADATA/PKG-INFO in the affected layers).
+  #
+  #   The vulnerable code path is setuptools/package_index.py (PackageIndex,
+  #   which fetches and extracts sdists from an index). pip vendors only
+  #   pkg_resources — a subset of the setuptools distribution — and does not
+  #   vendor package_index.py at all. Confirmed in the built image: pip/_vendor
+  #   contains pkg_resources/ but no setuptools/ package and no package_index*
+  #   file, so the vulnerable module is absent from the image.
+  #
+  #   The setuptools that IS installed in the conda env is floored at >=80.10.1
+  #   by docker/requirements/baseimage.txt (84.0.0 as of 2026-10-16), above the
+  #   78.1.1 fix version, and is reported separately and correctly by Trivy.
+  #
+  #   Why an ignore entry rather than deleting the SBOM: pip's SBOM is accurate
+  #   supply-chain metadata that also covers its other vendored packages
+  #   (urllib3, requests, certifi, idna, ...). Deleting it to silence one
+  #   mis-mapped CVE would blind the scanner to real future findings in that
+  #   vendored tree, which is a worse trade than one documented exception.
+  #
+  #   Scoped by PURL, not path: an SBOM-derived finding has no PkgPath, so there
+  #   is nothing for `paths` to match (verified — a paths-scoped entry does not
+  #   suppress it). The PURL pins the exact version, so a genuine setuptools
+  #   below 78.1.1 arriving by any other route is still reported. If pip later
+  #   vendors a different vulnerable setuptools version, this entry stops
+  #   matching and the finding resurfaces for review — which is the intent.
+  #
+  # RESOLUTION: Upstream pip must vendor pkg_resources from setuptools>=78.1.1,
+  #   or stop declaring the full setuptools distribution in its vendored SBOM.
+  # ADDED: 2026-08-04
+  # REVIEW: Remove once pip's bundled bom.cdx.json declares setuptools>=78.1.1
+  # REVIEWED: 2026-10-16 — pip 26.2.1 (latest) and pip main still vendor 70.3.0
+  # ---------------------------------------------------------------------------
+  - id: CVE-2025-47273
+    purls:
+      - "pkg:pypi/setuptools@70.3.0"
+    statement: >-
+      Phantom package synthesized from pip's vendored CycloneDX SBOM, not an
+      installed distribution. pip vendors pkg_resources only, not
+      setuptools/package_index.py where the traversal lives; the real installed
+      setuptools is floored above the fix version (>=80.10.1). Scoped by PURL
+      because SBOM-derived findings have no file path.
+
+  # ---------------------------------------------------------------------------
+  # CVE-2026-97687 — urllib3 HTTPS proxy TLS context mutation (GHSA-8988-9cw3-xx77)
+  # Severity: HIGH
+  # Package: urllib3 2.7.0, vendored inside pip 26.2.1 (pip/_vendor/urllib3)
+  #
+  # JUSTIFICATION:
+  #   The urllib3 installed in the conda env is 2.8.0 (the fix version), pinned
+  #   by `urllib3>=2.8.0` in docker/requirements/baseimage.txt. This finding is
+  #   the copy pip vendors: pip 26.2.1's pip/_vendor/vendor.txt pins
+  #   urllib3==2.7.0, and Trivy reads it from pip's embedded bom.cdx.json
+  #   ("AnalyzedBy": "sbom", no PkgPath). pip 26.2.1 is the newest release on
+  #   PyPI and conda-forge, and pip main still pins urllib3==2.7.0, so no
+  #   version bump in this repo can update it.
+  #
+  #   Unlike the setuptools entry above, the vulnerable code IS present: pip
+  #   passes its SSL context to urllib3 as proxy_ssl_context. It is reachable
+  #   only when pip itself runs in the container, through an HTTPS proxy, with
+  #   certificate verification disabled for a target (e.g. --trusted-host).
+  #   Batch pipeline tasks do not invoke pip; dependencies are installed via
+  #   conda at image build time.
+  #
+  #   Scoped by PURL because SBOM-derived findings have no file path. Caveat:
+  #   the PURL would also match a real site-packages urllib3 2.7.0, which can
+  #   only happen if the >=2.8.0 floor is removed or something caps urllib3.
+  #   Same approach as broadinstitute/py3-bio#29.
+  #
+  # RESOLUTION: Upstream pip must vendor urllib3>=2.8.0 (expected in pip 26.3).
+  # ADDED: 2026-10-01
+  # REVIEW: Expires 2026-12-31 so the finding resurfaces if pip has not caught up.
+  # REVIEWED: 2026-10-16 — pip main still pins urllib3==2.7.0; pip 26.3 is due
+  #   2026-10-31 and is the likely point to remove this entry.
+  # ---------------------------------------------------------------------------
+  - id: CVE-2026-97687
+    purls:
+      - "pkg:pypi/urllib3@2.7.0"
+    expired_at: 2026-12-31
+    statement: >-
+      pip 26.2.1 (the latest release; pip main is unchanged) vendors urllib3
+      2.7.0, reported via pip's embedded SBOM. The installed urllib3
+      distribution is 2.8.0. Unlike the setuptools entry, the vulnerable code
+      is present: pip passes its SSL context as proxy_ssl_context. It is
+      reachable only when pip itself runs in the container through an HTTPS
+      proxy with certificate verification disabled for a target (e.g.
+      --trusted-host); batch pipeline tasks do not invoke pip. Short expiry so
+      this is revisited once pip vendors urllib3 >= 2.8.0 (GHSA-8988-9cw3-xx77).
+
+  # ---------------------------------------------------------------------------
+  # GHSA-6q48-6c7w-9gw2 — certifi bundled emSign root CA chains to compromised
+  #                       intermediate CA keys (pip-vendored copy)
+  # Severity: CRITICAL (GHSA v4.0, AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:H/VA:N, 9.1)
+  # Package: certifi 2026.6.17, vendored inside pip 26.2.1 (pip/_vendor/certifi)
+  #
+  # JUSTIFICATION:
+  #   The certifi installed in the conda env is floored at >=2026.10.19 (the
+  #   fix version) by `certifi>=2026.10.19` in docker/requirements/baseimage.txt,
+  #   and is reported separately and correctly by Trivy. This finding is the
+  #   copy pip vendors: pip 26.2.1's embedded bom.cdx.json declares
+  #   certifi==2026.6.17, synthesized by Trivy's SBOM analyzer ("AnalyzedBy":
+  #   "sbom", no PkgPath). pip 26.2.1 is the newest release on PyPI and
+  #   conda-forge, so no version bump in this repo can update it.
+  #
+  #   Same mechanism as the CVE-2026-97687 urllib3 entry and the
+  #   CVE-2025-47273 setuptools entry above: the vulnerable code IS present
+  #   (pip's vendored certifi bundle backs its own outbound TLS verification),
+  #   but it is reachable only when pip itself runs in the container and
+  #   connects over HTTPS to a host whose certificate chains through one of
+  #   the eight compromised eMudhra intermediates, requiring an on-path
+  #   attacker holding a compromised key. Batch pipeline tasks do not invoke
+  #   pip; dependencies are installed via conda at image build time.
+  #
+  #   Scoped by PURL because SBOM-derived findings have no file path.
+  #
+  # RESOLUTION: Upstream pip must vendor certifi>=2026.10.19.
+  # ADDED: 2026-10-21
+  # REVIEW: Expires 2026-12-31 so the finding resurfaces if pip has not caught up.
+  # ---------------------------------------------------------------------------
+  - id: GHSA-6q48-6c7w-9gw2
+    purls:
+      - "pkg:pypi/certifi@2026.6.17"
+    expired_at: 2026-12-31
+    statement: >-
+      pip 26.2.1 (the latest release) vendors certifi 2026.6.17, reported via
+      pip's embedded SBOM. The installed certifi distribution is floored at
+      >=2026.10.19. Same mechanism as the CVE-2026-97687 urllib3 entry: the
+      vulnerable code is present (pip's own outbound TLS verification uses
+      this bundle) but reachable only when pip itself runs in the container
+      and connects to a host chaining through a compromised eMudhra
+      intermediate; batch pipeline tasks do not invoke pip. Short expiry so
+      this is revisited once pip vendors certifi >= 2026.10.19.

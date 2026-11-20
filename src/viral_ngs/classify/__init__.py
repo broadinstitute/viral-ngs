@@ -4,7 +4,7 @@ from . import blast
 from . import bmtagger
 from . import genomad
 from . import centrifuger
-from . import kb
+from . import kallisto
 from . import kma
 from . import kmc
 from . import kraken2

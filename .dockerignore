@@ -1,2 +1,17 @@
-*.pyc
-__pycache__
+# The build context is only what the Dockerfiles COPY (docker/Dockerfile.*,
+# built with the repo root as context). Everything else stays out: .git, tests/,
+# docs/, local environments and agent scratch directories. A new COPY of anything
+# not listed here fails with "not found"; add it below.
+*
+!docker/
+!src/
+!pyproject.toml
+!README.md
+!LICENSE
+
+# Build and editor artifacts inside those. Patterns match relative to the context
+# root, so a bare `__pycache__` or `*.pyc` matches only at the top level.
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.DS_Store

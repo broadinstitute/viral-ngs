@@ -1,0 +1,3 @@
+sample	barcode_1	barcode_2	barcode_3	library_id_per_sample
+TestSampleA	ATCGATCG	GCTAGCTA	AAAAAAAA	L1
+TestSampleB	CTGATCGT	TAGATCGC	CCCCCCCC	L1

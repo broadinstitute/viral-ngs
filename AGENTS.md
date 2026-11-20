@@ -334,8 +334,8 @@ The `pyproject.toml` has empty dependencies - conda handles everything.
    - `docker/requirements/phylo.txt` - phylo-specific
 
 3. For x86-only packages (no ARM64 build), add to the appropriate `-x86.txt` file:
-   - `core-x86.txt` - novoalign, mvicuna
-   - `classify-x86.txt` - bmtagger, kallisto, kb-python
+   - `core-x86.txt` - cd-hit-auxtools
+   - `classify-x86.txt` - bmtagger, kallisto
    - `phylo-x86.txt` - table2asn
 
 ### Dependency Resolution
@@ -456,7 +456,7 @@ Each x86 test job uploads coverage to Codecov with flavor-specific flags.
 
 - Images built natively for `linux/amd64` and `linux/arm64` using parallel runners
 - Multi-arch manifests created with OCI annotations using `docker buildx imagetools create`
-- x86-only packages (novoalign, mvicuna, bmtagger, kallisto, kb-python, table2asn) handled via `--x86-only:` prefix in `install-conda-deps.sh`
+- x86-only packages (cd-hit-auxtools, bmtagger, kallisto, table2asn) handled via `--x86-only:` prefix in `install-conda-deps.sh`
 - Python tool wrappers still importable on ARM64; only runtime execution fails for missing binaries
 - Tests using x86-only tools have `@unittest.skipIf(IS_ARM, ...)` decorators
 - Architecture-specific caches prevent cross-arch cache pollution
@@ -491,7 +491,7 @@ The `docs.yml` workflow builds Sphinx documentation. Key points:
 
 - **GHCR (ghcr.io)**: Primary build registry, images pushed during CI for all events including PRs
 - **Quay.io**: Production registry, images copied from GHCR after tests pass (push/tag events only)
-- Feature branch images should be cleaned up periodically from Quay.io
+- Feature branch images are deleted from Quay.io when the branch is deleted (`cleanup-images.yml`, which runs `.github/scripts/quay_delete_branch_tags.py`). To clean up leftovers, run that workflow by hand with the branch name; it is a dry run unless `execute` is checked. Delete Quay tags by tag, never by digest: a digest delete removes every tag on that manifest, and branch `-baseimage` builds usually share main's and the latest release's digest.
 
 ---
 
