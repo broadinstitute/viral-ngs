@@ -1,0 +1,14 @@
+.gitignore
+  h_620afb38050b2a 84-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "cf14851339f3d0528ab16e85028c992b0f42c468",
+  "prompts": {},
+  "humans": {
+    "h_620afb38050b2a": {
+      "author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

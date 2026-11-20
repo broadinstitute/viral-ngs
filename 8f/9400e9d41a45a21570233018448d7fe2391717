@@ -1,0 +1,20 @@
+tests/unit/classify/test_lyra_reconciliation_errors.py
+  s_dfe5d3869f6180::t_364afabe97cc68 5,17-90,199-369
+  s_dfe5d3869f6180::t_a046154b736805 370-372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8f9400e9d41a45a21570233018448d7fe2391717",
+  "prompts": {},
+  "sessions": {
+    "s_dfe5d3869f6180": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_075d86bfaffe0vJC2G0alQlDei",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

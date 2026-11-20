@@ -1,0 +1,14 @@
+src/viral_ngs/metagenomics.py
+  h_620afb38050b2a 44,1416-1496
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "bbc602ea6a9e40ee67eeef98888a463aac0383d0",
+  "prompts": {},
+  "humans": {
+    "h_620afb38050b2a": {
+      "author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

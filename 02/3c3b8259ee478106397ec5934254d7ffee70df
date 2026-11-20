@@ -1,0 +1,20 @@
+tests/unit/core/test_read_utils.py
+  s_6fbdc976a45f7f::t_ac29284b6d42a1 29-75,348-417,881-949
+  s_6fbdc976a45f7f::t_16db5820532267 950
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "023c3b8259ee478106397ec5934254d7ffee70df",
+  "prompts": {},
+  "sessions": {
+    "s_6fbdc976a45f7f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0738b81f3ffeVA2VQehOaMh2K1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

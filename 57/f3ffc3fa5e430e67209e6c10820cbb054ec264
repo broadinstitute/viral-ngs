@@ -1,0 +1,24 @@
+tests/unit/classify/test_virnucpro.py
+  s_15cd171b22deb7::t_7e7462a6726382 137,147-163,167,197,199,208-221,225,235-236,239,241,249,252,266,269,273-293
+  s_15cd171b22deb7::t_4d7f85e059f0ca 5,11-77
+src/viral_ngs/classify/virnucpro.py
+  s_15cd171b22deb7::t_a260443255bac4 11,172,181-183,199-200,238,306,348-358,361-362,364-365,369,372-460
+  s_15cd171b22deb7::t_632cb80103dc87 498,507,533,535,539,557,560,564,586,592-593,643,647
+  s_15cd171b22deb7::t_3f8588663c85ca 590
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "57f3ffc3fa5e430e67209e6c10820cbb054ec264",
+  "prompts": {},
+  "sessions": {
+    "s_15cd171b22deb7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e506e-7202-76a1-b98b-f01f17dfd2c8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

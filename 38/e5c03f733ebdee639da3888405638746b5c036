@@ -1,0 +1,42 @@
+src/viral_ngs/core/misc.py
+  s_46d75e203f701d::t_715d09c64459a1 37-41,464-546
+src/viral_ngs/metagenomics.py
+  s_46d75e203f701d::t_6a90b576cd3e0a 652-812
+  s_46d75e203f701d::t_dc1a68d046740e 47
+src/viral_ngs/classify/virnucpro.py
+  s_46d75e203f701d::t_fe3f90cea34f11 13,235,280-283
+tests/unit/core/test_duckdb_utils.py
+  s_46d75e203f701d::t_28dfd30018edaa 2,4-6,16,18-29,33,36-37,55-57,59,61-64
+src/viral_ngs/classify/read_classifications.py
+  s_46d75e203f701d::t_2e7574e3728576 337-339
+  s_46d75e203f701d::t_407b9772f43a9a 1-111,114-162,164-169,175,177-181,192-193,195-279,287-336,340-391,403-409,411-421,437,448,456,461,468,481,483-489,497,552-553,557,654,656-657,741-746,752,758-759,766-768,770-786
+  s_46d75e203f701d::t_6ee43e096ee09b 280-286
+  s_46d75e203f701d::t_e2a0b55b554e5e 112-113,679-680
+tests/unit/classify/test_read_classifications.py
+  s_46d75e203f701d::t_f89603772174d4 1-402,404-489
+  s_46d75e203f701d::t_56f67b97f745ab 636-657
+tests/unit/classify/test_virnucpro.py
+  s_46d75e203f701d::t_f21cff3f7553fd 1,26-30,188,253,296,339,365,396,412
+src/viral_ngs/core/duckdb_utils.py
+  s_46d75e203f701d::t_02bc1b738b4bcc 1-54
+src/viral_ngs/classify/DESIGN.md
+  s_46d75e203f701d::t_6c91e78f478974 223-295
+src/viral_ngs/classify/__init__.py
+  s_46d75e203f701d::t_121b1f2dcb5726 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "38e5c03f733ebdee639da3888405638746b5c036",
+  "prompts": {},
+  "sessions": {
+    "s_46d75e203f701d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6510-ca33-7620-a04e-da2ef0ba1d61",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+src/viral_ngs/classify/kallisto.py
+  s_46d75e203f701d::t_8808b0c8380bf5 13,50,58-67
+  s_46d75e203f701d::t_a34a0ef231c0df 48-49,51-57
+tests/unit/classify/test_tools_kallisto.py
+  s_46d75e203f701d::t_f1575684e46c8f 57-65,70-75,80,87,90
+  s_46d75e203f701d::t_edfbd01c1a8cb4 5,66-69,76-79,81-86,88-89,91-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c4254761aabb6ea9dafc91255decda31aa58b340",
+  "prompts": {},
+  "sessions": {
+    "s_46d75e203f701d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6510-ca33-7620-a04e-da2ef0ba1d61",
+        "model": "gpt-5.4"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

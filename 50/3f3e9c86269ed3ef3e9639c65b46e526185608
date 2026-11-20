@@ -1,0 +1,20 @@
+tests/unit/classify/test_genomad.py
+  s_bae613b850434a::t_3d98e9393bf962 20,25
+  s_bae613b850434a::t_98bcfd7e85d143 88-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "503f3e9c86269ed3ef3e9639c65b46e526185608",
+  "prompts": {},
+  "sessions": {
+    "s_bae613b850434a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1bfa8061cffeG7uos95HiHWUr6",
+        "model": "claude-opus-4-7@default"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+.github/workflows/docker.yml
+  s_281329c38cefd2::t_e58b69c58599d9 28,66-72,1347-1354
+  s_0638f238db7396::t_0d4bc91b04d07f 1355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "22e1ae6f46af5ddf0e2a89cebd53f23245d950c2",
+  "prompts": {},
+  "sessions": {
+    "s_0638f238db7396": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06addecc8ffe7L7QCt3aHlvNb1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    },
+    "s_281329c38cefd2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06addecb9ffeKjjxIXVYpIsbCl",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

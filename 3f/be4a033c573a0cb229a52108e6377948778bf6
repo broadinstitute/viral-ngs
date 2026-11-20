@@ -1,0 +1,25 @@
+src/viral_ngs/classify/virnucpro.py
+  s_0f67c5206f2dfc::t_1bec9a87e9fffd 249
+src/viral_ngs/core/cmd.py
+  s_0f67c5206f2dfc::t_756441f0b7f25d 117
+tests/unit/core/test_cmd.py
+  s_0f67c5206f2dfc::t_08b9a578f5ac14 1-20
+src/viral_ngs/metagenomics.py
+  s_0f67c5206f2dfc::t_3e99b885fcb027 582,596
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "3fbe4a033c573a0cb229a52108e6377948778bf6",
+  "prompts": {},
+  "sessions": {
+    "s_0f67c5206f2dfc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4024-49ab-7343-b6e5-0de51099fb94",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

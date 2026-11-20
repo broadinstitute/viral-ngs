@@ -1,0 +1,19 @@
+src/viral_ngs/metagenomics.py
+  s_0f67c5206f2dfc::t_4cd9539bd7bdd6 43,475-579
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "97d3ba4bca8de5e32d56f064f3abb24e6ccccc3a",
+  "prompts": {},
+  "sessions": {
+    "s_0f67c5206f2dfc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4024-49ab-7343-b6e5-0de51099fb94",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

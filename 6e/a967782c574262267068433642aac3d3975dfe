@@ -1,0 +1,21 @@
+tests/unit/classify/test_metagenomics.py
+  s_15cd171b22deb7::t_4ae687ab97501f 160-178
+src/viral_ngs/metagenomics.py
+  s_15cd171b22deb7::t_c51f9f3f505569 584-605
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "6ea967782c574262267068433642aac3d3975dfe",
+  "prompts": {},
+  "sessions": {
+    "s_15cd171b22deb7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e506e-7202-76a1-b98b-f01f17dfd2c8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

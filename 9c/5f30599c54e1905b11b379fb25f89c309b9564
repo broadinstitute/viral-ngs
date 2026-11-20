@@ -1,0 +1,33 @@
+src/viral_ngs/classify/virnucpro.py
+  s_15cd171b22deb7::t_310359f9488eae 256,262-266,294,421,429-431,437,561,611
+  s_15cd171b22deb7::t_bfbaaedcf8edcb 231-234,316-323
+  s_15cd171b22deb7::t_d1b7ed8e8e8db6 243-247
+tests/unit/classify/test_metagenomics.py
+  s_15cd171b22deb7::t_d3360932563d2d 271-275,278
+  s_15cd171b22deb7::t_c765e33e6827db 249,261
+  s_15cd171b22deb7::t_16bc859ae71c0a 276-277
+tests/unit/classify/test_virnucpro.py
+  s_15cd171b22deb7::t_bc779604165209 421-450
+  s_15cd171b22deb7::t_363f5c64fac78d 202-203
+  s_15cd171b22deb7::t_1354aa9eabd2b1 289-330,356-380
+src/viral_ngs/metagenomics.py
+  s_15cd171b22deb7::t_59b98c4c38d9d1 782-784
+  s_15cd171b22deb7::t_082872d819fda9 743-744,746-747
+  s_15cd171b22deb7::t_95079acd443571 733-734,761,775,777-778,792
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9c5f30599c54e1905b11b379fb25f89c309b9564",
+  "prompts": {},
+  "sessions": {
+    "s_15cd171b22deb7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e506e-7202-76a1-b98b-f01f17dfd2c8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

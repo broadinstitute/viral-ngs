@@ -1,0 +1,14 @@
+tests/unit/classify/test_metagenomics.py
+  h_620afb38050b2a 208-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "86722ebfe80b639e65f83e84c9dad408763358b0",
+  "prompts": {},
+  "humans": {
+    "h_620afb38050b2a": {
+      "author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

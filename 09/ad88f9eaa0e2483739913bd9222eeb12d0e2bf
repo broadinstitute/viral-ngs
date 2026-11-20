@@ -1,0 +1,35 @@
+src/viral_ngs/classify/DESIGN.md
+  s_46d75e203f701d::t_aed8be29a4b01f 312-315,323-345,347-348
+  s_46d75e203f701d::t_a4a7cf1c5b44d8 297-299,302-303,370,372-374,376-378,380-381,384-386,388-390,404
+  s_46d75e203f701d::t_5f4ad6fd10a662 223-237,243-244,246-247,251-264,275-296,300-301,304-311,316-322,346,360,371,375,379,382-383,387,391-398,400-403
+tests/unit/classify/test_tools_kallisto.py
+  s_46d75e203f701d::t_c960705fba0a43 95-106,183-190,219-247,267-275,325-335,508,518,565,567,570,575,581
+tests/unit/classify/test_metagenomics.py
+  s_46d75e203f701d::t_38dcf1ace62122 299-307,309-321,323-328
+  s_46d75e203f701d::t_df9e479120f6aa 308,322
+src/viral_ngs/metagenomics.py
+  s_46d75e203f701d::t_fd79a141fdedf4 1395-1396,1413-1414
+  s_46d75e203f701d::t_a22e27355c89c4 1432
+KALLISTO_CODE_REVIEW.md
+  s_46d75e203f701d::t_675458c2eee4dd 39-233
+src/viral_ngs/classify/kallisto.py
+  s_46d75e203f701d::t_e69aa4418f6472 41-43,190-191,193-205,238-244,273-292,325-331,377-383,396
+  s_46d75e203f701d::t_9102d0dc8f6ed1 263
+  s_46d75e203f701d::t_dde919c8293e22 525-526,719-722
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "09ad88f9eaa0e2483739913bd9222eeb12d0e2bf",
+  "prompts": {},
+  "sessions": {
+    "s_46d75e203f701d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6510-ca33-7620-a04e-da2ef0ba1d61",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

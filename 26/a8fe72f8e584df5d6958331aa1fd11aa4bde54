@@ -1,0 +1,29 @@
+tests/unit/classify/test_lyra_artifacts.py
+  s_78835fc50b06af::t_24c89178db85df 354,446-450,536,543-545
+tests/unit/classify/test_lyra_publication.py
+  s_78835fc50b06af::t_91294b57fa8ae8 1723,1725-1726,1737
+  s_78835fc50b06af::t_4053420042a715 1991-1992
+  s_78835fc50b06af::t_b848b671e6052d 1824-1912,1950-1970
+  s_78835fc50b06af::t_24c89178db85df 576,579-583,912,916,939,943-947,994,998,2095,2098,2130,2133-2134,2159,2162-2163,2181,2186,2189,2222,2227-2228
+  s_78835fc50b06af::t_b532b24e7fdfa8 1727
+src/viral_ngs/classify/lyra.py
+  s_78835fc50b06af::t_1ce155726f7ad4 11,61-62,389-400,480-606
+  s_78835fc50b06af::t_b583c466e2c236 1248,1250-1251,1256-1257,1273-1274,1646-1648,1700,1719-1733,1897-1941,1951-1952,1954-1960
+  s_78835fc50b06af::t_0ae396dc7192fc 607-608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "26a8fe72f8e584df5d6958331aa1fd11aa4bde54",
+  "prompts": {},
+  "sessions": {
+    "s_78835fc50b06af": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_070205c13ffevCYbfNTrE2rNj0",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

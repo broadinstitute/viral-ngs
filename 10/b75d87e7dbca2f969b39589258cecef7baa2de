@@ -1,0 +1,38 @@
+src/viral_ngs/metagenomics.py
+  s_7973d23f5a2b96::t_6ff339410c9042 690-708
+  s_7973d23f5a2b96::t_21d36819c5950b 649-689,709-741
+  s_7973d23f5a2b96::t_6325c847e9ea62 43
+tests/unit/classify/test_lucavirus.py
+  s_7973d23f5a2b96::t_dd37131d2272ec 1-66,87-188
+  s_7973d23f5a2b96::t_19af28cffaa2f0 67-86
+src/viral_ngs/classify/lucavirus.py
+  s_7973d23f5a2b96::t_1800866a153983 43-50,124-131
+  s_7973d23f5a2b96::t_62e589cb0fa6bf 1-31,35-42,51-123,132-137
+  s_7973d23f5a2b96::t_9ee7336341c748 32-34
+docker/Dockerfile.classify
+  s_7973d23f5a2b96::t_e5466ebcb11cc1 46
+src/viral_ngs/classify/__init__.py
+  s_7973d23f5a2b96::t_60ab81ab9b1ba7 13
+tests/unit/classify/test_metagenomics.py
+  s_7973d23f5a2b96::t_b4fab7bf0e46f6 228-240
+  s_7973d23f5a2b96::t_94fb5db999314d 208-227,241-266
+src/viral_ngs/classify/DESIGN.md
+  s_7973d23f5a2b96::t_e52cb5b7dd7c07 25-26
+  s_7973d23f5a2b96::t_e58c8cf6abe2f7 10-24,27-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "10b75d87e7dbca2f969b39589258cecef7baa2de",
+  "prompts": {},
+  "sessions": {
+    "s_7973d23f5a2b96": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed62e-c7ae-7f23-91f8-d6174dd3a467",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}

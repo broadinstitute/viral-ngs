@@ -1,0 +1,21 @@
+tests/unit/classify/test_lyra_fragments.py
+  s_b79afdc0bc4ffa::t_d065f316593d07 396-430
+tests/unit/classify/test_lyra_reconciliation_store.py
+  s_b79afdc0bc4ffa::t_d065f316593d07 307-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f0ac4a39247fdd49ca1b9296a232c0bff41bcd27",
+  "prompts": {},
+  "sessions": {
+    "s_b79afdc0bc4ffa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0756c566cffeTKpiOxPISTXoZe",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
