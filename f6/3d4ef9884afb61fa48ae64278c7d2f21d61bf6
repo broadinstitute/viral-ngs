@@ -1,0 +1,135 @@
+src/viral_ngs/classify/DESIGN.md
+  h_620afb38050b2a 224,226-228,230-323,326-327,330,333,336,338-344,346-348,350,352-357,359,361-362,364-366,368,370,372-374,376-378,380,382-383,385-386,388-389,391-392,394,396-407
+  h_620afb38050b2a 332,334,384,387,390,393,395
+.agents/skills/claude-on-vertex-ci/SKILL.md
+  h_620afb38050b2a 127,132,178,181-190,207
+.agents/skills/container-vulns/SKILL.md
+  h_620afb38050b2a 10-55,80,98-104,112-115
+.dockerignore
+  h_620afb38050b2a 1-17
+.github/scripts/cve_pipeline.py
+  h_620afb38050b2a 1-234
+.github/scripts/probe-conda-availability.py
+  h_620afb38050b2a 1-828
+.github/scripts/quay_delete_branch_tags.py
+  h_620afb38050b2a 1-292
+.github/scripts/test_cve_pipeline.py
+  h_620afb38050b2a 1-307
+.github/scripts/test_probe_conda_availability.py
+  h_620afb38050b2a 1,3-4,6,8-64,68
+.github/scripts/test_quay_delete_branch_tags.py
+  h_620afb38050b2a 1-382
+.github/workflows/cleanup-images.yml
+  h_620afb38050b2a 3-8,11-23,27-28,30-31,34,36-46,48-52
+.github/workflows/container-scan.yml
+  h_620afb38050b2a 24-28,36-45,49,56,59,77-79,82,90,98,102,104-105,127,133-137,156-167,169-174,176-195,197-238,247-257,265-273,280-291,317,319-320,322,324,333-335,337,344-357,360-367,369,372,374,389,391-392,407-408,417,428-490,494-495,501,517-528,558,563-567,571-572,576-579,582-599,601-603,607,613-615,626,630-636,639-645,647-650,664-684,696,703-713,721-727,756-757,767-769,772-809,818-825,850-858,865-866,868-870,874-878,886-902,932,936-939,950,961-977,989,993,1005,1012,1020-1025,1053-1084,1086-1134,1139-1208,1210,1213-1240,1246-1247
+.github/workflows/docker.yml
+  h_620afb38050b2a 76,126,161,197,298,339,443,484,588,629,733,774,878,919,1032-1034,1037,1045,1053,1060,1122,1543-1544
+.github/workflows/test-workflow-scripts.yml
+  h_620afb38050b2a 1-29
+.gitignore
+  h_620afb38050b2a 20-33,55,63-64,80-86
+.trivyignore.yaml
+  h_620afb38050b2a 7-23,30-306
+AGENTS.md
+  h_620afb38050b2a 337-338,459,494
+README.md
+  h_620afb38050b2a 164-165
+docker/Dockerfile.assemble
+  h_620afb38050b2a 26,30-31,42-45,72-73
+docker/Dockerfile.baseimage
+  h_620afb38050b2a 11,28-32,37
+docker/Dockerfile.classify
+  h_620afb38050b2a 8,46
+docker/Dockerfile.mega
+  h_620afb38050b2a 23,26-28,31,42-45,47,78-79
+docker/Dockerfile.phylo
+  h_620afb38050b2a 30,40
+docker/requirements/assemble.txt
+  h_620afb38050b2a 6,12-14
+docker/requirements/baseimage.txt
+  h_620afb38050b2a 19-25,27-30
+docker/requirements/classify-x86.txt
+  h_620afb38050b2a 8-9
+docker/requirements/classify.txt
+  h_620afb38050b2a 2
+docker/requirements/core.txt
+  h_620afb38050b2a 8,22,32-37
+docker/requirements/freebayes.txt
+  h_620afb38050b2a 1-4
+docker/requirements/phylo.txt
+  h_620afb38050b2a 9-12
+src/viral_ngs/assembly.py
+  h_620afb38050b2a 516,605,609-612,653
+src/viral_ngs/classify/__init__.py
+  h_620afb38050b2a 7
+src/viral_ngs/classify/kallisto.py
+  h_620afb38050b2a 2-7,9-10,12-13,21,31-34,37-43,49,52-71,81,123,136,158,163,172,184,186,190-205,238-246,248,253,259-261,263,273-292,325-358,360,362,364-679,683-684,686-691,711,717-722,724,726-727,729-738
+src/viral_ngs/core/bbmap.py
+  h_620afb38050b2a 22-30,117-185
+src/viral_ngs/core/fastqc.py
+  h_620afb38050b2a 49
+src/viral_ngs/core/illumina_utils.py
+  h_620afb38050b2a 524,675-683
+src/viral_ngs/core/novoalign.py
+  h_620afb38050b2a 5-8,41-43,63-70
+src/viral_ngs/core/splitcode.py
+  h_620afb38050b2a 134-163,381,524-526,530,536,571-575,577,587,589,655-657,659-661,664-667,669,678,722-749,856-861
+src/viral_ngs/illumina.py
+  h_620afb38050b2a 52,54,58,61-67,79,85,88-89,102,106,109,126,128,141-162,166-168,1119-1133,1319-1321,1381-1382,1387,1404-1412,1414,1417-1426,1428-1430,1516-1535,1582-1584,1589-1592,1594,1599-1600,1603,1615,1689-1692,1745-1746,1751,1848-1901,2118,3094-3101,3136-3142,3144,3146,3148-3150,3159-3170,3182,3398-3402,3421-3454,3458-3476,3478,3480-3482,3486,3575-3584,3647,3660-3661,3783-3787
+src/viral_ngs/metagenomics.py
+  h_620afb38050b2a 41,384-385,394-395,403-404,406,408-409,414,421,426-427,437-438,440,1542-1543,1552,1554,1557-1561,1563,1565-1566,1570,1575-1579,1584,1586,1588-1589,1591,1594,1596,1603-1606,1608,1610-1612,1616,1619-1620,1626,1628,1631-1635,1638,1705,1707,1713,1715,1717,1721,1727-1728,1734
+src/viral_ngs/read_utils.py
+  h_620afb38050b2a 364-371,388,393-396,435,438,827-828,830-832,834-836,840-843,845-846,848,850-881,888,891-899,903-904,930-932,1009-1010,1034-1242,1361,1372,1487
+tests/__init__.py
+  h_620afb38050b2a 27-34
+tests/input/TestSplitcodeDemuxFastqs/samples_3bc_multilib.tsv
+  h_620afb38050b2a 1-4
+tests/input/TestSplitcodeDemuxFastqs/samples_3bc_single.tsv
+  h_620afb38050b2a 1-2
+tests/input/TestSplitcodeDemuxIntegration/SampleSheet-mixed-pools.tsv
+  h_620afb38050b2a 1-4
+tests/input/TestSplitcodeDemuxIntegration/SampleSheet-multilib.tsv
+  h_620afb38050b2a 1-4
+tests/input/TestSplitcodeDemuxIntegration/SampleSheet-singleton-pools.tsv
+  h_620afb38050b2a 1-3
+tests/input/TestSplitcodeLookupTable/AAAAAAAA-TTTTTTTT.lLibA_summary.json
+  h_620afb38050b2a 4
+tests/input/TestSplitcodeLookupTable/ATCGATCG-GCTAGCTA.lB1_summary.json
+  h_620afb38050b2a 4
+tests/input/TestSplitcodeLookupTable/ATCGATCG-GCTAGCTA.lL1_summary.json
+  h_620afb38050b2a 4
+tests/input/TestSplitcodeLookupTable/GGGGGGGG-CCCCCCCC.lLibB_summary.json
+  h_620afb38050b2a 4
+tests/input/TestSplitcodeLookupTable/TTTTAAAA-CCCCGGGG.lB2_summary.json
+  h_620afb38050b2a 4
+tests/unit/classify/test_integration_kallisto.py
+  h_620afb38050b2a 1,3,15,17,21-22,29,34-35,38-39,41,46-47,51-52,56,58,60-64,68-69,74-75,78-82,84-85,88-90,93,95,97-98,100-101,103,107-108,112,121,139-140,144,147-148,151-212
+tests/unit/classify/test_metagenomics.py
+  h_620afb38050b2a 280-328
+tests/unit/classify/test_tools_kallisto.py
+  h_620afb38050b2a 1-3,5-6,8-9,11,13,19-21,25-26,34,38-39,44,48,54-102,104,106-107,115-122,136,143,146,148,157,159-162,171,175,180,183-191,193,195-197,199-221,223-236,240-441,444-593
+tests/unit/core/test_illumina.py
+  h_620afb38050b2a 13,16,18-19,24,94,101,118-139,623-672,903-1211,1218-1221,1374-1531,3383-3385,3395,3443-3695,3822-3884,4234-4580
+tests/unit/core/test_read_utils.py
+  h_620afb38050b2a 11,20,244-311,314,319,324,327-338,340-343,346-347,352-387,866-880,900-904,906-1073,1076-1077,1079-1083,1085-1089,1091-1093,1103,1110-1115,1268-1311
+tests/unit/core/test_tools.py
+  h_620afb38050b2a 7,22-23
+tests/unit/core/test_tools_bbmap.py
+  h_620afb38050b2a 105-246
+tests/unit/core/test_tools_novoalign.py
+  h_620afb38050b2a 12,14
+tests/unit/core/test_tools_splitcode.py
+  h_620afb38050b2a 73-76,78-79,163,168-169,247,262-328,462-485
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f63d4ef9884afb61fa48ae64278c7d2f21d61bf6",
+  "prompts": {},
+  "humans": {
+    "h_620afb38050b2a": {
+      "author": "Cesar Arze <cesar.arze@gmail.com>"
+    }
+  }
+}
