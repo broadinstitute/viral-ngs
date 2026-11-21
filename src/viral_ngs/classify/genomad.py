@@ -4,13 +4,26 @@ import os
 import os.path
 import shutil
 import subprocess
+import tempfile
 
 from viral_ngs import core
+import viral_ngs.core.duckdb_utils as duckdb_utils
 from viral_ngs.core import file
 from viral_ngs.core import misc
 from builtins import super
+from . import contig_alignments
 
 log = logging.getLogger(__name__)
+
+VIRUS_SUMMARY_COLUMNS = [
+    "seq_name", "length", "topology", "coordinates", "n_genes", "genetic_code",
+    "virus_score", "fdr", "n_hallmarks", "marker_enrichment", "taxonomy",
+]
+READ_LABEL_COLUMNS = [
+    "read_id", "read_length", "contig_id", "seq_name", "mapping_quality",
+    "pct_identity", "pct_query_cov", "mapped_well", *VIRUS_SUMMARY_COLUMNS[1:],
+]
+
 
 class Genomad(core.Tool):
 
@@ -198,3 +211,111 @@ class Genomad(core.Tool):
             raise ValueError("max_uscg must be non-negative")
         if splits is not None and splits < 0:
             raise ValueError("splits must be non-negative")
+
+
+def _load_virus_summary(con, virus_summary):
+    con.execute(
+        "CREATE TABLE virus_raw AS SELECT * FROM read_csv(?, delim='\t', header=true, all_varchar=true)",
+        [virus_summary],
+    )
+    columns = {row[1] for row in con.execute("PRAGMA table_info('virus_raw')").fetchall()}
+    missing = [name for name in VIRUS_SUMMARY_COLUMNS if name not in columns]
+    if missing:
+        raise ValueError("geNomad virus summary missing required columns: " + ", ".join(missing))
+    duplicate = con.execute(
+        "SELECT seq_name FROM virus_raw GROUP BY seq_name HAVING count(*) > 1 LIMIT 1"
+    ).fetchone()
+    if duplicate is not None:
+        raise ValueError("geNomad virus summary has duplicate seq_name: {}".format(duplicate[0]))
+
+    con.execute(
+        r"""
+        CREATE TABLE virus AS
+        SELECT {},
+            regexp_replace(seq_name, '\|provirus_[0-9]+_[0-9]+$', '') AS contig_id,
+            CASE WHEN regexp_matches(coordinates, '^[0-9]+-[0-9]+$')
+                 THEN CAST(split_part(coordinates, '-', 1) AS BIGINT) END AS region_start,
+            CASE WHEN regexp_matches(coordinates, '^[0-9]+-[0-9]+$')
+                 THEN CAST(split_part(coordinates, '-', 2) AS BIGINT) END AS region_end
+        FROM virus_raw
+        """.format(", ".join(VIRUS_SUMMARY_COLUMNS))
+    )
+    con.execute("DROP TABLE virus_raw")
+
+
+def _write_empty_read_labels(output_tsv):
+    with file.open_or_gzopen(output_tsv, "wt") as outf:
+        outf.write("\t".join(READ_LABEL_COLUMNS) + "\n")
+    log.info("%s reads labeled with a geNomad virus call", 0)
+
+
+def label_reads_by_contig(
+    aligned_bam, virus_summary, output_tsv, min_mapq=5, min_identity=90.0,
+    min_query_cov=80.0, duckdb_memory_limit=None, work_dir=None,
+):
+    """Label each read with its best primary alignment overlapping a geNomad virus call."""
+    for path in (aligned_bam, virus_summary):
+        if not os.path.isfile(path):
+            raise FileNotFoundError(path)
+    min_mapq = int(min_mapq)
+    min_identity = float(min_identity)
+    min_query_cov = float(min_query_cov)
+    contig_alignments.validate_percent_threshold("min_identity", min_identity)
+    contig_alignments.validate_percent_threshold("min_query_cov", min_query_cov)
+    duckdb = duckdb_utils.import_duckdb("geNomad read-by-contig labeling")
+
+    file.mkdir_p(os.path.dirname(os.path.abspath(output_tsv)))
+    if work_dir:
+        file.mkdir_p(work_dir)
+    with tempfile.TemporaryDirectory(prefix="genomad_reads_", dir=work_dir) as tmp_dir:
+        if os.path.getsize(virus_summary) == 0:
+            log.info("geNomad virus summary %s is empty; no reads labeled", virus_summary)
+            _write_empty_read_labels(output_tsv)
+            return
+        normalized, n_written, _ = contig_alignments.normalize_primary_alignments(aligned_bam, tmp_dir)
+        if not n_written:
+            log.info("%s primary alignments retained", 0)
+            _write_empty_read_labels(output_tsv)
+            return
+
+        spill_dir = os.path.join(tmp_dir, "duckdb_spill")
+        file.mkdir_p(spill_dir)
+        result_tsv = os.path.join(tmp_dir, "reads_labeled.tsv")
+        con = duckdb_utils.connect(spill_dir, memory_limit=duckdb_memory_limit, duckdb_module=duckdb)
+        try:
+            n_primary = contig_alignments.load_primary_alignments(
+                con, normalized, min_mapq, min_identity, min_query_cov
+            )
+            log.info("%s primary alignments retained", n_primary)
+            _load_virus_summary(con, virus_summary)
+            # BAM spans are 0-based half-open; geNomad intervals are 1-based inclusive.
+            con.execute(
+                """
+                CREATE TABLE result AS
+                SELECT a.query_name AS read_id, a.query_length AS read_length, a.target_name AS contig_id,
+                       a.mapping_quality, a.pct_identity, a.pct_query_cov, a.mapped_well,
+                       v.* EXCLUDE (contig_id, region_start, region_end)
+                FROM alignment_filtered a JOIN virus v ON a.target_name = v.contig_id
+                    AND (v.region_start IS NULL OR (a.target_start < v.region_end AND a.target_end >= v.region_start))
+                QUALIFY ROW_NUMBER() OVER (
+                    PARTITION BY a.query_name ORDER BY a.mapping_quality DESC, a.pct_identity DESC,
+                        TRY_CAST(v.virus_score AS DOUBLE) DESC NULLS LAST, a.source_order ASC, v.rowid ASC
+                ) = 1
+                """
+            )
+            n_reads = con.execute("SELECT count(*) FROM result").fetchone()[0]
+            if not n_reads:
+                _write_empty_read_labels(output_tsv)
+                return
+            con.execute(
+                "COPY (SELECT {} FROM result) TO ? (FORMAT CSV, DELIMITER '\t', HEADER TRUE)".format(
+                    ", ".join(READ_LABEL_COLUMNS)
+                ),
+                [result_tsv],
+            )
+        finally:
+            con.close()
+
+        with open(result_tsv, "rt") as inf, file.open_or_gzopen(output_tsv, "wt") as outf:
+            shutil.copyfileobj(inf, outf)
+        log.info("%s reads labeled with a geNomad virus call", n_reads)

@@ -1,13 +1,22 @@
 # Unit tests for Genomad
 import argparse
+import csv
+import importlib.util
 import os
 from unittest.mock import patch
 
 import pytest
 
+from tests.unit.classify.fixtures import contig_segment, write_contig_bam
 from viral_ngs.classify import genomad
 from viral_ngs.core import file as util_file
 from viral_ngs.core import misc as util_misc
+
+
+requires_duckdb = pytest.mark.skipif(
+    importlib.util.find_spec("duckdb") is None,
+    reason="DuckDB is required for geNomad read labeling tests",
+)
 
 
 @pytest.fixture
@@ -265,4 +274,95 @@ def test_genomad_parser_invokes_tool(genomad_inputs):
             min_number_genes=2,
             max_uscg=3,
             splits=4,
+        )
+
+
+def _write_virus_summary(path, calls):
+    with path.open("w", newline="") as outf:
+        writer = csv.writer(outf, delimiter="\t", lineterminator="\n")
+        writer.writerow(genomad.VIRUS_SUMMARY_COLUMNS)
+        for seq_name, coords, score in calls:
+            writer.writerow([seq_name, 1000, "linear", coords, 5, 11, score, "NA", 2, 1.5, "Viruses"])
+
+
+@pytest.fixture
+def one_read_bam(tmp_path):
+    bam = tmp_path / "one.bam"
+    write_contig_bam(bam, [contig_segment("r1")])
+    return str(bam)
+
+
+@requires_duckdb
+def test_label_reads_by_contig_whole_contig_and_provirus_overlap(tmp_path):
+    bam, summary, out = (tmp_path / name for name in ("reads.bam", "virus.tsv", "labels.tsv"))
+    provirus = "NODE_2|provirus_201_400"
+    _write_virus_summary(summary, [("NODE_1", "NA", 0.9), (provirus, "201-400", 0.8)])
+    write_contig_bam(bam, [
+        contig_segment("r1", "NODE_1", 0, mapq=1),
+        contig_segment("r2", "NODE_2", 250),
+        contig_segment("r3", "NODE_2", 500),
+        contig_segment("r4", "NODE_3"),
+        contig_segment("r5", "NODE_2", 100),
+        contig_segment("r6", "NODE_2", 101),
+        contig_segment("r7", "NODE_1", 0, mapq=10, flag=0x41),
+        contig_segment("r7", "NODE_2", 250, mapq=60, flag=0x81),
+    ])
+
+    genomad.label_reads_by_contig(str(bam), str(summary), str(out))
+    with out.open() as inf:
+        reader = csv.DictReader(inf, delimiter="\t")
+        assert reader.fieldnames == genomad.READ_LABEL_COLUMNS
+        labels = sorted((r["read_id"], r["contig_id"], r["seq_name"], r["mapped_well"]) for r in reader)
+    assert labels == [
+        ("r1", "NODE_1", "NODE_1", "false"),
+        ("r2", "NODE_2", provirus, "true"),
+        ("r6", "NODE_2", provirus, "true"),
+        ("r7", "NODE_2", provirus, "true"),
+    ]
+
+
+@requires_duckdb
+def test_label_reads_by_contig_zero_byte_summary_writes_header(tmp_path, one_read_bam):
+    summary, out = tmp_path / "empty.tsv", tmp_path / "labels.tsv"
+    summary.touch()
+    genomad.label_reads_by_contig(one_read_bam, str(summary), str(out))
+    assert out.read_text() == "\t".join(genomad.READ_LABEL_COLUMNS) + "\n"
+
+
+@requires_duckdb
+@pytest.mark.parametrize("contigs", [[], ["NODE_3"]], ids=["empty-bam", "no-virus-alignment"])
+def test_label_reads_by_contig_no_matching_alignment_writes_header(tmp_path, contigs):
+    bam, summary, out = (tmp_path / name for name in ("reads.bam", "virus.tsv", "labels.tsv"))
+    write_contig_bam(bam, [contig_segment("r1", contig) for contig in contigs])
+    _write_virus_summary(summary, [("NODE_1", "NA", 0.9)])
+    genomad.label_reads_by_contig(str(bam), str(summary), str(out))
+    assert out.read_text() == "\t".join(genomad.READ_LABEL_COLUMNS) + "\n"
+
+
+@requires_duckdb
+def test_label_reads_by_contig_rejects_missing_summary_columns(tmp_path, one_read_bam):
+    summary = tmp_path / "virus.tsv"
+    summary.write_text("\t".join(c for c in genomad.VIRUS_SUMMARY_COLUMNS if c != "taxonomy") + "\n")
+    with pytest.raises(ValueError, match="missing required columns: taxonomy"):
+        genomad.label_reads_by_contig(one_read_bam, str(summary), str(tmp_path / "out.tsv"))
+
+
+@requires_duckdb
+def test_label_reads_by_contig_rejects_duplicate_seq_name(tmp_path, one_read_bam):
+    summary = tmp_path / "virus.tsv"
+    _write_virus_summary(summary, [("NODE_1", "NA", 0.9), ("NODE_1", "NA", 0.8)])
+    with pytest.raises(ValueError, match="duplicate seq_name: NODE_1"):
+        genomad.label_reads_by_contig(one_read_bam, str(summary), str(tmp_path / "out.tsv"))
+
+
+def test_genomad_label_reads_by_contig_parser_invokes_function():
+    from viral_ngs import metagenomics
+
+    with patch.object(genomad, "label_reads_by_contig", autospec=True) as label:
+        parser = metagenomics.parser_genomad_label_reads_by_contig(argparse.ArgumentParser())
+        args = parser.parse_args(["in.bam", "virus.tsv", "out.tsv", "--min-mapq", "10"])
+        args.func_main(args)
+        label.assert_called_once_with(
+            "in.bam", "virus.tsv", "out.tsv", min_mapq=10, min_identity=90.0,
+            min_query_cov=80.0, duckdb_memory_limit=None, work_dir=None,
         )

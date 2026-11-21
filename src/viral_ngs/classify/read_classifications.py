@@ -7,6 +7,7 @@ import tempfile
 
 import viral_ngs.core.duckdb_utils as duckdb_utils
 from viral_ngs.core import file
+from . import taxonomy
 
 log = logging.getLogger(__name__)
 
@@ -64,19 +65,11 @@ VNP_REQUIRED_COLUMNS = [
     "nonviral_proportion",
 ]
 
-GENOMAD_COLUMNS = {
-    "seq_name": None,
-    "length": "GENOMAD_LENGTH",
-    "topology": "GENOMAD_TOPOLOGY",
-    "coordinates": "GENOMAD_COORDINATES",
-    "n_genes": "GENOMAD_N_GENES",
-    "genetic_code": "GENOMAD_GENETIC_CODE",
-    "virus_score": "GENOMAD_VIRUS_SCORE",
-    "fdr": "GENOMAD_FDR",
-    "n_hallmarks": "GENOMAD_N_HALLMARKS",
-    "marker_enrichment": "GENOMAD_MARKER_ENRICHMENT",
-    "taxonomy": "GENOMAD_TAXONOMY",
-}
+GENOMAD_READ_REQUIRED_COLUMNS = [
+    "read_id", "contig_id", "seq_name", "mapping_quality", "pct_identity",
+    "mapped_well", "length", "topology", "coordinates", "n_genes", "genetic_code",
+    "virus_score", "fdr", "n_hallmarks", "marker_enrichment", "taxonomy",
+]
 
 FINAL_SCHEMA = [
     ("SAMPLE_ID", "VARCHAR"),
@@ -117,6 +110,9 @@ FINAL_SCHEMA = [
     ("CENTRIFUGER_TAX_NAME", "VARCHAR"),
     ("CENTRIFUGER_KINGDOM", "VARCHAR"),
     ("CENTRIFUGER_TAX_RANK", "VARCHAR"),
+    ("GENOMAD_CONTIG_ID", "VARCHAR"),
+    ("GENOMAD_SEQ_NAME", "VARCHAR"),
+    ("GENOMAD_MAPPED_WELL", "BOOLEAN"),
     ("GENOMAD_LENGTH", "BIGINT"),
     ("GENOMAD_TOPOLOGY", "VARCHAR"),
     ("GENOMAD_COORDINATES", "VARCHAR"),
@@ -141,6 +137,72 @@ CENTRIFUGER_NATIVE_COLUMNS = [
     "queryLength",
     "numMatches",
 ]
+
+
+TAXONOMY_TABLE_SCHEMA = [
+    ("taxid", "BIGINT"), ("name", "VARCHAR"), ("kingdom", "VARCHAR"),
+    ("rank", "VARCHAR"), ("parent_id", "BIGINT"),
+]
+_KINGDOM_RANKS = ("superkingdom", "domain", "acellular root")
+
+
+def _taxonomy_kingdoms(db):
+    kingdoms = {}
+    for taxid in db.ranks:
+        if taxid in kingdoms:
+            continue
+        path = set()
+        node = taxid
+        kingdom = "Other"
+        while node is not None and node not in path:
+            if node in kingdoms:
+                kingdom = kingdoms[node]
+                break
+            path.add(node)
+            if db.ranks.get(node) in _KINGDOM_RANKS:
+                kingdom = db.names.get(node, "Unknown")
+                break
+            node = db.parents.get(node)
+        for node in path:
+            kingdoms[node] = kingdom
+    return kingdoms
+
+
+def build_taxonomy_duckdb(nodes_dmp, names_dmp, out_duckdb):
+    """Build the taxonomy table used by Kraken2 and Centrifuger read annotation."""
+    for path in (nodes_dmp, names_dmp):
+        if not os.path.isfile(path):
+            raise FileNotFoundError(path)
+    duckdb = duckdb_utils.import_duckdb("taxonomy DuckDB build")
+    db = taxonomy.TaxonomyDb(
+        nodes_path=os.fspath(nodes_dmp), names_path=os.fspath(names_dmp),
+        load_nodes=True, load_names=True,
+    )
+    kingdoms = _taxonomy_kingdoms(db)
+    with file.tempfname(suffix=".tsv") as tsv:
+        with open(tsv, "wt", newline="") as outf:
+            writer = csv.writer(outf, delimiter="\t", lineterminator="\n")
+            for taxid, rank in db.ranks.items():
+                writer.writerow((taxid, db.names.get(taxid, "Unknown"), kingdoms[taxid], rank, db.parents[taxid]))
+
+        _ensure_parent_dir(out_duckdb)
+        if os.path.exists(out_duckdb):
+            os.remove(out_duckdb)
+        con = duckdb.connect(out_duckdb)
+        try:
+            con.execute(
+                "CREATE TABLE taxonomy (taxid BIGINT PRIMARY KEY, name VARCHAR NOT NULL, "
+                "kingdom VARCHAR NOT NULL, rank VARCHAR NOT NULL, parent_id BIGINT)"
+            )
+            con.execute(
+                """INSERT INTO taxonomy SELECT * FROM read_csv(
+                       ?, delim='\t', header=false, quote='"', escape='"', columns={}
+                   )""".format(dict(TAXONOMY_TABLE_SCHEMA)),
+                [tsv],
+            )
+        finally:
+            con.close()
+    log.info("Wrote %d taxa to %s", len(db.ranks), out_duckdb)
 
 
 class DuckDBTaxonomyDatabase:
@@ -372,9 +434,10 @@ def _subset_schema(prefix):
     return schema
 
 
-_GENOMAD_TABLE_SCHEMA = [("CONTIG_ID", "VARCHAR")] + [
-    (name, typ) for name, typ in FINAL_SCHEMA if name.startswith("GENOMAD_")
-]
+_SOURCE_ALIASES = (
+    ("KALLISTO_", "kal"), ("K2_", "k2"), ("VNP_", "vnp"),
+    ("CENTRIFUGER_", "cfr"), ("GENOMAD_", "gen"),
+)
 
 
 def join_read_classifications(
@@ -383,31 +446,32 @@ def join_read_classifications(
     kallisto_summary=None,
     kraken2_reads=None,
     vnp_reads=None,
-    genomad_virus_summary=None,
+    genomad_reads=None,
     centrifuger_reads=None,
-    filter_human_only_k2=True,
+    filter_human_only=True,
+    drop_unclassified=False,
     duckdb_memory_limit=None,
     work_dir=None,
 ):
     """Join read-level classifier outputs into a stable Parquet table.
 
-    The join runs entirely in DuckDB so large read sets stream from disk and
-    spill to a per-run temp directory rather than being materialized in Python
-    memory. Each source becomes a typed table (empty when the source is absent),
-    Kallisto/VirNucPro/Kraken2 are FULL OUTER JOINed as primary read sources, and
-    Centrifuger/geNomad are LEFT JOINed as enrichments.
+    Kallisto, Kraken2, Centrifuger, VirNucPro and geNomad are optional,
+    independent sources joined on (SAMPLE_ID, READ_ID) after stripping /1 and /2.
+    A zero-byte input is empty; a supplied path that does not exist is an error.
+    Without a Kallisto, VirNucPro or geNomad row, human-only calls (taxid 9606)
+    are dropped by default; reads with only unclassified or absent taxonomy
+    calls are kept unless drop_unclassified is set.
     """
-    if not any(
-        _source_exists(path)
-        for path in (
-            kallisto_summary,
-            vnp_reads,
-            kraken2_reads,
-            centrifuger_reads,
-            genomad_virus_summary,
-        )
-    ):
-        raise ValueError("At least one classification input must exist")
+    sources = (
+        ("Kallisto summary", "kallisto", kallisto_summary, _build_kallisto_table),
+        ("VirNucPro reads", "vnp", vnp_reads, _build_vnp_table),
+        ("Kraken2 reads", "k2", kraken2_reads, _build_kraken2_table),
+        ("Centrifuger reads", "centrifuger", centrifuger_reads, _build_centrifuger_table),
+        ("geNomad reads", "genomad", genomad_reads, _build_genomad_table),
+    )
+    states = [_source_state(path) for _, _, path, _ in sources]
+    if all(state is None for state in states):
+        raise ValueError("At least one classification input must be provided")
 
     _ensure_parent_dir(out_parquet)
     if work_dir:
@@ -419,53 +483,61 @@ def join_read_classifications(
         file.mkdir_p(duckdb_temp_dir)
         con = duckdb_utils.connect(duckdb_temp_dir, memory_limit=duckdb_memory_limit)
         try:
-            _build_kallisto_table(con, kallisto_summary, sample_id)
-            _build_vnp_table(con, vnp_reads, sample_id)
-            _build_kraken2_table(con, kraken2_reads, sample_id)
-            _build_centrifuger_table(con, centrifuger_reads, sample_id)
-            _build_genomad_table(con, genomad_virus_summary)
+            for (label, table, path, build), state in zip(sources, states):
+                if state == "empty":
+                    log.info("%s input %s is empty; treating it as having no reads", label, path)
+                build(con, path, state, sample_id)
+                n = con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+                log.info("%s: %d reads", label, n)
 
             _assert_unique(con, "k2", ("SAMPLE_ID", "READ_ID"), "Kraken2 reads")
             _assert_unique(
                 con, "centrifuger", ("SAMPLE_ID", "READ_ID"), "Centrifuger reads"
             )
-            _assert_unique(con, "genomad", ("CONTIG_ID",), "geNomad virus summary")
 
+            union = " UNION ".join(f"SELECT SAMPLE_ID, READ_ID FROM {table}" for _, table, _, _ in sources)
+            con.execute(f"CREATE TABLE read_keys AS {union}")
+            source_columns = [
+                next(f"{alias}.{col}" for prefix, alias in _SOURCE_ALIASES if col.startswith(prefix))
+                for col in FINAL_COLUMNS[2:]
+            ]
             con.execute(
-                "CREATE TABLE joined_kv AS "
-                "SELECT * FROM kallisto FULL OUTER JOIN vnp USING (SAMPLE_ID, READ_ID)"
-            )
-
-            # Human-only Kraken2 pre-filter via a NULL-safe anti-join: drop reads
-            # called Homo sapiens by Kraken2 that have no Kallisto/VNP signal.
-            if filter_human_only_k2:
-                con.execute(
-                    "CREATE TABLE k2_kept AS "
-                    "SELECT k.* FROM k2 k "
-                    "LEFT JOIN (SELECT DISTINCT SAMPLE_ID, READ_ID FROM joined_kv) j "
-                    "ON k.SAMPLE_ID = j.SAMPLE_ID AND k.READ_ID = j.READ_ID "
-                    "WHERE NOT (k.K2_TAX_NAME = 'Homo sapiens' AND j.READ_ID IS NULL)"
-                )
-            else:
-                con.execute("CREATE TABLE k2_kept AS SELECT * FROM k2")
-
-            con.execute(
-                "CREATE TABLE joined_all AS "
-                "SELECT * FROM joined_kv "
-                "FULL OUTER JOIN k2_kept USING (SAMPLE_ID, READ_ID)"
+                f"""
+                CREATE VIEW joined AS
+                SELECT r.SAMPLE_ID, r.READ_ID, {", ".join(source_columns)},
+                       (kal.READ_ID IS NOT NULL OR vnp.READ_ID IS NOT NULL OR gen.READ_ID IS NOT NULL) AS _has_signal
+                FROM read_keys r
+                LEFT JOIN kallisto kal ON kal.SAMPLE_ID = r.SAMPLE_ID AND kal.READ_ID = r.READ_ID
+                LEFT JOIN vnp ON vnp.SAMPLE_ID = r.SAMPLE_ID AND vnp.READ_ID = r.READ_ID
+                LEFT JOIN k2 ON k2.SAMPLE_ID = r.SAMPLE_ID AND k2.READ_ID = r.READ_ID
+                LEFT JOIN centrifuger cfr ON cfr.SAMPLE_ID = r.SAMPLE_ID AND cfr.READ_ID = r.READ_ID
+                LEFT JOIN genomad gen ON gen.SAMPLE_ID = r.SAMPLE_ID AND gen.READ_ID = r.READ_ID
+                """
             )
             con.execute(
-                "CREATE TABLE joined_enriched AS "
-                "SELECT * FROM joined_all "
-                "LEFT JOIN centrifuger USING (SAMPLE_ID, READ_ID)"
+                """
+                CREATE TABLE flagged AS SELECT *,
+                    (NOT _has_signal
+                     AND (COALESCE(K2_TAXONOMY_ID = 9606, FALSE) OR COALESCE(CENTRIFUGER_TAXONOMY_ID = 9606, FALSE))
+                     AND NOT (COALESCE(K2_TAXONOMY_ID NOT IN (0, 9606), FALSE)
+                              OR COALESCE(CENTRIFUGER_TAXONOMY_ID NOT IN (0, 9606), FALSE))) AS _human_only,
+                    (NOT _has_signal AND COALESCE(K2_TAXONOMY_ID, 0) = 0
+                                     AND COALESCE(CENTRIFUGER_TAXONOMY_ID, 0) = 0) AS _unclassified
+                FROM joined
+                """
             )
+            if filter_human_only:
+                n = con.execute("SELECT count(*) FROM flagged WHERE _human_only").fetchone()[0]
+                log.info("Dropped %d human-only reads (Homo sapiens from Kraken2/Centrifuger "
+                         "with no Kallisto, VirNucPro, or geNomad signal)", n)
+            if drop_unclassified:
+                n = con.execute("SELECT count(*) FROM flagged WHERE _unclassified").fetchone()[0]
+                log.info("Dropped %d reads unclassified by every tool", n)
 
-            final_cols = ", ".join(name for name, _ in FINAL_SCHEMA)
             con.execute(
-                "CREATE TABLE result AS SELECT {cols} FROM joined_enriched a "
-                "LEFT JOIN genomad g ON a.VNP_CONTIG_ID = g.CONTIG_ID".format(
-                    cols=final_cols
-                )
+                f"CREATE TABLE result AS SELECT {', '.join(FINAL_COLUMNS)} FROM flagged "
+                "WHERE NOT (_human_only AND ?) AND NOT (_unclassified AND ?)",
+                [filter_human_only, drop_unclassified],
             )
 
             total = con.execute("SELECT count(*) FROM result").fetchone()[0]
@@ -485,10 +557,11 @@ def join_read_classifications(
             )
         finally:
             con.close()
+    log.info("Wrote %d reads to %s", total, out_parquet)
 
 
-def _build_kallisto_table(con, path, sample_id):
-    if not _source_exists(path):
+def _build_kallisto_table(con, path, state, sample_id):
+    if state != "present":
         con.execute("CREATE TABLE kallisto ({})".format(_ddl(_subset_schema("KALLISTO_"))))
         return
     con.execute(
@@ -496,6 +569,7 @@ def _build_kallisto_table(con, path, sample_id):
         [path],
     )
     _validate_columns(con, "kallisto_raw", KALLISTO_REQUIRED_COLUMNS, "Kallisto summary")
+    _require_sample_rows(con, "kallisto_raw", sample_id, "Kallisto summary")
     con.execute(
         """
         CREATE TABLE kallisto AS
@@ -551,8 +625,8 @@ def _build_kallisto_table(con, path, sample_id):
     con.execute("DROP TABLE kallisto_raw")
 
 
-def _build_vnp_table(con, path, sample_id):
-    if not _source_exists(path):
+def _build_vnp_table(con, path, state, sample_id):
+    if state != "present":
         con.execute("CREATE TABLE vnp ({})".format(_ddl(_subset_schema("VNP_"))))
         return
     con.execute(
@@ -629,8 +703,8 @@ def _build_vnp_table(con, path, sample_id):
     con.execute("DROP TABLE vnp_raw")
 
 
-def _build_kraken2_table(con, path, sample_id):
-    if not _source_exists(path):
+def _build_kraken2_table(con, path, state, sample_id):
+    if state != "present":
         con.execute("CREATE TABLE k2 ({})".format(_ddl(_subset_schema("K2_"))))
         return
     con.execute(
@@ -638,6 +712,7 @@ def _build_kraken2_table(con, path, sample_id):
         [path],
     )
     _validate_columns(con, "k2_raw", KRAKEN2_ANNOTATED_COLUMNS, "Kraken2 reads")
+    _require_sample_rows(con, "k2_raw", sample_id, "Kraken2 reads")
     con.execute(
         """
         CREATE TABLE k2 AS
@@ -655,8 +730,8 @@ def _build_kraken2_table(con, path, sample_id):
     con.execute("DROP TABLE k2_raw")
 
 
-def _build_centrifuger_table(con, path, sample_id):
-    if not _source_exists(path):
+def _build_centrifuger_table(con, path, state, sample_id):
+    if state != "present":
         con.execute(
             "CREATE TABLE centrifuger ({})".format(_ddl(_subset_schema("CENTRIFUGER_")))
         )
@@ -668,6 +743,7 @@ def _build_centrifuger_table(con, path, sample_id):
     _validate_columns(
         con, "centrifuger_raw", CENTRIFUGER_ANNOTATED_COLUMNS, "Centrifuger reads"
     )
+    _require_sample_rows(con, "centrifuger_raw", sample_id, "Centrifuger reads")
     con.execute(
         """
         CREATE TABLE centrifuger AS
@@ -692,22 +768,32 @@ def _build_centrifuger_table(con, path, sample_id):
     con.execute("DROP TABLE centrifuger_raw")
 
 
-def _build_genomad_table(con, path):
-    if not _source_exists(path):
-        con.execute("CREATE TABLE genomad ({})".format(_ddl(_GENOMAD_TABLE_SCHEMA)))
+def _build_genomad_table(con, path, state, sample_id):
+    if state != "present":
+        con.execute("CREATE TABLE genomad ({})".format(_ddl(_subset_schema("GENOMAD_"))))
         return
     con.execute(
         "CREATE TABLE genomad_raw AS SELECT * FROM {}".format(_reader_sql(path)),
         [path],
     )
-    _validate_columns(
-        con, "genomad_raw", list(GENOMAD_COLUMNS.keys()), "geNomad virus summary"
-    )
+    _validate_columns(con, "genomad_raw", GENOMAD_READ_REQUIRED_COLUMNS, "geNomad reads")
     con.execute(
         """
         CREATE TABLE genomad AS
+        WITH norm AS (
+            SELECT CAST(? AS VARCHAR) AS SAMPLE_ID,
+                   regexp_replace(CAST(read_id AS VARCHAR), '/[12]$', '') AS READ_ID,
+                   CASE WHEN CAST(read_id AS VARCHAR) LIKE '%/1' THEN '1'
+                        WHEN CAST(read_id AS VARCHAR) LIKE '%/2' THEN '2'
+                        ELSE '' END AS MATE,
+                   rowid AS ord, * EXCLUDE (read_id)
+            FROM genomad_raw
+        )
         SELECT
-            NULLIF(CAST(seq_name AS VARCHAR), '') AS CONTIG_ID,
+            SAMPLE_ID, READ_ID,
+            NULLIF(CAST(contig_id AS VARCHAR), '') AS GENOMAD_CONTIG_ID,
+            NULLIF(CAST(seq_name AS VARCHAR), '') AS GENOMAD_SEQ_NAME,
+            TRY_CAST(mapped_well AS BOOLEAN) AS GENOMAD_MAPPED_WELL,
             TRY_CAST(length AS BIGINT) AS GENOMAD_LENGTH,
             NULLIF(CAST(topology AS VARCHAR), '') AS GENOMAD_TOPOLOGY,
             NULLIF(CAST(coordinates AS VARCHAR), '') AS GENOMAD_COORDINATES,
@@ -718,8 +804,14 @@ def _build_genomad_table(con, path):
             TRY_CAST(n_hallmarks AS BIGINT) AS GENOMAD_N_HALLMARKS,
             TRY_CAST(marker_enrichment AS DOUBLE) AS GENOMAD_MARKER_ENRICHMENT,
             NULLIF(CAST(taxonomy AS VARCHAR), '') AS GENOMAD_TAXONOMY
-        FROM genomad_raw
-        """
+        FROM norm
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY SAMPLE_ID, READ_ID
+            ORDER BY TRY_CAST(mapping_quality AS BIGINT) DESC NULLS LAST,
+                     TRY_CAST(pct_identity AS DOUBLE) DESC NULLS LAST, MATE ASC, ord ASC
+        ) = 1
+        """,
+        [sample_id],
     )
     con.execute("DROP TABLE genomad_raw")
 
@@ -765,8 +857,24 @@ def _require_columns(actual_columns, required_columns, label):
         )
 
 
-def _source_exists(path):
-    return bool(path) and os.path.isfile(path)
+def _require_sample_rows(con, raw_table, sample_id, label):
+    total, matching = con.execute(
+        f"SELECT count(*), count(*) FILTER (WHERE CAST(SAMPLE_ID AS VARCHAR) = ?) FROM {raw_table}",
+        [sample_id],
+    ).fetchone()
+    if total and not matching:
+        example = con.execute(f"SELECT SAMPLE_ID FROM {raw_table} LIMIT 1").fetchone()[0]
+        raise ValueError(f"{label} has {total} rows but none for SAMPLE_ID '{sample_id}' (found '{example}')")
+    if matching < total:
+        log.warning("%s: ignoring %d rows whose SAMPLE_ID is not '%s'", label, total - matching, sample_id)
+
+
+def _source_state(path):
+    if not path:
+        return None
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+    return "empty" if os.path.getsize(path) == 0 else "present"
 
 
 def _parse_int(value, label):

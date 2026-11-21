@@ -4,82 +4,15 @@ import pandas as pd
 import pytest
 import pysam
 
+from tests.unit.classify.fixtures import contig_segment, write_contig_bam
 from viral_ngs.classify import virnucpro
 from viral_ngs.core import file as util_file
 
-
-_REF_IDS = {
-    "NODE_1": 0,
-    "NODE_2": 1,
-    "NODE_3": 2,
-}
-
-_BAM_HEADER = {
-    "HD": {"VN": "1.6"},
-    "SQ": [
-        {"SN": "NODE_1", "LN": 1000},
-        {"SN": "NODE_2", "LN": 1000},
-        {"SN": "NODE_3", "LN": 1000},
-    ],
-}
 
 requires_duckdb = pytest.mark.skipif(
     importlib.util.find_spec("duckdb") is None,
     reason="DuckDB is required for VirNucPro read classification tests",
 )
-
-
-def _write_bam(path, records):
-    with pysam.AlignmentFile(str(path), "wb", header=_BAM_HEADER) as outf:
-        for record in records:
-            outf.write(record)
-
-
-def _segment(
-    query_name,
-    reference_name="NODE_1",
-    reference_start=0,
-    cigar=None,
-    mapq=60,
-    nm=0,
-    flag=0,
-    query_length=None,
-):
-    cigar = cigar or [(pysam.CMATCH, 100)]
-    if query_length is None:
-        query_length = sum(
-            length
-            for op, length in cigar
-            if op in (
-                pysam.CMATCH,
-                pysam.CINS,
-                pysam.CSOFT_CLIP,
-                pysam.CEQUAL,
-                pysam.CDIFF,
-            )
-        )
-    if query_length == 0:
-        query_length = 100
-
-    record = pysam.AlignedSegment()
-    record.query_name = query_name
-    record.query_sequence = "A" * query_length
-    record.query_qualities = pysam.qualitystring_to_array("I" * query_length)
-    record.flag = flag
-
-    if flag & 0x4:
-        record.reference_id = -1
-        record.reference_start = -1
-        record.mapping_quality = 0
-    else:
-        record.reference_id = _REF_IDS[reference_name]
-        record.reference_start = reference_start
-        record.mapping_quality = mapq
-        record.cigartuples = cigar
-        if nm is not None:
-            record.set_tag("NM", nm)
-
-    return record
 
 
 def test_classify_contigs_writes_sorted_contig_calls(tmp_path):
@@ -198,24 +131,24 @@ def test_classify_reads_by_contig_writes_read_level_calls(tmp_path):
         "NODE_1\tViral\thigh_confidence\t0.9\t5\t5\t0\t0\t1.0\t0.0\n"
         "NODE_2\tNon-viral\thigh_confidence\t-0.9\t5\t0\t5\t0\t0.0\t1.0\n"
     )
-    _write_bam(
+    write_contig_bam(
         aligned_bam,
         [
             # read1 maps well to a viral contig.
-            _segment("read1", "NODE_1", mapq=60, nm=5),
+            contig_segment("read1", "NODE_1", mapq=60, nm=5),
             # Secondary alignment is ignored.
-            _segment("read1", "NODE_2", mapq=60, nm=5, flag=0x100),
+            contig_segment("read1", "NODE_2", mapq=60, nm=5, flag=0x100),
             # Supplementary alignment is ignored before NM validation.
-            _segment("read1", "NODE_2", mapq=60, nm=None, flag=0x800),
+            contig_segment("read1", "NODE_2", mapq=60, nm=None, flag=0x800),
             # read2 maps below the default mapq threshold to a non-viral contig.
-            _segment("read2", "NODE_2", mapq=3, nm=5),
+            contig_segment("read2", "NODE_2", mapq=3, nm=5),
             # read3 maps to contigs with distinct calls and is flagged Multi-mapped.
-            _segment("read3", "NODE_1", mapq=20, nm=10),
-            _segment("read3", "NODE_2", mapq=30, nm=2, flag=0x10),
+            contig_segment("read3", "NODE_1", mapq=20, nm=10),
+            contig_segment("read3", "NODE_2", mapq=30, nm=2, flag=0x10),
             # Missing contig classification is filled as Unclassified.
-            _segment("read4", "NODE_3", mapq=30, nm=9),
+            contig_segment("read4", "NODE_3", mapq=30, nm=9),
             # Unmapped reads are not read-classification candidates.
-            _segment("read5", flag=0x4),
+            contig_segment("read5", flag=0x4),
         ],
     )
 
@@ -262,10 +195,10 @@ def test_classify_reads_by_contig_computes_bam_identity_and_query_cov(tmp_path):
         "nonviral_proportion\n"
         "NODE_1\tViral\thigh_confidence\t0.9\t5\t5\t0\t0\t1.0\t0.0\n"
     )
-    _write_bam(
+    write_contig_bam(
         aligned_bam,
         [
-            _segment(
+            contig_segment(
                 "read1",
                 "NODE_1",
                 cigar=[
@@ -305,10 +238,10 @@ def test_classify_reads_by_contig_counts_indels_in_identity_denominator(tmp_path
         "nonviral_proportion\n"
         "NODE_1\tViral\thigh_confidence\t0.9\t5\t5\t0\t0\t1.0\t0.0\n"
     )
-    _write_bam(
+    write_contig_bam(
         aligned_bam,
         [
-            _segment(
+            contig_segment(
                 "read1",
                 "NODE_1",
                 cigar=[
@@ -347,7 +280,7 @@ def test_classify_reads_by_contig_writes_header_for_empty_bam(tmp_path):
         "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
         "nonviral_proportion\n"
     )
-    _write_bam(aligned_bam, [])
+    write_contig_bam(aligned_bam, [])
 
     virnucpro.classify_reads_by_contig(
         str(aligned_bam),
@@ -373,11 +306,11 @@ def test_classify_reads_by_contig_writes_header_for_all_unmapped_bam(tmp_path):
         "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
         "nonviral_proportion\n"
     )
-    _write_bam(
+    write_contig_bam(
         aligned_bam,
         [
-            _segment("read1", flag=0x4),
-            _segment("read2", flag=0x4),
+            contig_segment("read1", flag=0x4),
+            contig_segment("read2", flag=0x4),
         ],
     )
 
@@ -399,7 +332,7 @@ def test_classify_reads_by_contig_rejects_missing_classification_columns(tmp_pat
     aligned_bam = tmp_path / "reads.bam"
 
     contig_classifications.write_text("ID\tcall\nNODE_1\tViral\n")
-    _write_bam(aligned_bam, [_segment("read1", "NODE_1", mapq=60, nm=5)])
+    write_contig_bam(aligned_bam, [contig_segment("read1", "NODE_1", mapq=60, nm=5)])
 
     with pytest.raises(ValueError, match="Missing required columns"):
         virnucpro.classify_reads_by_contig(
@@ -420,7 +353,7 @@ def test_classify_reads_by_contig_rejects_mapped_bam_without_nm(tmp_path):
         "nonviral_proportion\n"
         "NODE_1\tViral\thigh_confidence\t0.9\t5\t5\t0\t0\t1.0\t0.0\n"
     )
-    _write_bam(aligned_bam, [_segment("read1", "NODE_1", nm=None)])
+    write_contig_bam(aligned_bam, [contig_segment("read1", "NODE_1", nm=None)])
 
     with pytest.raises(ValueError, match="missing required NM tag"):
         virnucpro.classify_reads_by_contig(
@@ -449,7 +382,7 @@ def test_classify_reads_by_contig_rejects_invalid_percent_thresholds(
         "n_confident_nonviral\tn_ambiguous\tviral_proportion\t"
         "nonviral_proportion\n"
     )
-    _write_bam(aligned_bam, [])
+    write_contig_bam(aligned_bam, [])
 
     with pytest.raises(ValueError, match=match):
         virnucpro.classify_reads_by_contig(

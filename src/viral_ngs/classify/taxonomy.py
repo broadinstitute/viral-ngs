@@ -234,23 +234,24 @@ class TaxonomyDb(object):
             names = {}
         else:
             names = collections.defaultdict(list)
-        for line in util_file.open_or_gzopen(names_db):
-            parts = line.strip().split('|')
-            taxid = int(parts[0])
-            name = parts[1].strip()
-            class_ = parts[3].strip()
-            if scientific_only:
-                if class_ == 'scientific name':
-                    names[taxid] = name
-            else:
-                names[taxid].append(name)
+        with util_file.open_or_gzopen(names_db, 'rt') as f:
+            for line in f:
+                parts = line.strip().split('|')
+                taxid = int(parts[0])
+                name = parts[1].strip()
+                class_ = parts[3].strip()
+                if scientific_only:
+                    if class_ == 'scientific name':
+                        names[taxid] = name
+                else:
+                    names[taxid].append(name)
         return names
 
     def load_nodes(self, nodes_db):
         '''Load ranks and parents arrays from NCBI taxonomy.'''
         ranks = {}
         parents = {}
-        with util_file.open_or_gzopen(nodes_db) as f:
+        with util_file.open_or_gzopen(nodes_db, 'rt') as f:
             for line in f:
                 parts = line.strip().split('|')
                 taxid = int(parts[0])

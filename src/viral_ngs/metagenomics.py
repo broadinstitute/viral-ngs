@@ -646,6 +646,27 @@ def main_centrifuger_kreport(db, classification, output, no_lca=False,
 __commands__.append(('centrifuger_kreport', parser_centrifuger_kreport))
 
 
+def parser_taxonomy_duckdb_build(parser=argparse.ArgumentParser()):
+    parser.add_argument('nodes_dmp', help='NCBI taxonomy nodes.dmp (optionally .gz).')
+    parser.add_argument('names_dmp', help='NCBI taxonomy names.dmp (optionally .gz).')
+    parser.add_argument('out_duckdb', help='Output DuckDB file with table taxonomy(taxid, name, kingdom, rank, parent_id).')
+    cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+    cmd.attach_main(parser, main_taxonomy_duckdb_build, split_args=True)
+    return parser
+
+
+def main_taxonomy_duckdb_build(nodes_dmp, names_dmp, out_duckdb):
+    '''
+        Build the taxonomy reference for read annotation. Kingdom is the scientific
+        name of the nearest superkingdom, domain, or acellular root, including
+        the taxon itself; taxa without such an ancestor have kingdom Other.
+    '''
+    read_classifications.build_taxonomy_duckdb(nodes_dmp, names_dmp, out_duckdb)
+
+
+__commands__.append(('taxonomy_duckdb_build', parser_taxonomy_duckdb_build))
+
+
 def parser_kraken2_annotate_reads(parser=argparse.ArgumentParser()):
     parser.add_argument('kraken2_reads',
                         help='Native Kraken2 --outReads file.')
@@ -747,19 +768,27 @@ def parser_join_read_classifications(parser=argparse.ArgumentParser()):
                         dest='vnp_reads',
                         default=None,
                         help='VirNucPro per-read TSV.')
-    parser.add_argument('--genomad-virus-summary', '--genomadVirusSummary',
-                        dest='genomad_virus_summary',
+    parser.add_argument('--genomad-reads', '--genomadReads',
+                        dest='genomad_reads',
                         default=None,
-                        help='geNomad virus_summary TSV.')
+                        help='Per-read geNomad labels TSV from genomad_label_reads_by_contig.')
     parser.add_argument('--centrifuger-reads', '--centrifugerReads',
                         dest='centrifuger_reads',
                         default=None,
-                        help='Normalized Centrifuger read taxonomy TSV or Parquet.')
-    parser.add_argument('--filter-human-only-k2',
-                        dest='filter_human_only_k2',
+                        help='Normalized Centrifuger read taxonomy TSV from centrifuger_annotate_reads.')
+    parser.add_argument('--filter-human-only',
+                        dest='filter_human_only',
                         action=argparse.BooleanOptionalAction,
                         default=True,
-                        help='Drop human-only Kraken2 rows absent from Kallisto/VirNucPro signal. (default: %(default)s)')
+                        help='Drop reads whose only classification is Homo sapiens (Kraken2 and/or Centrifuger) '
+                             'and that have no Kallisto, VirNucPro, or geNomad row. (default: %(default)s)')
+    parser.add_argument('--drop-unclassified',
+                        dest='drop_unclassified',
+                        action=argparse.BooleanOptionalAction,
+                        default=False,
+                        help='Drop reads that Kraken2 and Centrifuger left unclassified (taxid 0 or absent) '
+                             'and that have no Kallisto, VirNucPro, or geNomad row. Default keeps every read. '
+                             '(default: %(default)s)')
     parser.add_argument('--duckdb-memory-limit', '--duckdbMemoryLimit',
                         dest='duckdb_memory_limit',
                         default=None,
@@ -781,14 +810,20 @@ def main_join_read_classifications(
     kallisto_summary=None,
     kraken2_reads=None,
     vnp_reads=None,
-    genomad_virus_summary=None,
+    genomad_reads=None,
     centrifuger_reads=None,
-    filter_human_only_k2=True,
+    filter_human_only=True,
+    drop_unclassified=False,
     duckdb_memory_limit=None,
     work_dir=None,
 ):
     '''
-        Join read-level classification outputs into a stable Parquet table.
+        Join any combination of five independent, optional read sources (Kallisto,
+        Kraken2, Centrifuger, VirNucPro and geNomad) on (SAMPLE_ID, READ_ID)
+        after stripping /1 and /2 mate suffixes. A zero-byte input is empty;
+        a missing path is an error. Without a Kallisto, VirNucPro or geNomad
+        row, human-only taxonomy calls (taxid 9606) are dropped by default;
+        unclassified reads (taxid 0 or absent) are kept unless --drop-unclassified.
     '''
     read_classifications.join_read_classifications(
         out_parquet,
@@ -796,9 +831,10 @@ def main_join_read_classifications(
         kallisto_summary=kallisto_summary,
         kraken2_reads=kraken2_reads,
         vnp_reads=vnp_reads,
-        genomad_virus_summary=genomad_virus_summary,
+        genomad_reads=genomad_reads,
         centrifuger_reads=centrifuger_reads,
-        filter_human_only_k2=filter_human_only_k2,
+        filter_human_only=filter_human_only,
+        drop_unclassified=drop_unclassified,
         duckdb_memory_limit=duckdb_memory_limit,
         work_dir=work_dir,
     )
@@ -888,14 +924,7 @@ def main_virnucpro_contigs(
 __commands__.append(('virnucpro_contigs', parser_virnucpro_contigs))
 
 
-def parser_virnucpro_label_reads_by_contig(parser=argparse.ArgumentParser()):
-    parser.add_argument('aligned_bam',
-                        help='Minimap2-aligned BAM with NM tags.')
-    parser.add_argument('contig_classifications',
-                        help='Per-contig VirNucPro classification TSV produced by virnucpro_contigs.')
-    parser.add_argument('output_tsv',
-                        help='Output per-read classification TSV. Compression is inferred from the '
-                             'extension (.gz/.zst/.lz4/.bz2).')
+def _add_read_by_contig_options(parser):
     parser.add_argument('--minMapq', '--min-mapq', dest='min_mapq', type=int, default=5,
                         help='Minimum mapping quality for the mapped_well flag. (default: %(default)s)')
     parser.add_argument('--minIdentity', '--min-identity', dest='min_identity', type=float, default=90.0,
@@ -912,6 +941,17 @@ def parser_virnucpro_label_reads_by_contig(parser=argparse.ArgumentParser()):
                         help='Directory for the per-run temp dir / DuckDB spill '
                              '(default: %(default)s = system tmp).')
     cmd.common_args(parser, (('loglevel', None), ('version', None), ('tmp_dir', None)))
+
+
+def parser_virnucpro_label_reads_by_contig(parser=argparse.ArgumentParser()):
+    parser.add_argument('aligned_bam',
+                        help='Minimap2-aligned BAM with NM tags.')
+    parser.add_argument('contig_classifications',
+                        help='Per-contig VirNucPro classification TSV produced by virnucpro_contigs.')
+    parser.add_argument('output_tsv',
+                        help='Output per-read classification TSV. Compression is inferred from the '
+                             'extension (.gz/.zst/.lz4/.bz2).')
+    _add_read_by_contig_options(parser)
     cmd.attach_main(parser, main_virnucpro_label_reads_by_contig, split_args=True)
     return parser
 
@@ -1814,6 +1854,35 @@ def main_genomad(in_fasta, database, out_dir, cleanup=False, restart=False,
         splits=splits,
     )
 __commands__.append(('genomad', parser_genomad))
+
+
+def parser_genomad_label_reads_by_contig(parser=argparse.ArgumentParser()):
+    parser.add_argument('aligned_bam', help='Reads-to-contigs BAM with NM tags.')
+    parser.add_argument('virus_summary', help='geNomad <prefix>_virus_summary.tsv.')
+    parser.add_argument('output_tsv', help='Output per-read geNomad labels TSV. Compression is inferred from extension.')
+    _add_read_by_contig_options(parser)
+    cmd.attach_main(parser, main_genomad_label_reads_by_contig, split_args=True)
+    return parser
+
+
+def main_genomad_label_reads_by_contig(
+    aligned_bam, virus_summary, output_tsv, min_mapq=5, min_identity=90.0,
+    min_query_cov=80.0, duckdb_memory_limit=None, work_dir=None,
+):
+    '''
+        Write one row per read with a primary alignment to a geNomad virus contig
+        or overlapping a provirus region. Choose the best by mapping quality,
+        percent identity, virus score, then input order. mapped_well is a flag,
+        not a filter. A zero-byte virus summary yields a header-only output.
+    '''
+    genomad.label_reads_by_contig(
+        aligned_bam, virus_summary, output_tsv, min_mapq=min_mapq,
+        min_identity=min_identity, min_query_cov=min_query_cov,
+        duckdb_memory_limit=duckdb_memory_limit, work_dir=work_dir,
+    )
+
+
+__commands__.append(('genomad_label_reads_by_contig', parser_genomad_label_reads_by_contig))
 
 
 def full_parser():

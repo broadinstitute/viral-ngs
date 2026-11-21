@@ -405,3 +405,89 @@ not need special-case “no output produced” handling for empty samples.
 | Write `read_hits.tsv` alongside `summary.tsv` from extract. | `summary.tsv` is the human-readable surface; `read_hits.tsv` is a minimal read-to-hit table retained as a secondary output for consumers that only need the mapping. |
 | Default missing taxonomy to `Unclassified RdRP`. | The current reference domain is palmDB/RdRP. A fixed sentinel keeps `summary.tsv` and top-taxa output well-formed when a hit is absent from the taxonomy map. |
 | Report `highest` taxonomy for extract and `deepest` for top-taxa. | Read-level summaries favor a stable broad label, while focal top-taxa reporting wants the most specific name available. |
+
+## Read Classification Joining
+
+`metagenomics join_read_classifications` replaces the inline viral-pipelines
+post-processing with one ZSTD-compressed Parquet row per `(SAMPLE_ID, READ_ID)`.
+The inputs are independent: a read reported by any one of Kallisto, Kraken2,
+Centrifuger, VirNucPro or geNomad is a candidate, even if all other inputs are
+omitted. Tool-specific interpretation stays in viral-ngs rather than in WDL.
+
+### Input Producers
+
+| Join option | Per-read input |
+| --- | --- |
+| `--kallisto-summary` | `summary.tsv` from `metagenomics kallisto_extract` |
+| `--kraken2-reads` | `metagenomics kraken2_annotate_reads` on native Kraken2 `--outReads` output |
+| `--centrifuger-reads` | `metagenomics centrifuger_annotate_reads` on native Centrifuger classifications |
+| `--vnp-reads` | `metagenomics virnucpro_label_reads_by_contig` on a reads-to-contigs BAM and VirNucPro contig calls |
+| `--genomad-reads` | `metagenomics genomad_label_reads_by_contig` on a reads-to-contigs BAM and geNomad virus summary |
+
+Build the reusable reference for both annotate commands with
+`metagenomics taxonomy_duckdb_build nodes.dmp names.dmp taxonomy.duckdb` (plain or gzipped
+NCBI dumps). The `taxonomy` table holds `taxid`, scientific `name`, `kingdom`,
+`rank` and `parent_id`. Starting at the taxon itself, the nearest `superkingdom`,
+`domain` or `acellular root` supplies the kingdom name; without one the kingdom
+is `Other`. This handles both older and current NCBI ranks. `--resolve-strains`
+reports the nearest ranked ancestor of a no-rank node.
+
+The geNomad labeler uses only the virus summary, not plasmid calls or VirNucPro
+results. It matches the BAM reference name against `seq_name` without a trailing
+`|provirus_<start>_<end>`. Whole-contig calls (`coordinates` = `NA`) label any
+primary alignment there. For a provirus, the BAM span `[start, end)` must overlap
+the 1-based inclusive geNomad interval: `start < region_end` and `end >= region_start`.
+Among matching primary alignments for a query name, mapping quality, percent
+identity, then numeric virus score take precedence; input order breaks ties.
+`mapped_well` records the quality thresholds without filtering rows. Reads
+without a matching virus call produce no label.
+
+### Join Contract
+
+The join strips a trailing `/1` or `/2` from read IDs in all five inputs.
+Kallisto, Kraken2 and Centrifuger carry `SAMPLE_ID`: a nonempty source with no
+row for the requested sample is an error. A mixed-sample source contributes
+only matching rows and logs how many it ignored. VirNucPro and geNomad labels
+have no sample column and are stamped with the requested sample ID.
+
+Every source joins to the union of normalized keys, not to another tool's
+output. Absent sources have typed NULL columns. In particular, `GENOMAD_CONTIG_ID`
+is the BAM reference and `GENOMAD_SEQ_NAME` preserves the full virus or provirus
+name; neither depends on `VNP_CONTIG_ID`. `FINAL_SCHEMA` in
+`read_classifications.py` defines all 51 Parquet columns, in output order.
+
+### Filtering And Cardinality
+
+Kallisto and VirNucPro collapse mate hits and retain their concordance fields.
+geNomad chooses one mate by mapping quality, percent identity, mate, then input
+order. Duplicate normalized Kraken2 or Centrifuger keys are errors. The join
+checks final key uniqueness before writing.
+
+Filtering happens **after** joining. Any Kallisto, VirNucPro or geNomad row
+keeps the read, regardless of its label or `mapped_well` flag. Otherwise:
+
+- `--filter-human-only` (default) drops a read when Kraken2 or Centrifuger calls
+  human (taxid `9606`) and neither reports a nonzero, nonhuman taxid. A missing
+  or unclassified call from the other classifier does not override a human call.
+  Taxon names are not consulted. `--no-filter-human-only` keeps these reads.
+- `--drop-unclassified` drops a read if both taxonomy calls are absent, NULL,
+  or taxid `0`. These reads are kept by default.
+
+### Empty Inputs
+
+At least one join input must be provided. An omitted input, a zero-byte file,
+and a valid header-only table contribute no reads. A supplied path that is
+missing or not a file is an error. If all sources are empty or every read is
+filtered out, the output still has the full typed Parquet schema.
+
+Both annotate commands require the native classifier output and taxonomy DB;
+empty native output yields a header-only normalized TSV. The geNomad labeler
+likewise writes its TSV header for a zero-byte summary, no primary alignments,
+or no overlaps.
+
+### Resource Management
+
+The join and BAM labelers use `viral_ngs.core.duckdb_utils` for in-memory
+DuckDB connections with a per-run spill directory. `--work-dir` chooses its
+parent. `--duckdb-memory-limit` overrides the cgroup-aware default; an empty
+string disables the cap.

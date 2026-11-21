@@ -3,8 +3,78 @@ import os
 from os.path import join
 import shutil
 
+import pysam
+
 from viral_ngs.classify import krona as krona_module
 from viral_ngs.core import file
+
+CONTIG_REF_IDS = {
+    "NODE_1": 0,
+    "NODE_2": 1,
+    "NODE_3": 2,
+}
+
+CONTIG_BAM_HEADER = {
+    "HD": {"VN": "1.6"},
+    "SQ": [
+        {"SN": "NODE_1", "LN": 1000},
+        {"SN": "NODE_2", "LN": 1000},
+        {"SN": "NODE_3", "LN": 1000},
+    ],
+}
+
+def write_contig_bam(path, records):
+    with pysam.AlignmentFile(str(path), "wb", header=CONTIG_BAM_HEADER) as outf:
+        for record in records:
+            outf.write(record)
+
+
+def contig_segment(
+    query_name,
+    reference_name="NODE_1",
+    reference_start=0,
+    cigar=None,
+    mapq=60,
+    nm=0,
+    flag=0,
+    query_length=None,
+):
+    cigar = cigar or [(pysam.CMATCH, 100)]
+    if query_length is None:
+        query_length = sum(
+            length
+            for op, length in cigar
+            if op in (
+                pysam.CMATCH,
+                pysam.CINS,
+                pysam.CSOFT_CLIP,
+                pysam.CEQUAL,
+                pysam.CDIFF,
+            )
+        )
+    if query_length == 0:
+        query_length = 100
+
+    record = pysam.AlignedSegment()
+    record.query_name = query_name
+    record.query_sequence = "A" * query_length
+    record.query_qualities = pysam.qualitystring_to_array("I" * query_length)
+    record.flag = flag
+
+    if flag & 0x4:
+        record.reference_id = -1
+        record.reference_start = -1
+        record.mapping_quality = 0
+    else:
+        record.reference_id = CONTIG_REF_IDS[reference_name]
+        record.reference_start = reference_start
+        record.mapping_quality = mapq
+        record.cigartuples = cigar
+        if nm is not None:
+            record.set_tag("NM", nm)
+
+    return record
+
 
 # @pytest.fixture(scope='module')
 def krona():
